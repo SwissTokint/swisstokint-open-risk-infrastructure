@@ -1,0 +1,15 @@
+{
+  "name": "@swisstokint/open-risk-infrastructure",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Deterministic and inspectable market-risk rule evaluation.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/**/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.4"
+  }
+}
