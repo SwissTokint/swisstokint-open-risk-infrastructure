@@ -1,0 +1,10 @@
+{
+  "name": "@swisstokint/proof-of-method",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": "./swisstokint-proof.mjs",
+  "engines": {
+    "node": ">=20"
+  }
+}

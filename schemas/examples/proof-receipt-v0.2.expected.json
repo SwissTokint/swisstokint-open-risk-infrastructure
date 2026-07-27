@@ -1,0 +1,17 @@
+{
+  "wire_receipt": {
+    "schema_version": "pom-receipt/0.2",
+    "receipt_id": "01JZ8K7M6A5P4R3T2V1W0X9Y8Z",
+    "kind": "signal",
+    "subject_ref": "allmarkets-v2/BTCUSDT/trailing_armed",
+    "method_hash": "2fd6bda86d496c33036231d7d80bf94c486347a05b696378ab8d201286f99ae8",
+    "risk_policy_hash": "1e6bf4fc4979270cbde60e5213f085783223764d63f9f8eec8c18f3f3ebc1f2b",
+    "payload_hash": "bd99408c3444d7d10cd5a27be47267ddbc47cdcd71954b41a1c924967a5b4123",
+    "occurred_at": "2026-07-27T10:15:30.000Z",
+    "nonce": "proof_nonce_01JZ8K7M6A5P4R3T",
+    "source_key_id": "docker-relay-v2"
+  },
+  "canonical_payload": "{\"event\":\"trailing_armed\",\"risk_policy_version\":\"risk-v2\",\"strategy_version\":\"AllMarketsV2@7d9928f\"}",
+  "commitment": "{\"kind\":\"signal\",\"method_hash\":\"2fd6bda86d496c33036231d7d80bf94c486347a05b696378ab8d201286f99ae8\",\"nonce_hash\":\"8a4af41be866773e1bd77653d305f757f8b0f64a52d503cbc88c860d413a0399\",\"occurred_at\":\"2026-07-27T10:15:30.000Z\",\"payload_hash\":\"bd99408c3444d7d10cd5a27be47267ddbc47cdcd71954b41a1c924967a5b4123\",\"receipt_id\":\"01JZ8K7M6A5P4R3T2V1W0X9Y8Z\",\"risk_policy_hash\":\"1e6bf4fc4979270cbde60e5213f085783223764d63f9f8eec8c18f3f3ebc1f2b\",\"schema_version\":\"pom-receipt/0.2\",\"source_key_id\":\"docker-relay-v2\",\"subject_ref\":\"allmarkets-v2/BTCUSDT/trailing_armed\",\"version\":2}",
+  "commitment_hash": "de204c0c9594c457f8c2243ae4a9d6e4e98f2fd7d53f4ab7797635e1d90a476c"
+}

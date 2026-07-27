@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/proof-receipt-v0.2.schema.json",
+  "title": "SwissTokint Proof of Method Receipt v0.2",
+  "description": "Wire format submitted to the SwissTokint commitment service. The raw payload never leaves the source environment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "kind",
+    "subject_ref",
+    "method_hash",
+    "risk_policy_hash",
+    "payload_hash",
+    "occurred_at",
+    "nonce",
+    "source_key_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "pom-receipt/0.2"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$"
+    },
+    "kind": {
+      "enum": ["signal", "research", "governance", "milestone"]
+    },
+    "subject_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "method_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "risk_policy_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "payload_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$"
+    },
+    "source_key_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
