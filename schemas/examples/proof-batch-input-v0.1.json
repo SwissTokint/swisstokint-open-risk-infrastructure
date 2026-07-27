@@ -1,0 +1,17 @@
+[
+  {
+    "receipt_id": "01JZ8K7M6A5P4R3T2V1W0X9Y8Z",
+    "commitment_hash": "de204c0c9594c457f8c2243ae4a9d6e4e98f2fd7d53f4ab7797635e1d90a476c",
+    "occurred_at": "2026-07-27T10:15:30.000Z"
+  },
+  {
+    "receipt_id": "01JZ8K7M6A5P4R3T2V1W0X9Y90",
+    "commitment_hash": "2715b4050047a3952dc20e6d59e66768f763acac60c928509b0219333f2e634e",
+    "occurred_at": "2026-07-27T10:16:30.000Z"
+  },
+  {
+    "receipt_id": "01JZ8K7M6A5P4R3T2V1W0X9Y91",
+    "commitment_hash": "0d189dfdd39eb1ac7f437f84ca2112f242a105ae1b6f4873987ab176f7e7b15c",
+    "occurred_at": "2026-07-27T10:17:30.000Z"
+  }
+]
