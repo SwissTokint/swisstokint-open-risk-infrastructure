@@ -97,6 +97,11 @@ class ProofReceiptSdkTests(unittest.TestCase):
             )
         )
 
+    def test_merkle_batch_rejects_unknown_public_fields(self) -> None:
+        unsafe = [dict(self.batch_input[0], private_key="must-never-be-published")]
+        with self.assertRaisesRegex(ValueError, "missing or unknown fields"):
+            build_merkle_batch(unsafe)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -95,3 +95,10 @@ test('Merkle batch and inclusion proofs match the cross-language fixture', () =>
     false,
   );
 });
+
+test('Merkle batch rejects unknown public fields', () => {
+  assert.throws(
+    () => buildMerkleBatch([{ ...batchInput[0], private_key: 'must-never-be-published' }]),
+    /missing or unknown fields/,
+  );
+});

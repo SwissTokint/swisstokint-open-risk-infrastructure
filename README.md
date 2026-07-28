@@ -3,11 +3,14 @@
 Open infrastructure for proving which method and risk policy governed an
 autonomous financial action without publishing the private strategy.
 
-This repository contains two interoperable building blocks:
+This repository contains three interoperable building blocks:
 
 1. a deterministic risk-rule engine whose results can be replayed and reviewed;
 2. Proof Receipt v0.2, a signed commitment format with matching TypeScript and
-   Python SDKs, deterministic Merkle batching and a minimal Docker relay.
+   Python SDKs, deterministic Merkle batching and a minimal Docker relay;
+3. a pre-grant Filecoin readiness prototype that packages receipt proofs into a
+   deterministic CAR, derives a stable root CID and verifies every block and
+   Merkle path after retrieval.
 
 The protocol is designed for trading bots and financial agents, but it does not
 execute trades, hold assets or receive exchange credentials.
@@ -30,6 +33,9 @@ The current prototype provides:
 - a dry-run capable Docker relay;
 - shared test fixtures for TypeScript and Python;
 - deterministic, inspectable market-risk rules.
+- deterministic CARv1 evidence bundles with content-addressed receipt proofs;
+- a fail-closed Synapse adapter boundary for prepare, upload and byte-for-byte
+  retrieval verification.
 
 ## Repository map
 
@@ -38,6 +44,8 @@ The current prototype provides:
 | `docs/PROOF_OF_METHOD_PROTOCOL.md` | Protocol thesis, safeguards and staged roadmap |
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
+| `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
+| `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `schemas/` | JSON Schemas and cross-language fixtures |
 | `sdk/typescript/` | TypeScript/Node reference implementation |
 | `sdk/python/` | Python reference implementation |
@@ -58,6 +66,20 @@ npm test
 The proof fixtures intentionally use the same inputs in both SDKs. A passing
 test run demonstrates that both languages derive the same receipt commitments,
 Merkle root and inclusion proofs.
+
+Build and verify the deterministic Filecoin CAR prototype:
+
+```bash
+node scripts/build-filecoin-bundle.mjs \
+  schemas/examples/proof-batch-input-v0.1.json \
+  proof-batch.car
+node scripts/verify-filecoin-bundle.mjs proof-batch.car
+```
+
+The fixture always derives root CID
+`bafkreid35libc4fqwf7wjssalgjd7vfdff6cu7akwek4enqmx4u3fxl53e`.
+That CID identifies the CAR manifest. A Filecoin PieceCID returned by Synapse
+identifies the uploaded storage piece and is a separate value.
 
 To inspect a receipt without sending anything:
 
@@ -94,6 +116,12 @@ See [SECURITY.md](SECURITY.md) and
 - [x] Publish Proof Receipt v0.2 and deterministic cross-language fixtures.
 - [x] Add portable Merkle batching and inclusion proofs.
 - [x] Publish a minimal Docker relay with local sensitive-field rejection.
+- [x] Publish a bounded, deterministic CAR/CID readiness prototype.
+- [x] Add a fail-closed Synapse upload and retrieval adapter boundary.
+- [ ] Complete a Calibration testnet upload after the grant agreement permits
+      funded work and a dedicated test wallet is approved.
+- [ ] Publish repeatable 1k, 10k and 100k receipt benchmarks.
+- [ ] Add retrieval-state monitoring across independent providers.
 - [ ] Anchor batch roots on an EVM testnet.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
@@ -115,6 +143,19 @@ SwissTokint's open public-good work is kept separate from any future commercial
 hosted product, trading service or token initiative. Grant-funded outputs remain
 freely available under the applicable open-source grant agreement.
 
+## Filecoin grant status
+
+Open Grant proposal
+[`filecoin-project/devgrants#2159`](https://github.com/filecoin-project/devgrants/issues/2159)
+was submitted on 27 July 2026. It is under review and is not an award. The CAR
+prototype in this repository is self-funded pre-grant readiness work; it is not
+reported as a completed or reimbursable grant milestone. Live Filecoin storage,
+benchmarking at the proposed scale and third-party reproduction remain within
+the proposed post-agreement work plan.
+
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+Code is dual-licensed under either Apache License 2.0 or MIT, at your option.
+See [LICENSE](LICENSE), [LICENSE-APACHE](LICENSE-APACHE) and
+[LICENSE-MIT](LICENSE-MIT). Documentation is available under
+[CC BY-SA 4.0](LICENSE-DOCS).

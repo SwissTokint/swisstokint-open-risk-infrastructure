@@ -281,6 +281,10 @@ def build_merkle_batch(receipts: list[dict[str, Any]]) -> dict[str, Any]:
     ordered = []
     for receipt in receipts:
         _assert(isinstance(receipt, dict), "Batch receipt must be an object")
+        _assert(
+            set(receipt) == {"receipt_id", "commitment_hash", "occurred_at"},
+            "Batch receipt has missing or unknown fields",
+        )
         _assert(ID_PATTERN.fullmatch(receipt["receipt_id"]) is not None, "receipt_id has an invalid format")
         _assert(HASH_PATTERN.fullmatch(receipt["commitment_hash"]) is not None, "commitment_hash must be a lowercase SHA-256 hash")
         ordered.append({
