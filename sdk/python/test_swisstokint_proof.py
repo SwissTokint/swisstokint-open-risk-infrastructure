@@ -16,6 +16,7 @@ sys.path.insert(0, str(SDK_DIR))
 from swisstokint_proof import (  # noqa: E402
     build_merkle_batch,
     canonicalize_payload,
+    commit_anchor_record,
     commit_payload,
     create_wire_receipt,
     prepare_commitment,
@@ -32,6 +33,7 @@ class ProofReceiptSdkTests(unittest.TestCase):
         cls.expected = json.loads((ROOT / "schemas/examples/proof-receipt-v0.2.expected.json").read_text(encoding="utf-8"))
         cls.batch_input = json.loads((ROOT / "schemas/examples/proof-batch-input-v0.1.json").read_text(encoding="utf-8"))
         cls.expected_batch = json.loads((ROOT / "schemas/examples/proof-batch-v0.1.expected.json").read_text(encoding="utf-8"))
+        cls.anchor_record = json.loads((ROOT / "schemas/examples/anchor-record-v0.1.json").read_text(encoding="utf-8"))
 
     def test_cross_language_fixture(self) -> None:
         wire_receipt = create_wire_receipt(self.event)
@@ -101,6 +103,20 @@ class ProofReceiptSdkTests(unittest.TestCase):
         unsafe = [dict(self.batch_input[0], private_key="must-never-be-published")]
         with self.assertRaisesRegex(ValueError, "missing or unknown fields"):
             build_merkle_batch(unsafe)
+
+    def test_anchor_record_is_canonical_and_rejects_ambiguous_finality(self) -> None:
+        committed = commit_anchor_record(self.anchor_record)
+        self.assertEqual(
+            committed["record_hash"],
+            "5f06a4de08d521172d1af831a39d299eb8421714c60e9eb10041b1e4d784fd5e",
+        )
+        self.assertEqual(committed["record"]["status"], "finalized")
+        with self.assertRaisesRegex(ValueError, "requires at least one confirmation"):
+            commit_anchor_record({**self.anchor_record, "confirmations": 0})
+        with self.assertRaisesRegex(ValueError, "missing or unknown fields"):
+            commit_anchor_record({**self.anchor_record, "rpc_url": "https://private.invalid"})
+        with self.assertRaisesRegex(ValueError, "must include an offset"):
+            commit_anchor_record({**self.anchor_record, "observed_at": "2026-07-28T10:00:04"})
 
 
 if __name__ == "__main__":

@@ -2,10 +2,12 @@ import crypto from 'node:crypto';
 
 export const RECEIPT_SCHEMA_VERSION = 'pom-receipt/0.2';
 export const BATCH_SCHEMA_VERSION = 'pom-batch/0.1';
+export const ANCHOR_RECORD_SCHEMA_VERSION = 'pom-anchor-record/0.1';
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$/;
 const SOURCE_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const ADAPTER_ID_PATTERN = /^[a-z0-9][a-z0-9._/-]{2,63}$/;
 const PAYLOAD_KEY_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 const KINDS = new Set(['signal', 'research', 'governance', 'milestone']);
 const MAX_DEPTH = 8;
@@ -117,6 +119,95 @@ function normalizeOccurredAt(value) {
   const date = new Date(value);
   assert(typeof value === 'string' && Number.isFinite(date.getTime()), 'occurred_at must be an ISO date-time');
   return date.toISOString();
+}
+
+function normalizeDateTime(value, field) {
+  assert(
+    typeof value === 'string' && /(Z|[+-]\d{2}:\d{2})$/.test(value),
+    `${field} must include an offset`,
+  );
+  const date = new Date(value);
+  assert(Number.isFinite(date.getTime()), `${field} must be an ISO date-time`);
+  return date.toISOString();
+}
+
+export function validateAnchorRecord(record) {
+  assert(record && typeof record === 'object' && !Array.isArray(record), 'Anchor record must be an object');
+  const expectedKeys = [
+    'schema_version',
+    'adapter_id',
+    'network',
+    'batch_ref',
+    'merkle_root',
+    'transaction_ref',
+    'block_ref',
+    'anchored_at',
+    'observed_at',
+    'status',
+    'confirmations',
+  ];
+  assert(
+    JSON.stringify(Object.keys(record).sort()) === JSON.stringify([...expectedKeys].sort()),
+    'Anchor record has missing or unknown fields',
+  );
+  assert(record.schema_version === ANCHOR_RECORD_SCHEMA_VERSION, 'Unsupported anchor record schema version');
+  assertIdentifier(record.adapter_id, 'adapter_id', ADAPTER_ID_PATTERN);
+  assert(
+    typeof record.network === 'string'
+      && /^[A-Za-z0-9][A-Za-z0-9._:/-]{1,63}$/.test(record.network),
+    'network has an invalid format',
+  );
+  assert(
+    typeof record.batch_ref === 'string' && /^pom-[a-f0-9]{24}$/.test(record.batch_ref),
+    'batch_ref has an invalid format',
+  );
+  assertHash(record.merkle_root, 'merkle_root');
+  for (const field of ['transaction_ref', 'block_ref']) {
+    assert(
+      typeof record[field] === 'string'
+        && record[field].length >= 1
+        && record[field].length <= 256
+        && !/[\u0000-\u001f\u007f]/.test(record[field]),
+      `${field} has an invalid format`,
+    );
+  }
+  assert(
+    ['observed', 'finalized', 'revoked', 'orphaned'].includes(record.status),
+    'Unsupported anchor status',
+  );
+  assert(
+    Number.isSafeInteger(record.confirmations)
+      && record.confirmations >= 0
+      && record.confirmations <= 1_000_000_000,
+    'confirmations must be a non-negative safe integer',
+  );
+  assert(
+    record.status !== 'finalized' || record.confirmations >= 1,
+    'A finalized anchor requires at least one confirmation',
+  );
+
+  const anchoredAt = normalizeDateTime(record.anchored_at, 'anchored_at');
+  const observedAt = normalizeDateTime(record.observed_at, 'observed_at');
+  assert(observedAt >= anchoredAt, 'observed_at cannot precede anchored_at');
+
+  return {
+    ...record,
+    network: record.network.normalize('NFC'),
+    transaction_ref: record.transaction_ref.normalize('NFC'),
+    block_ref: record.block_ref.normalize('NFC'),
+    anchored_at: anchoredAt,
+    observed_at: observedAt,
+  };
+}
+
+export function commitAnchorRecord(record) {
+  const normalized = validateAnchorRecord(record);
+  const canonicalRecord = canonicalizeValue(normalized);
+  return {
+    record: normalized,
+    canonicalRecord,
+    recordHash: sha256Hex(`swisstokint:pom-anchor-record:v1:${canonicalRecord}`),
+  };
 }
 
 export function validateWireReceipt(receipt) {

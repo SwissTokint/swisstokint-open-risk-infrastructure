@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   canonicalizePayload,
   buildMerkleBatch,
+  commitAnchorRecord,
   commitPayload,
   createWireReceipt,
   prepareCommitment,
@@ -28,6 +29,10 @@ const batchInput = JSON.parse(fs.readFileSync(
 ));
 const expectedBatch = JSON.parse(fs.readFileSync(
   new URL('../schemas/examples/proof-batch-v0.1.expected.json', import.meta.url),
+  'utf8',
+));
+const anchorRecord = JSON.parse(fs.readFileSync(
+  new URL('../schemas/examples/anchor-record-v0.1.json', import.meta.url),
   'utf8',
 ));
 
@@ -100,5 +105,27 @@ test('Merkle batch rejects unknown public fields', () => {
   assert.throws(
     () => buildMerkleBatch([{ ...batchInput[0], private_key: 'must-never-be-published' }]),
     /missing or unknown fields/,
+  );
+});
+
+test('Anchor Record v0.1 is canonical and rejects ambiguous finality', () => {
+  const committed = commitAnchorRecord(anchorRecord);
+  assert.equal(
+    committed.recordHash,
+    '5f06a4de08d521172d1af831a39d299eb8421714c60e9eb10041b1e4d784fd5e',
+  );
+  assert.equal(committed.record.status, 'finalized');
+  assert.equal(committed.record.confirmations, 32);
+  assert.throws(
+    () => commitAnchorRecord({ ...anchorRecord, confirmations: 0 }),
+    /requires at least one confirmation/,
+  );
+  assert.throws(
+    () => commitAnchorRecord({ ...anchorRecord, rpc_url: 'https://private.invalid' }),
+    /missing or unknown fields/,
+  );
+  assert.throws(
+    () => commitAnchorRecord({ ...anchorRecord, observed_at: '2026-07-28T10:00:04' }),
+    /must include an offset/,
   );
 });

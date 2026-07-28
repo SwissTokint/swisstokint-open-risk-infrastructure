@@ -11,6 +11,8 @@ This repository contains three interoperable building blocks:
 3. a pre-grant Filecoin readiness prototype that packages receipt proofs into a
    deterministic CAR, derives a stable root CID and verifies every block and
    Merkle path after retrieval.
+4. a normalized multichain anchor record profile that future network adapters
+   must emit without hiding chain-specific finality or failure state.
 
 The protocol is designed for trading bots and financial agents, but it does not
 execute trades, hold assets or receive exchange credentials.
@@ -45,6 +47,7 @@ The current prototype provides:
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
+| `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `schemas/` | JSON Schemas and cross-language fixtures |
 | `sdk/typescript/` | TypeScript/Node reference implementation |
@@ -123,6 +126,10 @@ See [SECURITY.md](SECURITY.md) and
 - [ ] Publish repeatable 1k, 10k and 100k receipt benchmarks.
 - [ ] Add retrieval-state monitoring across independent providers.
 - [ ] Anchor batch roots on an EVM testnet.
+- [x] Publish a chain-neutral anchor-record schema and cross-language fixture.
+- [ ] Implement and independently reproduce a Solana devnet adapter.
+- [ ] Implement and independently reproduce a Soroban testnet adapter.
+- [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.

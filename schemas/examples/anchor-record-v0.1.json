@@ -1,0 +1,13 @@
+{
+  "schema_version": "pom-anchor-record/0.1",
+  "adapter_id": "solana/devnet-v0",
+  "network": "solana:devnet",
+  "batch_ref": "pom-fb2d5a7c2139fa0bfbbf977f",
+  "merkle_root": "fb2d5a7c2139fa0bfbbf977f2b11e0286805bd10625bf4d59bfed1e6b065d454",
+  "transaction_ref": "5q5xExampleDeterministicTransactionReference111111111111111111",
+  "block_ref": "slot:321654987",
+  "anchored_at": "2026-07-28T10:00:00.000Z",
+  "observed_at": "2026-07-28T10:00:04.000Z",
+  "status": "finalized",
+  "confirmations": 32
+}

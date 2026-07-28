@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/anchor-record-v0.1.schema.json",
+  "title": "SwissTokint Proof of Method Anchor Record v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "adapter_id",
+    "network",
+    "batch_ref",
+    "merkle_root",
+    "transaction_ref",
+    "block_ref",
+    "anchored_at",
+    "observed_at",
+    "status",
+    "confirmations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "pom-anchor-record/0.1"
+    },
+    "adapter_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._/-]{2,63}$"
+    },
+    "network": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{1,63}$"
+    },
+    "batch_ref": {
+      "type": "string",
+      "pattern": "^pom-[a-f0-9]{24}$"
+    },
+    "merkle_root": {
+      "$ref": "#/$defs/sha256"
+    },
+    "transaction_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "block_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "anchored_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": ["observed", "finalized", "revoked", "orphaned"]
+    },
+    "confirmations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
