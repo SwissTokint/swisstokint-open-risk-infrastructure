@@ -5,6 +5,7 @@ dist/
 !.env.example
 *.pem
 *.key
+*.car
 coverage/
 .pytest_cache/
 __pycache__/

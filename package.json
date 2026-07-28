@@ -7,11 +7,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test:risk": "npm run build && node --test dist/**/*.test.js",
-    "test:proof": "node --test tests/proof-sdk.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
+    "test:proof": "node --test tests/*.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
+    "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
+    "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
     "test": "npm run test:risk && npm run test:proof"
   },
+  "license": "(MIT OR Apache-2.0)",
   "devDependencies": {
     "@types/node": "^20.14.10",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@ipld/car": "^5.4.6",
+    "multiformats": "^14.0.5"
   }
 }

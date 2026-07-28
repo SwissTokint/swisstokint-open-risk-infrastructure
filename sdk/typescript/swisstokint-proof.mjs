@@ -291,6 +291,11 @@ export function buildMerkleBatch(receipts) {
 
   const ordered = receipts.map((receipt) => {
     assert(receipt && typeof receipt === 'object', 'Batch receipt must be an object');
+    const expectedKeys = ['receipt_id', 'commitment_hash', 'occurred_at'];
+    assert(
+      JSON.stringify(Object.keys(receipt).sort()) === JSON.stringify(expectedKeys.sort()),
+      'Batch receipt has missing or unknown fields',
+    );
     assertIdentifier(receipt.receipt_id, 'receipt_id');
     assertHash(receipt.commitment_hash, 'commitment_hash');
     return {
