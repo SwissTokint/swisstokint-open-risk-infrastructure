@@ -1,0 +1,59 @@
+{
+  "schema_version": "swisstokint.aptos-deployment.v0.1",
+  "status": "testnet_verified",
+  "network": "aptos-testnet",
+  "chain_id": 2,
+  "account_address": "0x132ee33f84df0ede779efad96868db823ac176c21be5e128c372177fc10bc904",
+  "module_id": "0x132ee33f84df0ede779efad96868db823ac176c21be5e128c372177fc10bc904::proof_registry",
+  "source": {
+    "repository": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure",
+    "commit": "3d3d3d48e1eea735a2831d5b5009b79f795bb8d4",
+    "package_path": "integrations/aptos-proof-registry",
+    "aptos_cli_version": "9.4.0",
+    "aptos_framework_commit": "eea778c2276e302119d6e469ec3dd0b78fcce039",
+    "on_chain_source_verified": true,
+    "source_verified_at": "2026-07-28T16:05:00.5021956Z"
+  },
+  "deployment": {
+    "transaction_hash": "0x82f96d190b302b9deefe0f30226ecb4a94a5b483917f2b9789c0560c2413e2da",
+    "transaction_version": 10228571073,
+    "timestamp": "2026-07-28T16:02:54.6900000Z",
+    "gas_used": 27702,
+    "package_size_bytes": 3358,
+    "explorer_url": "https://explorer.aptoslabs.com/txn/0x82f96d190b302b9deefe0f30226ecb4a94a5b483917f2b9789c0560c2413e2da?network=testnet"
+  },
+  "lifecycle": {
+    "initialize": {
+      "transaction_hash": "0x26426ef817a4f724ec8b16ae18a31ebe2382085a52d155133804015925a1fb91",
+      "transaction_version": 10228573152,
+      "timestamp": "2026-07-28T16:03:02.1420000Z",
+      "success": true
+    },
+    "register": {
+      "transaction_hash": "0xa73dcb048ac56820dca651c1d1c280b80a26842df0d07f9f6bf3eef8842b14c9",
+      "transaction_version": 10228580004,
+      "timestamp": "2026-07-28T16:03:27.3790000Z",
+      "success": true
+    },
+    "verify_after_register": true,
+    "revoke": {
+      "transaction_hash": "0x694e472d91dc3f255f6f6608bfbbe2b524d5beaeb9946a6beb7c3ab49d150f7f",
+      "transaction_version": 10228587894,
+      "timestamp": "2026-07-28T16:03:57.0850000Z",
+      "success": true
+    },
+    "verify_after_revoke": false
+  },
+  "fixture": {
+    "batch_id": "0xe4defd3e2ad9107c6726745d54cd64008c2d13e2b85c6eced32a5a11c9fe4fe3",
+    "merkle_root": "0x31b144b1064c180d2c55edc1cc631a7e43cf2478631dfb890cef9cfa18a07b77",
+    "manifest_hash": "0x44b50a6c6981a7506afad1823f89b861a9385cb0679546772314b0b8d5a06e61",
+    "evidence_hash": "0x45df17dcc150af992f70c53ebc678c80677510acbc2072e79572624d62447cd4"
+  },
+  "claims_boundary": [
+    "This record describes a testnet deployment only.",
+    "The stored values are public commitments, not proof that off-chain content is true.",
+    "No mainnet asset, custody, token sale, exchange credential or trade execution is involved.",
+    "The deployment is self-funded pre-grant evidence and is not an Aptos Foundation milestone or award."
+  ]
+}

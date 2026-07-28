@@ -60,3 +60,17 @@ aptos move publish \
 The first public testnet deployment must use a dedicated test-only account,
 publish the package address and transaction version, and retain an explicit
 testnet-only label.
+
+## Public testnet deployment
+
+The first lifecycle was published and verified on Aptos testnet on 28 July
+2026. The machine-readable record contains the source commit, module address,
+transaction versions, fixture commitments and exact pre/post-revocation
+observations:
+
+- [`deployments/aptos-testnet-proof-registry-v0.1.json`](../../deployments/aptos-testnet-proof-registry-v0.1.json)
+- [deployment transaction](https://explorer.aptoslabs.com/txn/0x82f96d190b302b9deefe0f30226ecb4a94a5b483917f2b9789c0560c2413e2da?network=testnet)
+
+`aptos move verify-package` successfully matched the local source package to
+the published bytecode. This is testnet engineering evidence, not a mainnet
+security certification or grant award.

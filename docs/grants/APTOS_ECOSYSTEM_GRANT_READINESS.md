@@ -12,8 +12,9 @@ SwissTokint should not submit an Aptos Ecosystem Grant application yet.
 The official programme currently requires a live product and evidence of user
 adoption, market demand or community growth.
 
-The Move package in this repository is self-funded readiness evidence. It is
-not a deployed product, an awarded milestone or reimbursable grant work.
+The Move package and its first verified Aptos testnet lifecycle are self-funded
+readiness evidence. They are not an awarded milestone or reimbursable grant
+work.
 
 ## Current public evidence
 
@@ -24,16 +25,19 @@ not a deployed product, an awarded milestone or reimbursable grant work.
 - five Move lifecycle and misuse tests pass;
 - strict Move lints pass;
 - the general repository test and dependency-audit workflow passes.
+- the package is published on Aptos testnet;
+- local source successfully matches the published bytecode;
+- register, verify-true, revoke and verify-false are publicly recorded.
 
 The tests cover registration, exact verification, revocation, duplicate
 rejection, malformed input, repeated revocation and cross-account revocation.
 
 ## Pre-application gates
 
-- [ ] publish the package with a dedicated test-only account;
-- [ ] publish the transaction version, module address and explorer URL;
-- [ ] reproduce register, verify, revoke and verify-false on testnet;
-- [ ] publish a machine-readable deployment record;
+- [x] publish the package with a dedicated test-only account;
+- [x] publish the transaction version, module address and explorer URL;
+- [x] reproduce register, verify, revoke and verify-false on testnet;
+- [x] publish a machine-readable deployment record;
 - [ ] process at least 100 verifiable test batches;
 - [ ] obtain two independent clean-environment reproductions;
 - [ ] obtain one Aptos-native pilot or integration confirmation;
