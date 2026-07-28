@@ -39,10 +39,10 @@ jobs:
         run: aptos --version
 
       - name: Compile Move package
-        run: aptos move compile --package-dir integrations/aptos-proof-registry
+        run: aptos move compile --dev --package-dir integrations/aptos-proof-registry
 
       - name: Run Move unit tests
-        run: aptos move test --package-dir integrations/aptos-proof-registry
+        run: aptos move test --dev --package-dir integrations/aptos-proof-registry
 
       - name: Run strict Move lints
-        run: aptos move lint --package-dir integrations/aptos-proof-registry --checks strict
+        run: aptos move lint --dev --package-dir integrations/aptos-proof-registry --checks strict

@@ -5,6 +5,9 @@ authors = ["SwissTokint"]
 license = "MIT OR Apache-2.0"
 
 [addresses]
+proof_registry = "_"
+
+[dev-addresses]
 proof_registry = "0xcafe"
 
 [dependencies.AptosFramework]

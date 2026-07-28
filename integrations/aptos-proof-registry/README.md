@@ -33,8 +33,20 @@ dependency is pinned to commit
 `eea778c2276e302119d6e469ec3dd0b78fcce039`:
 
 ```bash
-aptos move compile --package-dir integrations/aptos-proof-registry
-aptos move test --package-dir integrations/aptos-proof-registry
+aptos move compile --dev --package-dir integrations/aptos-proof-registry
+aptos move test --dev --package-dir integrations/aptos-proof-registry
+aptos move lint --dev --package-dir integrations/aptos-proof-registry --checks strict
+```
+
+The `0xcafe` address is test-only and is declared under `dev-addresses`.
+Publication must explicitly bind `proof_registry` to the dedicated publishing
+account:
+
+```bash
+aptos move publish \
+  --profile swisstokint-testnet \
+  --package-dir integrations/aptos-proof-registry \
+  --named-addresses proof_registry=<TESTNET_ACCOUNT_ADDRESS>
 ```
 
 ## Security boundary
