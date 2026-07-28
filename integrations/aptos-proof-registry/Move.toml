@@ -1,0 +1,13 @@
+[package]
+name = "SwissTokintProofRegistry"
+version = "0.1.0"
+authors = ["SwissTokint"]
+license = "MIT OR Apache-2.0"
+
+[addresses]
+proof_registry = "0xcafe"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-framework.git"
+rev = "eea778c2276e302119d6e469ec3dd0b78fcce039"
+subdir = "aptos-framework"

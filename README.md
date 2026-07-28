@@ -3,15 +3,15 @@
 Open infrastructure for proving which method and risk policy governed an
 autonomous financial action without publishing the private strategy.
 
-This repository contains three interoperable building blocks:
+This repository contains four interoperable building blocks:
 
 1. a deterministic risk-rule engine whose results can be replayed and reviewed;
 2. Proof Receipt v0.2, a signed commitment format with matching TypeScript and
    Python SDKs, deterministic Merkle batching and a minimal Docker relay;
 3. a pre-grant Filecoin readiness prototype that packages receipt proofs into a
    deterministic CAR, derives a stable root CID and verifies every block and
-   Merkle path after retrieval.
-4. a normalized multichain anchor record profile that future network adapters
+   Merkle path after retrieval;
+4. a normalized multichain anchor record profile that network adapters
    must emit without hiding chain-specific finality or failure state.
 
 The protocol is designed for trading bots and financial agents, but it does not
@@ -34,7 +34,7 @@ The current prototype provides:
 - inclusion proof generation and verification;
 - a dry-run capable Docker relay;
 - shared test fixtures for TypeScript and Python;
-- deterministic, inspectable market-risk rules.
+- deterministic, inspectable market-risk rules;
 - deterministic CARv1 evidence bundles with content-addressed receipt proofs;
 - a fail-closed Synapse adapter boundary for prepare, upload and byte-for-byte
   retrieval verification.
@@ -49,6 +49,7 @@ The current prototype provides:
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
+| `integrations/aptos-proof-registry/` | Account-owned Move commitment registry prototype |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
@@ -148,6 +149,7 @@ See [SECURITY.md](SECURITY.md) and
       active/revoked verification trace.
 - [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
 - [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
+- [ ] Publish and independently reproduce the Aptos Move registry on testnet.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.

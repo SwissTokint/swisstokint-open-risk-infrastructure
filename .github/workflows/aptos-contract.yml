@@ -1,0 +1,48 @@
+name: Aptos Move contract
+
+on:
+  push:
+    paths:
+      - "integrations/aptos-proof-registry/**"
+      - ".github/workflows/aptos-contract.yml"
+  pull_request:
+    paths:
+      - "integrations/aptos-proof-registry/**"
+      - ".github/workflows/aptos-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      APTOS_VERSION: "9.4.0"
+      APTOS_ARCHIVE_SHA256: "3ece064e072e8ffa1cf15c97d3535ce88486446c0e7d97490f15fc9683884581"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the pinned official Aptos CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="aptos-cli-${APTOS_VERSION}-Ubuntu-24.04-x86_64.zip"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v${APTOS_VERSION}/${archive}"
+          echo "${APTOS_ARCHIVE_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          unzip -q "${RUNNER_TEMP}/${archive}" -d "${RUNNER_TEMP}/aptos-cli"
+          echo "${RUNNER_TEMP}/aptos-cli" >> "${GITHUB_PATH}"
+
+      - name: Verify Aptos CLI version
+        run: aptos --version
+
+      - name: Compile Move package
+        run: aptos move compile --package-dir integrations/aptos-proof-registry
+
+      - name: Run Move unit tests
+        run: aptos move test --package-dir integrations/aptos-proof-registry
+
+      - name: Run strict Move lints
+        run: aptos move lint --package-dir integrations/aptos-proof-registry --checks strict
