@@ -49,6 +49,7 @@ The current prototype provides:
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
+| `integrations/tezos-proof-registry/` | Hash-only SmartPy/JsLIGO registry for Tezos |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
@@ -147,7 +148,8 @@ See [SECURITY.md](SECURITY.md) and
 - [x] Deploy the Soroban registry to Stellar Testnet and publish a reproducible
       active/revoked verification trace.
 - [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
-- [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
+- [x] Publish a Tezos registry source and isolated JsLIGO compilation workflow.
+- [ ] Originate and independently reproduce the Tezos registry on Shadownet.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.

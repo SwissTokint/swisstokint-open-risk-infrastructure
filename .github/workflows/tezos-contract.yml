@@ -1,0 +1,51 @@
+name: Tezos contract
+
+on:
+  pull_request:
+    paths:
+      - "integrations/tezos-proof-registry/**"
+      - ".github/workflows/tezos-contract.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/tezos-proof-registry/**"
+      - ".github/workflows/tezos-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile the JsLIGO registry to Michelson
+        run: |
+          mkdir -p dist/tezos
+          docker run --rm \
+            -v "$PWD:/project" \
+            -w /project \
+            ligolang/ligo:1.15.6 \
+            compile contract \
+            integrations/tezos-proof-registry/proof_registry.jsligo \
+            -m ProofRegistry \
+            --skip-analytics \
+            -o dist/tezos/proof_registry.tz
+      - name: Compile empty initial storage
+        run: |
+          docker run --rm \
+            -v "$PWD:/project" \
+            -w /project \
+            ligolang/ligo:1.15.6 \
+            compile storage \
+            integrations/tezos-proof-registry/proof_registry.jsligo \
+            "Big_map.empty" \
+            -m ProofRegistry \
+            --skip-analytics \
+            -o dist/tezos/initial_storage.tz
+      - name: Ensure artifacts are non-empty
+        run: |
+          test -s dist/tezos/proof_registry.tz
+          test -s dist/tezos/initial_storage.tz

@@ -1,0 +1,83 @@
+namespace ProofRegistry {
+  type commitment = {
+    merkle_root: bytes,
+    manifest_hash: bytes,
+    evidence_hash: bytes,
+    issuer: address,
+    registered_at: timestamp,
+    revoked: bool
+  };
+
+  type storage = big_map<bytes, commitment>;
+  type return_type = [list<operation>, storage];
+
+  type register_params = {
+    batch_id: bytes,
+    merkle_root: bytes,
+    manifest_hash: bytes,
+    evidence_hash: bytes
+  };
+
+  type verify_params = {
+    batch_id: bytes,
+    merkle_root: bytes,
+    manifest_hash: bytes,
+    evidence_hash: bytes
+  };
+
+  const assert_hash_lengths = (params: register_params): unit => {
+    assert_with_error(Bytes.length(params.batch_id) == 32n, "BAD_BATCH_ID");
+    assert_with_error(Bytes.length(params.merkle_root) == 32n, "BAD_MERKLE_ROOT");
+    assert_with_error(Bytes.length(params.manifest_hash) == 32n, "BAD_MANIFEST_HASH");
+    assert_with_error(Bytes.length(params.evidence_hash) == 32n, "BAD_EVIDENCE_HASH");
+    return unit;
+  };
+
+  @entry
+  const register = (params: register_params, store: storage): return_type => {
+    assert_with_error(Tezos.get_amount() == 0tez, "NO_TEZ_ACCEPTED");
+    assert_hash_lengths(params);
+    assert_with_error(
+      !Big_map.mem(params.batch_id, store),
+      "ALREADY_REGISTERED"
+    );
+    const commitment: commitment = {
+      merkle_root: params.merkle_root,
+      manifest_hash: params.manifest_hash,
+      evidence_hash: params.evidence_hash,
+      issuer: Tezos.get_sender(),
+      registered_at: Tezos.get_now(),
+      revoked: false
+    };
+    const next_store = Big_map.update(
+      params.batch_id,
+      Some(commitment),
+      store
+    );
+    return [[], next_store];
+  };
+
+  @entry
+  const revoke = (batch_id: bytes, store: storage): return_type => {
+    assert_with_error(Tezos.get_amount() == 0tez, "NO_TEZ_ACCEPTED");
+    const current = Option.value_with_error(
+      "UNKNOWN_BATCH",
+      Big_map.find_opt(batch_id, store)
+    );
+    assert_with_error(current.issuer == Tezos.get_sender(), "UNAUTHORIZED");
+    assert_with_error(!current.revoked, "ALREADY_REVOKED");
+    const revoked: commitment = {...current, revoked: true};
+    return [[], Big_map.update(batch_id, Some(revoked), store)];
+  };
+
+  @view
+  const verify = (params: verify_params, store: storage): bool =>
+    match(Big_map.find_opt(params.batch_id, store)) {
+      when(None()): false;
+      when(Some(current)):
+        !current.revoked
+        && current.merkle_root == params.merkle_root
+        && current.manifest_hash == params.manifest_hash
+        && current.evidence_hash == params.evidence_hash
+    };
+}
