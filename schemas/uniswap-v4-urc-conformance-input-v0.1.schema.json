@@ -92,6 +92,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "eventSignature",
+        "topic0",
         "poolId",
         "sender",
         "amount0",
@@ -99,6 +101,12 @@
         "swapFee"
       ],
       "properties": {
+        "eventSignature": {
+          "const": "HookSwap(bytes32,address,int128,int128,uint24)"
+        },
+        "topic0": {
+          "const": "0xcad2240a6a0fe98d7dc71ceeae7ade75e73f32b8f370c1ac40a861bc081381bc"
+        },
         "poolId": {
           "$ref": "#/$defs/bytes32"
         },

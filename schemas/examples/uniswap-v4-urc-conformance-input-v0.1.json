@@ -24,6 +24,8 @@
       },
       "hookSwapEvents": [
         {
+          "eventSignature": "HookSwap(bytes32,address,int128,int128,uint24)",
+          "topic0": "0xcad2240a6a0fe98d7dc71ceeae7ade75e73f32b8f370c1ac40a861bc081381bc",
           "poolId": "0x5bcf2cc768dbaad4a834dc76a3f6f384d14b483e42ebd5c23f81ba370f7d6f86",
           "sender": "0x1111111111111111111111111111111111111111",
           "amount0": "-50",

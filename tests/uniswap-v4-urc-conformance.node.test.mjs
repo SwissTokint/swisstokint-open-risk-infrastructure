@@ -54,6 +54,17 @@ test("rejects an event that claims an end user instead of the callback sender", 
   assert.ok(result.issues.some((entry) => entry.code === "CALLBACK_SENDER_MISMATCH"));
 });
 
+test("distinguishes the legacy int256 HookSwap topic from current URC-2", () => {
+  const input = clone(fixture);
+  input.swaps[0].hookSwapEvents[0].eventSignature =
+    "HookSwap(bytes32,address,int256,int256,uint24)";
+  input.swaps[0].hookSwapEvents[0].topic0 =
+    "0x6150bb53cd76c5702d6074239fc7b6c2a5495d339eb122fdc06252f3efdbbc1b";
+  const result = evaluateUrcConformance(input);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((entry) => entry.code === "HOOK_SWAP_SIGNATURE_MISMATCH"));
+});
+
 test("rejects effective liquidity above reserves and unverifiable provider binding", () => {
   const input = clone(fixture);
   input.stats.providerAddress = "0x3333333333333333333333333333333333333333";

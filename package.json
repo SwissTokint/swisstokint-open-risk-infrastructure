@@ -11,6 +11,7 @@
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
     "uniswap:validate-urc": "node scripts/validate-uniswap-v4-urc.mjs",
+    "uniswap:inspect-receipt": "node scripts/inspect-uniswap-v4-urc2-receipt.mjs",
     "test": "npm run test:risk && npm run test:proof"
   },
   "license": "(MIT OR Apache-2.0)",

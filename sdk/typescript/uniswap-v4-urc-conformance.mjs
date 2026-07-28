@@ -6,6 +6,10 @@ const UINT24_MAX = (1n << 24n) - 1n;
 const INT128_MIN = -(1n << 127n);
 const INT128_MAX = (1n << 127n) - 1n;
 
+export const URC2_HOOK_SWAP_SIGNATURE = "HookSwap(bytes32,address,int128,int128,uint24)";
+export const URC2_HOOK_SWAP_TOPIC0 = "0xcad2240a6a0fe98d7dc71ceeae7ade75e73f32b8f370c1ac40a861bc081381bc";
+export const LEGACY_HOOK_SWAP_INT256_TOPIC0 = "0x6150bb53cd76c5702d6074239fc7b6c2a5495d339eb122fdc06252f3efdbbc1b";
+
 export const HOOK_FLAGS = Object.freeze({
   beforeInitialize: 1n << 13n,
   afterInitialize: 1n << 12n,
@@ -198,9 +202,32 @@ function validateSwap(swap, index) {
     const event = requireObject(events[0], `${path}.hookSwapEvents[0]`);
     requireKnownKeys(
       event,
-      ["poolId", "sender", "amount0", "amount1", "swapFee", "sqrtPriceX96", "liquidity", "tick"],
+      [
+        "eventSignature",
+        "topic0",
+        "poolId",
+        "sender",
+        "amount0",
+        "amount1",
+        "swapFee",
+        "sqrtPriceX96",
+        "liquidity",
+        "tick"
+      ],
       `${path}.hookSwapEvents[0]`
     );
+    if (
+      event.eventSignature !== URC2_HOOK_SWAP_SIGNATURE ||
+      requireBytes32(event.topic0, `${path}.hookSwapEvents[0].topic0`) !== URC2_HOOK_SWAP_TOPIC0
+    ) {
+      issues.push(
+        issue(
+          "HOOK_SWAP_SIGNATURE_MISMATCH",
+          `${path}.hookSwapEvents[0]`,
+          `Current URC-2 requires ${URC2_HOOK_SWAP_SIGNATURE}`
+        )
+      );
+    }
     const eventAmount0 = requireInt128(event.amount0, `${path}.hookSwapEvents[0].amount0`);
     const eventAmount1 = requireInt128(event.amount1, `${path}.hookSwapEvents[0].amount1`);
     const swapFee = requireUint(event.swapFee, `${path}.hookSwapEvents[0].swapFee`);

@@ -36,6 +36,8 @@ funds, signs swaps, submits transactions or claims that a hook is safe.
 - Exactly one `HookSwap` for a successful swap with a non-zero hook delta.
 - No `HookSwap` for zero-delta or reverted operations.
 - Exact pool ID, callback sender and hook-fill deltas.
+- Exact current event signature
+  `HookSwap(bytes32,address,int128,int128,uint24)` and topic.
 - Signed deltas must fit `int128`; the fee must fit `uint24`.
 - No core-AMM-only `sqrtPriceX96`, `liquidity` or `tick` fields.
 - Core and hook legs are added once to expose a normalized total.
@@ -58,11 +60,41 @@ node scripts/validate-uniswap-v4-urc.mjs \
 The command exits `0` for a conforming fixture, `1` for a report with findings,
 and `2` for malformed input or operational failure.
 
+Inspect a complete live receipt without signing or submitting a transaction:
+
+```bash
+export UNISWAP_RPC_URL=https://your-approved-ethereum-rpc
+npm run uniswap:inspect-receipt -- 0xTRANSACTION_HASH
+```
+
+The inspector distinguishes the current URC-2 `int128` event topic from an
+older `int256` `HookSwap` topic with the same event name. Treating those topics
+as equivalent would produce a false conformance result.
+
+### Reproduced mainnet negative fixture
+
+On 28 July 2026, the inspector read Ethereum transaction
+`0x20512fd600c929294806d98895bc6ef24d7e343eadfc7ab69ed3bebd5d6a12b9`
+at block `25565640`. The successful receipt contained 31 logs, including two
+`HookSwap(bytes32,address,int256,int256,uint24)` events and their matching
+zero-delta core `Swap` legs.
+
+The inspector correctly reported:
+
+- current URC-2 events: `0`;
+- legacy int256 events: `2`;
+- valid current URC-2 evidence: `false`;
+- deterministic report commitment:
+  `0xd76c03a5069470b7ee9ac100fab0af6c5b562def823761727d0e007693b20631`.
+
+This is a useful compatibility finding, not evidence that the observed hooks
+violate a finalized standard. URC-2 is still in Discussion status.
+
 ## Limitations
 
-The v0.1 prototype validates supplied observations offline. It does not yet:
+The v0.1 prototype validates supplied observations and can inspect an existing
+receipt read-only. It does not yet:
 
-- fetch receipts or state from an Ethereum or Unichain RPC;
 - simulate swaps against a fork;
 - verify proxy implementation or upgrade authority;
 - prove reserves, settlement availability or economic safety;

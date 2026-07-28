@@ -96,6 +96,13 @@ npm run uniswap:validate-urc -- \
   schemas/examples/uniswap-v4-urc-conformance-input-v0.1.json
 ```
 
+Inspect an existing receipt through an explicitly supplied HTTPS RPC:
+
+```bash
+UNISWAP_RPC_URL=https://your-approved-ethereum-rpc \
+  npm run uniswap:inspect-receipt -- 0xTRANSACTION_HASH
+```
+
 To inspect a receipt without sending anything:
 
 ```bash
@@ -159,7 +166,8 @@ See [SECURITY.md](SECURITY.md) and
 - [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
 - [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
 - [x] Publish a deterministic offline Uniswap v4 URC-2/URC-3 fixture.
-- [ ] Add RPC receipt ingestion and fork replay for Uniswap v4 hook reports.
+- [x] Add read-only RPC receipt ingestion with current/legacy event separation.
+- [ ] Add isolated fork replay for Uniswap v4 hook reports.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.
