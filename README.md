@@ -50,6 +50,7 @@ The current prototype provides:
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
 | `integrations/aptos-proof-registry/` | Account-owned Move commitment registry prototype |
+| `docs/grants/APTOS_ECOSYSTEM_GRANT_READINESS.md` | Aptos evidence, eligibility gates and non-overlap boundary |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
