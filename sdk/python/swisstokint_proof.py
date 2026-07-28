@@ -18,10 +18,12 @@ from cryptography.hazmat.primitives.serialization import load_der_public_key
 
 RECEIPT_SCHEMA_VERSION = "pom-receipt/0.2"
 BATCH_SCHEMA_VERSION = "pom-batch/0.1"
+ANCHOR_RECORD_SCHEMA_VERSION = "pom-anchor-record/0.1"
 
 HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$")
 SOURCE_KEY_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+ADAPTER_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._/-]{2,63}$")
 PAYLOAD_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 KINDS = {"signal", "research", "governance", "milestone"}
 MAX_DEPTH = 8
@@ -136,6 +138,102 @@ def _normalise_occurred_at(value: str) -> str:
     utc = parsed.astimezone(timezone.utc)
     milliseconds = utc.microsecond // 1_000
     return utc.strftime("%Y-%m-%dT%H:%M:%S.") + f"{milliseconds:03d}Z"
+
+
+def _normalise_datetime(value: str, field: str) -> str:
+    _assert(isinstance(value, str), f"{field} must be an ISO date-time")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    _assert(parsed.tzinfo is not None, f"{field} must include an offset")
+    utc = parsed.astimezone(timezone.utc)
+    milliseconds = utc.microsecond // 1_000
+    return utc.strftime("%Y-%m-%dT%H:%M:%S.") + f"{milliseconds:03d}Z"
+
+
+def validate_anchor_record(record: dict[str, Any]) -> dict[str, Any]:
+    _assert(isinstance(record, dict), "Anchor record must be an object")
+    expected_keys = {
+        "schema_version",
+        "adapter_id",
+        "network",
+        "batch_ref",
+        "merkle_root",
+        "transaction_ref",
+        "block_ref",
+        "anchored_at",
+        "observed_at",
+        "status",
+        "confirmations",
+    }
+    _assert(set(record) == expected_keys, "Anchor record has missing or unknown fields")
+    _assert(
+        record["schema_version"] == ANCHOR_RECORD_SCHEMA_VERSION,
+        "Unsupported anchor record schema version",
+    )
+    _assert(
+        isinstance(record["adapter_id"], str)
+        and ADAPTER_ID_PATTERN.fullmatch(record["adapter_id"]) is not None,
+        "adapter_id has an invalid format",
+    )
+    _assert(
+        isinstance(record["network"], str)
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{1,63}", record["network"]) is not None,
+        "network has an invalid format",
+    )
+    _assert(
+        isinstance(record["batch_ref"], str)
+        and re.fullmatch(r"pom-[a-f0-9]{24}", record["batch_ref"]) is not None,
+        "batch_ref has an invalid format",
+    )
+    _assert(
+        isinstance(record["merkle_root"], str)
+        and HASH_PATTERN.fullmatch(record["merkle_root"]) is not None,
+        "merkle_root must be a lowercase SHA-256 hash",
+    )
+    for field in ("transaction_ref", "block_ref"):
+        value = record[field]
+        _assert(
+            isinstance(value, str)
+            and 1 <= len(value) <= 256
+            and re.search(r"[\x00-\x1f\x7f]", value) is None,
+            f"{field} has an invalid format",
+        )
+    _assert(
+        record["status"] in {"observed", "finalized", "revoked", "orphaned"},
+        "Unsupported anchor status",
+    )
+    confirmations = record["confirmations"]
+    _assert(
+        isinstance(confirmations, int)
+        and not isinstance(confirmations, bool)
+        and 0 <= confirmations <= 1_000_000_000,
+        "confirmations must be a non-negative safe integer",
+    )
+    _assert(
+        record["status"] != "finalized" or confirmations >= 1,
+        "A finalized anchor requires at least one confirmation",
+    )
+
+    anchored_at = _normalise_datetime(record["anchored_at"], "anchored_at")
+    observed_at = _normalise_datetime(record["observed_at"], "observed_at")
+    _assert(observed_at >= anchored_at, "observed_at cannot precede anchored_at")
+
+    normalised = dict(record)
+    normalised["network"] = unicodedata.normalize("NFC", record["network"])
+    normalised["transaction_ref"] = unicodedata.normalize("NFC", record["transaction_ref"])
+    normalised["block_ref"] = unicodedata.normalize("NFC", record["block_ref"])
+    normalised["anchored_at"] = anchored_at
+    normalised["observed_at"] = observed_at
+    return normalised
+
+
+def commit_anchor_record(record: dict[str, Any]) -> dict[str, Any]:
+    normalised = validate_anchor_record(record)
+    canonical_record = _canonicalize_value(normalised)
+    return {
+        "record": normalised,
+        "canonical_record": canonical_record,
+        "record_hash": sha256_hex(f"swisstokint:pom-anchor-record:v1:{canonical_record}"),
+    }
 
 
 def validate_wire_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
