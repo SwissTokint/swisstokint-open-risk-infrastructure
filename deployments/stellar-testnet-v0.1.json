@@ -1,0 +1,39 @@
+{
+  "schema_version": "swisstokint-stellar-deployment/0.1",
+  "network": "stellar:testnet",
+  "deployed_at": "2026-07-28",
+  "contract_id": "CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W",
+  "deployer": "GCSBVOYGBBYHW6563MRI67ZK5RPR4KU2OSJVH63TEDLV6LVHK4F4GD4J",
+  "wasm": {
+    "sha256": "c93cd79be735c208dc997cc942fd7219fdc16fb0445e84c30d066d431e2acb8d",
+    "optimized_size_bytes": 7390,
+    "upload_transaction": "1ec9906006041e8c552c7a2ca8726b1bf4c0d28965bd18a840e33fe159f4aec0",
+    "deployment_transaction": "6e2d93990a1935169c6aa43f75ef1ba0c4dc7e24b04fe55e3440eb73de5bc458",
+    "initialization_transaction": "8620f9d753e87fda140ae06dd739b33b917cc49670eacfd2f0392d876a1d2904"
+  },
+  "active_fixture": {
+    "source_batch_ref": "pom-fb2d5a7c2139fa0bfbbf977f",
+    "batch_id": "0c597cdf6fc2d12aa18386e88f181a348b7716fd42d01bb5f752c333d7cb350b",
+    "merkle_root": "fb2d5a7c2139fa0bfbbf977f2b11e0286805bd10625bf4d59bfed1e6b065d454",
+    "manifest_hash": "b216fe65723bfac075faf1a0d876125306bdf4bc35a6836a78bbca99f5fdd4b4",
+    "evidence_hash": "be9294af27690a0e5fcda7fc2221d26b3aa9c7161c90529fe3559e9ab41e0fc2",
+    "registration_transaction": "b06abef3418b92f0b7d8778da659f3a8fe5819674184d70b64a70a49e76f02d9",
+    "verification_result": true
+  },
+  "revocation_fixture": {
+    "batch_id": "2e980fcfe5b09738784817a52c8564b2bc714ed86e6276a82bf9905e13bd19fd",
+    "merkle_root": "75ca771033118e6885dcc0029ed587445c31c2e03e9de004d5fbfe6adb2430cd",
+    "manifest_hash": "4b0f815edee0e0108fb9c1a14666342ae1b633027d518e333b675810ae7369e2",
+    "evidence_hash": "b931b18ba771ee027c4fe7ca32cf9d4214255585d34c7781508c70388e6d37c5",
+    "reason_hash": "4652f857444fe861aae7bb944f375f1c30a66454078b7e09ee9dbf7f4ce862c4",
+    "registration_transaction": "8d39f23c77ff424111ce1ff8e255e999635774ec76f162fcc01f04b87bdd6a72",
+    "revocation_transaction": "c7b9e2c74e21442c5b6edc13ba9c65b1ca6e8402ceb78f155d5c7877a69908ee",
+    "verification_result_after_revocation": false
+  },
+  "claims": {
+    "audited": false,
+    "production_ready": false,
+    "mainnet_deployed": false,
+    "grant_awarded": false
+  }
+}

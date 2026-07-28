@@ -48,7 +48,9 @@ The current prototype provides:
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
+| `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
+| `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
 | `sdk/typescript/` | TypeScript/Node reference implementation |
 | `sdk/python/` | Python reference implementation |
@@ -100,6 +102,19 @@ PROOF_RECEIPT_DRY_RUN=true \
   < schemas/examples/proof-event-v0.2.json
 ```
 
+Test and build the Soroban evidence registry:
+
+```bash
+cd integrations/stellar-evidence-registry
+cargo test
+stellar contract build
+```
+
+The v0.1 optimized WASM is 7,390 bytes and hashes to
+`c93cd79be735c208dc997cc942fd7219fdc16fb0445e84c30d066d431e2acb8d`.
+It is deployed on Stellar Testnet as
+[`CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W`](https://lab.stellar.org/r/testnet/contract/CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W).
+
 ## Security boundary
 
 The public prototype is deliberately narrow:
@@ -128,7 +143,10 @@ See [SECURITY.md](SECURITY.md) and
 - [ ] Anchor batch roots on an EVM testnet.
 - [x] Publish a chain-neutral anchor-record schema and cross-language fixture.
 - [ ] Implement and independently reproduce a Solana devnet adapter.
-- [ ] Implement and independently reproduce a Soroban testnet adapter.
+- [x] Build and unit-test a Soroban evidence-registry MVP.
+- [x] Deploy the Soroban registry to Stellar Testnet and publish a reproducible
+      active/revoked verification trace.
+- [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
 - [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
