@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/pom-rx-v0.1.schema.json",
+  "title": "SwissTokint POM-RX Receipt v0.1",
+  "description": "A privacy-preserving, hash-linked receipt for preflight risk authorization, execution evidence or reconciliation of an autonomous financial action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "run_id",
+    "phase",
+    "outcome",
+    "agent_ref",
+    "subject_ref",
+    "method_hash",
+    "policy_hash",
+    "input_commitment",
+    "action_commitment",
+    "assertions",
+    "previous_receipt_hash",
+    "occurred_at",
+    "source_key_id"
+  ],
+  "properties": {
+    "schema_version": { "const": "pom-rx/0.1" },
+    "receipt_id": { "$ref": "#/$defs/id" },
+    "run_id": { "$ref": "#/$defs/id" },
+    "phase": { "enum": ["preflight", "execution", "reconciliation"] },
+    "outcome": {
+      "enum": ["allow", "deny", "accepted", "rejected", "unresolved", "matched", "mismatched"]
+    },
+    "agent_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "subject_ref": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "method_hash": { "$ref": "#/$defs/sha256" },
+    "policy_hash": { "$ref": "#/$defs/sha256" },
+    "input_commitment": { "$ref": "#/$defs/sha256" },
+    "action_commitment": { "$ref": "#/$defs/sha256" },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "previous_receipt_hash": {
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "source_key_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$" },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_id", "rule_hash", "result", "proof_mode", "evidence_hash"],
+      "properties": {
+        "rule_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$" },
+        "rule_hash": { "$ref": "#/$defs/sha256" },
+        "result": { "enum": ["pass", "fail", "not_evaluated"] },
+        "proof_mode": { "enum": ["commitment", "public", "zk"] },
+        "evidence_hash": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "phase": { "const": "preflight" } } },
+      "then": {
+        "properties": {
+          "outcome": { "enum": ["allow", "deny"] },
+          "previous_receipt_hash": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "phase": { "const": "execution" } } },
+      "then": {
+        "properties": {
+          "outcome": { "enum": ["accepted", "rejected", "unresolved"] },
+          "previous_receipt_hash": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "phase": { "const": "reconciliation" } } },
+      "then": {
+        "properties": {
+          "outcome": { "enum": ["matched", "mismatched", "unresolved"] },
+          "previous_receipt_hash": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  ]
+}
