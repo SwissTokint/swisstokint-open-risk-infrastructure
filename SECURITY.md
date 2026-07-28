@@ -25,7 +25,12 @@ practicable and coordinate disclosure after a fix is available.
 
 ## Deployment warning
 
-The reference relay accepts a shared ingest secret through an environment
-variable. Operators must use a secret manager, rotate credentials, restrict
-network egress and keep strategy inputs local. The public repository does not
-provide custody, exchange connectivity or trade execution.
+The reference relay accepts a dedicated ingest secret from a mounted file or,
+for compatibility, an environment variable. Operators must use a secret
+manager, rotate credentials, restrict network egress and keep strategy inputs
+local. Never give the relay an exchange credential, wallet seed, withdrawal
+permission or trading authority. The public repository does not provide
+custody, exchange connectivity or trade execution.
+
+The minimum container controls and rotation process are defined in
+[`docs/CONTAINER_AND_SECRET_SECURITY_BASELINE.md`](docs/CONTAINER_AND_SECRET_SECURITY_BASELINE.md).
