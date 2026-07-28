@@ -45,6 +45,16 @@ jobs:
             -m ProofRegistry \
             --skip-analytics \
             -o dist/tezos/initial_storage.tz
+      - name: Execute registry lifecycle tests
+        run: |
+          docker run --rm \
+            -v "$PWD:/project" \
+            -w /project \
+            ligolang/ligo:1.15.6 \
+            run test \
+            integrations/tezos-proof-registry/proof_registry.test.jsligo \
+            --library integrations/tezos-proof-registry \
+            --skip-analytics
       - name: Ensure artifacts are non-empty
         run: |
           test -s dist/tezos/proof_registry.tz

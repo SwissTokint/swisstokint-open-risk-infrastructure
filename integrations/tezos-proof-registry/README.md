@@ -1,7 +1,8 @@
 # Tezos Proof Commitment Registry
 
 Status: SmartPy specification and JsLIGO implementation prepared; compilation
-is enforced in GitHub CI with LIGO 1.15.6; Shadownet origination pending.
+and direct lifecycle tests are enforced in GitHub CI with LIGO 1.15.6;
+Shadownet origination pending.
 
 This integration stores only 32-byte commitment values and a public issuer. It
 contains no token, payment, administrator, custody, exchange credential or
@@ -48,9 +49,12 @@ docker run --rm -v "$PWD:/project" -w /project ligolang/ligo:1.15.6 \
   -m ProofRegistry --skip-analytics
 ```
 
-The workflow also compiles the empty initial big-map storage and rejects empty
-artifacts. A successful CI result is required before the contract can be
-presented as compiling.
+The workflow also compiles the empty initial big-map storage, executes the
+registry lifecycle against LIGO's test framework, and rejects empty artifacts.
+The direct test covers registration persistence, duplicate rejection,
+unauthorized revocation rejection, issuer revocation, and post-revocation
+storage state. A successful CI result is required before the contract can be
+presented as compiling and tested.
 
 The intended public test network is Shadownet, the current long-running Tezos
 application testnet. Compilation evidence and a `KT1` address must be added

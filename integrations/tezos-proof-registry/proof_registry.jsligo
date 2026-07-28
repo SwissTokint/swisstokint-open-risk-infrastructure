@@ -1,5 +1,5 @@
-namespace ProofRegistry {
-  type commitment = {
+export namespace ProofRegistry {
+  export type commitment = {
     merkle_root: bytes,
     manifest_hash: bytes,
     evidence_hash: bytes,
@@ -8,17 +8,17 @@ namespace ProofRegistry {
     revoked: bool
   };
 
-  type storage = big_map<bytes, commitment>;
-  type return_type = [list<operation>, storage];
+  export type storage = big_map<bytes, commitment>;
+  export type return_type = [list<operation>, storage];
 
-  type register_params = {
+  export type register_params = {
     batch_id: bytes,
     merkle_root: bytes,
     manifest_hash: bytes,
     evidence_hash: bytes
   };
 
-  type verify_params = {
+  export type verify_params = {
     batch_id: bytes,
     merkle_root: bytes,
     manifest_hash: bytes,

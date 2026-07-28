@@ -1,0 +1,84 @@
+#import "proof_registry.jsligo" "RegistryModule"
+
+import Test = Test.Next;
+
+type registry_storage = RegistryModule.ProofRegistry.storage;
+
+const batch_id = 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f;
+const merkle_root = 0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f;
+const manifest_hash = 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f;
+const evidence_hash = 0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f;
+
+const register_params: RegistryModule.ProofRegistry.register_params = {
+  batch_id,
+  merkle_root,
+  manifest_hash,
+  evidence_hash
+};
+
+const test_registry_lifecycle = (): unit => {
+  const issuer = Test.Account.address(0n);
+  const outsider = Test.Account.address(1n);
+  Test.State.set_source(issuer);
+
+  const originated = Test.Originate.contract(
+    contract_of(RegistryModule.ProofRegistry),
+    Big_map.empty as registry_storage,
+    0tez
+  );
+
+  Test.Contract.transfer_exn(
+    Test.Typed_address.get_entrypoint("register", originated.taddr),
+    register_params,
+    0tez
+  );
+
+  const after_register = Test.Typed_address.get_storage(originated.taddr);
+  const stored = Option.value_with_error(
+    "REGISTER_DID_NOT_PERSIST",
+    Big_map.find_opt(batch_id, after_register)
+  );
+  Assert.assert(stored.issuer == issuer);
+  Assert.assert(!stored.revoked);
+  Assert.assert(stored.merkle_root == merkle_root);
+  Assert.assert(stored.manifest_hash == manifest_hash);
+  Assert.assert(stored.evidence_hash == evidence_hash);
+
+  const duplicate = Test.Contract.transfer(
+    Test.Typed_address.get_entrypoint("register", originated.taddr),
+    register_params,
+    0tez
+  );
+  match(duplicate) {
+    when(Fail(_)): unit;
+    when(Success(_)): failwith("DUPLICATE_REGISTER_ACCEPTED")
+  };
+
+  Test.State.set_source(outsider);
+  const unauthorized = Test.Contract.transfer(
+    Test.Typed_address.get_entrypoint("revoke", originated.taddr),
+    batch_id,
+    0tez
+  );
+  match(unauthorized) {
+    when(Fail(_)): unit;
+    when(Success(_)): failwith("UNAUTHORIZED_REVOKE_ACCEPTED")
+  };
+
+  Test.State.set_source(issuer);
+  Test.Contract.transfer_exn(
+    Test.Typed_address.get_entrypoint("revoke", originated.taddr),
+    batch_id,
+    0tez
+  );
+
+  const after_revoke = Test.Typed_address.get_storage(originated.taddr);
+  const revoked = Option.value_with_error(
+    "REVOKE_DID_NOT_PERSIST",
+    Big_map.find_opt(batch_id, after_revoke)
+  );
+  Assert.assert(revoked.revoked);
+  return unit;
+};
+
+const lifecycle_test = test_registry_lifecycle();
