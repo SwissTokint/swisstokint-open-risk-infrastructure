@@ -1,0 +1,8 @@
+{
+  "schema_version": "pom-solana-commitment/0.1",
+  "issuer": "4aAc8nXZcAMqn1Z4KyPFjdrYHcCrDbicNyh81boYzrYV",
+  "batch_ref": "pom-fb2d5a7c2139fa0bfbbf977f",
+  "merkle_root": "fb2d5a7c2139fa0bfbbf977f2b11e0286805bd10625bf4d59bfed1e6b065d454",
+  "manifest_hash": "b216fe65723bfac075faf1a0d876125306bdf4bc35a6836a78bbca99f5fdd4b4",
+  "evidence_hash": "be9294af27690a0e5fcda7fc2221d26b3aa9c7161c90529fe3559e9ab41e0fc2"
+}

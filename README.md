@@ -49,6 +49,7 @@ The current prototype provides:
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
+| `docs/SOLANA_DEVNET_MEMO_ADAPTER_V0_1.md` | Signed, canonical Memo-program pre-grant adapter |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
@@ -115,6 +116,15 @@ The v0.1 optimized WASM is 7,390 bytes and hashes to
 It is deployed on Stellar Testnet as
 [`CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W`](https://lab.stellar.org/r/testnet/contract/CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W).
 
+Build and inspect the Solana Devnet commitment without sending:
+
+```bash
+npm run solana:dry-run -- schemas/examples/solana-anchor-input-v0.1.json
+```
+
+The adapter defaults to dry inspection. Live Devnet publication requires the
+separate `solana:publish` command and a dedicated test-only keypair.
+
 ## Security boundary
 
 The public prototype is deliberately narrow:
@@ -142,7 +152,9 @@ See [SECURITY.md](SECURITY.md) and
 - [ ] Add retrieval-state monitoring across independent providers.
 - [ ] Anchor batch roots on an EVM testnet.
 - [x] Publish a chain-neutral anchor-record schema and cross-language fixture.
-- [ ] Implement and independently reproduce a Solana devnet adapter.
+- [x] Build and test a canonical Solana Memo-program adapter.
+- [ ] Publish and independently reproduce the adapter on Solana Devnet.
+- [ ] Replace the pre-grant Memo adapter with a high-throughput PDA registry.
 - [x] Build and unit-test a Soroban evidence-registry MVP.
 - [x] Deploy the Soroban registry to Stellar Testnet and publish a reproducible
       active/revoked verification trace.
