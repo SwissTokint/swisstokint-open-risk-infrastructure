@@ -39,3 +39,5 @@ jobs:
       - name: Build optimized Stellar contract
         working-directory: integrations/stellar-evidence-registry
         run: stellar contract build
+      - name: Build hardened proof relay image
+        run: docker build -f examples/proof-relay/Dockerfile -t swisstokint-proof-relay:ci .
