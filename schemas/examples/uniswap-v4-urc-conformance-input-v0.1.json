@@ -1,0 +1,52 @@
+{
+  "schema": "swisstokint-uniswap-v4-urc-conformance-v0.1",
+  "inputId": "0x29a3a079725c7e9e3e9d8c8250172181718a16f80a70b3f5e5d897b535c85f40",
+  "hookAddress": "0x00000000000000000000000000000000000000cc",
+  "expectedPermissions": [
+    "beforeSwap",
+    "afterSwap",
+    "beforeSwapReturnDelta",
+    "afterSwapReturnDelta"
+  ],
+  "swaps": [
+    {
+      "poolId": "0x5bcf2cc768dbaad4a834dc76a3f6f384d14b483e42ebd5c23f81ba370f7d6f86",
+      "callbackSender": "0x1111111111111111111111111111111111111111",
+      "zeroForOne": true,
+      "amountSpecified": "-100",
+      "hookDelta": {
+        "amount0": "-50",
+        "amount1": "49"
+      },
+      "coreDelta": {
+        "amount0": "-50",
+        "amount1": "49"
+      },
+      "hookSwapEvents": [
+        {
+          "poolId": "0x5bcf2cc768dbaad4a834dc76a3f6f384d14b483e42ebd5c23f81ba370f7d6f86",
+          "sender": "0x1111111111111111111111111111111111111111",
+          "amount0": "-50",
+          "amount1": "49",
+          "swapFee": "0"
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "hookAddress": "0x00000000000000000000000000000000000000cc",
+    "providerAddress": "0x00000000000000000000000000000000000000cc",
+    "supportsIERC165": true,
+    "supportsIHookStats": true,
+    "associationEvidence": "direct",
+    "accountingBasis": "Redeemable token balances in pool token units.",
+    "reserves": {
+      "token0": "1000000000000000000000",
+      "token1": "2000000000000000000000"
+    },
+    "effectiveLiquidity": {
+      "token0": "500000000000000000000",
+      "token1": "1000000000000000000000"
+    }
+  }
+}

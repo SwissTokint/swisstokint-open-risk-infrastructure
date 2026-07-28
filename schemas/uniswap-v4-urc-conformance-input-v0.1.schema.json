@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/uniswap-v4-urc-conformance-input-v0.1.schema.json",
+  "title": "SwissTokint Uniswap v4 URC Conformance Input v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "inputId",
+    "hookAddress",
+    "expectedPermissions",
+    "swaps",
+    "stats"
+  ],
+  "properties": {
+    "schema": {
+      "const": "swisstokint-uniswap-v4-urc-conformance-v0.1"
+    },
+    "inputId": {
+      "$ref": "#/$defs/bytes32"
+    },
+    "hookAddress": {
+      "$ref": "#/$defs/address"
+    },
+    "expectedPermissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "beforeInitialize",
+          "afterInitialize",
+          "beforeAddLiquidity",
+          "afterAddLiquidity",
+          "beforeRemoveLiquidity",
+          "afterRemoveLiquidity",
+          "beforeSwap",
+          "afterSwap",
+          "beforeDonate",
+          "afterDonate",
+          "beforeSwapReturnDelta",
+          "afterSwapReturnDelta",
+          "afterAddLiquidityReturnDelta",
+          "afterRemoveLiquidityReturnDelta"
+        ]
+      }
+    },
+    "swaps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/swap"
+      }
+    },
+    "stats": {
+      "$ref": "#/$defs/stats"
+    }
+  },
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$"
+    },
+    "bytes32": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{64}$"
+    },
+    "decimalInteger": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)$"
+    },
+    "unsignedDecimalInteger": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amount0",
+        "amount1"
+      ],
+      "properties": {
+        "amount0": {
+          "$ref": "#/$defs/decimalInteger"
+        },
+        "amount1": {
+          "$ref": "#/$defs/decimalInteger"
+        }
+      }
+    },
+    "hookSwapEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "poolId",
+        "sender",
+        "amount0",
+        "amount1",
+        "swapFee"
+      ],
+      "properties": {
+        "poolId": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "sender": {
+          "$ref": "#/$defs/address"
+        },
+        "amount0": {
+          "$ref": "#/$defs/decimalInteger"
+        },
+        "amount1": {
+          "$ref": "#/$defs/decimalInteger"
+        },
+        "swapFee": {
+          "$ref": "#/$defs/unsignedDecimalInteger"
+        }
+      }
+    },
+    "swap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "poolId",
+        "callbackSender",
+        "zeroForOne",
+        "amountSpecified",
+        "hookDelta",
+        "coreDelta",
+        "hookSwapEvents"
+      ],
+      "properties": {
+        "poolId": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "callbackSender": {
+          "$ref": "#/$defs/address"
+        },
+        "zeroForOne": {
+          "type": "boolean"
+        },
+        "amountSpecified": {
+          "$ref": "#/$defs/decimalInteger"
+        },
+        "hookDelta": {
+          "$ref": "#/$defs/delta"
+        },
+        "coreDelta": {
+          "$ref": "#/$defs/delta"
+        },
+        "hookSwapEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hookSwapEvent"
+          }
+        },
+        "reverted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tokenPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "token0",
+        "token1"
+      ],
+      "properties": {
+        "token0": {
+          "$ref": "#/$defs/unsignedDecimalInteger"
+        },
+        "token1": {
+          "$ref": "#/$defs/unsignedDecimalInteger"
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hookAddress",
+        "providerAddress",
+        "supportsIERC165",
+        "supportsIHookStats",
+        "associationEvidence",
+        "accountingBasis",
+        "reserves",
+        "effectiveLiquidity"
+      ],
+      "properties": {
+        "hookAddress": {
+          "$ref": "#/$defs/address"
+        },
+        "providerAddress": {
+          "$ref": "#/$defs/address"
+        },
+        "supportsIERC165": {
+          "type": "boolean"
+        },
+        "supportsIHookStats": {
+          "type": "boolean"
+        },
+        "associationEvidence": {
+          "enum": [
+            "direct",
+            "same-deployer",
+            "registry-pinned"
+          ]
+        },
+        "accountingBasis": {
+          "type": "string",
+          "minLength": 12
+        },
+        "reserves": {
+          "$ref": "#/$defs/tokenPair"
+        },
+        "effectiveLiquidity": {
+          "$ref": "#/$defs/tokenPair"
+        }
+      }
+    }
+  }
+}

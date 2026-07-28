@@ -34,10 +34,12 @@ The current prototype provides:
 - inclusion proof generation and verification;
 - a dry-run capable Docker relay;
 - shared test fixtures for TypeScript and Python;
-- deterministic, inspectable market-risk rules.
+- deterministic, inspectable market-risk rules;
 - deterministic CARv1 evidence bundles with content-addressed receipt proofs;
 - a fail-closed Synapse adapter boundary for prepare, upload and byte-for-byte
-  retrieval verification.
+  retrieval verification;
+- a deterministic offline conformance report for Uniswap v4 URC-2 and URC-3
+  observations.
 
 ## Repository map
 
@@ -49,6 +51,7 @@ The current prototype provides:
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
+| `docs/UNISWAP_V4_URC_CONFORMANCE_V0_1.md` | Offline URC-2/URC-3 hook observation conformance profile |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
@@ -85,6 +88,13 @@ The fixture always derives root CID
 `bafkreid35libc4fqwf7wjssalgjd7vfdff6cu7akwek4enqmx4u3fxl53e`.
 That CID identifies the CAR manifest. A Filecoin PieceCID returned by Synapse
 identifies the uploaded storage piece and is a separate value.
+
+Validate the deterministic Uniswap v4 URC fixture:
+
+```bash
+npm run uniswap:validate-urc -- \
+  schemas/examples/uniswap-v4-urc-conformance-input-v0.1.json
+```
 
 To inspect a receipt without sending anything:
 
@@ -148,6 +158,8 @@ See [SECURITY.md](SECURITY.md) and
       active/revoked verification trace.
 - [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
 - [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
+- [x] Publish a deterministic offline Uniswap v4 URC-2/URC-3 fixture.
+- [ ] Add RPC receipt ingestion and fork replay for Uniswap v4 hook reports.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.

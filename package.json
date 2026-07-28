@@ -10,6 +10,7 @@
     "test:proof": "node --test tests/*.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
+    "uniswap:validate-urc": "node scripts/validate-uniswap-v4-urc.mjs",
     "test": "npm run test:risk && npm run test:proof"
   },
   "license": "(MIT OR Apache-2.0)",
