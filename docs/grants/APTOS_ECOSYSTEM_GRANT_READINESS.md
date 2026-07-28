@@ -1,7 +1,9 @@
 # Aptos Ecosystem Grant Readiness
 
-Status: **pre-application — traction gate not met**  
-Last programme review: **28 July 2026**  
+Status: **pre-application — traction gate not met**
+
+Last programme review: **28 July 2026**
+
 Official route: <https://aptosnetwork.com/grants/ecosystem>
 
 ## Decision
