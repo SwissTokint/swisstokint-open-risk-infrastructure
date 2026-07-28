@@ -1,0 +1,12 @@
+{
+  "schema_version": "avalanche-accepted-observation/0.1",
+  "network": "avalanche:fuji-c-chain",
+  "chain_id": 43113,
+  "rpc_endpoint": "https://api.avax-test.network/ext/bc/C/rpc",
+  "observed_at": "2026-07-28T14:55:53.196Z",
+  "transaction_hash": "0xe9e1f67bd58899cda644e1719b419ec8d862f459aab6b6a7a2fc8bbfe5d6911f",
+  "block_hash": "0x2bc7e5e38c91e2953218672df224909ca85d93111436b4460744b6ec98e5e49d",
+  "block_number": "57403012",
+  "accepted_by_node": true,
+  "execution_status": "success"
+}

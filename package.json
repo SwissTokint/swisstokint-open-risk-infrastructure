@@ -10,15 +10,22 @@
     "test:proof": "node --test tests/*.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
+    "avalanche:compile": "node scripts/compile-avalanche-registry.mjs",
+    "avalanche:observe": "node scripts/avalanche-fuji-monitor.mjs observe",
+    "avalanche:check": "node scripts/avalanche-fuji-monitor.mjs rpc-check",
     "test": "npm run test:risk && npm run test:proof"
   },
   "license": "(MIT OR Apache-2.0)",
   "devDependencies": {
     "@types/node": "^20.14.10",
+    "solc": "0.8.36",
     "typescript": "^5.5.4"
   },
   "dependencies": {
     "@ipld/car": "^5.4.6",
     "multiformats": "^14.0.5"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
   }
 }

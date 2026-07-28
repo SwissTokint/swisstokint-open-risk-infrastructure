@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/avalanche-accepted-observation-v0.1.schema.json",
+  "title": "SwissTokint Avalanche Accepted Transaction Observation v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "network",
+    "chain_id",
+    "rpc_endpoint",
+    "observed_at",
+    "transaction_hash",
+    "block_hash",
+    "block_number",
+    "accepted_by_node",
+    "execution_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "avalanche-accepted-observation/0.1"
+    },
+    "network": {
+      "const": "avalanche:fuji-c-chain"
+    },
+    "chain_id": {
+      "const": 43113
+    },
+    "rpc_endpoint": {
+      "type": "string",
+      "format": "uri"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "transaction_hash": {
+      "type": "string",
+      "pattern": "^0x[a-f0-9]{64}$"
+    },
+    "block_hash": {
+      "type": "string",
+      "pattern": "^0x[a-f0-9]{64}$"
+    },
+    "block_number": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "accepted_by_node": {
+      "const": true
+    },
+    "execution_status": {
+      "enum": ["success", "reverted"]
+    }
+  }
+}

@@ -49,6 +49,7 @@ The current prototype provides:
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
+| `docs/AVALANCHE_FUJI_ACCEPTED_MONITOR_V0_1.md` | Avalanche-native accepted-transaction monitor and registry skeleton |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
 | `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
@@ -115,6 +116,19 @@ The v0.1 optimized WASM is 7,390 bytes and hashes to
 It is deployed on Stellar Testnet as
 [`CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W`](https://lab.stellar.org/r/testnet/contract/CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W).
 
+Compile the non-custodial Avalanche registry and observe Fuji's
+Avalanche-specific accepted-transaction stream:
+
+```bash
+npm run avalanche:compile
+npm run avalanche:observe -- 1
+```
+
+The observation path is read-only and requires no wallet or private key.
+A reproducible Fuji observation is recorded in
+`deployments/avalanche-fuji-readonly-observation-v0.1.json`; the registry
+contract itself is not yet deployed.
+
 ## Security boundary
 
 The public prototype is deliberately narrow:
@@ -148,6 +162,8 @@ See [SECURITY.md](SECURITY.md) and
       active/revoked verification trace.
 - [ ] Add TypeScript bindings, an independent indexer and cost benchmarks.
 - [ ] Implement and independently reproduce a Tezos Ghostnet adapter.
+- [x] Build an Avalanche Fuji registry skeleton and accepted-transaction monitor.
+- [ ] Deploy and independently reproduce the Avalanche adapter on Fuji.
 - [ ] Add an ERC-8004 validation adapter.
 - [ ] Add content-addressed batch storage and retrieval.
 - [ ] Commission an independent cryptographic and application-security review.
