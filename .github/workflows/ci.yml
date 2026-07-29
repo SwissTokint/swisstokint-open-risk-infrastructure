@@ -41,3 +41,5 @@ jobs:
         run: stellar contract build
       - name: Build hardened proof relay image
         run: docker build -f examples/proof-relay/Dockerfile -t swisstokint-proof-relay:ci .
+      - name: Build hardened POM-RX witness image
+        run: docker build -f examples/pom-rx-witness/Dockerfile -t swisstokint-pom-rx-witness:ci .

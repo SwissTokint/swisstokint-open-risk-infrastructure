@@ -173,8 +173,10 @@ post-hoc audit story.
 2. Add source signatures and remote preflight witness acknowledgements.
 3. Publish Hummingbot, Freqtrade and AgentKit adapters in dry-run mode.
 4. Map POM-RX verification results to ERC-8004 validation requests.
-5. Add a minimal zero-knowledge comparison profile for private limits.
-6. Run two independent reproductions and one non-custodial pilot.
+5. Build an ERC-4337 Risk Gate that rejects an operation without an unexpired
+   preflight acknowledgement bound to the exact call.
+6. Add a minimal zero-knowledge comparison profile for private limits.
+7. Run two independent reproductions and one non-custodial pilot.
 
 No production trading or token is required to validate the protocol. A future
 validator network or utility token should be considered only after independent

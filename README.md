@@ -47,6 +47,7 @@ The current prototype provides:
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
 | `docs/POM_RX_PROTOCOL_V0_1.md` | Hash-linked risk execution receipts for financial agents |
+| `docs/POM_RX_PREFLIGHT_WITNESS_V0_1.md` | Signed pre-execution witness and deployment boundary |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
@@ -103,6 +104,23 @@ import {
 
 See [`docs/POM_RX_PROTOCOL_V0_1.md`](docs/POM_RX_PROTOCOL_V0_1.md) for the
 scope, threat model and relationship to ERC-8004 and ERC-8126.
+
+The next prototype adds a signed remote preflight acknowledgement. It accepts
+only source-signed preflight receipts and never receives an exchange key,
+wallet seed, raw order or private strategy. See
+[`docs/POM_RX_PREFLIGHT_WITNESS_V0_1.md`](docs/POM_RX_PREFLIGHT_WITNESS_V0_1.md).
+
+Run an explicitly marked local dry-run witness:
+
+```bash
+npm run pom-rx:witness
+```
+
+Generate a persistent witness signing key outside the repository:
+
+```bash
+npm run pom-rx:witness-keygen
+```
 
 To inspect a receipt without sending anything:
 

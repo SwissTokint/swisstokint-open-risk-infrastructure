@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "test:risk": "npm run build && node --test dist/**/*.test.js",
     "test:proof": "node --test tests/*.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
+    "pom-rx:witness": "node scripts/pom-rx-preflight-witness.mjs",
+    "pom-rx:witness-keygen": "node scripts/pom-rx-witness-keygen.mjs",
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
     "test": "npm run test:risk && npm run test:proof"
