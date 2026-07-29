@@ -46,6 +46,7 @@ The current prototype provides:
 | `docs/PROOF_OF_METHOD_PROTOCOL.md` | Protocol thesis, safeguards and staged roadmap |
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
+| `docs/POM_RX_PROTOCOL_V0_1.md` | Hash-linked risk execution receipts for financial agents |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
@@ -85,6 +86,23 @@ The fixture always derives root CID
 `bafkreid35libc4fqwf7wjssalgjd7vfdff6cu7akwek4enqmx4u3fxl53e`.
 That CID identifies the CAR manifest. A Filecoin PieceCID returned by Synapse
 identifies the uploaded storage piece and is a separate value.
+
+## POM-RX risk execution receipts
+
+POM-RX is the domain-specific innovation layer above generic Proof of Method
+receipts. It proves the declared preflight, execution and reconciliation path
+of an autonomous financial action without publishing strategy inputs, numeric
+limits or credentials.
+
+```js
+import {
+  commitPomRxReceipt,
+  verifyPomRxChain,
+} from './sdk/typescript/pom-rx.mjs';
+```
+
+See [`docs/POM_RX_PROTOCOL_V0_1.md`](docs/POM_RX_PROTOCOL_V0_1.md) for the
+scope, threat model and relationship to ERC-8004 and ERC-8126.
 
 To inspect a receipt without sending anything:
 
