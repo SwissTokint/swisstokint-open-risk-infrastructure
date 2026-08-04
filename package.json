@@ -18,7 +18,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
-    "@ipld/car": "^5.4.6",
+    "@ipld/car": "^5.4.7",
     "multiformats": "^14.0.5"
   }
 }
