@@ -30,7 +30,7 @@ jobs:
       - name: Add Stellar contract build target
         run: rustup target add wasm32v1-none
       - name: Install attested Stellar CLI
-        uses: stellar/stellar-cli@5a7c5fe76530bf4248477ac812fc757146b98cc4
+        uses: stellar/stellar-cli@8e402ea28202950b272fbabc34caad4d2f64fe87
         with:
           version: 27.0.0
       - name: Test Stellar evidence registry
