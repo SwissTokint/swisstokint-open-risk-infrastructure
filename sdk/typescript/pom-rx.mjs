@@ -18,6 +18,15 @@ const PHASE_OUTCOMES = {
 const PROOF_MODES = new Set(['commitment', 'public', 'zk']);
 const ASSERTION_RESULTS = new Set(['pass', 'fail', 'not_evaluated']);
 
+// rule_id is restricted to lowercase ASCII, digits, dot, underscore and hyphen.
+// Relational comparison therefore defines an ordinal, locale-independent order
+// that is reproducible in every JavaScript runtime and matches Python string order.
+function compareRuleIdsOrdinal(left, right) {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function assert(condition, message) {
   if (!condition) throw new TypeError(message);
 }
@@ -114,7 +123,7 @@ export function validatePomRxReceipt(receipt) {
     new Set(assertions.map(({ rule_id: ruleId }) => ruleId)).size === assertions.length,
     'assertions cannot repeat a rule_id',
   );
-  assertions.sort((left, right) => left.rule_id.localeCompare(right.rule_id));
+  assertions.sort((left, right) => compareRuleIdsOrdinal(left.rule_id, right.rule_id));
 
   if (receipt.phase === 'preflight') {
     assert(receipt.previous_receipt_hash === null, 'A preflight receipt cannot have a previous receipt');
