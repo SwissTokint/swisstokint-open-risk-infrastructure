@@ -27,6 +27,8 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm test
+      - name: Assert tracked POM-RX integrity gaps remain expected-red
+        run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
         run: rustup target add wasm32v1-none
       - name: Install attested Stellar CLI

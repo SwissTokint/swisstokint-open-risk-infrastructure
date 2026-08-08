@@ -9,6 +9,7 @@
     "test:risk": "npm run build && node --test dist/**/*.test.js",
     "test:pom-rx": "node --test tests/pom-rx.node.test.mjs",
     "test:pom-rx:integrity-baseline": "node --test tests/pom-rx-integrity-baseline.node.test.mjs",
+    "test:pom-rx:integrity-baseline:expected-red": "node scripts/assert-pom-rx-integrity-baseline-red.mjs",
     "test:proof-receipt": "node --test tests/proof-sdk.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
     "test:proof-integrations": "node --test tests/filecoin-evidence-bundle.node.test.mjs tests/proof-relay.node.test.mjs",
     "test:proof": "npm run test:pom-rx && npm run test:proof-receipt && npm run test:proof-integrations",

@@ -92,6 +92,17 @@ test('rejects action_commitment substitution from execution to reconciliation', 
   assert.match(result.error, /action_commitment changed/);
 });
 
+test('rejects input_commitment substitution from preflight to execution', () => {
+  const preflight = makePreflight();
+  const execution = makeExecution(commitPomRxReceipt(preflight).receiptHash, {
+    input_commitment: hash('2'),
+  });
+
+  const result = verifyPomRxChain([preflight, execution], { allowPartial: true });
+  assert.equal(result.ok, false, 'v0.1 currently accepts a re-linked input substitution');
+  assert.match(result.error, /input_commitment changed/);
+});
+
 test('rejects execution:accepted when an execution assertion fails', () => {
   const preflight = makePreflight();
   const execution = makeExecution(commitPomRxReceipt(preflight).receiptHash, {
