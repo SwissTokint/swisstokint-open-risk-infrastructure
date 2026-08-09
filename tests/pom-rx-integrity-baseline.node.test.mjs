@@ -69,6 +69,15 @@ function makeReconciliation(previousReceiptHash, overrides = {}) {
   };
 }
 
+test('accepts the unmodified synthetic chain fixture', () => {
+  const preflight = makePreflight();
+  const execution = makeExecution(commitPomRxReceipt(preflight).receiptHash);
+  const reconciliation = makeReconciliation(commitPomRxReceipt(execution).receiptHash);
+
+  const result = verifyPomRxChain([preflight, execution, reconciliation]);
+  assert.equal(result.ok, true, `synthetic control fixture is invalid: ${result.error ?? 'unknown error'}`);
+});
+
 test('rejects action_commitment substitution from preflight to execution', () => {
   const preflight = makePreflight();
   const execution = makeExecution(commitPomRxReceipt(preflight).receiptHash, {
@@ -154,23 +163,23 @@ test('keeps canonical rule_id order identical when locale collation behavior dif
   }
 });
 
-test('rejects action substitution after a witness acknowledgement', () => {
+test('rejects action substitution after an unsigned surrogate witness acknowledgement', () => {
   const preflight = makePreflight();
   const committedPreflight = commitPomRxReceipt(preflight);
-  const witnessAcknowledgement = Object.freeze({
-    schema_version: 'pom-rx-witness-ack/0.1',
+  const surrogateWitnessAcknowledgement = Object.freeze({
+    qualification: 'unsigned-surrogate-receipt-hash-only',
     receipt_hash: committedPreflight.receiptHash,
   });
-  const execution = makeExecution(witnessAcknowledgement.receipt_hash, {
+  const execution = makeExecution(surrogateWitnessAcknowledgement.receipt_hash, {
     action_commitment: hash('1'),
   });
 
   assert.equal(
-    witnessAcknowledgement.receipt_hash,
+    surrogateWitnessAcknowledgement.receipt_hash,
     commitPomRxReceipt(preflight).receiptHash,
-    'the simulated acknowledgement remains bound to the exact preflight receipt',
+    'the unsigned surrogate remains bound only to the exact preflight receipt hash',
   );
   const result = verifyPomRxChain([preflight, execution], { allowPartial: true });
-  assert.equal(result.ok, false, 'witnessing the preflight does not repair v0.1 chain continuity');
+  assert.equal(result.ok, false, 'an unsigned surrogate acknowledgement does not repair v0.1 chain continuity');
   assert.match(result.error, /action_commitment changed/);
 });
