@@ -146,23 +146,6 @@ test('rejects duplicate receipt_id values within one chain', () => {
   assert.match(result.error, /receipt_id cannot repeat/);
 });
 
-test('keeps canonical rule_id order identical when locale collation behavior differs', () => {
-  const originalLocaleCompare = String.prototype.localeCompare;
-  String.prototype.localeCompare = () => -1;
-  try {
-    const receipt = validatePomRxReceipt(makePreflight({
-      assertions: ['a_z', 'a-z', 'a.z', 'a0z', 'azz'].map((ruleId) => assertion(ruleId)),
-    }));
-
-    assert.deepEqual(
-      receipt.assertions.map(({ rule_id: ruleId }) => ruleId),
-      ['a-z', 'a.z', 'a0z', 'a_z', 'azz'],
-    );
-  } finally {
-    String.prototype.localeCompare = originalLocaleCompare;
-  }
-});
-
 test('rejects action substitution after an unsigned surrogate witness acknowledgement', () => {
   const preflight = makePreflight();
   const committedPreflight = commitPomRxReceipt(preflight);

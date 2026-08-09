@@ -57,7 +57,6 @@ const expectedFailureCases = [
 ];
 const expectedGreenControls = [
   'accepts the unmodified synthetic chain fixture',
-  'keeps canonical rule_id order identical when locale collation behavior differs',
 ];
 const actualFailures = [...output.matchAll(/^not ok \d+ - (.+)$/gm)].map((match) => match[1]);
 const actualPasses = [...output.matchAll(/^ok \d+ - (.+)$/gm)].map((match) => match[1]);
@@ -88,15 +87,15 @@ assert.doesNotMatch(
   /\b(?:SyntaxError|ReferenceError|TypeError)\b|ERR_MODULE_NOT_FOUND|Cannot find module|\bENOENT\b/,
   'expected-red evidence cannot come from import, syntax, runtime, or missing-fixture errors',
 );
-assert.match(output, /^1\.\.9$/m, 'the complete nine-test TAP plan must be present');
-assert.match(output, /^# tests 9$/m);
-assert.match(output, /^# pass 2$/m);
+assert.match(output, /^1\.\.8$/m, 'the complete eight-test TAP plan must be present');
+assert.match(output, /^# tests 8$/m);
+assert.match(output, /^# pass 1$/m);
 assert.match(output, /^# fail 7$/m);
 assert.match(output, /^# cancelled 0$/m);
 assert.match(output, /^# skipped 0$/m);
 assert.match(output, /^# todo 0$/m);
 assert.deepEqual(actualFailures, expectedFailureCases.map(({ testName }) => testName), 'integrity baseline failure set changed unexpectedly');
-assert.deepEqual(actualPasses, expectedGreenControls, 'fixture or canonical-order green controls changed unexpectedly');
+assert.deepEqual(actualPasses, expectedGreenControls, 'fixture green control changed unexpectedly');
 assert.equal(new Set(expectedFailureCases.map(({ defectId }) => defectId)).size, expectedFailureCases.length, 'defect IDs must be unique');
 
 for (const expectedCase of expectedFailureCases) {

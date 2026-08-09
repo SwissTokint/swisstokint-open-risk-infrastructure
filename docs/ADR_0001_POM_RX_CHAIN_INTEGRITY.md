@@ -121,19 +121,18 @@ Every chain also requires unique `receipt_id` values, contiguous ordered
 phases, nondecreasing offset-aware time, exact previous-hash links and stable
 run, agent, subject, method, policy, input and action commitments.
 
-## Canonical `rule_id` order
+## Canonical `rule_id` order — deferred compatibility decision
 
-`localeCompare` is not a canonical comparator. Valid `rule_id` values are
-restricted to lowercase ASCII, digits, dot, underscore and hyphen. The
-TypeScript implementation therefore uses relational `<` and `>` comparison,
-which defines ordinal UTF-16 order for this ASCII subset and matches Python
-string ordering.
+This baseline deliberately retains the existing v0.1 `localeCompare`
+behavior. Replacing it with ordinal comparison can change a receipt hash when
+punctuation-bearing rule IDs are ordered differently by ICU collation, so that
+runtime change does not belong in an adversarial test baseline.
 
-This correction can change a v0.1 receipt hash when punctuation-bearing rule
-IDs were previously ordered differently by ICU collation. Known public test
-vectors must be regenerated or explicitly retained as compatibility vectors
-before merge. No tag or immutable POM-RX release was observed during this
-checkpoint.
+The ordinal comparator and its focused test remain recoverable from commit
+`76ea8c1b63138275a8dfe7f43179282ae12a0f06`. A separate compatibility PR must
+measure affected vectors, specify the canonical order and migration behavior,
+and obtain the required Claude and human decisions before any merge. This ADR
+does not select or approve a replacement comparator.
 
 ## Compatibility v0.1 to v0.2
 
@@ -151,8 +150,9 @@ checkpoint.
 ## Consequences
 
 The new adversarial baseline remains red for the unresolved v0.1 invariants.
-Only deterministic assertion ordering is corrected in this checkpoint. DAGR,
-its governance profile and any production gate remain blocked.
+This checkpoint changes tests and documentation only; it does not change POM-RX
+runtime behavior. DAGR, its governance profile and any production gate remain
+blocked.
 
 ## Residual risks
 
@@ -161,7 +161,7 @@ its governance profile and any production gate remain blocked.
 - there is no public Python POM-RX verifier;
 - native payload binding is not specified;
 - `not_evaluated` semantics require vectors;
-- the comparator correction may expose legacy hash incompatibility;
+- canonical `rule_id` ordering and legacy hash compatibility remain undecided;
 - Claude architecture and security reviews have not run.
 
 ## Review and approvals
