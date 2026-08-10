@@ -7,9 +7,38 @@ const charter = readFileSync("docs/product/POM_RX_PRODUCT_CHARTER.md", "utf8");
 // These tests guard candidate-charter wording only. They do not execute or
 // independently verify the POM-RX verifier, Witness, Gate, or reconciliation.
 
+const allowedNonAsciiCodePoints = new Set([
+  0x2014, // em dash
+  0x2500, // box drawings light horizontal
+  0x2502, // box drawings light vertical
+  0x2514, // box drawings light up and right
+  0x251c, // box drawings light vertical and right
+]);
+
+const forbiddenUnicodeControls =
+  /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/u;
+
+function normalizedClaimText(value) {
+  return value.normalize("NFC").replace(/\s+/g, " ");
+}
+
+function hasForbiddenClaimUnicode(value) {
+  return (
+    value !== value.normalize("NFC") ||
+    forbiddenUnicodeControls.test(value) ||
+    [...value].some(
+      (character) =>
+        character.codePointAt(0) > 0x7f &&
+        !allowedNonAsciiCodePoints.has(character.codePointAt(0)),
+    )
+  );
+}
+
 const forbiddenDagrPeerClaims = [
-  /DAGR is (?:an? )?(?:peer|coequal|equal-rank|first-class|primary|principal|separate|second|standalone|autonomous) (?:product|offering)/i,
-  /POM-RX and DAGR are (?:peer|coequal|equal-rank|separate|standalone) products/i,
+  /DAGR (?:is|becomes|remains|serves as) (?:an? )?(?:(?:peer|coequal|equal-rank|first-class|primary|principal|separate|second|standalone|autonomous) )?(?:product|offering|platform|framework|SDK|service|solution|system)/i,
+  /DAGR is (?:coequal|equal|equivalent) (?:to|with) POM-RX/i,
+  /DAGR (?:equals|rivals|stands alongside) POM-RX/i,
+  /POM-RX and DAGR are (?:peer|coequal|equal-rank|separate|standalone) (?:products|offerings|platforms|frameworks|SDKs|services|solutions|systems)/i,
   /parallel DAGR SDK (?:is|will be|exists)/i,
   /(?:build|develop|introduce|launch|maintain|ship)(?:s|ed|ing)? (?:an? )?parallel DAGR SDK/i,
 ];
@@ -17,8 +46,11 @@ const forbiddenDagrPeerClaims = [
 const affirmativeGlobalScore =
   /global (?:security )?(?:score|rating)[^.\n]{0,40}\b\d{1,3}\s*%/i;
 
-const affirmativeControlledClaim =
-  /POM-RX (?:is |is now |is fully )?(?:compatible|production(?:-ready)?|independently verified|a decentralized network|blocks execution|secures transactions)/i;
+const affirmativeControlledClaims = [
+  /POM-RX[^.\n]{0,50}\b(?:is|becomes|remains|provides|delivers|enables|offers|ensures|guarantees)\b[^.\n]{0,30}\b(?:compatible|production(?:-ready)?|independently verified|decentralized network)\b/i,
+  /(?:POM-RX|the (?:system|protocol|infrastructure))[^.\n]{0,50}\b(?:blocks execution|secures transactions)\b/i,
+  /(?:execution is blocked|transactions are secured) by POM-RX\b/i,
+];
 
 test("product charter keeps POM-RX as the principal product and DAGR as a profile", () => {
   assert.match(charter, /Status: `CANDIDATE_NON_NORMATIVE_DRAFT`/);
@@ -31,7 +63,7 @@ test("product charter keeps POM-RX as the principal product and DAGR as a profil
   assert.match(charter, /not an autonomous\s+audit product/);
   assert.match(charter, /parallel DAGR SDK/);
   for (const forbiddenPeerClaim of forbiddenDagrPeerClaims) {
-    assert.doesNotMatch(charter, forbiddenPeerClaim);
+    assert.doesNotMatch(normalizedClaimText(charter), forbiddenPeerClaim);
   }
 });
 
@@ -39,7 +71,11 @@ test("product charter guards reject semantic DAGR peer and parallel SDK variants
   for (const forbiddenClaim of [
     "DAGR is a coequal product",
     "DAGR is a first-class offering",
+    "DAGR is a standalone platform",
+    "DAGR is coequal with POM-RX",
+    "DAGR stands alongside POM-RX",
     "POM-RX and DAGR are equal-rank products",
+    "POM-RX and DAGR are coequal frameworks",
     "SwissTokint will build a parallel DAGR SDK",
     "The programme is launching a parallel DAGR SDK",
   ]) {
@@ -74,6 +110,9 @@ test("product charter separates artifacts and preserves fail-closed claims", () 
     /POM-RX[\s\S]*Core protocol[\s\S]*Profiles[\s\S]*Governance \/ DAGR[\s\S]*Optional anchor adapters/,
   );
   assert.doesNotMatch(charter, /\uFFFD/);
+  assert.equal(charter, charter.normalize("NFC"));
+  assert.doesNotMatch(charter, forbiddenUnicodeControls);
+  assert.equal(hasForbiddenClaimUnicode(charter), false);
   assert.match(
     charter,
     /POM-RX\r?\n├── Core protocol[\s\S]*│   └── Governance \/ DAGR[\s\S]*└── Demonstrations and verification tools/,
@@ -101,7 +140,9 @@ test("product charter keeps sensitive, financial, token, and institutional gates
   assert.match(charter, /submitting funding material or claiming adoption/);
   assert.match(charter, /No global\s+percentage score is authorized/);
   assert.doesNotMatch(charter, affirmativeGlobalScore);
-  assert.doesNotMatch(charter, affirmativeControlledClaim);
+  for (const affirmativeControlledClaim of affirmativeControlledClaims) {
+    assert.doesNotMatch(normalizedClaimText(charter), affirmativeControlledClaim);
+  }
   assert.match(
     charter,
     /critical `unknown` or `not_tested` result\s+must keep the profile incomplete/,
@@ -112,11 +153,33 @@ test("product charter guards reject affirmative score and controlled claims", ()
   assert.match("A global security score is 97%", affirmativeGlobalScore);
   for (const forbiddenClaim of [
     "POM-RX is production-ready",
+    "POM-RX delivers production readiness",
     "POM-RX is independently verified",
     "POM-RX is a decentralized network",
+    "POM-RX provides compatible infrastructure",
     "POM-RX blocks execution",
+    "The protocol blocks execution",
     "POM-RX secures transactions",
+    "Transactions are secured by POM-RX",
   ]) {
-    assert.match(forbiddenClaim, affirmativeControlledClaim);
+    assert.equal(
+      affirmativeControlledClaims.some((pattern) => pattern.test(forbiddenClaim)),
+      true,
+      `expected guard to reject: ${forbiddenClaim}`,
+    );
+  }
+});
+
+test("product charter guards reject invisible and confusable Unicode", () => {
+  for (const forbiddenClaim of [
+    "DAGR is a stand\u200Balone product",
+    "D\u0410GR is a standalone product",
+    "POM-RX is independently verifie\u0301d",
+  ]) {
+    assert.equal(
+      hasForbiddenClaimUnicode(forbiddenClaim),
+      true,
+      `expected Unicode guard to reject: ${JSON.stringify(forbiddenClaim)}`,
+    );
   }
 });
