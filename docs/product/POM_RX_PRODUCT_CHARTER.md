@@ -20,9 +20,12 @@ It is intended to make the control path before, during, and after one sensitive
 action independently inspectable without requiring disclosure of raw private
 strategy inputs.
 
-POM-RX does not claim to make an action safe. It records and verifies bounded
-evidence about declared policy, the action commitment, preflight, exact
-authorization, execution, observation, and reconciliation. A structurally
+POM-RX does not claim to make an action safe. It defines an intended lifecycle
+for linking bounded evidence about declared policy, the action commitment,
+preflight, exact authorization, execution, observation, and reconciliation.
+The currently evidenced v0.1 TypeScript verifier checks only the stated
+structural receipt properties; it does not prove end-to-end exact
+authorization, native execution, or independent observation. A structurally
 valid receipt is not proof that the business decision was legitimate or that
 every relevant control existed.
 
@@ -50,7 +53,7 @@ document must preserve this hierarchy.
 
 | Layer | Question it is intended to answer | Current evidence boundary |
 |---|---|---|
-| Core protocol | Are the declared receipts structurally valid and linked? | POM-RX v0.1 TypeScript prototype exists; known continuity and positive-outcome defects remain open |
+| Core protocol | Are the declared receipts structurally valid and linked? | POM-RX v0.1 TypeScript prototype exists; known continuity, positive-outcome, and receipt-ID uniqueness defects remain open |
 | Preflight witness | Did a distinct source acknowledge preflight before action? | Draft PR 24 contains a signed-witness prototype; it is not merged or production-ready |
 | Exact authorization | Was this exact action authorized under the declared policy? | Target property; current v0.1 evidence does not prove end-to-end exact-action continuity |
 | Gate consumption | Did an execution-side consumer fail closed on the authorization? | No executable downstream Gate is currently proved |
@@ -79,8 +82,9 @@ The following immutable commits bound the current statements in this charter:
 
 - public baseline: `6f421c540e9a47a971840847547c9bfc951e1d46`;
 - PR 27 adversarial baseline: `d2783fbd35ef2ac28b73607b75ea8fa3c7ae643b`,
-  where seven expected-red continuity and positive-outcome defects remain
-  reproduced rather than fixed;
+  where seven tracked expected-red integrity defects covering continuity,
+  positive-outcome consistency, and `receipt_id` uniqueness remain reproduced
+  rather than fixed;
 - PR 24 witness prototype: `175d4ddfab8e7efa035a34793205fd53f1e15984`,
   which is neither merged nor production-ready and retains documented
   enrollment, revocation, persistence, clock, recovery, Gate, boundary, and

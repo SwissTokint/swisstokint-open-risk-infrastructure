@@ -52,6 +52,15 @@ const affirmativeControlledClaims = [
   /(?:execution is blocked|transactions are secured) by POM-RX\b/i,
 ];
 
+const affirmativeUnprovedLifecycleClaims = [
+  /POM-RX[^.\n]{0,60}\b(?:verifies|proves|guarantees)\b[^.\n]{0,60}\b(?:exact authorization|native execution|independent observation)\b/i,
+];
+
+const affirmativeInstitutionalClaims = [
+  /(?:^|[.!?]\s+)(?:The )?Association is constituted\b/i,
+  /(?:^|[.!?]\s+)Signed statutes and minutes have been verified\b/i,
+];
+
 test("product charter keeps POM-RX as the principal product and DAGR as a profile", () => {
   assert.match(charter, /Status: `CANDIDATE_NON_NORMATIVE_DRAFT`/);
   assert.match(charter, /POM-RX is the sole principal technical product/);
@@ -92,7 +101,22 @@ test("product charter separates artifacts and preserves fail-closed claims", () 
   assert.match(charter, /only the public TypeScript POM-RX verifier is currently evidenced/);
   assert.match(charter, /`steps=\[\]` or `steps=null` is `CI_INFRA_FAILURE`/);
   assert.match(charter, /No executable downstream Gate is currently proved/);
-  assert.match(charter, /known continuity and positive-outcome defects remain open/);
+  assert.match(charter, /known continuity, positive-outcome, and receipt-ID uniqueness defects remain open/);
+  assert.match(
+    charter,
+    /seven tracked expected-red integrity defects covering continuity,\s+positive-outcome consistency, and `receipt_id` uniqueness/,
+  );
+  assert.match(
+    charter,
+    /currently evidenced v0\.1 TypeScript verifier checks only the stated\s+structural receipt properties/,
+  );
+  assert.match(
+    charter,
+    /does not prove end-to-end exact\s+authorization, native execution, or independent observation/,
+  );
+  for (const affirmativeLifecycleClaim of affirmativeUnprovedLifecycleClaims) {
+    assert.doesNotMatch(normalizedClaimText(charter), affirmativeLifecycleClaim);
+  }
   assert.match(charter, /not an independent verifier or protocol implementation/);
   assert.match(charter, /SwissTokint\/swisstokint-open-risk-infrastructure/);
   assert.match(charter, /pinned by version, commit, and\s+content hash/);
@@ -132,7 +156,13 @@ test("product charter keeps sensitive, financial, token, and institutional gates
   assert.match(charter, /no financial transaction/);
   assert.match(charter, /only current human contacts[^\n]+Mehdi\s+Mauroux and Guy Nambou/);
   assert.match(charter, /AI tools are not founders, members, employees/);
-  assert.match(charter, /signed statutes and\s+minutes have been verified/);
+  assert.match(
+    charter,
+    /The Association may be described as constituted only after signed statutes and\s+minutes have been verified in the local source records/,
+  );
+  for (const affirmativeInstitutionalClaim of affirmativeInstitutionalClaims) {
+    assert.doesNotMatch(normalizedClaimText(charter), affirmativeInstitutionalClaim);
+  }
   assert.match(charter, /Human approval is mandatory before/);
   assert.match(charter, /not a protocol specification, release, audit,/);
   assert.match(charter, /not an autonomous\s+audit product, certification/);
@@ -166,6 +196,27 @@ test("product charter guards reject affirmative score and controlled claims", ()
       affirmativeControlledClaims.some((pattern) => pattern.test(forbiddenClaim)),
       true,
       `expected guard to reject: ${forbiddenClaim}`,
+    );
+  }
+  for (const forbiddenClaim of [
+    "POM-RX verifies exact authorization.",
+    "POM-RX proves native execution.",
+    "POM-RX verifies independent observation.",
+  ]) {
+    assert.equal(
+      affirmativeUnprovedLifecycleClaims.some((pattern) => pattern.test(forbiddenClaim)),
+      true,
+      `expected lifecycle guard to reject: ${forbiddenClaim}`,
+    );
+  }
+  for (const forbiddenClaim of [
+    "The Association is constituted.",
+    "Signed statutes and minutes have been verified.",
+  ]) {
+    assert.equal(
+      affirmativeInstitutionalClaims.some((pattern) => pattern.test(forbiddenClaim)),
+      true,
+      `expected institutional guard to reject: ${forbiddenClaim}`,
     );
   }
 });
