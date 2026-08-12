@@ -159,3 +159,65 @@ test('POM-RX fail-closes on unknown fields and duplicate rules', () => {
     /repeat a rule_id/,
   );
 });
+
+test('POM-RX rejects receipts whose timestamp moves backwards', () => {
+  const preflight = makePreflight();
+  const execution = makeExecution(
+    commitPomRxReceipt(preflight).receiptHash,
+    { occurred_at: '2026-07-28T17:59:59.000Z' },
+  );
+  const result = verifyPomRxChain([preflight, execution], { allowPartial: true });
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /time cannot move backwards/);
+});
+
+test('POM-RX rejects a chain with a missing lifecycle phase', () => {
+  const preflight = makePreflight();
+  const reconciliation = makeReconciliation(commitPomRxReceipt(preflight).receiptHash);
+  const result = verifyPomRxChain([preflight, reconciliation]);
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /phases must be contiguous and ordered/);
+});
+
+test('POM-RX rejects a chain with an additional lifecycle receipt', () => {
+  const preflight = makePreflight();
+  const execution = makeExecution(commitPomRxReceipt(preflight).receiptHash);
+  const reconciliation = makeReconciliation(commitPomRxReceipt(execution).receiptHash);
+  const additional = makeReconciliation(commitPomRxReceipt(reconciliation).receiptHash, {
+    receipt_id: 'receipt_additional_20260728',
+    occurred_at: '2026-07-28T18:00:04.000Z',
+  });
+  const result = verifyPomRxChain([preflight, execution, reconciliation, additional]);
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /cannot exceed three receipts/);
+});
+
+test('POM-RX rejects an unknown receipt schema', () => {
+  assert.throws(
+    () => validatePomRxReceipt({ ...makePreflight(), schema_version: 'pom-rx/9.9' }),
+    /Unsupported POM-RX schema version/,
+  );
+});
+
+test('POM-RX rejects an oversized canonical receipt', () => {
+  const assertions = Array.from({ length: 64 }, (_, index) => ({
+    rule_id: `rule-${index.toString().padStart(2, '0')}-${'x'.repeat(54)}`,
+    rule_hash: hash('e'),
+    result: 'pass',
+    proof_mode: 'commitment',
+    evidence_hash: hash('f'),
+  }));
+  const oversized = makePreflight({
+    agent_ref: 'a'.repeat(256),
+    subject_ref: 's'.repeat(256),
+    assertions,
+  });
+
+  assert.throws(
+    () => commitPomRxReceipt(oversized),
+    /Canonical payload exceeds 16 KiB/,
+  );
+});
