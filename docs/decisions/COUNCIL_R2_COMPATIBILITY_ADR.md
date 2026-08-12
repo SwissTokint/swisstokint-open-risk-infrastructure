@@ -1,6 +1,6 @@
 # Technical Council — R2 POM-RX Compatibility ADR
 
-Status: `COUNCIL_RECOMMENDATION / TIER_B / HUMAN_DECISION_REQUIRED`
+Status: `COUNCIL_RECOMMENDATION / HUMAN_RATIFICATION_RECORDED / TIER_B_MERGE_GATE_REQUIRED`
 
 Date: 2026-08-12
 
@@ -96,7 +96,9 @@ ordering, schema and hash-domain semantics for POM-RX Core v0.2 candidate.
 
 ## RECOMMENDATION
 
-The council recommends Option D, subject to explicit human ratification:
+The council recommends Option D. The exact recommendation below received
+explicit human ratification on 2026-08-12; its separate Tier-B merge gate
+remains open:
 
 1. freeze all v0.1 bytes, hashes, schema, domain and canonicalisation;
 2. keep the existing `verifyPomRxChain()` behavior and result shape unchanged
@@ -190,9 +192,46 @@ v0.1.
 
 ## HUMAN_GATE
 
-Human ratification is required for Option D, the exact profile names, package
-and API boundary, trusted-policy contract, diagnostic registry, legacy
-non-authorization rule, and separation of v0.1 ordering from the future v0.2
-decision. Exact v0.2 normalization and ordering remain a separate Tier-B ADR.
-This council does not authorize verifier, schema, canonicalisation, Witness,
-Gate or v0.2 implementation, publication or merge.
+Human ratification was received in the Codex task on 2026-08-12 from the
+conversation actor identifying as confirmed project contact Mehdi Mauroux, with
+the exact instruction:
+
+```text
+APPROUVE OPTION D POM-RX
+```
+
+Immutable ratification provenance:
+
+```text
+source: Codex task
+received_at: exact_time_not_recorded
+recorded_at: 2026-08-12T15:55:32+02:00
+conversation_actor: Mehdi Mauroux
+actor_authentication: conversation-bound; not independently authenticated
+ratified_pr: 32
+ratified_head: 4c7a313ebe71e0d677ad1f528ee3a8018130c5db
+ratified_council_sha256: 5DC3D2429571E0652CBAC9136DC2B2EAF1C30E40CB7CFF7838156519D85F2EF7
+ratified_adr_sha256: 2D456EE9A6862DE68944B490EB770A76FD398467931BF4C35094840268F45064
+```
+
+Those hashes identify the reviewed Option D artifacts presented before this
+ratification record was appended. New hashes created by recording the decision
+are evidence of the record itself; they do not replace the ratified artifact
+identity.
+
+This ratifies Option D, the exact profile names, package and API boundary,
+trusted-policy contract, diagnostic registry, legacy non-authorization rule,
+and separation of v0.1 ordering from the future v0.2 decision. The record is a
+conversation-bound human decision whose actor identity was not independently
+authenticated, not a cryptographic signature or formal GitHub review.
+
+The distinct Tier-B merge gate remains unsatisfied. Before PR 32 can merge, the
+exact reviewed head must remain CI-green and the human must provide:
+
+```text
+APPROUVE FUSION PR #32
+```
+
+Until that merge, this council does not authorize verifier, schema,
+canonicalisation, Witness, Gate or v0.2 implementation or publication. Exact
+v0.2 normalization and ordering remain a separate Tier-B ADR.

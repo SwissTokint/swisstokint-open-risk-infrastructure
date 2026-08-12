@@ -1,6 +1,6 @@
 # ADR — POM-RX v0.1 Errata and v0.2 Compatibility
 
-Status: `PROPOSED / TIER_B / HUMAN_DECISION_REQUIRED`
+Status: `HUMAN_RATIFIED / TIER_B / MERGE_GATE_REQUIRED`
 
 Date: 2026-08-12
 
@@ -10,8 +10,10 @@ Council: `docs/decisions/COUNCIL_R2_COMPATIBILITY_ADR.md`
 
 ## Decision summary
 
-The technical council selects **Option D — bounded combination** as its
-recommendation. This selection is not effective until human ratification.
+The technical council selects **Option D — bounded combination**. Human
+ratification was explicitly recorded on 2026-08-12. Repository integration and
+runtime implementation remain blocked by the separate Tier-B merge gate for
+this exact ADR head.
 
 POM-RX v0.1 receipt construction remains frozen. A new explicitly versioned
 strict verification profile may reject known unsafe chains without changing
@@ -387,7 +389,8 @@ to stateless or legacy acceptance.
 
 ## Implementation sequence
 
-After human ratification only:
+After human ratification and after this ADR is merged through its separate
+Tier-B gate only:
 
 1. publish immutable compatibility fixtures and checksums;
 2. define the result envelope and diagnostic registry;
@@ -445,7 +448,33 @@ Costs and residual risks:
 
 ## Human decision
 
-Human ratification must explicitly approve or reject:
+The conversation actor identifying as confirmed project contact Mehdi Mauroux
+supplied this exact instruction in the Codex task on 2026-08-12:
+
+```text
+APPROUVE OPTION D POM-RX
+```
+
+Immutable ratification provenance:
+
+```text
+source: Codex task
+received_at: exact_time_not_recorded
+recorded_at: 2026-08-12T15:55:32+02:00
+conversation_actor: Mehdi Mauroux
+actor_authentication: conversation-bound; not independently authenticated
+ratified_pr: 32
+ratified_head: 4c7a313ebe71e0d677ad1f528ee3a8018130c5db
+ratified_council_sha256: 5DC3D2429571E0652CBAC9136DC2B2EAF1C30E40CB7CFF7838156519D85F2EF7
+ratified_adr_sha256: 2D456EE9A6862DE68944B490EB770A76FD398467931BF4C35094840268F45064
+```
+
+The hashes above bind the decision to the reviewed Option D text at the
+pre-record head. The new document hashes produced by appending this section are
+evidence that the decision was recorded; they are not the artifacts originally
+ratified.
+
+The human decision ratifies:
 
 - Option D;
 - the two profile names and legacy non-authorization rule;
@@ -456,5 +485,19 @@ Human ratification must explicitly approve or reject:
   v0.2 ordering decision;
 - the migration, replay and rollback boundaries.
 
-Until that decision, this ADR remains proposed and no verifier, schema,
-canonicalisation, Witness, Gate or v0.2 implementation is authorized.
+This conversation-bound record has no independently authenticated actor
+identity and is not a cryptographic signature or a formal GitHub review. It
+satisfies the Option D decision gate only. It does not satisfy the distinct
+Tier-B merge gate and does not authorize implementation while this ADR remains
+outside `main`.
+
+Before PR 32 can merge, its exact head must retain scoped Architecture,
+Security and QA approval, successful CI with real non-empty steps, and the
+human must provide:
+
+```text
+APPROUVE FUSION PR #32
+```
+
+Until that merge, no verifier, schema, canonicalisation, Witness, Gate or v0.2
+implementation or publication is authorized.
