@@ -91,6 +91,8 @@ test('strict JSON parsing rejects byte and duplicate-key ambiguity before semant
   expectCode('INVALID_UTF8', () => parseExactJson(Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d, 0x0a]), 'mutation'));
   expectCode('KEY_SET_OR_ORDER_INVALID', () => assertExactKeys({ b: 1, a: 2 }, ['a', 'b'], 'mutation'));
   for (const nested of [
+    '{"fixture_schema_version":"a","\\u0066ixture_schema_version":"b"}\n',
+    '{"pin_schema_version":"a","\\u0070in_schema_version":"b"}\n',
     '{"scenarios":[{"scenario_id":"a","\\u0073cenario_id":"b"}]}\n',
     '{"canaries":[{"canary_id":"a","canary_id":"b"}]}\n',
     '[{"receipt_id":"a","\\u0072eceipt_id":"b"}]\n',
@@ -102,16 +104,53 @@ test('strict JSON parsing rejects byte and duplicate-key ambiguity before semant
 test('manifest and pin schemas reject nested key, type, null, order and cardinality mutations', () => {
   const manifest = JSON.parse(manifestBytes);
   const pins = JSON.parse(pinBytes);
+  const encode = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+  const mutateManifest = (mutate) => {
+    const value = structuredClone(manifest);
+    mutate(value);
+    return () => validateManifest(encode(value));
+  };
+  const mutatePins = (mutate) => {
+    const value = structuredClone(pins);
+    mutate(value);
+    return () => validatePins(encode(value));
+  };
   const cases = [
-    ['KEY_SET_OR_ORDER_INVALID', () => validateManifest(Buffer.from(`${JSON.stringify({ unknown: true, ...manifest }, null, 2)}\n`))],
-    ['KEY_SET_OR_ORDER_INVALID', () => { const value = structuredClone(manifest); delete value.scenarios[0].scenario_id; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['SCENARIO_VALUE_INVALID', () => { const value = structuredClone(manifest); value.scenarios[0].allow_partial = null; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['MANIFEST_VALUE_INVALID', () => { const value = structuredClone(manifest); value.generated_with_node = 24; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['SCENARIO_VALUE_INVALID', () => { const value = structuredClone(manifest); value.scenarios.reverse(); return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['CANARY_INVALID', () => { const value = structuredClone(manifest); value.canaries = []; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['KEY_SET_OR_ORDER_INVALID', () => validatePins(Buffer.from(`${JSON.stringify({ pins: pins.pins, pin_schema_version: pins.pin_schema_version }, null, 2)}\n`))],
-    ['PIN_SCHEMA_INVALID', () => { const value = structuredClone(pins); value.pins[0].fixture_version = null; return validatePins(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
-    ['KEY_SET_OR_ORDER_INVALID', () => { const value = structuredClone(pins); value.pins[0].unknown = true; return validatePins(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
+    ['KEY_SET_OR_ORDER_INVALID', () => validateManifest(encode({ unknown: true, ...manifest }))],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { delete value.fixture_schema_version; })],
+    ['KEY_SET_OR_ORDER_INVALID', () => validateManifest(encode({ receipt_schema_version: manifest.receipt_schema_version, fixture_schema_version: manifest.fixture_schema_version, ...Object.fromEntries(Object.entries(manifest).slice(2)) }))],
+    ['MANIFEST_VALUE_INVALID', mutateManifest((value) => { value.generated_with_node = 24; })],
+    ['MANIFEST_VALUE_INVALID', mutateManifest((value) => { value.generated_with_locale = null; })],
+    ['SCENARIO_SET_INVALID', mutateManifest((value) => { value.scenarios = null; })],
+    ['SCENARIO_SET_INVALID', mutateManifest((value) => { value.scenarios.pop(); })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { value.scenarios[0].unknown = true; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { delete value.scenarios[0].scenario_id; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { value.scenarios[0] = { classification: value.scenarios[0].classification, scenario_id: value.scenarios[0].scenario_id, ...Object.fromEntries(Object.entries(value.scenarios[0]).slice(2)) }; })],
+    ['SCENARIO_VALUE_INVALID', mutateManifest((value) => { value.scenarios[0].scenario_id = 'wrong-id'; })],
+    ['SCENARIO_VALUE_INVALID', mutateManifest((value) => { value.scenarios[0].allow_partial = null; })],
+    ['SCENARIO_VALUE_INVALID', mutateManifest((value) => { value.scenarios[0].classification = 1; })],
+    ['SCENARIO_VALUE_INVALID', mutateManifest((value) => { value.scenarios.reverse(); })],
+    ['SCENARIO_PATH_INVALID', mutateManifest((value) => { value.scenarios[0].canonical_paths = null; })],
+    ['SCENARIO_HASH_INVALID', mutateManifest((value) => { value.scenarios[0].expected_legacy_receipt_hashes = [null]; })],
+    ['CANARY_INVALID', mutateManifest((value) => { value.canaries = []; })],
+    ['CANARY_INVALID', mutateManifest((value) => { value.canaries = null; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { value.canaries[0].unknown = true; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { delete value.canaries[0].canary_id; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutateManifest((value) => { value.canaries[0] = { input_path: value.canaries[0].input_path, canary_id: value.canaries[0].canary_id, ...Object.fromEntries(Object.entries(value.canaries[0]).slice(2)) }; })],
+    ['CANARY_INVALID', mutateManifest((value) => { value.canaries[0].canary_id = 1; })],
+    ['CANARY_INVALID', mutateManifest((value) => { value.canaries[0].comparator = 'wrong-comparator'; })],
+    ['KEY_SET_OR_ORDER_INVALID', () => validatePins(encode({ pins: pins.pins, pin_schema_version: pins.pin_schema_version }))],
+    ['KEY_SET_OR_ORDER_INVALID', mutatePins((value) => { value.unknown = true; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutatePins((value) => { delete value.pin_schema_version; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pin_schema_version = null; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pins = null; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pins = []; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutatePins((value) => { value.pins[0].unknown = true; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutatePins((value) => { delete value.pins[0].fixture_version; })],
+    ['KEY_SET_OR_ORDER_INVALID', mutatePins((value) => { value.pins[0] = { source_baseline: value.pins[0].source_baseline, fixture_version: value.pins[0].fixture_version, fixture_set_sha256: value.pins[0].fixture_set_sha256 }; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pins[0].fixture_version = null; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pins[0].source_baseline = 743; })],
+    ['PIN_SCHEMA_INVALID', mutatePins((value) => { value.pins[0].fixture_set_sha256 = null; })],
   ];
   for (const [code, mutation] of cases) expectCode(code, mutation);
 });
@@ -136,6 +175,13 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
     writeFileSync(sumsPath, newSums);
     const pins = JSON.parse(readFileSync(path.join(root, 'pins.json')));
     pins.pins[0].fixture_set_sha256 = sha256Bytes(Buffer.concat([Buffer.from('pom-rx-v0.1-fixture-set/1\n', 'ascii'), Buffer.from(newSums)]));
+    writeFileSync(path.join(root, 'pins.json'), `${JSON.stringify(pins, null, 2)}\n`);
+  };
+  const writeChecksumsAndRepin = (root, checksums) => {
+    const sumsPath = path.join(root, '1', 'checksums.sha256');
+    writeFileSync(sumsPath, checksums);
+    const pins = JSON.parse(readFileSync(path.join(root, 'pins.json')));
+    pins.pins[0].fixture_set_sha256 = sha256Bytes(Buffer.concat([Buffer.from('pom-rx-v0.1-fixture-set/1\n', 'ascii'), Buffer.from(checksums)]));
     writeFileSync(path.join(root, 'pins.json'), `${JSON.stringify(pins, null, 2)}\n`);
   };
   try {
@@ -172,6 +218,17 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
     const newDigest = sha256Bytes(readFileSync(changedManifest));
     writeFileSync(sumsPath, readFileSync(sumsPath, 'utf8').replace(/^[0-9a-f]{64}  manifest\.json$/m, `${newDigest}  manifest.json`));
     await expectAsyncCode('PIN_MISMATCH', () => verifyFixtureCorpus({ root: selfConsistent }));
+
+    const missingChecksumEntry = makeCopy('missing-checksum-entry');
+    const missingLines = readFileSync(path.join(missingChecksumEntry, '1', 'checksums.sha256'), 'utf8').split('\n');
+    missingLines.splice(0, 1);
+    writeChecksumsAndRepin(missingChecksumEntry, missingLines.join('\n'));
+    await expectAsyncCode('FILE_SET_INVALID', () => verifyFixtureCorpus({ root: missingChecksumEntry }));
+
+    const additionalChecksumEntry = makeCopy('additional-checksum-entry');
+    const additionalSums = `${readFileSync(path.join(additionalChecksumEntry, '1', 'checksums.sha256'), 'utf8')}${'0'.repeat(64)}  zz-extra.json\n`;
+    writeChecksumsAndRepin(additionalChecksumEntry, additionalSums);
+    await expectAsyncCode('FILE_SET_INVALID', () => verifyFixtureCorpus({ root: additionalChecksumEntry }));
 
     if (runtimeIsExact) {
       const canonical = makeCopy('canonical');
