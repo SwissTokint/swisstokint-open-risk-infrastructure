@@ -8,6 +8,12 @@ import { TextDecoder } from 'node:util';
 export const CASE_FOLDING_SHA256 = 'ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183';
 export const VERSION_ROOT_RELATIVE = 'fixtures/pom-rx/v0.1-compat/1';
 const windowsStreamHelper = fileURLToPath(new URL('./get-pom-rx-v01-ntfs-streams.ps1', import.meta.url));
+const verifiedRootIdentities = new Map();
+const verifiedFileIdentities = new Map();
+
+function fileIdentity(status) {
+  return `${status.dev}:${status.ino}:${status.size}:${status.mtimeNs}:${status.nlink}`;
+}
 
 export class FixtureContractError extends Error {
   constructor(code, message, details = {}) {
@@ -234,15 +240,21 @@ export function resolveBelow(root, relativePath) {
 function assertRealRoot(root) {
   const rootStatus = lstatSync(root, { bigint: true });
   if (!rootStatus.isDirectory() || rootStatus.isSymbolicLink()) fail('NON_REGULAR_ROOT', 'fixture root must be a real directory, not a link or reparse path');
+  const rootIdentity = `${rootStatus.dev}:${rootStatus.ino}:${rootStatus.mtimeNs}`;
+  if (process.platform === 'win32' && verifiedRootIdentities.get(path.resolve(root)) === rootIdentity) return;
   let current = path.resolve(root);
   const volumeRoot = path.parse(current).root;
+  const ancestors = [];
   while (current !== volumeRoot) {
     if (lstatSync(current).isSymbolicLink()) fail('NON_REGULAR_ROOT', 'fixture root ancestors must not redirect through links or reparse paths');
+    ancestors.push({ fullPath: current, relativePath: current === path.resolve(root) ? '.' : '<ancestor>' });
     current = path.dirname(current);
   }
+  assertWindowsPathMetadata(ancestors, { checkAds: false, reparseCode: 'NON_REGULAR_ROOT' });
+  if (process.platform === 'win32') verifiedRootIdentities.set(path.resolve(root), rootIdentity);
 }
 
-function assertNoAlternateStreams(targets) {
+function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
   if (process.platform !== 'win32') return;
   let records;
   try {
@@ -254,8 +266,9 @@ function assertNoAlternateStreams(targets) {
   }
   if (!Array.isArray(records) || records.length !== targets.length) fail('ADS_ENUMERATION_FAILED', 'alternate-data-stream result cardinality differs');
   records.forEach((record, index) => {
+    if (record.reparse !== false) fail(reparseCode, 'Windows reparse point forbidden', { path: targets[index].relativePath });
     const names = Array.isArray(record.streams) ? record.streams : [record.streams];
-    if (names.some((name) => name !== '::$DATA')) fail('ALTERNATE_DATA_STREAM', 'alternate data stream forbidden', { path: targets[index].relativePath, streams: names });
+    if (checkAds && names.some((name) => name !== '::$DATA')) fail('ALTERNATE_DATA_STREAM', 'alternate data stream forbidden', { path: targets[index].relativePath, streams: names });
   });
 }
 
@@ -284,7 +297,12 @@ export function enumerateRegularFiles(root) {
   walk(root);
   const sorted = output.sort(compareUnicodeScalars);
   for (const relativePath of sorted) streamTargets.push({ fullPath: resolveBelow(root, relativePath), relativePath });
-  assertNoAlternateStreams(streamTargets);
+  assertWindowsPathMetadata(streamTargets);
+  if (process.platform === 'win32') {
+    for (const { fullPath } of streamTargets.slice(1).filter(({ fullPath }) => lstatSync(fullPath, { bigint: true }).isFile())) {
+      verifiedFileIdentities.set(fullPath, fileIdentity(lstatSync(fullPath, { bigint: true })));
+    }
+  }
   return sorted;
 }
 
@@ -293,7 +311,9 @@ export function readRegularFile(root, relativePath) {
   const fullPath = resolveBelow(root, relativePath);
   const status = lstatSync(fullPath, { bigint: true });
   if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1n) fail('NON_REGULAR_FILE', 'only single-link regular files allowed', { path: relativePath });
-  assertNoAlternateStreams([{ fullPath, relativePath }]);
+  if (process.platform !== 'win32' || verifiedFileIdentities.get(fullPath) !== fileIdentity(status)) {
+    assertWindowsPathMetadata([{ fullPath, relativePath }]);
+  }
   const bytes = readFileSync(fullPath);
   const after = lstatSync(fullPath, { bigint: true });
   if (after.dev !== status.dev || after.ino !== status.ino || after.size !== status.size || after.mtimeNs !== status.mtimeNs) fail('FILE_CHANGED_DURING_READ', 'file identity or bytes changed during read', { path: relativePath });

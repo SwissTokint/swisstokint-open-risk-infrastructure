@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -194,6 +194,31 @@ test('portable path validation rejects Windows, POSIX, traversal and Unicode haz
   }
   assert.equal(validateFixturePath('canonical/a/0.json'), 'canonical/a/0.json');
   assert.deepEqual(['a\u{10000}', 'a\ue000', 'a', 'aa'].sort(compareUnicodeScalars), ['a', 'aa', 'a\ue000', 'a\u{10000}']);
+});
+
+test('POSIX integration rejects real file and root symlinks without following them', (context) => {
+  if (process.platform === 'win32') {
+    context.skip('POSIX symlink integration runs in Ubuntu CI');
+    return;
+  }
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-posix-links-'));
+  try {
+    const fixtureRoot = path.join(temporaryRoot, 'fixture');
+    const externalRoot = path.join(temporaryRoot, 'external');
+    mkdirSync(fixtureRoot);
+    mkdirSync(externalRoot);
+    writeFileSync(path.join(externalRoot, 'outside.json'), '{}\n');
+    symlinkSync(path.join(externalRoot, 'outside.json'), path.join(fixtureRoot, 'linked.json'));
+    expectCode('NON_REGULAR_FILE', () => enumerateRegularFiles(fixtureRoot));
+
+    rmSync(path.join(fixtureRoot, 'linked.json'));
+    writeFileSync(path.join(externalRoot, 'inside.json'), '{}\n');
+    const linkedRoot = path.join(temporaryRoot, 'linked-root');
+    symlinkSync(externalRoot, linkedRoot, 'dir');
+    expectCode('NON_REGULAR_ROOT', () => enumerateRegularFiles(linkedRoot));
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test('Unicode 17 full folding selects C and F mappings and rejects aliases', () => {

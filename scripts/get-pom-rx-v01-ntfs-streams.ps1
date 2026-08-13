@@ -20,6 +20,12 @@ namespace PomRx {
   }
 
   public static class NativeStreams {
+    private const uint INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF;
+    private const uint FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFileAttributesW(string fileName);
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFindHandle FindFirstStreamW(
       string fileName, int infoLevel, out WIN32_FIND_STREAM_DATA data, int flags);
@@ -51,6 +57,12 @@ namespace PomRx {
       }
       return names.ToArray();
     }
+
+    public static bool IsReparsePoint(string path) {
+      uint attributes = GetFileAttributesW(path);
+      if (attributes == INVALID_FILE_ATTRIBUTES) throw new Win32Exception(Marshal.GetLastWin32Error());
+      return (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    }
   }
 }
 '@
@@ -60,6 +72,7 @@ $records = @(
   foreach ($target in $LiteralTarget) {
     [pscustomobject]@{
       path = $target
+      reparse = [PomRx.NativeStreams]::IsReparsePoint($target)
       streams = @([PomRx.NativeStreams]::Enumerate($target))
     }
   }
