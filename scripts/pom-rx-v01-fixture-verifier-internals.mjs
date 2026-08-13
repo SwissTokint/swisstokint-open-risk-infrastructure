@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -35,9 +36,37 @@ export function assertFrozenSourceUnchanged(sourceRoot, before) {
   }
 }
 
+export async function withFrozenSourceSnapshot(sourceRoot, sourceFiles, callback) {
+  const before = snapshotFrozenSource(sourceRoot, sourceFiles);
+  try {
+    return await callback();
+  } finally {
+    assertFrozenSourceUnchanged(sourceRoot, before);
+  }
+}
+
 export function assertImportedModuleUrl(importUrl, pomRxPath) {
   const expectedUrl = pathToFileURL(pomRxPath).href;
   if (importUrl !== expectedUrl) fail('SOURCE_BINDING_MISMATCH', 'imported module URL differs from the exact hashed path', { expected: expectedUrl, actual: importUrl });
+}
+
+export async function importExactModule(modulePath, importer = (moduleUrl) => import(moduleUrl)) {
+  const moduleUrl = pathToFileURL(modulePath).href;
+  assertImportedModuleUrl(moduleUrl, modulePath);
+  return { moduleUrl, module: await importer(moduleUrl) };
+}
+
+export function cleanupFrozenSourceBinding(binding, removeWorktree, removeDirectory) {
+  const temporaryRoot = path.resolve(binding.temporaryRoot);
+  const sourceRoot = path.resolve(binding.sourceRoot);
+  const expectedPrefix = `${path.resolve(os.tmpdir())}${path.sep}`;
+  if (!temporaryRoot.startsWith(expectedPrefix) || !path.basename(temporaryRoot).startsWith('pomrx-v01-source-') || sourceRoot !== path.join(temporaryRoot, 'source')) {
+    fail('SOURCE_CLEANUP_REFUSED', 'refusing to clean an unexpected frozen source path', { temporaryRoot, sourceRoot });
+  }
+  const errors = [];
+  try { removeWorktree(sourceRoot); } catch (error) { errors.push(error); }
+  try { removeDirectory(temporaryRoot); } catch (error) { errors.push(error); }
+  if (errors.length > 0) fail('SOURCE_CLEANUP_FAILED', 'frozen source cleanup did not complete', { failures: errors.map((error) => error?.message ?? String(error)) });
 }
 
 export function verifyCanary(canaryInputBytes, canaryExpectedBytes, expectedSha) {

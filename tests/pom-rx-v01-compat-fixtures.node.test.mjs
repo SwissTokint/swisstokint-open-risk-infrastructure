@@ -4,7 +4,7 @@ import { cpSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlink
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   CASE_FOLDING_SHA256,
@@ -453,6 +453,69 @@ test('frozen source binding rejects blob, raw-byte, import-URL and four-file dri
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test('generator source closure uses the exact import URL and rechecks drift on failure', async () => {
+  const generatorSource = readFileSync(path.join(repositoryRoot, 'scripts', 'generate-pom-rx-v01-compat-fixtures.mjs'), 'utf8');
+  assert.match(generatorSource, /importExactModule\(pomRxPath\)/u);
+  assert.doesNotMatch(generatorSource, /fixture-generation/u);
+  assert.match(generatorSource, /withFrozenSourceSnapshot\(binding\.sourceRoot, SOURCE_FILES/u);
+
+  const sourcePaths = ['sdk/a.mjs', 'sdk/b.mjs', 'tests/baseline.mjs', 'scripts/red.mjs'];
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-generator-source-'));
+  try {
+    const exactModulePath = path.join(temporaryRoot, 'module espace-é.mjs');
+    writeFileSync(exactModulePath, 'export const importedUrl = import.meta.url;\n');
+    const imported = await verifierInternals.importExactModule(exactModulePath);
+    assert.equal(imported.moduleUrl, pathToFileURL(exactModulePath).href);
+    assert.equal(imported.module.importedUrl, imported.moduleUrl);
+    assert.equal(imported.moduleUrl.includes('?'), false);
+    assert.equal(imported.moduleUrl.includes('#'), false);
+
+    const sourceFiles = sourcePaths.map((relativePath, index) => {
+      const target = path.join(temporaryRoot, ...relativePath.split('/'));
+      const bytes = Buffer.from(`source-${index}`, 'utf8');
+      mkdirSync(path.dirname(target), { recursive: true });
+      writeFileSync(target, bytes);
+      return [relativePath, `blob-${index}`, sha256Bytes(bytes)];
+    });
+    assert.equal(await verifierInternals.withFrozenSourceSnapshot(temporaryRoot, sourceFiles, async () => 'ok'), 'ok');
+    for (const relativePath of sourcePaths) {
+      const target = path.join(temporaryRoot, ...relativePath.split('/'));
+      const original = readFileSync(target);
+      await assert.rejects(
+        verifierInternals.withFrozenSourceSnapshot(temporaryRoot, sourceFiles, async () => {
+          writeFileSync(target, Buffer.concat([original, Buffer.from('-drift')]));
+          throw new Error('synthetic generation failure');
+        }),
+        (error) => error instanceof FixtureContractError && error.code === 'SOURCE_BINDING_MISMATCH',
+      );
+      writeFileSync(target, original);
+    }
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('frozen source cleanup always attempts worktree and directory removal', () => {
+  const temporaryRoot = path.join(os.tmpdir(), 'pomrx-v01-source-cleanup-test');
+  const binding = { temporaryRoot, sourceRoot: path.join(temporaryRoot, 'source') };
+  const successfulCalls = [];
+  verifierInternals.cleanupFrozenSourceBinding(binding, (target) => successfulCalls.push(['worktree', target]), (target) => successfulCalls.push(['directory', target]));
+  assert.deepEqual(successfulCalls.map(([kind]) => kind), ['worktree', 'directory']);
+
+  const failureCalls = [];
+  expectCode('SOURCE_CLEANUP_FAILED', () => verifierInternals.cleanupFrozenSourceBinding(
+    binding,
+    (target) => { failureCalls.push(['worktree', target]); throw new Error('synthetic worktree removal failure'); },
+    (target) => failureCalls.push(['directory', target]),
+  ));
+  assert.deepEqual(failureCalls.map(([kind]) => kind), ['worktree', 'directory']);
+  expectCode('SOURCE_CLEANUP_REFUSED', () => verifierInternals.cleanupFrozenSourceBinding(
+    { temporaryRoot: repositoryRoot, sourceRoot: path.join(repositoryRoot, 'source') },
+    () => assert.fail('refused cleanup must not remove a worktree'),
+    () => assert.fail('refused cleanup must not remove a directory'),
+  ));
 });
 
 test('real CLI is fail-closed outside the exact immutable runtime tuple', () => {

@@ -3,13 +3,20 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 import {
   compareUnicodeScalars,
   enumerateRegularFiles,
   sha256Bytes,
 } from './pom-rx-v01-fixture-contract.mjs';
+import {
+  assertGitSourceBinding,
+  cleanupFrozenSourceBinding,
+  importExactModule,
+  snapshotFrozenSource,
+  withFrozenSourceSnapshot,
+} from './pom-rx-v01-fixture-verifier-internals.mjs';
 
 const SOURCE_BASELINE = '743b8082bfc925d1681af7a239856a0b4f7e8464';
 const SOURCE_FILES = Object.freeze([
@@ -46,27 +53,32 @@ function assertRuntime() {
 }
 
 function bindFrozenSource() {
-  for (const [relativePath, expectedBlob, expectedSha] of SOURCE_FILES) {
-    const blob = runGit(['rev-parse', `${SOURCE_BASELINE}:${relativePath}`]).trim();
-    assert.equal(blob, expectedBlob, `Git blob mismatch for ${relativePath}`);
-    const bytes = runGit(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null });
-    assert.ok(Buffer.isBuffer(bytes), `raw Git blob must be a Buffer for ${relativePath}`);
-    assert.equal(sha256Bytes(bytes), expectedSha, `raw Git blob digest mismatch for ${relativePath}`);
-  }
+  assertGitSourceBinding(runGit, SOURCE_BASELINE, SOURCE_FILES);
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-source-'));
   const sourceRoot = path.join(temporaryRoot, 'source');
-  runGit(['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'worktree', 'add', '--detach', sourceRoot, SOURCE_BASELINE]);
-  for (const [relativePath, , expectedSha] of SOURCE_FILES) {
-    assert.equal(sha256Bytes(readFileSync(path.join(sourceRoot, ...relativePath.split('/')))), expectedSha, `detached source bytes mismatch for ${relativePath}`);
+  let worktreeAdded = false;
+  try {
+    runGit(['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'worktree', 'add', '--detach', sourceRoot, SOURCE_BASELINE]);
+    worktreeAdded = true;
+    snapshotFrozenSource(sourceRoot, SOURCE_FILES);
+    return { temporaryRoot, sourceRoot };
+  } catch (error) {
+    let cleanupError;
+    if (worktreeAdded || existsSync(sourceRoot)) {
+      try { runGit(['worktree', 'remove', '--force', sourceRoot]); } catch (candidate) { cleanupError = candidate; }
+    }
+    try { rmSync(temporaryRoot, { recursive: true, force: true }); } catch (candidate) { cleanupError ??= candidate; }
+    if (cleanupError) throw new AggregateError([error, cleanupError], 'frozen source binding and cleanup both failed');
+    throw error;
   }
-  return { temporaryRoot, sourceRoot };
 }
 
 function cleanFrozenSource(binding) {
-  const expectedPrefix = `${path.resolve(os.tmpdir())}${path.sep}`;
-  assert.ok(path.resolve(binding.temporaryRoot).startsWith(expectedPrefix), 'refusing to clean a non-temporary source worktree');
-  runGit(['worktree', 'remove', '--force', binding.sourceRoot]);
-  rmSync(binding.temporaryRoot, { recursive: true, force: true });
+  cleanupFrozenSourceBinding(
+    binding,
+    (sourceRoot) => runGit(['worktree', 'remove', '--force', sourceRoot]),
+    (temporaryRoot) => rmSync(temporaryRoot, { recursive: true, force: true }),
+  );
 }
 
 const hash = (character) => character.repeat(64);
@@ -138,14 +150,10 @@ async function main() {
   const binding = bindFrozenSource();
   try {
     const pomRxPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'pom-rx.mjs');
-    const proofPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'swisstokint-proof.mjs');
-    const pomRxUrl = pathToFileURL(pomRxPath).href;
-    const sourceBefore = sha256Bytes(readFileSync(pomRxPath));
-    const proofBefore = sha256Bytes(readFileSync(proofPath));
-    assert.equal(sourceBefore, SOURCE_FILES[0][2]);
-    const module = await import(`${pomRxUrl}?fixture-generation=1`);
-    mkdirSync(versionRoot, { recursive: true });
-    const scenarios = [];
+    const generationReport = await withFrozenSourceSnapshot(binding.sourceRoot, SOURCE_FILES, async () => {
+      const { module } = await importExactModule(pomRxPath);
+      mkdirSync(versionRoot, { recursive: true });
+      const scenarios = [];
     for (const [scenarioId, classification, allowPartial, receipts] of buildScenarioDefinitions(module.commitPomRxReceipt)) {
       const chainPath = `chains/${scenarioId}.json`;
       write(chainPath, pretty(receipts));
@@ -208,9 +216,9 @@ async function main() {
       pin_schema_version: 'pom-rx-v0.1-compat-pins/1',
       pins: [{ fixture_version: 1, source_baseline: SOURCE_BASELINE, fixture_set_sha256: fixtureSetSha256 }],
     }));
-    assert.equal(sha256Bytes(readFileSync(pomRxPath)), sourceBefore, 'source module changed during generation');
-    assert.equal(sha256Bytes(readFileSync(proofPath)), proofBefore, 'source dependency changed during generation');
-    console.log(JSON.stringify({ status: 'FIXTURE_CORPUS_GENERATED', scenarios: scenarios.length, regular_files: 31, fixture_set_sha256: fixtureSetSha256 }, null, 2));
+      return { status: 'FIXTURE_CORPUS_GENERATED', scenarios: scenarios.length, regular_files: 31, fixture_set_sha256: fixtureSetSha256 };
+    });
+    console.log(JSON.stringify(generationReport, null, 2));
   } catch (error) {
     if (existsSync(versionRoot)) rmSync(versionRoot, { recursive: true, force: true });
     if (existsSync(pinsPath)) rmSync(pinsPath, { force: true });

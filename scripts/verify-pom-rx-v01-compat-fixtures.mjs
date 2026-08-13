@@ -189,7 +189,9 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     if (!ordinary.equals(surrogate)) fail('SURROGATE_BYTES_MISMATCH', 'ordinary and surrogate action chains must be byte-identical');
     if (sha256Bytes(readFileSync(pomRxPath)) !== before) fail('SOURCE_BINDING_MISMATCH', 'source bytes changed during verification');
     if (sha256Bytes(readFileSync(proofPath)) !== proofBefore) fail('SOURCE_BINDING_MISMATCH', 'source dependency bytes changed during verification');
-    const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true });
+    const redEnvironment = { ...process.env };
+    delete redEnvironment.NODE_TEST_CONTEXT;
+    const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true, env: redEnvironment });
     if (red.error !== undefined || red.signal !== null || red.status !== 0) fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not complete from frozen source', { status: red.status, signal: red.signal, error: red.error?.message ?? null, stderr: red.stderr });
     try { redReport = JSON.parse(red.stdout); } catch { fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not emit JSON'); }
     assertFrozenSourceUnchanged(binding.sourceRoot, frozenBefore);
