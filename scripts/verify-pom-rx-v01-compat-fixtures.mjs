@@ -52,9 +52,13 @@ function measureRuntime() {
   return { node: process.versions.node, icu: process.versions.icu, unicode: process.versions.unicode, locale: new Intl.Collator().resolvedOptions().locale, platform: process.platform, arch: process.arch };
 }
 
-function assertRuntime() {
-  const actual = measureRuntime();
+function assertRuntime(actual = measureRuntime()) {
   if (JSON.stringify(actual) !== JSON.stringify(EXPECTED_RUNTIME)) fail('ENVIRONMENT_MISMATCH', 'runtime tuple differs from immutable fixture provenance', { expected: EXPECTED_RUNTIME, actual });
+}
+
+function assertRuntimeBeforeCanary(actual, verify) {
+  assertRuntime(actual);
+  return verify();
 }
 
 function assertPrettyJson(bytes, value, label) {
@@ -73,13 +77,43 @@ export function validatePins(bytes) {
   return pin;
 }
 
-function bindFrozenSource() {
-  const git = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
+function assertGitSourceBinding(git) {
   for (const [relativePath, expectedBlob, expectedSha] of SOURCE_FILES) {
     if (git(['rev-parse', `${SOURCE_BASELINE}:${relativePath}`]).trim() !== expectedBlob) fail('SOURCE_BINDING_MISMATCH', 'Git blob identity differs', { path: relativePath });
     const rawBlob = git(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null });
     if (!Buffer.isBuffer(rawBlob) || sha256Bytes(rawBlob) !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'raw Git blob bytes or digest differ', { path: relativePath });
   }
+}
+
+function snapshotFrozenSource(sourceRoot) {
+  return new Map(SOURCE_FILES.map(([relativePath, , expectedSha]) => {
+    const digest = sha256Bytes(readFileSync(path.join(sourceRoot, ...relativePath.split('/'))));
+    if (digest !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'frozen source differs immediately before execution', { path: relativePath });
+    return [relativePath, digest];
+  }));
+}
+
+function assertFrozenSourceUnchanged(sourceRoot, before) {
+  for (const [relativePath, beforeDigest] of before) {
+    if (sha256Bytes(readFileSync(path.join(sourceRoot, ...relativePath.split('/')))) !== beforeDigest) fail('SOURCE_BINDING_MISMATCH', 'frozen source changed during execution', { path: relativePath });
+  }
+}
+
+function assertImportedModuleUrl(importUrl, pomRxPath) {
+  const expectedUrl = pathToFileURL(pomRxPath).href;
+  if (importUrl !== expectedUrl) fail('SOURCE_BINDING_MISMATCH', 'imported module URL differs from the exact hashed path', { expected: expectedUrl, actual: importUrl });
+}
+
+function verifyCanary(canaryInputBytes, canaryExpectedBytes, expectedSha) {
+  if (sha256Bytes(canaryInputBytes) !== '811d8ff308bf40f503b1d0b27ede1e1cf2ec952b191dd90fbfef8e5601888c9b' || sha256Bytes(canaryExpectedBytes) !== expectedSha) fail('CANARY_DIGEST_MISMATCH', 'canary bytes differ');
+  const canaryInput = parseExactJson(canaryInputBytes, 'canary input', { terminalLf: false });
+  const canaryExpected = parseExactJson(canaryExpectedBytes, 'canary expected', { terminalLf: false });
+  if (JSON.stringify([...canaryInput].sort((left, right) => left.localeCompare(right))) !== JSON.stringify(canaryExpected)) fail('CANARY_ORDER_MISMATCH', 'localeCompare canary differs');
+}
+
+function bindFrozenSource() {
+  const git = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
+  assertGitSourceBinding(git);
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-verify-source-'));
   const sourceRoot = path.join(temporaryRoot, 'source');
   git(['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'worktree', 'add', '--detach', sourceRoot, SOURCE_BASELINE]);
@@ -152,26 +186,21 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
   assertNoFoldAliases(actualFiles, foldMap);
   const manifestBytes = readVersionFile('manifest.json');
   const manifest = validateManifest(manifestBytes);
-  assertRuntime();
-  const canaryInputBytes = readVersionFile(manifest.canaries[0].input_path);
-  const canaryExpectedBytes = readVersionFile(manifest.canaries[0].expected_path);
-  if (sha256Bytes(canaryInputBytes) !== '811d8ff308bf40f503b1d0b27ede1e1cf2ec952b191dd90fbfef8e5601888c9b' || sha256Bytes(canaryExpectedBytes) !== manifest.canaries[0].expected_sha256) fail('CANARY_DIGEST_MISMATCH', 'canary bytes differ');
-  const canaryInput = parseExactJson(canaryInputBytes, 'canary input', { terminalLf: false });
-  const canaryExpected = parseExactJson(canaryExpectedBytes, 'canary expected', { terminalLf: false });
-  if (JSON.stringify([...canaryInput].sort((left, right) => left.localeCompare(right))) !== JSON.stringify(canaryExpected)) fail('CANARY_ORDER_MISMATCH', 'localeCompare canary differs');
+  assertRuntimeBeforeCanary(measureRuntime(), () => {
+    const canaryInputBytes = readVersionFile(manifest.canaries[0].input_path);
+    const canaryExpectedBytes = readVersionFile(manifest.canaries[0].expected_path);
+    verifyCanary(canaryInputBytes, canaryExpectedBytes, manifest.canaries[0].expected_sha256);
+  });
   const binding = bindFrozenSource();
   let redReport;
   try {
     const pomRxPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'pom-rx.mjs');
     const pomRxUrl = pathToFileURL(pomRxPath).href;
+    assertImportedModuleUrl(pomRxUrl, pomRxPath);
     const proofPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'swisstokint-proof.mjs');
     const before = sha256Bytes(readFileSync(pomRxPath));
     const proofBefore = sha256Bytes(readFileSync(proofPath));
-    const frozenBefore = new Map(SOURCE_FILES.map(([relativePath, , expectedSha]) => {
-      const digest = sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/'))));
-      if (digest !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'frozen source differs immediately before execution', { path: relativePath });
-      return [relativePath, digest];
-    }));
+    const frozenBefore = snapshotFrozenSource(binding.sourceRoot);
     const module = await import(`${pomRxUrl}?fixture-verification=1`);
     for (const scenario of manifest.scenarios) {
       const chainBytes = readVersionFile(scenario.chain_path);
@@ -200,9 +229,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true, env: redEnvironment });
     if (red.error !== undefined || red.signal !== null || red.status !== 0) fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not complete from frozen source', { status: red.status, signal: red.signal, error: red.error?.message ?? null, stderr: red.stderr });
     try { redReport = JSON.parse(red.stdout); } catch { fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not emit JSON'); }
-    for (const [relativePath, beforeDigest] of frozenBefore) {
-      if (sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/')))) !== beforeDigest) fail('SOURCE_BINDING_MISMATCH', 'frozen source changed during execution', { path: relativePath });
-    }
+    assertFrozenSourceUnchanged(binding.sourceRoot, frozenBefore);
   } finally {
     cleanFrozenSource(binding);
   }
@@ -210,6 +237,16 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
   revalidateRegularFiles(versionRoot, actualFiles);
   return { status: 'FULL_CORPUS_VERIFIED', scenarios: 8, regular_files: 31, checksum_entries: 30, runtime: measureRuntime(), source_baseline: SOURCE_BASELINE, fixture_set_sha256: pin.fixture_set_sha256 };
 }
+
+export const TEST_ONLY = process.env.NODE_TEST_CONTEXT ? Object.freeze({
+  assertFrozenSourceUnchanged,
+  assertGitSourceBinding,
+  assertImportedModuleUrl,
+  assertRuntime,
+  assertRuntimeBeforeCanary,
+  snapshotFrozenSource,
+  verifyCanary,
+}) : undefined;
 
 async function cli() {
   try {
