@@ -10,9 +10,11 @@ Council: `docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md`
 
 Supersedes: nothing
 
-Clarifies: the surrogate row in the merged compatibility ADR is an immutable
-PR 27 evidence mapping, not permission for a receipt-only runtime to emit an
-unobservable Witness-flavoured defect ID.
+Amends after human ratification: the surrogate row in the stable diagnostic
+registry of `ADR-POMRX-V01-ERRATA-V02-COMPATIBILITY.md`. That row remains an
+immutable PR 27 evidence mapping, but a receipt-only runtime cannot emit its
+unobservable Witness-flavoured defect ID. Until this ADR is human-ratified, the
+merged registry remains authoritative and no runtime implementation is allowed.
 
 Depends on: `docs/adr/ADR-POMRX-V01-ERRATA-V02-COMPATIBILITY.md`
 
@@ -97,7 +99,8 @@ exchange credential, fund, position, live order or network transaction.
   slash-separated and contain no empty, `.` or `..` segment. The checksum file
   excludes itself and includes every other regular file under the version root.
 - Symlinks, junctions, alternate data streams and unmanifested regular files
-  fail verification.
+  fail verification. Paths equal under Windows invariant case-folding or
+  Unicode-normalization aliases also fail on every platform.
 - Checksums are SHA-256 over exact file bytes. Windows text normalization is
   forbidden during verification.
 
@@ -107,7 +110,8 @@ remains retained; it never overwrites version `1`.
 
 ### 2.3 Manifest contract
 
-`manifest.json` has exact keys and rejects unknown fields. It records:
+`manifest.json` has exact keys and rejects unknown fields and duplicate raw JSON
+object keys before parsing. It records:
 
 ```text
 fixture_schema_version = pom-rx-v0.1-compat-fixtures/1
@@ -183,20 +187,47 @@ authorization-capable success.
 
 ### 4.1 Trust boundary
 
-The profiled verifier rejects a parsed/plain policy object. It accepts only an
-opaque, frozen capability produced by a dedicated local loader. The loader is
-given:
+The profiled verifier rejects a parsed/plain policy object. It accepts only a
+process-local, non-serializable, module-private branded capability produced by
+a dedicated local loader. The loader is given for every verification
+invocation:
 
 - a local policy file path selected by host configuration, never by a receipt
   or remote request;
 - an expected lowercase SHA-256 supplied by the same trusted host bootstrap;
-- an explicit trusted evaluation instant supplied by that bootstrap.
+- an explicit trusted evaluation instant supplied by that bootstrap;
+- a host-selected artifact-manifest path and its expected exact-byte SHA-256.
 
-The loader reads exact bytes, verifies their SHA-256 before parsing, validates
-exact keys and enums, and returns an unforgeable module-private branded
-capability. The pin is not read from the policy file it authenticates. The
-quality of the host/bootstrap trust root is outside this local deterministic
-profile and must not be overstated.
+The loader reads the current policy bytes on every invocation, verifies their
+SHA-256 before parsing, rejects duplicate raw JSON object keys, and validates
+exact keys and enums. It invokes the verifier synchronously inside a callback
+scope containing the capability, then invalidates the capability when that
+callback returns or throws. The capability is single-use; serialization,
+cloning, reuse, use outside the callback, or use after invalidation yields
+`POMRX_V01_E_POLICY_CAPABILITY_STALE`. Within the supported module/process
+boundary, a cached capability cannot preserve an older policy time or evade a
+later withdrawal. The pin is not read from the policy file it authenticates.
+
+The host invocation shape is therefore:
+
+```text
+withFreshPomRxPolicyCapability(trustedBootstrapConfig, capability =>
+  verifyPomRxChainProfiled(receipts, options, capability)
+)
+```
+
+`trustedBootstrapConfig` is never accepted from receipt, fixture, remote API or
+strategy input. The callback is synchronous and cannot return or retain the
+capability.
+
+The brand prevents accidental plain-object injection inside the supported
+process. It is not cryptographic authenticity and does not resist malicious
+local code that can replace the loader or verifier. The artifact checks in this
+profile detect accidental packaging drift under a trusted host/bootstrap; they
+do not prove executable authenticity against a compromised local machine. An
+external signature, measured boot or separately trusted launcher is outside
+this ADR. The quality and freshness of the host/bootstrap trust root must not
+be overstated.
 
 ### 4.2 Policy document
 
@@ -210,16 +241,28 @@ accepted_verifiers[]
 withdrawn_verifiers[]
 ```
 
-An accepted verifier is the exact tuple:
+An accepted verifier record contains the merged ADR's exact four-field tuple
+plus exact runtime constraints:
 
 ```text
 receipt_schema_version
 verifier_profile
 verifier_version
 implementation_artifact_sha256
+runtime_constraints
 ```
 
-A withdrawal has that same tuple plus:
+`runtime_constraints` has exact string fields `node_version`, `icu_version`,
+`unicode_version`, `locale`, `platform` and `arch`. All six must equal the
+actual runtime values measured by the loader. This is required because the
+frozen v0.1 assertion ordering uses `localeCompare`; source bytes alone do not
+prove identical behavior across Node/ICU/locale environments. An environment
+mismatch is fail-closed and never selects the tuple. Even after an exact
+environment match, initialization recomputes a runtime-sensitive canonicalization
+canary from the frozen compatibility corpus; a byte/hash mismatch is treated as
+`POMRX_V01_E_RUNTIME_ENVIRONMENT_UNSUPPORTED`.
+
+A withdrawal targets that same four-field tuple and adds:
 
 ```text
 effective_at
@@ -232,14 +275,15 @@ reason_code
 automatic selection. The caller must explicitly select a currently accepted
 replacement tuple in a new invocation.
 
-Unknown fields, duplicate tuples, duplicate withdrawals, conflicting records,
-wildcards, ranges, version comparison and malformed dates fail policy loading.
-Matching is exact string equality. An accepted tuple not present in the exact
-allow-set is denied. A withdrawal whose `effective_at` is at or before the
-capability's trusted evaluation instant overrides allow-set membership. If the
-trusted evaluation instant is absent, malformed or not designated trusted by
-the loader boundary, selection is indeterminate and denied. The verifier never
-uses receipt time or ambient system time to evade an effective withdrawal.
+Unknown fields, duplicate raw JSON keys, duplicate tuples, duplicate
+withdrawals, conflicting records, wildcards, ranges, version comparison and
+malformed dates fail policy loading. Matching is exact string equality. An
+accepted tuple and runtime constraint set not present in the exact allow-set is
+denied. A withdrawal whose `effective_at` is at or before the capability's
+trusted evaluation instant overrides allow-set membership. If the trusted
+evaluation instant is absent, malformed or not designated trusted by the loader
+boundary, selection is indeterminate and denied. The verifier never uses
+receipt time or ambient system time to evade an effective withdrawal.
 
 Every verdict binds `effective_policy_id`, `effective_policy_version` and the
 exact-byte `effective_policy_sha256`.
@@ -253,6 +297,26 @@ affect profiled verification. The initial closure includes the profiled entry
 point, frozen receipt validation/commit code, canonicalizer/hash dependency,
 diagnostic registry and policy validator/loader. Tests, documentation, source
 maps and policy instances are excluded.
+
+The exact artifact manifest schema is `pom-rx-verifier-artifact-manifest/1`
+and rejects unknown or duplicate raw JSON keys. It contains only:
+
+```text
+artifact_manifest_schema_version
+artifact_id
+verifier_version
+verification_root = package-root
+entries[] = { path, byte_length, sha256 }
+implementation_artifact_sha256
+```
+
+The trusted host resolves `package-root` before loading entries. Every entry
+must resolve to a regular file strictly below that root. Symlinks, junctions,
+reparse points, alternate data streams, resolution escape, malformed UTF-8,
+Unicode normalization aliases, and path pairs equal under Windows invariant
+case-folding fail verification. The same rejection applies on all platforms so
+one manifest cannot mean different closures on case-sensitive and
+case-insensitive filesystems.
 
 For each included regular file, calculate and publish SHA-256 over exact bytes
 as review evidence. Normalize its package-relative path to a unique POSIX path
@@ -276,16 +340,21 @@ declared closure also fails if static import analysis finds an undeclared local
 dependency or a dynamic local import.
 
 At verifier initialization, installed exact bytes are rechecked against the
-published artifact manifest before a trusted policy tuple is selected. An
-artifact mismatch produces an indeterminate verdict and cannot fall back.
+host-pinned artifact manifest before a trusted policy tuple is selected. The
+loader first authenticates current policy bytes and evaluation time, then
+computes the observed installed artifact identity, then applies profile,
+runtime and exact-tuple policy selection. An artifact mismatch produces an
+indeterminate verdict and cannot fall back.
 The artifact manifest does not include its own derived digest in the preimage,
 avoiding a circular hash. Release packaging and CI must prove reproducibility
 from two clean directories before the artifact tuple is proposed for use.
 
-`verifier_version` starts at `pom-rx-v0.1-strict-verifier/1`. Any change to
-verification semantics, stable mappings, included artifact closure or output
-truth table requires a new verifier version and artifact digest. A rebuild with
-identical exact bytes retains the same digest.
+The first public activation version is
+`pom-rx-v0.1-strict-verifier/1`. Internal checker slices use test-only build
+identifiers and are not policy-selectable verifier versions. Any change after
+public activation to verification semantics, stable mappings, included artifact
+closure or output truth table requires a new verifier version and artifact
+digest. A rebuild with identical exact bytes retains the same digest.
 
 ## 6. Exact verdict envelope
 
@@ -293,16 +362,19 @@ The result has exact top-level keys; unknown or missing keys make it invalid:
 
 ```text
 verdict_schema_version = pom-rx-verification-verdict/1
-receipt_schema_version = pom-rx/0.1
+receipt_schema_version = pom-rx/0.1 | null
 receipt_hashes
-verifier_profile = pom-rx-v0.1/strict-errata-1
-verifier_version
-implementation_artifact_sha256
-effective_policy_id
-effective_policy_version
-effective_policy_sha256
+verifier_profile = pom-rx-v0.1/strict-errata-1 | null
+verifier_version = string | null
+implementation_artifact_sha256 = lowercase_sha256 | null
+expected_implementation_artifact_sha256 = lowercase_sha256 | null
+observed_implementation_artifact_sha256 = lowercase_sha256 | null
+execution_environment = exact_runtime_object | null
+effective_policy_id = string | null
+effective_policy_version = string | null
+effective_policy_sha256 = lowercase_sha256 | null
 qualification
-assurance = frozen-v0.1-structural-verification
+assurance = frozen-v0.1-structural-verification | null
 authorization_eligible = false
 authorization_proved = false
 structural_status
@@ -315,6 +387,28 @@ limitations
 `receipt_hashes` is the complete ordered list only when every received receipt
 was individually validated, canonicalized and hashed; otherwise it is empty.
 No partial list may appear to identify an unverified chain.
+
+Identity fields follow these exact population rules:
+
+| Completed binding | Fields that may be non-null |
+|---|---|
+| no fresh branded capability | none of the policy, artifact, runtime, profile, verifier or receipt identity fields |
+| current policy bytes and trusted time validated | `effective_policy_id`, `effective_policy_version`, `effective_policy_sha256` |
+| host-pinned artifact manifest validates | previous fields plus `expected_implementation_artifact_sha256` |
+| installed closure measured | previous fields plus `observed_implementation_artifact_sha256` and `execution_environment` |
+| artifact bytes match the host-pinned manifest | previous fields plus `implementation_artifact_sha256` and the manifest's `verifier_version` |
+| supported profile and exact tuple/runtime policy selection succeed | previous fields plus `verifier_profile` |
+| every receipt validates as frozen v0.1 and is fully committed | previous fields plus `receipt_schema_version` and the complete `receipt_hashes` |
+
+`implementation_artifact_sha256` is non-null only when expected and observed
+digests are equal. On mismatch, it is null while the expected and observed
+fields retain their distinct values. A missing or unreadable closure leaves the
+observed field null. `receipt_schema_version` describes validated receipt input,
+not the verifier's target; `verifier_profile` describes a successfully selected
+supported profile, not an absent or unsupported caller string. `assurance` is
+non-null only after receipt validation and structural evaluation complete as
+either conformant or nonconformant. These rules prevent a pre-binding
+indeterminate verdict from asserting unauthenticated identities.
 
 The exact truth table is:
 
@@ -339,6 +433,7 @@ POMRX_V01_L_NATIVE_EXECUTION_UNPROVED
 POMRX_V01_L_CROSS_CHAIN_REPLAY_UNPROVED
 POMRX_V01_L_SIGNED_WITNESS_UNPROVED
 POMRX_V01_L_GATE_AUTHORIZATION_UNPROVED
+POMRX_V01_L_MALICIOUS_LOCAL_RUNTIME_UNPROVED
 ```
 
 The array uses the order above. English explanatory text belongs in developer
@@ -367,16 +462,37 @@ projection of warning `diagnostic_code` values from `diagnostics`.
 
 The implementation evaluates these layers in order:
 
-1. capability authenticity, policy bytes/time and exact tuple;
-2. installed artifact integrity and profile selection;
-3. individual receipt validation, canonicalization and hashing;
-4. inherited base-chain rules;
-5. strict invariant rules.
+1. fresh branded capability, current policy bytes and trusted evaluation time;
+2. host-pinned artifact manifest and observed installed closure;
+3. measured runtime constraints, requested profile and exact policy tuple;
+4. individual receipt validation, canonicalization and hashing;
+5. inherited base-chain rules;
+6. strict invariant rules.
 
-A layer 1 or 2 error returns one deterministic highest-priority indeterminate
-diagnostic and does not parse receipts. If any receipt cannot complete layer 3,
-the result is indeterminate and layers 4–5 do not run. If layer 3 completes,
-layers 4–5 collect all independently observable structural errors. This avoids
+Layers 1–3 stop at the first applicable error in this total priority order:
+
+| Priority | Diagnostic code |
+|---:|---|
+| 1 | `POMRX_V01_E_POLICY_CAPABILITY_REQUIRED` |
+| 2 | `POMRX_V01_E_POLICY_CAPABILITY_STALE` |
+| 3 | `POMRX_V01_E_POLICY_INVALID` |
+| 4 | `POMRX_V01_E_POLICY_TIME_UNAVAILABLE` |
+| 5 | `POMRX_V01_E_ARTIFACT_MANIFEST_INVALID` |
+| 6 | `POMRX_V01_E_IMPLEMENTATION_ARTIFACT_MISMATCH` |
+| 7 | `POMRX_V01_E_RUNTIME_ENVIRONMENT_UNSUPPORTED` |
+| 8 | `POMRX_V01_E_PROFILE_REQUIRED` |
+| 9 | `POMRX_V01_E_DOWNGRADE_FORBIDDEN` |
+| 10 | `POMRX_V01_E_PROFILE_UNSUPPORTED` |
+| 11 | `POMRX_V01_E_VERIFIER_WITHDRAWN` |
+| 12 | `POMRX_V01_E_VERIFIER_NOT_ALLOWED` |
+| 13 | `POMRX_V01_E_PROFILE_INCOMPLETE` |
+
+Only that one indeterminate diagnostic is returned and receipts are not parsed.
+An unexpected typed or untyped internal fault encountered before a listed error
+returns `POMRX_V01_E_INTERNAL_VERIFIER_ERROR`; it never masks an already
+determined higher-priority code. If any receipt cannot complete layer 4, the
+result is indeterminate and layers 5–6 do not run. If layer 4 completes, layers
+5–6 collect all independently observable structural errors. This avoids
 diagnostic cascades derived from unvalidated bytes.
 
 Typed internal faults select diagnostic codes. The implementation must not
@@ -408,11 +524,14 @@ POMRX_V01_E_PROFILE_UNSUPPORTED
 POMRX_V01_E_PROFILE_INCOMPLETE
 POMRX_V01_E_DOWNGRADE_FORBIDDEN
 POMRX_V01_E_POLICY_CAPABILITY_REQUIRED
+POMRX_V01_E_POLICY_CAPABILITY_STALE
 POMRX_V01_E_POLICY_INVALID
 POMRX_V01_E_POLICY_TIME_UNAVAILABLE
+POMRX_V01_E_ARTIFACT_MANIFEST_INVALID
 POMRX_V01_E_VERIFIER_NOT_ALLOWED
 POMRX_V01_E_VERIFIER_WITHDRAWN
 POMRX_V01_E_IMPLEMENTATION_ARTIFACT_MISMATCH
+POMRX_V01_E_RUNTIME_ENVIRONMENT_UNSUPPORTED
 ```
 
 These have `defect_id = null`. The reserved replay code remains inactive for
@@ -449,8 +568,11 @@ verdict therefore emits
 `POMRX_V01_E_ACTION_CONTINUITY`.
 
 A checksum-verified conformance runner may report the surrogate ID only in a
-separate `scenario_id` or `evidence_defect_id` field bound to the authenticated
-fixture manifest. It must retain the nested verifier verdict unchanged. A
+separate `scenario_id` or `evidence_defect_id` field bound to the fixture
+manifest only when that manifest is checksum-verified and its exact
+checksum root is repository-pinned and reviewed. This is repository integrity,
+not an external signature or cryptographic authenticity. The runner must retain
+the nested verifier verdict unchanged. A
 receipt field, API option, remote request or other caller-supplied label may
 never cause the surrogate ID to be emitted. This preserves PR 27 evidence
 without inventing a cryptographic Witness claim.
@@ -477,6 +599,15 @@ tests, an explicit pre-activation `POMRX_V01_E_PROFILE_INCOMPLETE` test, and
 retained vulnerable legacy reproduction. An expected-red case changes state
 only when its exact strict correction is demonstrated; its historical
 legacy-vulnerability evidence remains preserved.
+
+The gates must also cover single-use capability invalidation and attempted
+reuse after policy replacement/withdrawal; policy reload per invocation;
+withdrawal immediately before, exactly at and immediately after trusted time;
+all pre-binding nullability rows; expected-versus-observed artifact mismatch;
+the complete diagnostic priority table; raw duplicate JSON keys; symlink,
+junction/reparse, ADS, root-escape, case-fold and Unicode-alias paths; manifest
+tampering and undeclared imports; approved and rejected Node/ICU/Unicode/locale
+environments; and a runtime-sensitive frozen-v0.1 canonicalization canary.
 
 No step may silently modify the v0.1 fixture corpus, collapse multiple
 invariant families into one PR, or use Proof Receipt Python tests as evidence

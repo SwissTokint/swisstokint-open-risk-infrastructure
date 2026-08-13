@@ -69,6 +69,11 @@ input or internal verifier failure cannot produce structural conformance. No
 strict error path retries legacy. Every standalone verdict remains
 non-authorizing.
 
+The process-local capability brand and artifact closure check prevent accidental
+injection and packaging drift within the supported host boundary. They are not
+cryptographic authenticity against malicious local code or a compromised host;
+that limitation is explicit in every standalone verdict.
+
 ## COMPATIBILITY_IMPACT
 
 The proposal is additive. It does not modify receipt schema, receipt fields,
@@ -104,9 +109,9 @@ Approve an ordered prerequisite slice before any invariant correction:
   SHA-256 checksums and expected historical canonical bytes/hashes;
 - define an exact strict verdict schema, diagnostic registry and truth table;
 - accept only an opaque policy capability loaded from a locally pinned
-  exact-byte policy document;
+  exact-byte policy document, freshly minted and consumed once per invocation;
 - identify the verifier by a deterministic manifest over its executable file
-  closure;
+  closure and bind exact Node/ICU/Unicode/locale/platform constraints;
 - add a separate profiled entry point that never calls or retries the legacy
   export;
 - keep that entry point internal and incapable of a conformant verdict until
@@ -159,22 +164,30 @@ Its checker remains internal until the complete profile activation gate passes.
    prove English messages do not control the code.
 6. Reject plain-object policy injection, policy byte/hash mismatch, unknown or
    malformed policy, unlisted tuple, artifact mismatch, effective withdrawal,
-   missing trusted evaluation time, absent profile and downgrade attempts.
+   missing trusted evaluation time, stale/reused capability, absent profile and
+   downgrade attempts. Re-read and re-pin the current policy per invocation.
 7. Recompute the verifier artifact manifest from installed bytes; fail on a
-   changed, missing, additional manifested or duplicated executable file.
+   changed, missing, additional manifested or duplicated executable file,
+   undeclared/dynamic local import, symlink, junction/reparse point, path escape,
+   alternate data stream, Unicode alias or case-fold collision.
 8. Instrument the new entry point to prove it never calls, imports as a
    fallback, or retries `verifyPomRxChain()` on any success or failure path.
 9. Before the complete invariant matrix is present, prove the profiled
    development orchestrator returns only `indeterminate` with
    `POMRX_V01_E_PROFILE_INCOMPLETE`, never `conformant`.
-10. Prove ordinary and surrogate-harness action substitutions yield the same
+10. Reject unapproved Node, ICU, Unicode, locale, platform or architecture
+    values and verify a runtime-sensitive frozen-v0.1 canonicalization canary.
+11. Exercise every pre-binding nullability row, expected-versus-observed
+    artifact mismatch and collision in the exact layer-1-to-3 diagnostic
+    priority table.
+12. Prove ordinary and surrogate-harness action substitutions yield the same
    receipt-only verifier defect ID/code. Separately prove the checksum-verified
    conformance report retains the surrogate scenario ID.
-11. Exercise the strict valid control inside the internal invariant harness and
+13. Exercise the strict valid control inside the internal invariant harness and
     reject only the approved action-continuity cases in the first invariant PR;
     keep all other defects visibly expected-red. Do not publish a conformant
     profiled verdict until every required family is present.
-12. Run POM-RX Node tests, strict expected-red gate, compatibility tests,
+14. Run POM-RX Node tests, strict expected-red gate, compatibility tests,
     fixture checksum tests, `npm test`, production audit and `git diff --check`.
     Proof Receipt Python tests remain Proof Receipt evidence, not a Python
     POM-RX verifier claim.
