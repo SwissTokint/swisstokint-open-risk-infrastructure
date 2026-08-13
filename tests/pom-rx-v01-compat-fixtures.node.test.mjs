@@ -21,7 +21,10 @@ import {
   sha256Bytes,
   validateFixturePath,
 } from '../scripts/pom-rx-v01-fixture-contract.mjs';
-import { TEST_ONLY, validateManifest, validatePins, verifyFixtureCorpus } from '../scripts/verify-pom-rx-v01-compat-fixtures.mjs';
+import * as verifierModule from '../scripts/verify-pom-rx-v01-compat-fixtures.mjs';
+import * as verifierInternals from '../scripts/pom-rx-v01-fixture-verifier-internals.mjs';
+
+const { validateManifest, validatePins, verifyFixtureCorpus } = verifierModule;
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const versionRoot = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat', '1');
@@ -391,23 +394,22 @@ test('checksum grammar rejects self, uppercase, duplicate and reordered entries'
 });
 
 test('runtime and punctuation canary failures are ordered and diagnostic-exact', () => {
-  assert.ok(TEST_ONLY, 'test-only verifier seams must exist only under node:test');
+  assert.equal(Object.hasOwn(verifierModule, 'TEST_ONLY'), false);
   const exactRuntime = { node: '24.16.0', icu: '78.3', unicode: '17.0', locale: 'fr-CH', platform: 'win32', arch: 'x64' };
   let canaryExecuted = false;
-  expectCode('ENVIRONMENT_MISMATCH', () => TEST_ONLY.assertRuntimeBeforeCanary({ ...exactRuntime, node: '24.15.0' }, () => { canaryExecuted = true; }));
+  expectCode('ENVIRONMENT_MISMATCH', () => verifierInternals.assertRuntimeBeforeCanary({ ...exactRuntime, node: '24.15.0' }, exactRuntime, () => { canaryExecuted = true; }));
   assert.equal(canaryExecuted, false);
 
   const input = readFileSync(path.join(versionRoot, 'canaries', 'localecompare-order-v1.input.json'));
   const expected = readFileSync(path.join(versionRoot, 'canaries', 'localecompare-order-v1.expected.json'));
-  TEST_ONLY.verifyCanary(input, expected, sha256Bytes(expected));
-  expectCode('CANARY_DIGEST_MISMATCH', () => TEST_ONLY.verifyCanary(Buffer.from('["a-a","a.a","a-A"]'), expected, sha256Bytes(expected)));
-  expectCode('CANARY_DIGEST_MISMATCH', () => TEST_ONLY.verifyCanary(input, expected, '0'.repeat(64)));
+  verifierInternals.verifyCanary(input, expected, sha256Bytes(expected));
+  expectCode('CANARY_DIGEST_MISMATCH', () => verifierInternals.verifyCanary(Buffer.from('["a-a","a.a","a-A"]'), expected, sha256Bytes(expected)));
+  expectCode('CANARY_DIGEST_MISMATCH', () => verifierInternals.verifyCanary(input, expected, '0'.repeat(64)));
   const wrongOrder = Buffer.from('["a-a","a.a","a_a"]');
-  expectCode('CANARY_ORDER_MISMATCH', () => TEST_ONLY.verifyCanary(input, wrongOrder, sha256Bytes(wrongOrder)));
+  expectCode('CANARY_ORDER_MISMATCH', () => verifierInternals.verifyCanary(input, wrongOrder, sha256Bytes(wrongOrder)));
 });
 
 test('frozen source binding rejects blob, raw-byte, import-URL and four-file drift', () => {
-  assert.ok(TEST_ONLY, 'test-only verifier seams must exist only under node:test');
   const baseline = '743b8082bfc925d1681af7a239856a0b4f7e8464';
   const sourcePaths = [
     'sdk/typescript/pom-rx.mjs',
@@ -416,14 +418,15 @@ test('frozen source binding rejects blob, raw-byte, import-URL and four-file dri
     'scripts/assert-pom-rx-integrity-baseline-red.mjs',
   ];
   const realGit = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
-  TEST_ONLY.assertGitSourceBinding(realGit);
-  expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.assertGitSourceBinding((args, options) => args[0] === 'rev-parse' ? `${'0'.repeat(40)}\n` : realGit(args, options)));
-  expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.assertGitSourceBinding((args, options) => args[0] === 'cat-file' ? Buffer.from('mutated') : realGit(args, options)));
-  expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.assertGitSourceBinding((args, options) => args[0] === 'cat-file' ? 'not-a-buffer' : realGit(args, options)));
+  const sourceFiles = sourcePaths.map((relativePath) => [relativePath, realGit(['rev-parse', `${baseline}:${relativePath}`]).trim(), sha256Bytes(realGit(['cat-file', 'blob', `${baseline}:${relativePath}`], { encoding: null }))]);
+  verifierInternals.assertGitSourceBinding(realGit, baseline, sourceFiles);
+  expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertGitSourceBinding((args, options) => args[0] === 'rev-parse' ? `${'0'.repeat(40)}\n` : realGit(args, options), baseline, sourceFiles));
+  expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertGitSourceBinding((args, options) => args[0] === 'cat-file' ? Buffer.from('mutated') : realGit(args, options), baseline, sourceFiles));
+  expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertGitSourceBinding((args, options) => args[0] === 'cat-file' ? 'not-a-buffer' : realGit(args, options), baseline, sourceFiles));
 
   const expectedModulePath = path.join(repositoryRoot, 'sdk', 'typescript', 'pom-rx.mjs');
-  TEST_ONLY.assertImportedModuleUrl(new URL(`file:///${expectedModulePath.replaceAll('\\', '/')}`).href, expectedModulePath);
-  expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.assertImportedModuleUrl(new URL('file:///substituted/pom-rx.mjs').href, expectedModulePath));
+  verifierInternals.assertImportedModuleUrl(new URL(`file:///${expectedModulePath.replaceAll('\\', '/')}`).href, expectedModulePath);
+  expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertImportedModuleUrl(new URL('file:///substituted/pom-rx.mjs').href, expectedModulePath));
 
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-source-drift-'));
   try {
@@ -432,17 +435,21 @@ test('frozen source binding rejects blob, raw-byte, import-URL and four-file dri
       mkdirSync(path.dirname(target), { recursive: true });
       writeFileSync(target, realGit(['cat-file', 'blob', `${baseline}:${relativePath}`], { encoding: null }));
     }
-    const before = TEST_ONLY.snapshotFrozenSource(temporaryRoot);
+    const before = verifierInternals.snapshotFrozenSource(temporaryRoot, sourceFiles);
     for (const relativePath of sourcePaths) {
       const target = path.join(temporaryRoot, ...relativePath.split('/'));
       const original = readFileSync(target);
       writeFileSync(target, Buffer.concat([original, Buffer.from('\n// test-only drift\n')]));
-      expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.assertFrozenSourceUnchanged(temporaryRoot, before));
+      expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertFrozenSourceUnchanged(temporaryRoot, before));
       writeFileSync(target, original);
     }
-    const preExecutionTarget = path.join(temporaryRoot, ...sourcePaths[0].split('/'));
-    writeFileSync(preExecutionTarget, Buffer.concat([readFileSync(preExecutionTarget), Buffer.from('\n// pre-execution drift\n')]));
-    expectCode('SOURCE_BINDING_MISMATCH', () => TEST_ONLY.snapshotFrozenSource(temporaryRoot));
+    for (const relativePath of sourcePaths) {
+      const preExecutionTarget = path.join(temporaryRoot, ...relativePath.split('/'));
+      const original = readFileSync(preExecutionTarget);
+      writeFileSync(preExecutionTarget, Buffer.concat([original, Buffer.from('\n// pre-execution drift\n')]));
+      expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.snapshotFrozenSource(temporaryRoot, sourceFiles));
+      writeFileSync(preExecutionTarget, original);
+    }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

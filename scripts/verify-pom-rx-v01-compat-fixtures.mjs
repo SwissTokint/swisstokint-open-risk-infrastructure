@@ -22,6 +22,14 @@ import {
   sha256Bytes,
   validateFixturePath,
 } from './pom-rx-v01-fixture-contract.mjs';
+import {
+  assertFrozenSourceUnchanged,
+  assertGitSourceBinding,
+  assertImportedModuleUrl,
+  assertRuntimeBeforeCanary,
+  snapshotFrozenSource,
+  verifyCanary,
+} from './pom-rx-v01-fixture-verifier-internals.mjs';
 
 const SOURCE_BASELINE = '743b8082bfc925d1681af7a239856a0b4f7e8464';
 const SOURCE_FILES = Object.freeze([
@@ -52,15 +60,6 @@ function measureRuntime() {
   return { node: process.versions.node, icu: process.versions.icu, unicode: process.versions.unicode, locale: new Intl.Collator().resolvedOptions().locale, platform: process.platform, arch: process.arch };
 }
 
-function assertRuntime(actual = measureRuntime()) {
-  if (JSON.stringify(actual) !== JSON.stringify(EXPECTED_RUNTIME)) fail('ENVIRONMENT_MISMATCH', 'runtime tuple differs from immutable fixture provenance', { expected: EXPECTED_RUNTIME, actual });
-}
-
-function assertRuntimeBeforeCanary(actual, verify) {
-  assertRuntime(actual);
-  return verify();
-}
-
 function assertPrettyJson(bytes, value, label) {
   const expected = Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
   if (!bytes.equals(expected)) fail('JSON_SERIALIZATION_INVALID', `${label} is not exact two-space JSON with one terminal LF`);
@@ -77,43 +76,9 @@ export function validatePins(bytes) {
   return pin;
 }
 
-function assertGitSourceBinding(git) {
-  for (const [relativePath, expectedBlob, expectedSha] of SOURCE_FILES) {
-    if (git(['rev-parse', `${SOURCE_BASELINE}:${relativePath}`]).trim() !== expectedBlob) fail('SOURCE_BINDING_MISMATCH', 'Git blob identity differs', { path: relativePath });
-    const rawBlob = git(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null });
-    if (!Buffer.isBuffer(rawBlob) || sha256Bytes(rawBlob) !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'raw Git blob bytes or digest differ', { path: relativePath });
-  }
-}
-
-function snapshotFrozenSource(sourceRoot) {
-  return new Map(SOURCE_FILES.map(([relativePath, , expectedSha]) => {
-    const digest = sha256Bytes(readFileSync(path.join(sourceRoot, ...relativePath.split('/'))));
-    if (digest !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'frozen source differs immediately before execution', { path: relativePath });
-    return [relativePath, digest];
-  }));
-}
-
-function assertFrozenSourceUnchanged(sourceRoot, before) {
-  for (const [relativePath, beforeDigest] of before) {
-    if (sha256Bytes(readFileSync(path.join(sourceRoot, ...relativePath.split('/')))) !== beforeDigest) fail('SOURCE_BINDING_MISMATCH', 'frozen source changed during execution', { path: relativePath });
-  }
-}
-
-function assertImportedModuleUrl(importUrl, pomRxPath) {
-  const expectedUrl = pathToFileURL(pomRxPath).href;
-  if (importUrl !== expectedUrl) fail('SOURCE_BINDING_MISMATCH', 'imported module URL differs from the exact hashed path', { expected: expectedUrl, actual: importUrl });
-}
-
-function verifyCanary(canaryInputBytes, canaryExpectedBytes, expectedSha) {
-  if (sha256Bytes(canaryInputBytes) !== '811d8ff308bf40f503b1d0b27ede1e1cf2ec952b191dd90fbfef8e5601888c9b' || sha256Bytes(canaryExpectedBytes) !== expectedSha) fail('CANARY_DIGEST_MISMATCH', 'canary bytes differ');
-  const canaryInput = parseExactJson(canaryInputBytes, 'canary input', { terminalLf: false });
-  const canaryExpected = parseExactJson(canaryExpectedBytes, 'canary expected', { terminalLf: false });
-  if (JSON.stringify([...canaryInput].sort((left, right) => left.localeCompare(right))) !== JSON.stringify(canaryExpected)) fail('CANARY_ORDER_MISMATCH', 'localeCompare canary differs');
-}
-
 function bindFrozenSource() {
   const git = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
-  assertGitSourceBinding(git);
+  assertGitSourceBinding(git, SOURCE_BASELINE, SOURCE_FILES);
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-verify-source-'));
   const sourceRoot = path.join(temporaryRoot, 'source');
   git(['-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'worktree', 'add', '--detach', sourceRoot, SOURCE_BASELINE]);
@@ -186,7 +151,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
   assertNoFoldAliases(actualFiles, foldMap);
   const manifestBytes = readVersionFile('manifest.json');
   const manifest = validateManifest(manifestBytes);
-  assertRuntimeBeforeCanary(measureRuntime(), () => {
+  assertRuntimeBeforeCanary(measureRuntime(), EXPECTED_RUNTIME, () => {
     const canaryInputBytes = readVersionFile(manifest.canaries[0].input_path);
     const canaryExpectedBytes = readVersionFile(manifest.canaries[0].expected_path);
     verifyCanary(canaryInputBytes, canaryExpectedBytes, manifest.canaries[0].expected_sha256);
@@ -200,8 +165,8 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     const proofPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'swisstokint-proof.mjs');
     const before = sha256Bytes(readFileSync(pomRxPath));
     const proofBefore = sha256Bytes(readFileSync(proofPath));
-    const frozenBefore = snapshotFrozenSource(binding.sourceRoot);
-    const module = await import(`${pomRxUrl}?fixture-verification=1`);
+    const frozenBefore = snapshotFrozenSource(binding.sourceRoot, SOURCE_FILES);
+    const module = await import(pomRxUrl);
     for (const scenario of manifest.scenarios) {
       const chainBytes = readVersionFile(scenario.chain_path);
       const receipts = parseExactJson(chainBytes, scenario.chain_path);
@@ -224,9 +189,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     if (!ordinary.equals(surrogate)) fail('SURROGATE_BYTES_MISMATCH', 'ordinary and surrogate action chains must be byte-identical');
     if (sha256Bytes(readFileSync(pomRxPath)) !== before) fail('SOURCE_BINDING_MISMATCH', 'source bytes changed during verification');
     if (sha256Bytes(readFileSync(proofPath)) !== proofBefore) fail('SOURCE_BINDING_MISMATCH', 'source dependency bytes changed during verification');
-    const redEnvironment = { ...process.env };
-    delete redEnvironment.NODE_TEST_CONTEXT;
-    const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true, env: redEnvironment });
+    const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true });
     if (red.error !== undefined || red.signal !== null || red.status !== 0) fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not complete from frozen source', { status: red.status, signal: red.signal, error: red.error?.message ?? null, stderr: red.stderr });
     try { redReport = JSON.parse(red.stdout); } catch { fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not emit JSON'); }
     assertFrozenSourceUnchanged(binding.sourceRoot, frozenBefore);
@@ -237,16 +200,6 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
   revalidateRegularFiles(versionRoot, actualFiles);
   return { status: 'FULL_CORPUS_VERIFIED', scenarios: 8, regular_files: 31, checksum_entries: 30, runtime: measureRuntime(), source_baseline: SOURCE_BASELINE, fixture_set_sha256: pin.fixture_set_sha256 };
 }
-
-export const TEST_ONLY = process.env.NODE_TEST_CONTEXT ? Object.freeze({
-  assertFrozenSourceUnchanged,
-  assertGitSourceBinding,
-  assertImportedModuleUrl,
-  assertRuntime,
-  assertRuntimeBeforeCanary,
-  snapshotFrozenSource,
-  verifyCanary,
-}) : undefined;
 
 async function cli() {
   try {
