@@ -27,7 +27,7 @@ const versionRoot = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat
 const pinsPath = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat', 'pins.json');
 
 function runGit(args, options = {}) {
-  return execFileSync('git', args, { cwd: repositoryRoot, encoding: options.encoding ?? 'utf8', windowsHide: true });
+  return execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
 }
 
 function measureRuntime() {
@@ -50,6 +50,7 @@ function bindFrozenSource() {
     const blob = runGit(['rev-parse', `${SOURCE_BASELINE}:${relativePath}`]).trim();
     assert.equal(blob, expectedBlob, `Git blob mismatch for ${relativePath}`);
     const bytes = runGit(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null });
+    assert.ok(Buffer.isBuffer(bytes), `raw Git blob must be a Buffer for ${relativePath}`);
     assert.equal(sha256Bytes(bytes), expectedSha, `raw Git blob digest mismatch for ${relativePath}`);
   }
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-source-'));

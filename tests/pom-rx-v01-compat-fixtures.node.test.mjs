@@ -28,6 +28,7 @@ const supportRoot = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'support', '
 const manifestBytes = readFileSync(path.join(versionRoot, 'manifest.json'));
 const checksumBytes = readFileSync(path.join(versionRoot, 'checksums.sha256'));
 const pinBytes = readFileSync(path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat', 'pins.json'));
+const runtimeIsExact = process.versions.node === '24.16.0' && process.versions.icu === '78.3' && process.versions.unicode === '17.0' && new Intl.Collator().resolvedOptions().locale === 'fr-CH' && process.platform === 'win32' && process.arch === 'x64';
 
 function expectCode(code, fn) {
   assert.throws(fn, (error) => error instanceof FixtureContractError && error.code === code, `expected ${code}`);
@@ -104,6 +105,7 @@ test('manifest and pin schemas reject nested key, type, null, order and cardinal
     ['KEY_SET_OR_ORDER_INVALID', () => validateManifest(Buffer.from(`${JSON.stringify({ unknown: true, ...manifest }, null, 2)}\n`))],
     ['KEY_SET_OR_ORDER_INVALID', () => { const value = structuredClone(manifest); delete value.scenarios[0].scenario_id; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
     ['SCENARIO_VALUE_INVALID', () => { const value = structuredClone(manifest); value.scenarios[0].allow_partial = null; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
+    ['MANIFEST_VALUE_INVALID', () => { const value = structuredClone(manifest); value.generated_with_node = 24; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
     ['SCENARIO_VALUE_INVALID', () => { const value = structuredClone(manifest); value.scenarios.reverse(); return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
     ['CANARY_INVALID', () => { const value = structuredClone(manifest); value.canaries = []; return validateManifest(Buffer.from(`${JSON.stringify(value, null, 2)}\n`)); }],
     ['KEY_SET_OR_ORDER_INVALID', () => validatePins(Buffer.from(`${JSON.stringify({ pins: pins.pins, pin_schema_version: pins.pin_schema_version }, null, 2)}\n`))],
@@ -164,17 +166,19 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
     writeFileSync(sumsPath, readFileSync(sumsPath, 'utf8').replace(/^[0-9a-f]{64}  manifest\.json$/m, `${newDigest}  manifest.json`));
     await expectAsyncCode('PIN_MISMATCH', () => verifyFixtureCorpus({ root: selfConsistent }));
 
-    const canonical = makeCopy('canonical');
-    repinAfter(canonical, 'canonical/valid-control/0.json', (target) => writeFileSync(target, Buffer.concat([readFileSync(target), Buffer.from(' ')])));
-    await expectAsyncCode('CANONICAL_BYTES_MISMATCH', () => verifyFixtureCorpus({ root: canonical }));
+    if (runtimeIsExact) {
+      const canonical = makeCopy('canonical');
+      repinAfter(canonical, 'canonical/valid-control/0.json', (target) => writeFileSync(target, Buffer.concat([readFileSync(target), Buffer.from(' ')])));
+      await expectAsyncCode('CANONICAL_BYTES_MISMATCH', () => verifyFixtureCorpus({ root: canonical }));
 
-    const expectedHash = makeCopy('expected-hash');
-    repinAfter(expectedHash, 'manifest.json', (target) => writeFileSync(target, readFileSync(target, 'utf8').replace('be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60', '0'.repeat(64))));
-    await expectAsyncCode('RECEIPT_HASH_MISMATCH', () => verifyFixtureCorpus({ root: expectedHash }));
+      const expectedHash = makeCopy('expected-hash');
+      repinAfter(expectedHash, 'manifest.json', (target) => writeFileSync(target, readFileSync(target, 'utf8').replace('be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60', '0'.repeat(64))));
+      await expectAsyncCode('RECEIPT_HASH_MISMATCH', () => verifyFixtureCorpus({ root: expectedHash }));
 
-    const canary = makeCopy('canary');
-    repinAfter(canary, 'canaries/localecompare-order-v1.expected.json', (target) => writeFileSync(target, '["a-a","a_a","a.a"]'));
-    await expectAsyncCode('CANARY_DIGEST_MISMATCH', () => verifyFixtureCorpus({ root: canary }));
+      const canary = makeCopy('canary');
+      repinAfter(canary, 'canaries/localecompare-order-v1.expected.json', (target) => writeFileSync(target, '["a-a","a_a","a.a"]'));
+      await expectAsyncCode('CANARY_DIGEST_MISMATCH', () => verifyFixtureCorpus({ root: canary }));
+    }
 
     const runtime = makeCopy('runtime');
     repinAfter(runtime, 'manifest.json', (target) => writeFileSync(target, readFileSync(target, 'utf8').replace('"generated_with_node": "24.16.0"', '"generated_with_node": "24.15.0"')));
@@ -213,7 +217,6 @@ test('checksum grammar rejects self, uppercase, duplicate and reordered entries'
 });
 
 test('real CLI is fail-closed outside the exact immutable runtime tuple', () => {
-  const runtimeIsExact = process.versions.node === '24.16.0' && process.versions.icu === '78.3' && process.versions.unicode === '17.0' && new Intl.Collator().resolvedOptions().locale === 'fr-CH' && process.platform === 'win32' && process.arch === 'x64';
   if (runtimeIsExact) {
     const run = spawnSync(process.execPath, [path.join(repositoryRoot, 'scripts', 'verify-pom-rx-v01-compat-fixtures.mjs')], { cwd: repositoryRoot, encoding: 'utf8', windowsHide: true });
     assert.equal(run.error, undefined);

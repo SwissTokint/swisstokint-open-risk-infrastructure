@@ -72,10 +72,11 @@ export function validatePins(bytes) {
 }
 
 function bindFrozenSource() {
-  const git = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: options.encoding ?? 'utf8', windowsHide: true });
+  const git = (args, options = {}) => execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
   for (const [relativePath, expectedBlob, expectedSha] of SOURCE_FILES) {
     if (git(['rev-parse', `${SOURCE_BASELINE}:${relativePath}`]).trim() !== expectedBlob) fail('SOURCE_BINDING_MISMATCH', 'Git blob identity differs', { path: relativePath });
-    if (sha256Bytes(git(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null })) !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'raw Git blob digest differs', { path: relativePath });
+    const rawBlob = git(['cat-file', 'blob', `${SOURCE_BASELINE}:${relativePath}`], { encoding: null });
+    if (!Buffer.isBuffer(rawBlob) || sha256Bytes(rawBlob) !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'raw Git blob bytes or digest differ', { path: relativePath });
   }
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-verify-source-'));
   const sourceRoot = path.join(temporaryRoot, 'source');
@@ -162,6 +163,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     const proofPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'swisstokint-proof.mjs');
     const before = sha256Bytes(readFileSync(pomRxPath));
     const proofBefore = sha256Bytes(readFileSync(proofPath));
+    const frozenBefore = new Map(SOURCE_FILES.map(([relativePath]) => [relativePath, sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/'))))]));
     const module = await import(`${pomRxUrl}?fixture-verification=1`);
     for (const scenario of manifest.scenarios) {
       const chainBytes = readRegularFile(versionRoot, scenario.chain_path);
@@ -190,6 +192,9 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     const red = spawnSync(process.execPath, [path.join(binding.sourceRoot, 'scripts', 'assert-pom-rx-integrity-baseline-red.mjs')], { cwd: binding.sourceRoot, encoding: 'utf8', windowsHide: true, env: redEnvironment });
     if (red.error !== undefined || red.signal !== null || red.status !== 0) fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not complete from frozen source', { status: red.status, signal: red.signal, error: red.error?.message ?? null, stderr: red.stderr });
     try { redReport = JSON.parse(red.stdout); } catch { fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red gate did not emit JSON'); }
+    for (const [relativePath, beforeDigest] of frozenBefore) {
+      if (sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/')))) !== beforeDigest) fail('SOURCE_BINDING_MISMATCH', 'frozen source changed during execution', { path: relativePath });
+    }
   } finally {
     cleanFrozenSource(binding);
   }
