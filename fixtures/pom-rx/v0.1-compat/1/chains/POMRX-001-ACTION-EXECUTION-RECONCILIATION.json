@@ -1,0 +1,77 @@
+[
+  {
+    "schema_version": "pom-rx/0.1",
+    "run_id": "run_pomrx_integrity_20260808",
+    "agent_ref": "eip155:84532:erc8004:agent-42",
+    "subject_ref": "market:BTC-USD",
+    "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "action_commitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "source_key_id": "pom-rx-integrity-key",
+    "receipt_id": "receipt_preflight_integrity_20260808",
+    "phase": "preflight",
+    "outcome": "allow",
+    "assertions": [
+      {
+        "rule_id": "preflight-policy",
+        "rule_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "result": "pass",
+        "proof_mode": "commitment",
+        "evidence_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    ],
+    "previous_receipt_hash": null,
+    "occurred_at": "2026-08-08T10:00:00.000Z"
+  },
+  {
+    "schema_version": "pom-rx/0.1",
+    "run_id": "run_pomrx_integrity_20260808",
+    "agent_ref": "eip155:84532:erc8004:agent-42",
+    "subject_ref": "market:BTC-USD",
+    "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "action_commitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "source_key_id": "pom-rx-integrity-key",
+    "receipt_id": "receipt_execution_integrity_20260808",
+    "phase": "execution",
+    "outcome": "accepted",
+    "assertions": [
+      {
+        "rule_id": "execution-accepted",
+        "rule_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "result": "pass",
+        "proof_mode": "commitment",
+        "evidence_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    ],
+    "previous_receipt_hash": "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+    "occurred_at": "2026-08-08T10:00:01.000Z"
+  },
+  {
+    "schema_version": "pom-rx/0.1",
+    "run_id": "run_pomrx_integrity_20260808",
+    "agent_ref": "eip155:84532:erc8004:agent-42",
+    "subject_ref": "market:BTC-USD",
+    "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "action_commitment": "1111111111111111111111111111111111111111111111111111111111111111",
+    "source_key_id": "pom-rx-integrity-key",
+    "receipt_id": "receipt_reconciliation_integrity_20260808",
+    "phase": "reconciliation",
+    "outcome": "matched",
+    "assertions": [
+      {
+        "rule_id": "reconciliation-match",
+        "rule_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "result": "pass",
+        "proof_mode": "commitment",
+        "evidence_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    ],
+    "previous_receipt_hash": "3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1",
+    "occurred_at": "2026-08-08T10:00:02.000Z"
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "pin_schema_version": "pom-rx-v0.1-compat-pins/1",
+  "pins": [
+    {
+      "fixture_version": 1,
+      "source_baseline": "743b8082bfc925d1681af7a239856a0b4f7e8464",
+      "fixture_set_sha256": "a561817969f491ac15f02e5818cea252eecba7acc2726e93162f49b66f9ab23b"
+    }
+  ]
+}
