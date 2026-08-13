@@ -248,6 +248,33 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
     await expectAsyncCode('FILE_SET_INVALID', () => verifyFixtureCorpus({ root: additionalChecksumEntry }));
 
     if (runtimeIsExact) {
+      const repinLegacyMutation = (root, scenarioId, receiptIndex, mutateReceipt) => {
+        const manifestPath = path.join(root, '1', 'manifest.json');
+        const manifest = JSON.parse(readFileSync(manifestPath));
+        const scenario = manifest.scenarios.find(({ scenario_id: candidate }) => candidate === scenarioId);
+        const chainRelative = scenario.chain_path;
+        const chainPath = path.join(root, '1', ...chainRelative.split('/'));
+        const receipts = JSON.parse(readFileSync(chainPath));
+        const originalReceipt = structuredClone(receipts[receiptIndex]);
+        mutateReceipt(receipts[receiptIndex]);
+        writeFileSync(chainPath, `${JSON.stringify(receipts, null, 2)}\n`);
+
+        const canonicalRelative = scenario.canonical_paths[receiptIndex];
+        const canonicalPath = path.join(root, '1', ...canonicalRelative.split('/'));
+        let canonicalText = readFileSync(canonicalPath, 'utf8');
+        for (const key of Object.keys(originalReceipt)) {
+          if (originalReceipt[key] !== receipts[receiptIndex][key] && typeof originalReceipt[key] === 'string' && typeof receipts[receiptIndex][key] === 'string') {
+            canonicalText = canonicalText.replace(JSON.stringify(originalReceipt[key]), JSON.stringify(receipts[receiptIndex][key]));
+          }
+        }
+        writeFileSync(canonicalPath, canonicalText);
+        scenario.expected_legacy_receipt_hashes[receiptIndex] = sha256Bytes(Buffer.concat([Buffer.from('swisstokint:pom-rx:v1:', 'ascii'), Buffer.from(canonicalText)]));
+        writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+        for (const relativePath of [chainRelative, canonicalRelative, 'manifest.json']) {
+          repinAfter(root, relativePath, () => {});
+        }
+      };
+
       const canonical = makeCopy('canonical');
       repinAfter(canonical, 'canonical/valid-control/0.json', (target) => writeFileSync(target, Buffer.concat([readFileSync(target), Buffer.from(' ')])));
       await expectAsyncCode('CANONICAL_BYTES_MISMATCH', () => verifyFixtureCorpus({ root: canonical }));
@@ -259,6 +286,14 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
       const canary = makeCopy('canary');
       repinAfter(canary, 'canaries/localecompare-order-v1.expected.json', (target) => writeFileSync(target, '["a-a","a_a","a.a"]'));
       await expectAsyncCode('CANARY_DIGEST_MISMATCH', () => verifyFixtureCorpus({ root: canary }));
+
+      const previousHash = makeCopy('previous-hash');
+      repinLegacyMutation(previousHash, 'valid-control', 1, (receipt) => { receipt.previous_receipt_hash = '0'.repeat(64); });
+      await expectAsyncCode('LEGACY_RESULT_MISMATCH', () => verifyFixtureCorpus({ root: previousHash }));
+
+      const legacyStatus = makeCopy('legacy-status');
+      repinLegacyMutation(legacyStatus, 'valid-control', 2, (receipt) => { receipt.outcome = 'mismatched'; });
+      await expectAsyncCode('LEGACY_RESULT_MISMATCH', () => verifyFixtureCorpus({ root: legacyStatus }));
     }
 
     const runtime = makeCopy('runtime');
@@ -267,6 +302,23 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test('partial legacy scenarios require the exact allowPartial invocation and complete result shape', async () => {
+  const { verifyPomRxChain } = await import('../sdk/typescript/pom-rx.mjs');
+  const scenario = JSON.parse(manifestBytes).scenarios.find(({ scenario_id }) => scenario_id === 'POMRX-001-ACTION-PREFLIGHT-EXECUTION');
+  const receipts = JSON.parse(readFileSync(path.join(versionRoot, ...scenario.chain_path.split('/'))));
+  const accepted = verifyPomRxChain(receipts, { allowPartial: true });
+  assert.deepEqual(Object.keys(accepted), ['ok', 'status', 'receipt_hashes']);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.status, scenario.expected_legacy_status);
+  assert.equal(Object.hasOwn(accepted, 'error'), false);
+  assert.deepEqual(accepted.receipt_hashes, scenario.expected_legacy_receipt_hashes);
+  const deniedWithoutInvocation = verifyPomRxChain(receipts, { allowPartial: false });
+  assert.deepEqual(Object.keys(deniedWithoutInvocation), ['ok', 'error', 'receipt_hashes']);
+  assert.equal(deniedWithoutInvocation.ok, false);
+  assert.equal(Object.hasOwn(deniedWithoutInvocation, 'status'), false);
+  assert.deepEqual(deniedWithoutInvocation.receipt_hashes, []);
 });
 
 test('portable path validation rejects Windows, POSIX, traversal and Unicode hazards', () => {
