@@ -8,12 +8,7 @@ import { TextDecoder } from 'node:util';
 export const CASE_FOLDING_SHA256 = 'ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183';
 export const VERSION_ROOT_RELATIVE = 'fixtures/pom-rx/v0.1-compat/1';
 const windowsStreamHelper = fileURLToPath(new URL('./get-pom-rx-v01-ntfs-streams.ps1', import.meta.url));
-const verifiedRootIdentities = new Map();
-const verifiedFileIdentities = new Map();
-
-function fileIdentity(status) {
-  return `${status.dev}:${status.ino}:${status.size}:${status.mtimeNs}:${status.nlink}`;
-}
+const verifiedEnumerations = new WeakMap();
 
 export class FixtureContractError extends Error {
   constructor(code, message, details = {}) {
@@ -240,8 +235,6 @@ export function resolveBelow(root, relativePath) {
 function assertRealRoot(root) {
   const rootStatus = lstatSync(root, { bigint: true });
   if (!rootStatus.isDirectory() || rootStatus.isSymbolicLink()) fail('NON_REGULAR_ROOT', 'fixture root must be a real directory, not a link or reparse path');
-  const rootIdentity = `${rootStatus.dev}:${rootStatus.ino}:${rootStatus.mtimeNs}`;
-  if (process.platform === 'win32' && verifiedRootIdentities.get(path.resolve(root)) === rootIdentity) return;
   let current = path.resolve(root);
   const volumeRoot = path.parse(current).root;
   const ancestors = [];
@@ -251,7 +244,11 @@ function assertRealRoot(root) {
     current = path.dirname(current);
   }
   assertWindowsPathMetadata(ancestors, { checkAds: false, reparseCode: 'NON_REGULAR_ROOT' });
-  if (process.platform === 'win32') verifiedRootIdentities.set(path.resolve(root), rootIdentity);
+}
+
+export function assertRegularRoot(root) {
+  assertRealRoot(root);
+  assertWindowsPathMetadata([{ fullPath: path.resolve(root), relativePath: '.' }], { reparseCode: 'NON_REGULAR_ROOT' });
 }
 
 function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
@@ -298,24 +295,27 @@ export function enumerateRegularFiles(root) {
   const sorted = output.sort(compareUnicodeScalars);
   for (const relativePath of sorted) streamTargets.push({ fullPath: resolveBelow(root, relativePath), relativePath });
   assertWindowsPathMetadata(streamTargets);
-  if (process.platform === 'win32') {
-    for (const { fullPath } of streamTargets.slice(1).filter(({ fullPath }) => lstatSync(fullPath, { bigint: true }).isFile())) {
-      verifiedFileIdentities.set(fullPath, fileIdentity(lstatSync(fullPath, { bigint: true })));
-    }
-  }
+  verifiedEnumerations.set(sorted, path.resolve(root));
   return sorted;
 }
 
-export function readRegularFile(root, relativePath) {
-  assertRealRoot(root);
+export function readRegularFile(root, relativePath, { precheckedFiles } = {}) {
+  const prechecked = precheckedFiles?.includes(relativePath) && verifiedEnumerations.get(precheckedFiles) === path.resolve(root);
+  if (!prechecked) assertRealRoot(root);
   const fullPath = resolveBelow(root, relativePath);
   const status = lstatSync(fullPath, { bigint: true });
   if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1n) fail('NON_REGULAR_FILE', 'only single-link regular files allowed', { path: relativePath });
-  if (process.platform !== 'win32' || verifiedFileIdentities.get(fullPath) !== fileIdentity(status)) {
+  if (!prechecked) {
     assertWindowsPathMetadata([{ fullPath, relativePath }]);
   }
   const bytes = readFileSync(fullPath);
   const after = lstatSync(fullPath, { bigint: true });
   if (after.dev !== status.dev || after.ino !== status.ino || after.size !== status.size || after.mtimeNs !== status.mtimeNs) fail('FILE_CHANGED_DURING_READ', 'file identity or bytes changed during read', { path: relativePath });
   return bytes;
+}
+
+export function revalidateRegularFiles(root, precheckedFiles) {
+  if (verifiedEnumerations.get(precheckedFiles) !== path.resolve(root)) fail('FILE_SET_INVALID', 'prechecked file-set capability is invalid');
+  const after = enumerateRegularFiles(root);
+  if (JSON.stringify(after) !== JSON.stringify(precheckedFiles)) fail('FILE_SET_INVALID', 'file set changed after verified reads');
 }

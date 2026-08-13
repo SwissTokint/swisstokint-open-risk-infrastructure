@@ -10,6 +10,7 @@ import {
   FixtureContractError,
   assertExactKeys,
   assertNoFoldAliases,
+  assertRegularRoot,
   compareUnicodeScalars,
   enumerateRegularFiles,
   fail,
@@ -17,6 +18,7 @@ import {
   parseChecksums,
   parseExactJson,
   readRegularFile,
+  revalidateRegularFiles,
   sha256Bytes,
   validateFixturePath,
 } from './pom-rx-v01-fixture-contract.mjs';
@@ -131,8 +133,11 @@ function validateReceiptShape(receipt, label) {
 
 export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat') } = {}) {
   const versionRoot = path.join(root, '1');
+  assertRegularRoot(root);
   const pin = validatePins(readRegularFile(root, 'pins.json'));
-  const checksumBytes = readRegularFile(versionRoot, 'checksums.sha256');
+  const actualFiles = enumerateRegularFiles(versionRoot);
+  const readVersionFile = (relativePath) => readRegularFile(versionRoot, relativePath, { precheckedFiles: actualFiles });
+  const checksumBytes = readVersionFile('checksums.sha256');
   const expectedPin = sha256Bytes(Buffer.concat([Buffer.from('pom-rx-v0.1-fixture-set/1\n', 'ascii'), checksumBytes]));
   if (pin.fixture_set_sha256 !== expectedPin) fail('PIN_MISMATCH', 'independent version-root pin differs');
   const caseFoldingPath = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'support', 'unicode', '17.0.0', 'CaseFolding.txt');
@@ -140,17 +145,16 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
   if (sha256Bytes(caseFoldingBytes) !== CASE_FOLDING_SHA256) fail('UNICODE_DATA_DIGEST_MISMATCH', 'CaseFolding.txt digest differs');
   const foldMap = loadUnicode17CaseFold(caseFoldingBytes);
   const checksumEntries = parseChecksums(checksumBytes);
-  const actualFiles = enumerateRegularFiles(versionRoot);
   if (actualFiles.length !== 31 || checksumEntries.length !== 30) fail('FILE_SET_INVALID', 'version root requires 30 payloads plus checksums.sha256');
   const expectedFiles = [...checksumEntries.map((entry) => entry.path), 'checksums.sha256'].sort(compareUnicodeScalars);
   if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) fail('FILE_SET_INVALID', 'version root file set differs from checksums');
-  for (const entry of checksumEntries) if (sha256Bytes(readRegularFile(versionRoot, entry.path)) !== entry.digest) fail('CHECKSUM_MISMATCH', 'fixture byte digest differs', { path: entry.path });
+  for (const entry of checksumEntries) if (sha256Bytes(readVersionFile(entry.path)) !== entry.digest) fail('CHECKSUM_MISMATCH', 'fixture byte digest differs', { path: entry.path });
   assertNoFoldAliases(actualFiles, foldMap);
-  const manifestBytes = readRegularFile(versionRoot, 'manifest.json');
+  const manifestBytes = readVersionFile('manifest.json');
   const manifest = validateManifest(manifestBytes);
   assertRuntime();
-  const canaryInputBytes = readRegularFile(versionRoot, manifest.canaries[0].input_path);
-  const canaryExpectedBytes = readRegularFile(versionRoot, manifest.canaries[0].expected_path);
+  const canaryInputBytes = readVersionFile(manifest.canaries[0].input_path);
+  const canaryExpectedBytes = readVersionFile(manifest.canaries[0].expected_path);
   if (sha256Bytes(canaryInputBytes) !== '811d8ff308bf40f503b1d0b27ede1e1cf2ec952b191dd90fbfef8e5601888c9b' || sha256Bytes(canaryExpectedBytes) !== manifest.canaries[0].expected_sha256) fail('CANARY_DIGEST_MISMATCH', 'canary bytes differ');
   const canaryInput = parseExactJson(canaryInputBytes, 'canary input', { terminalLf: false });
   const canaryExpected = parseExactJson(canaryExpectedBytes, 'canary expected', { terminalLf: false });
@@ -163,10 +167,14 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     const proofPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'swisstokint-proof.mjs');
     const before = sha256Bytes(readFileSync(pomRxPath));
     const proofBefore = sha256Bytes(readFileSync(proofPath));
-    const frozenBefore = new Map(SOURCE_FILES.map(([relativePath]) => [relativePath, sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/'))))]));
+    const frozenBefore = new Map(SOURCE_FILES.map(([relativePath, , expectedSha]) => {
+      const digest = sha256Bytes(readFileSync(path.join(binding.sourceRoot, ...relativePath.split('/'))));
+      if (digest !== expectedSha) fail('SOURCE_BINDING_MISMATCH', 'frozen source differs immediately before execution', { path: relativePath });
+      return [relativePath, digest];
+    }));
     const module = await import(`${pomRxUrl}?fixture-verification=1`);
     for (const scenario of manifest.scenarios) {
-      const chainBytes = readRegularFile(versionRoot, scenario.chain_path);
+      const chainBytes = readVersionFile(scenario.chain_path);
       const receipts = parseExactJson(chainBytes, scenario.chain_path);
       if (!Array.isArray(receipts) || receipts.length !== scenario.canonical_paths.length) fail('CHAIN_SHAPE_INVALID', 'chain cardinality differs', { scenario_id: scenario.scenario_id });
       assertPrettyJson(chainBytes, receipts, scenario.chain_path);
@@ -174,7 +182,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
       receipts.forEach((receipt, receiptIndex) => {
         validateReceiptShape(receipt, `${scenario.scenario_id}[${receiptIndex}]`);
         const committed = module.commitPomRxReceipt(receipt);
-        const expectedCanonical = readRegularFile(versionRoot, scenario.canonical_paths[receiptIndex]);
+        const expectedCanonical = readVersionFile(scenario.canonical_paths[receiptIndex]);
         if (!expectedCanonical.equals(Buffer.from(committed.canonicalReceipt, 'utf8'))) fail('CANONICAL_BYTES_MISMATCH', 'canonical bytes differ', { scenario_id: scenario.scenario_id, receipt_index: receiptIndex });
         recomputedHashes.push(committed.receiptHash);
       });
@@ -182,8 +190,8 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
       const legacy = module.verifyPomRxChain(receipts, { allowPartial: scenario.allow_partial });
       if (JSON.stringify(Object.keys(legacy)) !== JSON.stringify(['ok', 'status', 'receipt_hashes']) || legacy.ok !== true || Object.hasOwn(legacy, 'error') || legacy.status !== scenario.expected_legacy_status || JSON.stringify(legacy.receipt_hashes) !== JSON.stringify(scenario.expected_legacy_receipt_hashes)) fail('LEGACY_RESULT_MISMATCH', 'complete legacy result differs', { scenario_id: scenario.scenario_id });
     }
-    const ordinary = readRegularFile(versionRoot, 'chains/POMRX-001-ACTION-PREFLIGHT-EXECUTION.json');
-    const surrogate = readRegularFile(versionRoot, 'chains/POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION.json');
+    const ordinary = readVersionFile('chains/POMRX-001-ACTION-PREFLIGHT-EXECUTION.json');
+    const surrogate = readVersionFile('chains/POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION.json');
     if (!ordinary.equals(surrogate)) fail('SURROGATE_BYTES_MISMATCH', 'ordinary and surrogate action chains must be byte-identical');
     if (sha256Bytes(readFileSync(pomRxPath)) !== before) fail('SOURCE_BINDING_MISMATCH', 'source bytes changed during verification');
     if (sha256Bytes(readFileSync(proofPath)) !== proofBefore) fail('SOURCE_BINDING_MISMATCH', 'source dependency bytes changed during verification');
@@ -199,6 +207,7 @@ export async function verifyFixtureCorpus({ root = path.join(repositoryRoot, 'fi
     cleanFrozenSource(binding);
   }
   if (redReport.status !== 'EXPECTED_RED_CONFIRMED' || redReport.totals?.tracked_defects !== 7 || redReport.totals?.vulnerable_failures !== 7 || redReport.totals?.green_controls !== 1) fail('EXPECTED_RED_GATE_INVALID', 'strict expected-red totals differ');
+  revalidateRegularFiles(versionRoot, actualFiles);
   return { status: 'FULL_CORPUS_VERIFIED', scenarios: 8, regular_files: 31, checksum_entries: 30, runtime: measureRuntime(), source_baseline: SOURCE_BASELINE, fixture_set_sha256: pin.fixture_set_sha256 };
 }
 

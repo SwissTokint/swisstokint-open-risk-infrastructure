@@ -17,6 +17,7 @@ import {
   loadUnicode17CaseFold,
   parseChecksums,
   parseExactJson,
+  readRegularFile,
   sha256Bytes,
   validateFixturePath,
 } from '../scripts/pom-rx-v01-fixture-contract.mjs';
@@ -153,6 +154,12 @@ test('complete verifier rejects missing, extra, byte-drift and independently pin
     linkSync(externalPin, path.join(linkedPin, 'pins.json'));
     await expectAsyncCode('NON_REGULAR_FILE', () => verifyFixtureCorpus({ root: linkedPin }));
 
+    if (process.platform === 'win32') {
+      const parentAds = makeCopy('parent-ads');
+      writeFileSync(`${parentAds}:shadow`, 'hidden');
+      await expectAsyncCode('ALTERNATE_DATA_STREAM', () => verifyFixtureCorpus({ root: parentAds }));
+    }
+
     const drift = makeCopy('drift');
     writeFileSync(path.join(drift, '1', 'manifest.json'), Buffer.concat([readFileSync(path.join(drift, '1', 'manifest.json')), Buffer.from(' ')]));
     await expectAsyncCode('CHECKSUM_MISMATCH', () => verifyFixtureCorpus({ root: drift }));
@@ -216,6 +223,22 @@ test('POSIX integration rejects real file and root symlinks without following th
     const linkedRoot = path.join(temporaryRoot, 'linked-root');
     symlinkSync(externalRoot, linkedRoot, 'dir');
     expectCode('NON_REGULAR_ROOT', () => enumerateRegularFiles(linkedRoot));
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('Windows native metadata is revalidated after enumeration before a standalone read', (context) => {
+  if (process.platform !== 'win32') {
+    context.skip('NTFS ADS mutation requires Windows');
+    return;
+  }
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-post-enumeration-'));
+  try {
+    writeFileSync(path.join(temporaryRoot, 'regular.json'), '{}\n');
+    enumerateRegularFiles(temporaryRoot);
+    writeFileSync(`${path.join(temporaryRoot, 'regular.json')}:shadow`, 'hidden');
+    expectCode('ALTERNATE_DATA_STREAM', () => readRegularFile(temporaryRoot, 'regular.json'));
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }
