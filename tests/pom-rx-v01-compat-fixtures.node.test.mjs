@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -23,6 +23,7 @@ import {
 } from '../scripts/pom-rx-v01-fixture-contract.mjs';
 import * as verifierModule from '../scripts/verify-pom-rx-v01-compat-fixtures.mjs';
 import * as verifierInternals from '../scripts/pom-rx-v01-fixture-verifier-internals.mjs';
+import { GeneratorDestinationError, acquireGeneratorDestination } from '../scripts/pom-rx-v01-fixture-destination-internals.mjs';
 
 const { validateManifest, validatePins, verifyFixtureCorpus } = verifierModule;
 
@@ -36,6 +37,10 @@ const runtimeIsExact = process.versions.node === '24.16.0' && process.versions.i
 
 function expectCode(code, fn) {
   assert.throws(fn, (error) => error instanceof FixtureContractError && error.code === code, `expected ${code}`);
+}
+
+function expectGeneratorCode(code, fn) {
+  assert.throws(fn, (error) => error instanceof GeneratorDestinationError && error.code === code, `expected ${code}`);
 }
 
 test('immutable corpus has the exact scenario, file, checksum and parent-pin closure', () => {
@@ -460,6 +465,7 @@ test('generator source closure uses the exact import URL and rechecks drift on f
   assert.match(generatorSource, /importExactModule\(pomRxPath\)/u);
   assert.doesNotMatch(generatorSource, /fixture-generation/u);
   assert.match(generatorSource, /withFrozenSourceSnapshot\(binding\.sourceRoot, SOURCE_FILES/u);
+  assert.ok(generatorSource.indexOf('destinationLease.publishPinExclusive(pinBytes)') > generatorSource.indexOf('await withFrozenSourceSnapshot(binding.sourceRoot, SOURCE_FILES'), 'pin publication must occur only after frozen-source post-validation returns');
 
   const sourcePaths = ['sdk/a.mjs', 'sdk/b.mjs', 'tests/baseline.mjs', 'scripts/red.mjs'];
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-generator-source-'));
@@ -480,6 +486,22 @@ test('generator source closure uses the exact import URL and rechecks drift on f
       return [relativePath, `blob-${index}`, sha256Bytes(bytes)];
     });
     assert.equal(await verifierInternals.withFrozenSourceSnapshot(temporaryRoot, sourceFiles, async () => 'ok'), 'ok');
+    let pinPublished = false;
+    const firstSource = path.join(temporaryRoot, ...sourcePaths[0].split('/'));
+    const firstBytes = readFileSync(firstSource);
+    await assert.rejects(
+      (async () => {
+        const pinBytes = await verifierInternals.withFrozenSourceSnapshot(temporaryRoot, sourceFiles, async () => {
+          writeFileSync(firstSource, Buffer.concat([firstBytes, Buffer.from('-late-drift')]));
+          return Buffer.from('pin');
+        });
+        pinPublished = true;
+        return pinBytes;
+      })(),
+      (error) => error instanceof FixtureContractError && error.code === 'SOURCE_BINDING_MISMATCH',
+    );
+    assert.equal(pinPublished, false);
+    writeFileSync(firstSource, firstBytes);
     for (const relativePath of sourcePaths) {
       const target = path.join(temporaryRoot, ...relativePath.split('/'));
       const original = readFileSync(target);
@@ -516,6 +538,150 @@ test('frozen source cleanup always attempts worktree and directory removal', () 
     () => assert.fail('refused cleanup must not remove a worktree'),
     () => assert.fail('refused cleanup must not remove a directory'),
   ));
+});
+
+test('generator destination claims and publishes only exclusive owned objects', () => {
+  const sandbox = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-destination-')));
+  try {
+    const lease = acquireGeneratorDestination({ parentRoot: sandbox });
+    lease.writeExclusive('chains/example.json', Buffer.from('{}\n'));
+    lease.writeExclusive('manifest.json', Buffer.from('{}\n'));
+    lease.removeMarker();
+    lease.publishPinExclusive(Buffer.from('{"pin":1}\n'));
+    lease.commit();
+    assert.equal(lease.state, 'COMMITTED');
+    assert.equal(readFileSync(path.join(sandbox, '1', 'chains', 'example.json'), 'utf8'), '{}\n');
+    assert.equal(readFileSync(path.join(sandbox, 'pins.json'), 'utf8'), '{"pin":1}\n');
+    assert.equal(readFileSync(path.join(sandbox, '1', 'manifest.json'), 'utf8'), '{}\n');
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('generator destination preserves precreated roots, pins and hardlinks', () => {
+  const sandbox = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-destination-conflict-')));
+  try {
+    for (const invalid of ['', '.', '..', '../escape', 'nested/name', 'nested\\name', path.resolve(sandbox, 'absolute')]) {
+      expectGeneratorCode('GENERATOR_DESTINATION_NAME_INVALID', () => acquireGeneratorDestination({ parentRoot: sandbox, versionName: invalid }));
+    }
+    expectGeneratorCode('GENERATOR_DESTINATION_NAME_INVALID', () => acquireGeneratorDestination({ parentRoot: sandbox, versionName: 'same', pinName: 'same' }));
+    assert.deepEqual(readdirSync(sandbox), []);
+
+    mkdirSync(path.join(sandbox, '1'));
+    writeFileSync(path.join(sandbox, '1', 'sentinel'), 'root-sentinel');
+    expectGeneratorCode('GENERATOR_DESTINATION_EXISTS', () => acquireGeneratorDestination({ parentRoot: sandbox }));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'sentinel'), 'utf8'), 'root-sentinel');
+    rmSync(path.join(sandbox, '1'), { recursive: true, force: true });
+
+    const external = path.join(sandbox, 'external-pin');
+    writeFileSync(external, 'pin-sentinel');
+    linkSync(external, path.join(sandbox, 'pins.json'));
+    expectGeneratorCode('GENERATOR_DESTINATION_EXISTS', () => acquireGeneratorDestination({ parentRoot: sandbox }));
+    assert.equal(readFileSync(external, 'utf8'), 'pin-sentinel');
+    assert.equal(readFileSync(path.join(sandbox, 'pins.json'), 'utf8'), 'pin-sentinel');
+    assert.equal(existsSync(path.join(sandbox, '1')), false);
+
+    rmSync(path.join(sandbox, 'pins.json'));
+    const externalDirectory = path.join(sandbox, 'external-directory');
+    mkdirSync(externalDirectory);
+    writeFileSync(path.join(externalDirectory, 'junction-sentinel'), 'junction');
+    symlinkSync(externalDirectory, path.join(sandbox, '1'), process.platform === 'win32' ? 'junction' : 'dir');
+    expectGeneratorCode('GENERATOR_DESTINATION_EXISTS', () => acquireGeneratorDestination({ parentRoot: sandbox }));
+    assert.equal(readFileSync(path.join(externalDirectory, 'junction-sentinel'), 'utf8'), 'junction');
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('generator rollback removes owned entries but preserves foreign substitutions', () => {
+  const sandbox = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-destination-rollback-')));
+  try {
+    const cleanLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    cleanLease.writeExclusive('chains/owned.json', Buffer.from('owned'));
+    const primary = new Error('synthetic generation failure');
+    assert.throws(() => cleanLease.rollback(primary), (error) => error === primary);
+    assert.equal(existsSync(path.join(sandbox, '1')), false);
+    assert.equal(existsSync(path.join(sandbox, 'pins.json')), false);
+
+    const extraLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    extraLease.writeExclusive('manifest.json', Buffer.from('{}\n'));
+    extraLease.removeMarker();
+    writeFileSync(path.join(sandbox, '1', 'foreign-extra'), 'foreign');
+    expectGeneratorCode('GENERATOR_DESTINATION_FILE_SET_INVALID', () => extraLease.publishPinExclusive(Buffer.from('{"pin":1}\n')));
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => extraLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'foreign-extra'), 'utf8'), 'foreign');
+    rmSync(path.join(sandbox, '1'), { recursive: true });
+
+    const mutatedPayloadLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    mutatedPayloadLease.writeExclusive('manifest.json', Buffer.from('{}\n'));
+    mutatedPayloadLease.removeMarker();
+    writeFileSync(path.join(sandbox, '1', 'manifest.json'), '{"changed":true}\n');
+    expectGeneratorCode('GENERATOR_DESTINATION_BYTES_CHANGED', () => mutatedPayloadLease.publishPinExclusive(Buffer.from('{"pin":1}\n')));
+    assert.throws(() => mutatedPayloadLease.rollback(new Error('fail')), (error) => error.message === 'fail');
+
+    const postPublishLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    postPublishLease.writeExclusive('manifest.json', Buffer.from('{}\n'));
+    postPublishLease.removeMarker();
+    postPublishLease.publishPinExclusive(Buffer.from('{"pin":1}\n'));
+    const lateSourceFailure = new Error('synthetic post-generation source drift');
+    assert.throws(() => postPublishLease.rollback(lateSourceFailure), (error) => error === lateSourceFailure);
+    assert.equal(existsSync(path.join(sandbox, '1')), false);
+    assert.equal(existsSync(path.join(sandbox, 'pins.json')), false);
+
+    const mutatedPinLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    mutatedPinLease.writeExclusive('manifest.json', Buffer.from('{}\n'));
+    mutatedPinLease.removeMarker();
+    mutatedPinLease.publishPinExclusive(Buffer.from('{"pin":1}\n'));
+    writeFileSync(path.join(sandbox, 'pins.json'), '{"pin":2}\n');
+    expectGeneratorCode('GENERATOR_DESTINATION_BYTES_CHANGED', () => mutatedPinLease.commit());
+    assert.throws(() => mutatedPinLease.rollback(new Error('fail')), (error) => error.message === 'fail');
+
+    const conflictLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    writeFileSync(path.join(sandbox, '1', 'foreign-conflict'), 'foreign');
+    expectGeneratorCode('GENERATOR_DESTINATION_WRITE_CONFLICT', () => conflictLease.writeExclusive('foreign-conflict', Buffer.from('owned')));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'foreign-conflict'), 'utf8'), 'foreign');
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => conflictLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'foreign-conflict'), 'utf8'), 'foreign');
+    rmSync(path.join(sandbox, '1'), { recursive: true });
+
+    const hardlinkLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    hardlinkLease.writeExclusive('owned.json', Buffer.from('owned'));
+    linkSync(path.join(sandbox, '1', 'owned.json'), path.join(sandbox, 'foreign-hardlink'));
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => hardlinkLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, 'foreign-hardlink'), 'utf8'), 'owned');
+    rmSync(path.join(sandbox, '1'), { recursive: true });
+    rmSync(path.join(sandbox, 'foreign-hardlink'));
+
+    const pinSwapLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    const movedPin = path.join(sandbox, 'owned-pin-moved');
+    renameSync(path.join(sandbox, 'pins.json'), movedPin);
+    writeFileSync(path.join(sandbox, 'pins.json'), 'replacement-pin');
+    expectGeneratorCode('GENERATOR_DESTINATION_OWNERSHIP_LOST', () => pinSwapLease.removeMarker());
+    assert.equal(readFileSync(path.join(sandbox, 'pins.json'), 'utf8'), 'replacement-pin');
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => pinSwapLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, 'pins.json'), 'utf8'), 'replacement-pin');
+    rmSync(path.join(sandbox, '1'), { recursive: true, force: true });
+    rmSync(path.join(sandbox, 'pins.json'));
+    rmSync(movedPin);
+
+    const injectedLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    injectedLease.writeExclusive('owned.json', Buffer.from('owned'));
+    writeFileSync(path.join(sandbox, '1', 'foreign-sentinel'), 'foreign');
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => injectedLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'foreign-sentinel'), 'utf8'), 'foreign');
+
+    rmSync(path.join(sandbox, '1'), { recursive: true });
+    const swappedLease = acquireGeneratorDestination({ parentRoot: sandbox });
+    const movedOwned = path.join(sandbox, 'owned-moved');
+    renameSync(path.join(sandbox, '1'), movedOwned);
+    mkdirSync(path.join(sandbox, '1'));
+    writeFileSync(path.join(sandbox, '1', 'replacement-sentinel'), 'replacement');
+    expectGeneratorCode('GENERATOR_ROLLBACK_INCOMPLETE', () => swappedLease.rollback(new Error('fail')));
+    assert.equal(readFileSync(path.join(sandbox, '1', 'replacement-sentinel'), 'utf8'), 'replacement');
+    assert.equal(readFileSync(path.join(movedOwned, '.pomrx-generator-owner'), 'utf8'), '');
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
 });
 
 test('real CLI is fail-closed outside the exact immutable runtime tuple', () => {

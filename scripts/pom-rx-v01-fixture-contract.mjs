@@ -251,7 +251,7 @@ export function assertRegularRoot(root) {
   assertWindowsPathMetadata([{ fullPath: path.resolve(root), relativePath: '.' }], { reparseCode: 'NON_REGULAR_ROOT' });
 }
 
-function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
+export function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
   if (process.platform !== 'win32') return;
   let records;
   try {

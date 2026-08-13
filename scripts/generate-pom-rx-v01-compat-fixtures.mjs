@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ import {
   snapshotFrozenSource,
   withFrozenSourceSnapshot,
 } from './pom-rx-v01-fixture-verifier-internals.mjs';
+import { acquireGeneratorDestination } from './pom-rx-v01-fixture-destination-internals.mjs';
 
 const SOURCE_BASELINE = '743b8082bfc925d1681af7a239856a0b4f7e8464';
 const SOURCE_FILES = Object.freeze([
@@ -32,6 +33,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = path.resolve(path.dirname(scriptPath), '..');
 const versionRoot = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat', '1');
 const pinsPath = path.join(repositoryRoot, 'fixtures', 'pom-rx', 'v0.1-compat', 'pins.json');
+let destinationLease;
 
 function runGit(args, options = {}) {
   return execFileSync('git', args, { cwd: repositoryRoot, encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8', windowsHide: true });
@@ -115,9 +117,7 @@ function pretty(value) {
 }
 
 function write(relativePath, bytes) {
-  const destination = path.join(versionRoot, ...relativePath.split('/'));
-  mkdirSync(path.dirname(destination), { recursive: true });
-  writeFileSync(destination, bytes);
+  destinationLease.writeExclusive(relativePath, bytes);
 }
 
 function buildScenarioDefinitions(commitPomRxReceipt) {
@@ -145,14 +145,14 @@ function buildScenarioDefinitions(commitPomRxReceipt) {
 
 async function main() {
   assertRuntime();
-  assert.equal(existsSync(versionRoot), false, 'fixture generator only writes to an absent version root');
-  assert.equal(existsSync(pinsPath), false, 'fixture generator refuses to overwrite pins.json');
   const binding = bindFrozenSource();
+  let generationReport;
+  let pinBytes;
   try {
+    destinationLease = acquireGeneratorDestination({ parentRoot: path.dirname(versionRoot), versionName: path.basename(versionRoot), pinName: path.basename(pinsPath) });
     const pomRxPath = path.join(binding.sourceRoot, 'sdk', 'typescript', 'pom-rx.mjs');
-    const generationReport = await withFrozenSourceSnapshot(binding.sourceRoot, SOURCE_FILES, async () => {
+    const generated = await withFrozenSourceSnapshot(binding.sourceRoot, SOURCE_FILES, async () => {
       const { module } = await importExactModule(pomRxPath);
-      mkdirSync(versionRoot, { recursive: true });
       const scenarios = [];
     for (const [scenarioId, classification, allowPartial, receipts] of buildScenarioDefinitions(module.commitPomRxReceipt)) {
       const chainPath = `chains/${scenarioId}.json`;
@@ -206,26 +206,32 @@ async function main() {
       }],
     };
     write('manifest.json', pretty(manifest));
+    destinationLease.removeMarker();
     const files = enumerateRegularFiles(versionRoot).sort(compareUnicodeScalars);
     assert.equal(files.length, 30, 'version root must contain 30 files before checksums.sha256');
     const checksumBytes = Buffer.from(`${files.map((relativePath) => `${sha256Bytes(readFileSync(path.join(versionRoot, ...relativePath.split('/'))))}  ${relativePath}`).join('\n')}\n`, 'ascii');
-    writeFileSync(path.join(versionRoot, 'checksums.sha256'), checksumBytes);
+    write('checksums.sha256', checksumBytes);
     const fixtureSetSha256 = sha256Bytes(Buffer.concat([Buffer.from('pom-rx-v0.1-fixture-set/1\n', 'ascii'), checksumBytes]));
-    mkdirSync(path.dirname(pinsPath), { recursive: true });
-    writeFileSync(pinsPath, pretty({
+    const generatedPinBytes = pretty({
       pin_schema_version: 'pom-rx-v0.1-compat-pins/1',
       pins: [{ fixture_version: 1, source_baseline: SOURCE_BASELINE, fixture_set_sha256: fixtureSetSha256 }],
-    }));
-      return { status: 'FIXTURE_CORPUS_GENERATED', scenarios: scenarios.length, regular_files: 31, fixture_set_sha256: fixtureSetSha256 };
     });
-    console.log(JSON.stringify(generationReport, null, 2));
+      return {
+        report: { status: 'FIXTURE_CORPUS_GENERATED', scenarios: scenarios.length, regular_files: 31, fixture_set_sha256: fixtureSetSha256 },
+        pinBytes: generatedPinBytes,
+      };
+    });
+    generationReport = generated.report;
+    pinBytes = generated.pinBytes;
+    destinationLease.publishPinExclusive(pinBytes);
+    destinationLease.commit();
   } catch (error) {
-    if (existsSync(versionRoot)) rmSync(versionRoot, { recursive: true, force: true });
-    if (existsSync(pinsPath)) rmSync(pinsPath, { force: true });
+    if (destinationLease && destinationLease.state !== 'COMMITTED') destinationLease.rollback(error);
     throw error;
   } finally {
     cleanFrozenSource(binding);
   }
+  console.log(JSON.stringify(generationReport, null, 2));
 }
 
 await main();
