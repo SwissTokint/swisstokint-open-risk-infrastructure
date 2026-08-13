@@ -257,8 +257,9 @@ source_baseline
 fixture_set_sha256
 ```
 
-Values are respectively JSON integer `1`, the exact full generation commit and
-one lowercase 64-hex digest. The digest is recomputed exactly as:
+Values are respectively JSON integer `1`, the exact full source baseline
+commit `743b8082bfc925d1681af7a239856a0b4f7e8464`, and one lowercase 64-hex
+digest. The digest is recomputed exactly as:
 
 ```text
 SHA-256(ASCII("pom-rx-v0.1-fixture-set/1\n") || exact version-1 checksums.sha256 bytes)
