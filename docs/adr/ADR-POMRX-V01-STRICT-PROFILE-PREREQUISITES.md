@@ -69,6 +69,8 @@ fixtures/pom-rx/v0.1-compat/1/
   checksums.sha256
   chains/<scenario_id>.json
   canonical/<scenario_id>/<receipt_index>.json
+  canaries/localecompare-order-v1.input.json
+  canaries/localecompare-order-v1.expected.json
 ```
 
 Version `1` contains exactly eight scenarios:
@@ -93,14 +95,18 @@ exchange credential, fund, position, live order or network transaction.
   CR byte, and end with exactly one LF.
 - `canonical/**/*.json` contains the exact UTF-8 bytes returned by the frozen
   v0.1 canonicalizer and has no added BOM or terminal newline.
+- `canaries/*.json` contains the exact UTF-8 JSON bytes specified below and has
+  no BOM or terminal newline.
 - `checksums.sha256` is UTF-8 ASCII, LF terminated, and has one line
   `<64 lowercase hex><two spaces><relative POSIX path>` per other file.
 - Checksum paths are ordinally sorted by Unicode scalar value, unique, relative,
   slash-separated and contain no empty, `.` or `..` segment. The checksum file
   excludes itself and includes every other regular file under the version root.
 - Symlinks, junctions, alternate data streams and unmanifested regular files
-  fail verification. Paths equal under Windows invariant case-folding or
-  Unicode-normalization aliases also fail on every platform.
+  fail verification. For collision detection, each path is normalized to NFC,
+  then Unicode Default Case Folding using the full mappings from Unicode 17.0
+  `CaseFolding.txt` is applied locale-independently. Any two paths whose folded
+  UTF-8 byte sequences are equal fail on every platform.
 - Checksums are SHA-256 over exact file bytes. Windows text normalization is
   forbidden during verification.
 
@@ -121,8 +127,12 @@ source_repository
 source_baseline
 generated_with_node
 generated_with_icu
+generated_with_unicode
 generated_with_locale
+generated_with_platform
+generated_with_arch
 scenarios[]
+canaries[]
 ```
 
 Each scenario records exact `scenario_id`, `classification` (`valid-control` or
@@ -134,6 +144,34 @@ does not make Node/ICU/locale portable or transform legacy ordering.
 The fixture verifier independently recomputes canonical bytes and receipt
 hashes using the frozen v0.1 path, then byte-compares them to the fixture files.
 A checksum-only pass is insufficient.
+
+The corpus still contains exactly eight chain scenarios. The two `canaries`
+files are separate compatibility artefacts, not a ninth scenario. Their exact
+UTF-8 bytes contain no BOM or terminal newline:
+
+```text
+localecompare-order-v1.input.json:
+["a-a","a.a","a_a"]
+
+localecompare-order-v1.expected.json:
+["a_a","a-a","a.a"]
+```
+
+The expected file bytes are hex
+`5b22615f61222c22612d61222c22612e61225d` and SHA-256
+`3707fd4c6e3322d3cbc6e1c3c7d68b669d2f409b8b675d1b4d8c70519b95e9d7`.
+Under the manifest's exact Node/ICU/Unicode/locale runtime, the canary loads the
+input array, applies the historical JavaScript comparator
+`left.localeCompare(right)`, serializes with `JSON.stringify`, and byte-compares
+the result to the expected file. The canary isolates the measured punctuation
+ordering and does not claim to be a receipt or to reproduce the legacy receipt
+hash recorded by the R2 council.
+
+`fixture_set_sha256` is
+`SHA-256(ASCII("pom-rx-v0.1-fixture-set/1\n") || exact checksums.sha256 bytes)`.
+The exact lowercase hex value is recorded in release evidence outside the
+fixture root. It is called the repository-pinned checksum root; it is not an
+external signature or authenticity proof.
 
 ## 3. Additive API boundary, activation barrier and no fallback
 
@@ -171,10 +209,29 @@ receipt_id uniqueness within the chain
 ```
 
 Each invariant family may land first as an internal pure checker. Before the
-matrix is complete, any internal development orchestrator using the final
-verdict shape returns `indeterminate`,
-`structural_prerequisite_satisfied = false`, and
-`POMRX_V01_E_PROFILE_INCOMPLETE`; it never returns `conformant`. Only one final
+matrix is complete, it is exercised only by a test-only internal readiness
+harness that is not a package export, is excluded from the production artifact
+closure, and never invokes the policy loader or final verdict constructor. Its
+exact result is:
+
+```text
+test_result_schema_version = pom-rx-internal-readiness-test/1
+test_build_id = test-only/<lowercase source-closure sha256>
+implemented_invariants = ordered stable invariant IDs
+missing_invariants = ordered stable invariant IDs
+structural_status = indeterminate
+structural_prerequisite_satisfied = false
+authorization_eligible = false
+authorization_proved = false
+diagnostic_code = POMRX_V01_E_PROFILE_INCOMPLETE
+```
+
+This is conformance-test evidence, not `pom-rx-verification-verdict/1`. It has no
+policy, profile, verifier-version or implementation-artifact identity fields and
+cannot return `conformant`. The active loader rejects the `test-only/` namespace
+and the internal result schema unconditionally. CI verifies neither is exported
+or present in a production package. `POMRX_V01_E_PROFILE_INCOMPLETE` is therefore
+internal-only and unreachable from the future public API. Only one final
 activation PR may export `verifyPomRxChainProfiled()` and enable the conformant
 truth-table row after the complete matrix and valid control pass together.
 
@@ -217,8 +274,9 @@ withFreshPomRxPolicyCapability(trustedBootstrapConfig, capability =>
 ```
 
 `trustedBootstrapConfig` is never accepted from receipt, fixture, remote API or
-strategy input. The callback is synchronous and cannot return or retain the
-capability.
+strategy input. The callback is synchronous. JavaScript cannot prevent a caller
+from retaining or returning the object reference, but invalidation guarantees
+that doing so does not preserve usability.
 
 The brand prevents accidental plain-object injection inside the supported
 process. It is not cryptographic authenticity and does not resist malicious
@@ -285,8 +343,8 @@ evaluation instant is absent, malformed or not designated trusted by the loader
 boundary, selection is indeterminate and denied. The verifier never uses
 receipt time or ambient system time to evade an effective withdrawal.
 
-Every verdict binds `effective_policy_id`, `effective_policy_version` and the
-exact-byte `effective_policy_sha256`.
+Every verdict that completes policy binding binds `effective_policy_id`,
+`effective_policy_version` and the exact-byte `effective_policy_sha256`.
 
 ## 5. Deterministic implementation artifact identity
 
@@ -313,10 +371,11 @@ implementation_artifact_sha256
 The trusted host resolves `package-root` before loading entries. Every entry
 must resolve to a regular file strictly below that root. Symlinks, junctions,
 reparse points, alternate data streams, resolution escape, malformed UTF-8,
-Unicode normalization aliases, and path pairs equal under Windows invariant
-case-folding fail verification. The same rejection applies on all platforms so
-one manifest cannot mean different closures on case-sensitive and
-case-insensitive filesystems.
+or path aliases fail verification. Alias comparison normalizes each path to NFC
+and applies locale-independent Unicode Default Case Folding with the full
+Unicode 17.0 `CaseFolding.txt` mappings; equal folded UTF-8 byte sequences are
+rejected. The same algorithm applies on all platforms so one manifest cannot
+mean different closures on case-sensitive and case-insensitive filesystems.
 
 For each included regular file, calculate and publish SHA-256 over exact bytes
 as review evidence. Normalize its package-relative path to a unique POSIX path
@@ -369,7 +428,14 @@ verifier_version = string | null
 implementation_artifact_sha256 = lowercase_sha256 | null
 expected_implementation_artifact_sha256 = lowercase_sha256 | null
 observed_implementation_artifact_sha256 = lowercase_sha256 | null
-execution_environment = exact_runtime_object | null
+execution_environment = {
+  node_version,
+  icu_version,
+  unicode_version,
+  locale,
+  platform,
+  arch
+} | null
 effective_policy_id = string | null
 effective_policy_version = string | null
 effective_policy_sha256 = lowercase_sha256 | null
@@ -409,6 +475,11 @@ supported profile, not an absent or unsupported caller string. `assurance` is
 non-null only after receipt validation and structural evaluation complete as
 either conformant or nonconformant. These rules prevent a pre-binding
 indeterminate verdict from asserting unauthenticated identities.
+
+When non-null, `execution_environment` has exactly the six keys shown above,
+all values are non-empty strings measured by the loader, and unknown or missing
+keys are invalid. Their values must exactly equal the selected policy record's
+`runtime_constraints`; the object is null until measurement completes.
 
 The exact truth table is:
 
@@ -485,7 +556,6 @@ Layers 1–3 stop at the first applicable error in this total priority order:
 | 10 | `POMRX_V01_E_PROFILE_UNSUPPORTED` |
 | 11 | `POMRX_V01_E_VERIFIER_WITHDRAWN` |
 | 12 | `POMRX_V01_E_VERIFIER_NOT_ALLOWED` |
-| 13 | `POMRX_V01_E_PROFILE_INCOMPLETE` |
 
 Only that one indeterminate diagnostic is returned and receipts are not parsed.
 An unexpected typed or untyped internal fault encountered before a listed error
@@ -521,7 +591,6 @@ outcome sequencing use `POMRX_V01_E_CHAIN_PHASE_INVALID`.
 ```text
 POMRX_V01_E_PROFILE_REQUIRED
 POMRX_V01_E_PROFILE_UNSUPPORTED
-POMRX_V01_E_PROFILE_INCOMPLETE
 POMRX_V01_E_DOWNGRADE_FORBIDDEN
 POMRX_V01_E_POLICY_CAPABILITY_REQUIRED
 POMRX_V01_E_POLICY_CAPABILITY_STALE
@@ -536,6 +605,10 @@ POMRX_V01_E_RUNTIME_ENVIRONMENT_UNSUPPORTED
 
 These have `defect_id = null`. The reserved replay code remains inactive for
 this profile because no durable replay check is claimed.
+
+`POMRX_V01_E_PROFILE_INCOMPLETE` is reserved exclusively for
+`pom-rx-internal-readiness-test/1`. It is not a public-profile diagnostic and
+must be unreachable from `verifyPomRxChainProfiled()` after activation.
 
 ### 7.4 Strict defect mapping and surrogate observability
 
@@ -607,7 +680,9 @@ all pre-binding nullability rows; expected-versus-observed artifact mismatch;
 the complete diagnostic priority table; raw duplicate JSON keys; symlink,
 junction/reparse, ADS, root-escape, case-fold and Unicode-alias paths; manifest
 tampering and undeclared imports; approved and rejected Node/ICU/Unicode/locale
-environments; and a runtime-sensitive frozen-v0.1 canonicalization canary.
+environments; the exact pinned punctuation-collation canary; the internal-only
+`PROFILE_INCOMPLETE` result; and proof that both the test harness and that code
+are unreachable from public exports and production packages.
 
 No step may silently modify the v0.1 fixture corpus, collapse multiple
 invariant families into one PR, or use Proof Receipt Python tests as evidence

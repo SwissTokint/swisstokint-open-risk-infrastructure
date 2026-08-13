@@ -173,10 +173,12 @@ Its checker remains internal until the complete profile activation gate passes.
 8. Instrument the new entry point to prove it never calls, imports as a
    fallback, or retries `verifyPomRxChain()` on any success or failure path.
 9. Before the complete invariant matrix is present, prove the profiled
-   development orchestrator returns only `indeterminate` with
-   `POMRX_V01_E_PROFILE_INCOMPLETE`, never `conformant`.
+   internal readiness harness returns only its separate test result with
+   `POMRX_V01_E_PROFILE_INCOMPLETE`, never a public verdict or `conformant`.
+   Prove the harness and `test-only/` namespace are absent from public exports
+   and production packages.
 10. Reject unapproved Node, ICU, Unicode, locale, platform or architecture
-    values and verify a runtime-sensitive frozen-v0.1 canonicalization canary.
+    values and verify the exact pinned `a-a`, `a.a`, `a_a` collation canary.
 11. Exercise every pre-binding nullability row, expected-versus-observed
     artifact mismatch and collision in the exact layer-1-to-3 diagnostic
     priority table.
