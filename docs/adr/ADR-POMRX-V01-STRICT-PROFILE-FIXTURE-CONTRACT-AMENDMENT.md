@@ -75,7 +75,7 @@ The version-1 values and capture sources are exact:
 | `generated_with_node` | `process.versions.node` | `24.16.0` |
 | `generated_with_icu` | `process.versions.icu` | `78.3` |
 | `generated_with_unicode` | `process.versions.unicode` | `17.0` |
-| `generated_with_locale` | `Intl.DateTimeFormat().resolvedOptions().locale` | `fr-CH` |
+| `generated_with_locale` | `new Intl.Collator().resolvedOptions().locale` | `fr-CH` |
 | `generated_with_platform` | `process.platform` | `win32` |
 | `generated_with_arch` | `process.arch` | `x64` |
 
@@ -213,18 +213,23 @@ later fixture generator already exists in that commit. For version 1 it is
 
 | path | Git blob | SHA-256 over exact bytes |
 |---|---|---|
-| `sdk/typescript/pom-rx.mjs` | `d6af19d4e049fa1721bbd858f0836d317725baf6` | `8d57871b7535170459209676be25aee43eaa50fb24180dcb15fad654386d2eb6` |
-| `sdk/typescript/swisstokint-proof.mjs` | `920191088a93d506889f2985c572ea8fea717266` | `83c4102fe259bbd7beac7dd070c1da64f874fe21a3c3e0fd1a5e8d6eef785313` |
-| `tests/pom-rx-integrity-baseline.node.test.mjs` | `3c7b45d88867f7e7d2079135f6198465c586a953` | `7aa21aec62bfb4f60230a1f9d35fe289137650c7021162b2c117f1521770aeb5` |
-| `scripts/assert-pom-rx-integrity-baseline-red.mjs` | `e8b7607bb59dc445627618c244fd41d3f7564b6a` | `ce4010479568f388569a667167da2d5747154a3eab8080f85c63c93be9ef3b14` |
+| `sdk/typescript/pom-rx.mjs` | `d6af19d4e049fa1721bbd858f0836d317725baf6` | `28bfb41a51126548226472a34b382a05531a9e2b954a61fd959818fe6a9b6047` |
+| `sdk/typescript/swisstokint-proof.mjs` | `920191088a93d506889f2985c572ea8fea717266` | `1d2cfbc5c494ee0e54a92b763b2f4563ffd9390fa51ec6071b5b044439db08d5` |
+| `tests/pom-rx-integrity-baseline.node.test.mjs` | `3c7b45d88867f7e7d2079135f6198465c586a953` | `894980913739968195c34d8ed9e37c98a2b2b87c8ee7d64d75f7b92a76616f1e` |
+| `scripts/assert-pom-rx-integrity-baseline-red.mjs` | `e8b7607bb59dc445627618c244fd41d3f7564b6a` | `7307866a1301bfed7cc9a2afc238b617d9d0beca96afac47eb05502a2b6984f4` |
 
-Later documentation commits do not change the generation baseline. Before
-writing literal output, the fixture generator reads the four paths from the
-checked-out `743b808` worktree, rejects any Git blob or exact-byte SHA-256
-mismatch against this table, and only then imports the checked current-tree
-modules whose exact bytes were just verified. The generator's own path, Git
-commit and exact-byte SHA-256 are recorded in fixture-PR review evidence; they
-are not part of `source_baseline`.
+The SHA-256 column is calculated over raw Git blob bytes, not a CRLF-materialized
+working tree. Later documentation commits do not change the generation
+baseline. Before writing literal output, the fixture generator creates a clean
+detached source worktree at exact commit `743b808` with checkout text conversion
+disabled, then for each path verifies both the Git blob ID and raw-byte SHA-256
+against this table. It imports `pom-rx.mjs` by the absolute file URL of that same
+verified detached-worktree path; relative module imports therefore resolve
+within the same verified source worktree. The generator asserts the imported
+module URL is the hashed path and rehashes it immediately before and after the
+generation call. It never verifies one worktree and executes another. The
+generator's own path, Git commit and exact-byte SHA-256 are recorded in
+fixture-PR review evidence; they are not part of `source_baseline`.
 
 The eight chain files are committed literals. Verification reads committed
 bytes and recomputes canonical bytes and receipt hashes through the frozen
@@ -389,9 +394,13 @@ The tests must reject:
 - a self-consistent version-root mutation that does not match `pins.json`;
 - wrong-type or wrong-value `generated_with_*` fields and any measured runtime
   mismatch before canary execution;
+- a locale captured from any service other than the exact default
+  `Intl.Collator`, or a mismatch with its resolved locale;
 - `pins.json` unknown, missing, null, wrong-type, raw-duplicate and
   escape-equivalent duplicate keys at both object depths;
 - fresh-checkout mutation of the pinned `CaseFolding.txt` bytes or digest;
+- a Git-blob or raw-blob SHA mismatch, an imported module URL different from
+  the exact hashed detached-worktree path, or a before/after module-byte drift;
 - punctuation canary input, output, digest or runtime-order mismatch;
 - NFC or Unicode 17.0 full-fold path alias collisions.
 
