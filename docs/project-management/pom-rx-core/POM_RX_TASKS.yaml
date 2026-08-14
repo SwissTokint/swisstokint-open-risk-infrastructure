@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-14T16:25:37+02:00",
-  "current_main": "a89201f165612dd2fc25371d548e59f54cb315e5",
+  "updated_at": "2026-08-14T17:34:57+02:00",
+  "current_main": "60a331540dded68f8e13fa4aae9dc131934b772f",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "legacy_registers": {
     "path": "C:\\Dev\\SwissTokint\\project-management\\pom-rx-core",
@@ -60,10 +60,10 @@
       "phase": "COORDINATION",
       "priority": "P0",
       "complexity": "HIGH",
-      "status": "READY",
+      "status": "IN_PROGRESS_SAFE_REMOVALS_COMPLETE_BLOCKED_OWNER_SELECTION_AND_EXPLICIT_UNFREEZE_REQUIRED",
       "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
-      "base": "a89201f165612dd2fc25371d548e59f54cb315e5",
+      "base": "60a331540dded68f8e13fa4aae9dc131934b772f",
       "worktree": "C:\\Dev\\pom-rx-preserving-cleanup-worktree",
       "branch": "codex/pom-rx-preserving-cleanup",
       "required_model_route": "Codex Lead plus evidence-standard; security scan before every preservation push",
@@ -81,7 +81,15 @@
         "C:\\Dev\\swisstokint-risknet-worktree",
         "C:\\Dev\\swisstokint-tezos-worktree",
         "C:\\Dev\\swisstokint-uniswap-worktree"
-      ]
+      ],
+      "inventory": "docs/project-management/pom-rx-core/POM_RX_CLEANUP_INVENTORY.md",
+      "safe_local_removals": {
+        "count": 7,
+        "method": "git worktree remove without force; no local or remote branch deletion",
+        "remote_branches_retained": true
+      },
+      "remaining_blocker": "Six dirty frozen lots require explicit human selection and unfreeze before separate ownership attribution, secret scan, dedicated preservation branch and non-force GitHub push.",
+      "next_ready_task": "BLOCKED_OWNER_SELECTION_AND_EXPLICIT_UNFREEZE_REQUIRED; no dirty lot is preselected and strict-profile foundation remains blocked."
     },
     {
       "id": "R3-FIXTURE-WINDOWS-FRESH-CHECKOUT-LF",
@@ -370,9 +378,9 @@
       "status": "BLOCKED_BY_PROFILE_FOUNDATION",
       "owner": "UNASSIGNED",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
-      "base": "743b8082bfc925d1681af7a239856a0b4f7e8464",
-      "worktree": "C:\\Dev\\pom-rx-action-continuity-worktree",
-      "branch": "codex/pom-rx-strict-profile-prerequisites",
+      "base": "TO_BE_BOUND_TO_ORIGIN_MAIN_AFTER_PROFILE_FOUNDATION_MERGE",
+      "worktree": "TO_BE_CREATED_AFTER_PROFILE_FOUNDATION_MERGE",
+      "branch": "TO_BE_ASSIGNED_AFTER_PROFILE_FOUNDATION_MERGE",
       "files_owned": [],
       "required_model_route": "Codex or gpt-5.6-sol implementer in a new isolated worktree, distinct Protocol/Security review, and independent gpt-5.6-terra QA; no Claude identity is implied",
       "acceptance": [
