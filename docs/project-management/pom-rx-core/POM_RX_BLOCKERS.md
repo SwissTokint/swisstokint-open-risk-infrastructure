@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T13:45:30+02:00`
+Updated: `2026-08-14T13:56:20+02:00`
 
 ## Prime operational-prototype gate
 
@@ -44,7 +44,7 @@ only after their commits are proven reachable from GitHub.
 
 ## Fresh Windows checkout exact-LF blocker
 
-Status: `P1_IN_PROGRESS / ROOT_CAUSE_CONFIRMED / TARGETED_GREEN`
+Status: `P1_CANDIDATE_RESOLVED / FRESH_WINDOWS_GREEN / AWAITING_EXACT_HEAD_CI`
 
 A fresh worktree at main `2a65bfb555b2eea942c8724819487df06c94242c`
 completed the risk, POM-RX, Proof Receipt and integration subsets, including
@@ -61,9 +61,15 @@ suite and exact-head CI.
 Root cause is confirmed: the system Git configuration has `core.autocrlf=true`
 and the root `.gitattributes` file did not declare its own text/eol behavior.
 The minimal candidate fix adds `/.gitattributes text eol=lf` and updates the
-exact contract assertion to include that line. The targeted closure test is
-green after exact LF rematerialization. Fresh-commit/fresh-worktree full-suite
-evidence is still required before closing the P1.
+exact contract assertion to include that line. A fresh detached Windows
+worktree at candidate commit `ab3ca2164acacaf165ea722e1aed659e744256dc`
+materialized 175 bytes with zero CR and four LF without manual normalization.
+Its clean install and full suite passed: 19 applicable fixture tests passed,
+one POSIX-only test skipped, all risk/POM-RX/Proof Receipt Node and Proof
+Receipt Python tests passed, expected-red confirmed the exact 7 vulnerable
+cases plus one green control, and `npm audit --omit=dev --audit-level=high`
+reported zero vulnerabilities. Exact-head GitHub CI is still required before
+closing the P1.
 
 ## R3 immutable-fixture contract blocker
 

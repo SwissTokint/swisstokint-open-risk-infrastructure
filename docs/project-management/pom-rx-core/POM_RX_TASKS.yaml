@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-14T13:45:30+02:00",
+  "updated_at": "2026-08-14T13:56:20+02:00",
   "current_main": "2f7eca1b63e32061defb11b6d798cf423739df89",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "legacy_registers": {
@@ -85,8 +85,8 @@
       "phase": "R3",
       "priority": "P0",
       "complexity": "MEDIUM",
-      "status": "IN_PROGRESS_ROOT_CAUSE_CONFIRMED_TARGETED_GREEN",
-      "owner": "UNASSIGNED",
+      "status": "READY_FOR_PUSH_AND_EXACT_HEAD_CI",
+      "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
       "base": "2f7eca1b63e32061defb11b6d798cf423739df89",
       "worktree": "C:\\Dev\\pom-rx-windows-lf-worktree",
@@ -103,6 +103,15 @@
         "The complete npm test passes from a fresh Windows worktree and GitHub Ubuntu CI remains green.",
         "Change no fixture bytes, canonical bytes, receipt hashes, verifier behavior, schema, Witness, Gate or DAGR content."
       ],
+      "fresh_windows_evidence": {
+        "commit": "ab3ca2164acacaf165ea722e1aed659e744256dc",
+        "worktree": "C:\\Dev\\pom-rx-windows-lf-proof-worktree",
+        "gitattributes_bytes": "175 bytes, 0 CR, 4 LF",
+        "npm_test": "PASS: fixture suite 19 applicable pass, 1 POSIX-only skip; risk, POM-RX, Proof Receipt Node and Proof Receipt Python pass",
+        "expected_red": "EXPECTED_RED_CONFIRMED: 7 tracked vulnerable failures and 1 green control",
+        "npm_audit": "0 vulnerabilities",
+        "duration_seconds": 262.3
+      },
       "human_gate": "Standing user authorization permits merge after exact-head QA, full Windows npm test and green CI because this is non-Tier-B checkout/test integrity."
     },
     {
