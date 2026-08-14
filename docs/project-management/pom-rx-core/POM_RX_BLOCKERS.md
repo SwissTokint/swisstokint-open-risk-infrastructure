@@ -1,12 +1,12 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T13:56:20+02:00`
+Updated: `2026-08-14T15:28:53+02:00`
 
 ## Prime operational-prototype gate
 
 Status: `NO_GO_IN_PROGRESS`
 
-Current main: `2f7eca1b63e32061defb11b6d798cf423739df89`
+Current main: `09d87e71e776727422674f37627d10de9276e444`
 
 Independent Architecture, Security and Conformance reviews agree that the
 current repository is a reproducible structural prototype, not yet an
@@ -16,15 +16,17 @@ expected-red evidence, not a correction.
 
 P0 delivery blockers:
 
-1. internal strict-profile foundation is absent;
-2. action, input, outcome/assertion and receipt-ID invariants are not corrected
+1. strict-profile Option C ratification is recorded but PR #39 is not yet
+   reviewed, green and merged at its amended exact head;
+2. internal strict-profile foundation is absent;
+3. action, input, outcome/assertion and receipt-ID invariants are not corrected
    in the strict profile;
-3. the strict profile is not activated;
-4. PR #24 does not supply the required enrollment, revocation, clock,
+4. the strict profile is not activated;
+5. PR #24 does not supply the required enrollment, revocation, clock,
    transactional persistence or reviewed Gate trust model;
-5. exact synthetic authorization and single-use transactional Gate are absent;
-6. DAGR normative source is unconfirmed;
-7. independent observation, reconciliation and deterministic demo artifacts
+6. exact synthetic authorization and single-use transactional Gate are absent;
+7. DAGR normative source is unconfirmed;
+8. independent observation, reconciliation and deterministic demo artifacts
    are absent.
 
 The maximum future claim after these gates is
@@ -44,7 +46,7 @@ only after their commits are proven reachable from GitHub.
 
 ## Fresh Windows checkout exact-LF blocker
 
-Status: `P1_CANDIDATE_RESOLVED / FRESH_WINDOWS_GREEN / AWAITING_EXACT_HEAD_CI`
+Status: `RESOLVED_PR38_MERGED_MAIN_CI_GREEN`
 
 A fresh worktree at main `2a65bfb555b2eea942c8724819487df06c94242c`
 completed the risk, POM-RX, Proof Receipt and integration subsets, including
@@ -68,8 +70,25 @@ Its clean install and full suite passed: 19 applicable fixture tests passed,
 one POSIX-only test skipped, all risk/POM-RX/Proof Receipt Node and Proof
 Receipt Python tests passed, expected-red confirmed the exact 7 vulnerable
 cases plus one green control, and `npm audit --omit=dev --audit-level=high`
-reported zero vulnerabilities. Exact-head GitHub CI is still required before
-closing the P1.
+reported zero vulnerabilities. PR #38 received independent exact-head QA
+approval, exact-head CI run `31798335870` passed, and it merged as
+`09d87e71e776727422674f37627d10de9276e444`. Post-merge main CI run
+`31798530195` also passed. The P1 is closed.
+
+## Strict-profile semantic-ratification blocker
+
+Status: `SEMANTIC_RATIFICATION_SATISFIED / PR39_EXACT_HEAD_GATES_AND_MERGE_PENDING`
+
+PR #33 merged the exact strict-profile prerequisite proposal. The confirmed
+conversation actor supplied the exact source-bound Option C ratification on
+2026-08-14, including `POMRX-001-INPUT-EXECUTION-RECONCILIATION` and the
+surrogate observability rule. Conversation-bound provenance and exact Git blob
+identities are recorded in the ADR and reconciliation council.
+
+The semantic decision does not authorize runtime by itself. PR #39 must now
+receive fresh exact-head Protocol, Security and QA approval, green CI and the
+explicit instruction `APPROUVE FUSION PR #39`. Until that merge, no
+strict-profile runtime implementation may begin.
 
 ## R3 immutable-fixture contract blocker
 
@@ -134,9 +153,10 @@ The receipt-only chain cannot distinguish
 `POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION` from the underlying
 `POMRX-001-ACTION-PREFLIGHT-EXECUTION` case because the surrogate object is not
 an authenticated verifier input. Untrusted scenario metadata must not select a
-security diagnostic. The implementation ADR must decide whether the surrogate
-ID remains a conformance-scenario evidence ID while the receipt-only verifier
-emits the underlying continuity defect.
+security diagnostic. The ratified Option C ADR keeps the surrogate ID as a
+conformance-scenario evidence ID while the receipt-only verifier emits the
+underlying continuity defect; that decision becomes authoritative for
+implementation only after PR #39 merges.
 
 No POM-RX schema, receipt bytes, canonicalisation, hash domain, receipt hashes,
 legacy verifier behavior, Witness, Gate, DAGR profile or v0.2 candidate runtime
@@ -163,8 +183,9 @@ bounded to commit `496fe9a` and run `31682647454`.
 
 Historical next action, now completed by merged PR #35: create an isolated
 fixture-only slice for the immutable v0.1 compatibility corpus and
-checksum/canary tests. Action-continuity runtime remains blocked by explicit R3
-semantic ratification and the separate profiled-verifier foundation.
+checksum/canary tests. Action-continuity runtime remains blocked by the PR #39
+ratification-reconciliation merge and the separate profiled-verifier
+foundation.
 
 ## R3 fixture generator destination ownership blocker
 

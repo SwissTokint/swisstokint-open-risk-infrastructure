@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-14T13:56:20+02:00",
-  "current_main": "2f7eca1b63e32061defb11b6d798cf423739df89",
+  "updated_at": "2026-08-14T15:28:53+02:00",
+  "current_main": "09d87e71e776727422674f37627d10de9276e444",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "legacy_registers": {
     "path": "C:\\Dev\\SwissTokint\\project-management\\pom-rx-core",
@@ -85,7 +85,7 @@
       "phase": "R3",
       "priority": "P0",
       "complexity": "MEDIUM",
-      "status": "READY_FOR_PUSH_AND_EXACT_HEAD_CI",
+      "status": "MERGED_VERIFIED_MAIN_CI_GREEN",
       "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
       "base": "2f7eca1b63e32061defb11b6d798cf423739df89",
@@ -112,6 +112,14 @@
         "npm_audit": "0 vulnerabilities",
         "duration_seconds": 262.3
       },
+      "pr": {
+        "number": 38,
+        "head": "6c2ba814bbb1cbb34be788200c9b7fe2fec24434",
+        "merge_commit": "09d87e71e776727422674f37627d10de9276e444",
+        "exact_head_ci_run": 31798335870,
+        "post_merge_main_ci_run": 31798530195,
+        "state": "MERGED_VERIFIED"
+      },
       "human_gate": "Standing user authorization permits merge after exact-head QA, full Windows npm test and green CI because this is non-Tier-B checkout/test integrity."
     },
     {
@@ -119,13 +127,18 @@
       "phase": "R3",
       "priority": "P0",
       "complexity": "CRITICAL",
-      "status": "READY_AFTER_CONTROL_PLANE_MERGE",
-      "owner": "UNASSIGNED",
+      "status": "SEMANTIC_RATIFICATION_RECORDED_AWAITING_EXACT_HEAD_REVIEW_CI_AND_PR39_MERGE",
+      "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
-      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "base": "09d87e71e776727422674f37627d10de9276e444",
+      "worktree": "C:\\Dev\\pom-rx-strict-ratification-worktree",
+      "branch": "codex/pom-rx-strict-ratification",
       "files_owned": [
         "docs/adr/ADR-POMRX-V01-STRICT-PROFILE-PREREQUISITES.md",
-        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md"
+        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md",
+        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_RATIFICATION_RECONCILIATION.md",
+        "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
+        "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md"
       ],
       "required_model_route": "Codex Lead plus distinct read-only Protocol and Security reviewers; documentation-only Tier-B ratification reconciliation",
       "acceptance": [
@@ -134,14 +147,29 @@
         "Record that PR 35 satisfies the immutable fixture/checksum prerequisite without changing any historical bytes or hashes.",
         "Change no runtime, schema, canonicalisation, fixture, Witness, Gate or DAGR file."
       ],
-      "human_gate": "Explicit semantic ratification of the exact ADR head is required; general merge authorization is not interpreted as protocol ratification."
+      "review_result": "Distinct read-only Protocol and Security reviewers first returned NO_GO_RUNTIME and required source-bound Option C ratification. The exact human instruction was then received on 2026-08-14. PR #35 satisfies the immutable fixture prerequisite and PR #38 preserves fresh-Windows LF checkout integrity without changing fixture bytes. Fresh reviews and CI must bind the amended PR #39 head before merge.",
+      "required_human_instruction": "RATIFIE OPTION C POM-RX STRICT PROFILE AU HEAD 496fe9a49459518f6ceedcc3215401b50fe435e1, Y COMPRIS POMRX-001-INPUT-EXECUTION-RECONCILIATION ET LA RÈGLE D’OBSERVABILITÉ DU SURROGATE.",
+      "semantic_ratification": {
+        "status": "SATISFIED",
+        "source": "Codex task",
+        "received_at": "exact_time_not_recorded",
+        "recorded_at": "2026-08-14T15:28:53+02:00",
+        "conversation_actor": "Mehdi Mauroux",
+        "actor_authentication": "conversation-bound; not independently authenticated",
+        "ratified_source_head": "496fe9a49459518f6ceedcc3215401b50fe435e1",
+        "ratified_adr_git_blob": "81fd51733e1eed1baef6d19d457ad3ce0adf0edd",
+        "ratified_adr_git_blob_sha256": "aaec7efefe6f6e17ee5dea8c39f36a8dbdfc8563c405118303799999f4fbec7f",
+        "ratified_council_git_blob": "ad64e022c36d76d57547f76db5b1597bc8f15081",
+        "ratified_council_git_blob_sha256": "3750bab3d19a5c62b589a7c5a15cd1a505326951dd5864e72251d2ee2e8a93ec"
+      },
+      "human_gate": "Semantic Option C gate SATISFIED. PR #39 integration remains blocked pending fresh exact-head Protocol/Security/QA approval, green CI and explicit APPROUVE FUSION PR #39."
     },
     {
       "id": "R3-STRICT-PROFILE-FOUNDATION-INTERNAL-01",
       "phase": "R3",
       "priority": "P0",
       "complexity": "CRITICAL",
-      "status": "BLOCKED_PENDING_R3_RATIFICATION_AND_CLEANUP_GATES",
+      "status": "BLOCKED_PENDING_PR39_RATIFICATION_RECONCILIATION_MERGE_AND_CLEANUP_GATES",
       "owner": "UNASSIGNED",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
       "base": "2a65bfb555b2eea942c8724819487df06c94242c",

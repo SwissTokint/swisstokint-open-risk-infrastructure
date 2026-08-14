@@ -1,6 +1,6 @@
 # Technical Council — R3 Strict Profile Prerequisites
 
-Status: `PROPOSED / TIER_B / HUMAN_REVIEW_REQUIRED`
+Status: `HUMAN_RATIFIED_OPTION_C / TIER_B / IMPLEMENTATION_PRS_SEPARATELY_GATED`
 
 Date: 2026-08-13
 
@@ -9,8 +9,9 @@ Task: `R3-STRICT-PROFILE-PREREQUISITES-ADR`
 Baseline: `9b1e9bc416ce8cb26ffa3253865984143a7d0579`
 
 Participants required for final disposition: Protocol Architect, Security Lead,
-Core Implementer, Lead Integrator. This draft records an implementer proposal;
-it is not evidence that the required independent reviews occurred.
+Core Implementer, Lead Integrator. The ratification-reconciliation council
+records the distinct read-only reviews and final source-bound human decision;
+this original council remains the immutable semantic source.
 
 ## PROBLEM
 
@@ -131,9 +132,10 @@ profiled verdict/policy/artifact foundation, then one invariant family. Do not
 combine Witness, Gate, schema, canonicalisation, DAGR or v0.2 work with these
 PRs.
 
-The first runtime invariant remains action continuity, but it becomes READY
-only after this ADR and its fixture prerequisite are human-approved and merged.
-Its checker remains internal until the complete profile activation gate passes.
+The first runtime invariant remains action continuity. Its fixture prerequisite
+was satisfied by PR #35, but it becomes READY only after the Option C
+ratification reconciliation is reviewed, green and merged. Its checker remains
+internal until the complete profile activation gate passes.
 
 ## DISSENT
 
@@ -206,14 +208,19 @@ evidence, or reinterprets a v0.2 receipt as v0.1.
 
 ## HUMAN_GATE
 
-This proposal is not ratified and authorizes no runtime work. Before merging
-the Tier-B ADR, the exact head requires distinct Protocol and Security review,
-green exact-head CI and explicit human authorization in the form required for
-that future PR:
+Option C was semantically ratified on 2026-08-14 by the exact source-bound
+instruction recorded in
+`docs/decisions/COUNCIL_R3_STRICT_PROFILE_RATIFICATION_RECONCILIATION.md` and in
+Section 10 of the ADR. It explicitly includes the new input
+execution-to-reconciliation evidence ID and the surrogate observability rule.
+
+The semantic decision is not a runtime or integration gate. Before the amended
+Tier-B documents become authoritative on `main`, PR #39 requires fresh exact-head
+Protocol, Security and QA review, green CI and explicit human authorization:
 
 ```text
-APPROUVE FUSION PR #<number>
+APPROUVE FUSION PR #39
 ```
 
-After that merge, fixtures and runtime changes still require separate scoped
-PRs and their own gates. No automatic merge is authorized.
+After that merge, runtime changes still require separate scoped PRs and their
+own gates. No automatic Tier-B merge, release or publication is authorized.
