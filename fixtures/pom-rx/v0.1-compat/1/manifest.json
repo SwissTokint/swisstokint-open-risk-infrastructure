@@ -1,0 +1,166 @@
+{
+  "fixture_schema_version": "pom-rx-v0.1-compat-fixtures/1",
+  "receipt_schema_version": "pom-rx/0.1",
+  "hash_domain": "swisstokint:pom-rx:v1:",
+  "source_repository": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure",
+  "source_baseline": "743b8082bfc925d1681af7a239856a0b4f7e8464",
+  "generated_with_node": "24.16.0",
+  "generated_with_icu": "78.3",
+  "generated_with_unicode": "17.0",
+  "generated_with_locale": "fr-CH",
+  "generated_with_platform": "win32",
+  "generated_with_arch": "x64",
+  "scenarios": [
+    {
+      "scenario_id": "valid-control",
+      "classification": "valid-control",
+      "allow_partial": false,
+      "chain_path": "chains/valid-control.json",
+      "canonical_paths": [
+        "canonical/valid-control/0.json",
+        "canonical/valid-control/1.json",
+        "canonical/valid-control/2.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "reconciliation:matched",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1",
+        "638a30f42d412f8b7e84c9a8833b2e7c6b02761ee2dd43e4d24683ad03dfbfd3"
+      ],
+      "evidence_defect_id": null
+    },
+    {
+      "scenario_id": "POMRX-001-ACTION-PREFLIGHT-EXECUTION",
+      "classification": "known-vulnerable",
+      "allow_partial": true,
+      "chain_path": "chains/POMRX-001-ACTION-PREFLIGHT-EXECUTION.json",
+      "canonical_paths": [
+        "canonical/POMRX-001-ACTION-PREFLIGHT-EXECUTION/0.json",
+        "canonical/POMRX-001-ACTION-PREFLIGHT-EXECUTION/1.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "execution:accepted",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "ad15aff36194337fc0982cdc2050e50e45936619af377126398e0b648f968061"
+      ],
+      "evidence_defect_id": "POMRX-001-ACTION-PREFLIGHT-EXECUTION"
+    },
+    {
+      "scenario_id": "POMRX-001-ACTION-EXECUTION-RECONCILIATION",
+      "classification": "known-vulnerable",
+      "allow_partial": false,
+      "chain_path": "chains/POMRX-001-ACTION-EXECUTION-RECONCILIATION.json",
+      "canonical_paths": [
+        "canonical/POMRX-001-ACTION-EXECUTION-RECONCILIATION/0.json",
+        "canonical/POMRX-001-ACTION-EXECUTION-RECONCILIATION/1.json",
+        "canonical/POMRX-001-ACTION-EXECUTION-RECONCILIATION/2.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "reconciliation:matched",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1",
+        "e6f0be1c8641f71a358b8a0e8bfbb992176f8a564c40c9e3bd18fe2db2f4631a"
+      ],
+      "evidence_defect_id": "POMRX-001-ACTION-EXECUTION-RECONCILIATION"
+    },
+    {
+      "scenario_id": "POMRX-001-INPUT-PREFLIGHT-EXECUTION",
+      "classification": "known-vulnerable",
+      "allow_partial": true,
+      "chain_path": "chains/POMRX-001-INPUT-PREFLIGHT-EXECUTION.json",
+      "canonical_paths": [
+        "canonical/POMRX-001-INPUT-PREFLIGHT-EXECUTION/0.json",
+        "canonical/POMRX-001-INPUT-PREFLIGHT-EXECUTION/1.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "execution:accepted",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "122e262721ee5e1adc91a97dbdaee3857ac68974a6718ef1eb1fa3d165068807"
+      ],
+      "evidence_defect_id": "POMRX-001-INPUT-PREFLIGHT-EXECUTION"
+    },
+    {
+      "scenario_id": "POMRX-006-EXECUTION-FAIL-ASSERTION",
+      "classification": "known-vulnerable",
+      "allow_partial": true,
+      "chain_path": "chains/POMRX-006-EXECUTION-FAIL-ASSERTION.json",
+      "canonical_paths": [
+        "canonical/POMRX-006-EXECUTION-FAIL-ASSERTION/0.json",
+        "canonical/POMRX-006-EXECUTION-FAIL-ASSERTION/1.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "execution:accepted",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "baab38f35baa866f4b5e1eea16146ead2ded485338a401be47757649fa82f21a"
+      ],
+      "evidence_defect_id": "POMRX-006-EXECUTION-FAIL-ASSERTION"
+    },
+    {
+      "scenario_id": "POMRX-006-RECONCILIATION-FAIL-ASSERTION",
+      "classification": "known-vulnerable",
+      "allow_partial": false,
+      "chain_path": "chains/POMRX-006-RECONCILIATION-FAIL-ASSERTION.json",
+      "canonical_paths": [
+        "canonical/POMRX-006-RECONCILIATION-FAIL-ASSERTION/0.json",
+        "canonical/POMRX-006-RECONCILIATION-FAIL-ASSERTION/1.json",
+        "canonical/POMRX-006-RECONCILIATION-FAIL-ASSERTION/2.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "reconciliation:matched",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1",
+        "fd61775f4744f23487cee4371302c04c9382e98843e6aa5eb73a8c0c427ea2e6"
+      ],
+      "evidence_defect_id": "POMRX-006-RECONCILIATION-FAIL-ASSERTION"
+    },
+    {
+      "scenario_id": "POMRX-007-DUPLICATE-RECEIPT-ID",
+      "classification": "known-vulnerable",
+      "allow_partial": true,
+      "chain_path": "chains/POMRX-007-DUPLICATE-RECEIPT-ID.json",
+      "canonical_paths": [
+        "canonical/POMRX-007-DUPLICATE-RECEIPT-ID/0.json",
+        "canonical/POMRX-007-DUPLICATE-RECEIPT-ID/1.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "execution:accepted",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "3ed59c62822f44293e3ab1444524b8d4e8bcecd385162e5eb32e652ac2adb102"
+      ],
+      "evidence_defect_id": "POMRX-007-DUPLICATE-RECEIPT-ID"
+    },
+    {
+      "scenario_id": "POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION",
+      "classification": "known-vulnerable",
+      "allow_partial": true,
+      "chain_path": "chains/POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION.json",
+      "canonical_paths": [
+        "canonical/POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION/0.json",
+        "canonical/POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION/1.json"
+      ],
+      "expected_legacy_qualification": "LEGACY_ACCEPTANCE_OBSERVED",
+      "expected_legacy_status": "execution:accepted",
+      "expected_legacy_receipt_hashes": [
+        "be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60",
+        "ad15aff36194337fc0982cdc2050e50e45936619af377126398e0b648f968061"
+      ],
+      "evidence_defect_id": "POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION"
+    }
+  ],
+  "canaries": [
+    {
+      "canary_id": "localecompare-order-v1",
+      "input_path": "canaries/localecompare-order-v1.input.json",
+      "expected_path": "canaries/localecompare-order-v1.expected.json",
+      "comparator": "javascript-string-localeCompare",
+      "expected_sha256": "3707fd4c6e3322d3cbc6e1c3c7d68b669d2f409b8b675d1b4d8c70519b95e9d7"
+    }
+  ]
+}
