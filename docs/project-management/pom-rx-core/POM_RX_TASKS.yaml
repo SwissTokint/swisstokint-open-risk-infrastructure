@@ -1,0 +1,545 @@
+{
+  "schema_version": "pom-rx-tasks/1",
+  "updated_at": "2026-08-14T13:25:00+02:00",
+  "current_main": "2a65bfb555b2eea942c8724819487df06c94242c",
+  "canonical_control_directory": "docs/project-management/pom-rx-core",
+  "legacy_registers": {
+    "path": "C:\\Dev\\SwissTokint\\project-management\\pom-rx-core",
+    "mode": "READ_ONLY_MIGRATION_ARCHIVE",
+    "reason": "Human decision on 2026-08-14 requires one unique repository. The versioned in-repository control plane is canonical after this migration PR merges."
+  },
+  "limits": {
+    "max_active_subagents": 3,
+    "max_active_code_worktrees": 2,
+    "unique_file_owner": true,
+    "automatic_merge": false
+  },
+  "repository_policy": {
+    "single_repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+    "durable_work_rule": "Every useful lot is committed and pushed to a dedicated GitHub branch before cycle end.",
+    "cleanup_rule": "Preserve dirty or unowned work on GitHub before removing any local worktree. Never force-push or delete unpublished files.",
+    "dagr_merge_authorization": "Standing user authorization applies after authorized source recovery, council/ADR, exact-head Protocol/Security/QA approval and green CI; it does not waive DAGR_SOURCE_DOCUMENT_MISSING.",
+    "main_checkout_boundary": "The current primary checkout contains unrelated Solana changes and is read-only for POM-RX."
+  },
+  "tasks": [
+    {
+      "id": "R0-PRIME-CONTROL-PLANE-MIGRATION",
+      "phase": "COORDINATION",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "IN_PROGRESS",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "worktree": "C:\\Dev\\pom-rx-prime-control-plane-worktree",
+      "branch": "codex/pom-rx-prime-control-plane",
+      "files_owned": [
+        "docs/project-management/pom-rx-core/**"
+      ],
+      "required_model_route": "Prime level 3: Codex Lead writer plus independent architecture, security and conformance read-only reviews",
+      "acceptance": [
+        "Import the existing POM-RX registers into the single repository without losing their history or changing protocol behavior.",
+        "Reconcile current main, merged PR 35/36 state, Prime roster, operational target and first READY code task.",
+        "Record commit/push durability and safe-cleanup rules.",
+        "Change no protocol, verifier, schema, fixture, Witness, Gate, DAGR or site file.",
+        "Push a scoped coordination branch and open a documentation-only PR."
+      ],
+      "human_gate": "Standing user authorization permits merge after exact-head review and green CI because this lot is non-Tier-B coordination only."
+    },
+    {
+      "id": "REPOSITORY-PRESERVATION-CLEANUP",
+      "phase": "COORDINATION",
+      "priority": "P0",
+      "complexity": "HIGH",
+      "status": "READY_AFTER_CONTROL_PLANE_MERGE",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "required_model_route": "Codex Lead plus evidence-standard; security scan before every preservation push",
+      "acceptance": [
+        "Inventory every worktree, branch, upstream, dirty path and unpublished commit.",
+        "Never mix unrelated dirty work into a POM-RX branch.",
+        "Secret-scan and preserve each unpublished dirty lot on a dedicated remote branch before local cleanup.",
+        "Remove only clean obsolete local worktrees whose commits are reachable from GitHub.",
+        "Keep remote preservation branches unless a later explicit deletion decision names them."
+      ],
+      "known_dirty_worktrees": [
+        "C:\\Dev\\swisstokint-open-risk-infrastructure",
+        "C:\\Dev\\swisstokint-pom-rx-witness-worktree",
+        "C:\\Dev\\swisstokint-pom-rx-worktree",
+        "C:\\Dev\\swisstokint-risknet-worktree",
+        "C:\\Dev\\swisstokint-tezos-worktree",
+        "C:\\Dev\\swisstokint-uniswap-worktree"
+      ]
+    },
+    {
+      "id": "R3-FIXTURE-WINDOWS-FRESH-CHECKOUT-LF",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "READY_AFTER_CONTROL_PLANE_MERGE",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "files_owned": [
+        ".gitattributes",
+        "tests/pom-rx-v01-compat-fixtures.node.test.mjs"
+      ],
+      "required_model_route": "gpt-5.6-terra high implementer plus independent QA and Codex review; escalate to security only if exact-byte enforcement is weakened",
+      "observed_failure": "Fresh Windows worktree npm test on 2026-08-14: .gitattributes materialized with CRLF while the immutable-corpus test requires exact LF; 18 fixture tests passed, one failed and one POSIX-only test skipped.",
+      "acceptance": [
+        "A fresh Windows worktree materializes the repository .gitattributes contract with exact LF bytes.",
+        "Do not weaken or normalize the fixture contract at verification time.",
+        "The complete npm test passes from a fresh Windows worktree and GitHub Ubuntu CI remains green.",
+        "Change no fixture bytes, canonical bytes, receipt hashes, verifier behavior, schema, Witness, Gate or DAGR content."
+      ],
+      "human_gate": "Standing user authorization permits merge after exact-head QA, full Windows npm test and green CI because this is non-Tier-B checkout/test integrity."
+    },
+    {
+      "id": "R3-STRICT-PROFILE-RATIFICATION-RECONCILIATION",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "READY_AFTER_CONTROL_PLANE_MERGE",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "files_owned": [
+        "docs/adr/ADR-POMRX-V01-STRICT-PROFILE-PREREQUISITES.md",
+        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md"
+      ],
+      "required_model_route": "Codex Lead plus distinct read-only Protocol and Security reviewers; documentation-only Tier-B ratification reconciliation",
+      "acceptance": [
+        "Resolve the contradiction between merged PR 33 and the source ADR status PROPOSED / HUMAN_REVIEW_REQUIRED.",
+        "Record exact human semantic ratification or keep runtime implementation blocked.",
+        "Record that PR 35 satisfies the immutable fixture/checksum prerequisite without changing any historical bytes or hashes.",
+        "Change no runtime, schema, canonicalisation, fixture, Witness, Gate or DAGR file."
+      ],
+      "human_gate": "Explicit semantic ratification of the exact ADR head is required; general merge authorization is not interpreted as protocol ratification."
+    },
+    {
+      "id": "R3-STRICT-PROFILE-FOUNDATION-INTERNAL-01",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "BLOCKED_PENDING_R3_RATIFICATION_AND_CLEANUP_GATES",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "worktree": "C:\\Dev\\pom-rx-strict-profile-foundation-worktree",
+      "branch": "codex/pom-rx-strict-profile-foundation",
+      "files_owned": [
+        "sdk/typescript/internal/pom-rx-v01-diagnostics.mjs",
+        "sdk/typescript/internal/pom-rx-v01-policy-capability.mjs",
+        "sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs",
+        "sdk/typescript/internal/pom-rx-v01-verdict.mjs",
+        "tests/support/pom-rx-v01-profile-readiness.mjs",
+        "tests/pom-rx-v01-profile-foundation.node.test.mjs",
+        "tests/fixtures/pom-rx-v01-profile-foundation/**",
+        "package.json"
+      ],
+      "files_read_only": [
+        "sdk/typescript/pom-rx.mjs",
+        "schemas/pom-rx-v0.1.schema.json",
+        "fixtures/pom-rx/v0.1-compat/**",
+        "all Witness, Gate, DAGR, site and funding files"
+      ],
+      "required_model_route": "Prime Level 3; one gpt-5.6-sol implementer, distinct architecture and security reviews, independent gpt-5.6-terra QA, Codex Lead integration",
+      "acceptance": [
+        "Internal readiness result is always PROFILE_INCOMPLETE and never conformant.",
+        "Plain-object, reused and stale policy capabilities fail closed.",
+        "Policy bytes are reread and repinned for every invocation; withdrawal overrides allowlist membership.",
+        "Missing, modified, escaped, aliased or undeclared artifact closure fails closed.",
+        "Diagnostics are typed and deterministic and are never selected by regex matching exception messages.",
+        "verifyPomRxChain remains API and byte compatible; legacy tests remain 12/12 and expected-red remains exactly seven vulnerable plus one control.",
+        "No public profiled export, Witness, Gate, DAGR or invariant correction is introduced."
+      ],
+      "human_gate": "PR-specific Tier-B merge authorization remains required after exact-head Protocol, Security, QA and CI approval."
+    },
+    {
+      "id": "POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY",
+      "phase": "MILESTONE",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "NO_GO_IN_PROGRESS",
+      "owner": "CODEX_LEAD",
+      "required_sequence": [
+        "strict profiled-verifier foundation",
+        "all strict invariant families and activation",
+        "reviewed local Witness with enrollment/revocation/clock/persistence",
+        "exact synthetic authorization and single-use transactional Gate",
+        "source-backed DAGR critical-control gate",
+        "synthetic execution, independent observation and reconciliation",
+        "deterministic demo runtime, manifest, checksums and two-clean-checkout reproduction",
+        "site handoff artifact only"
+      ],
+      "claim_boundary": "Local, deterministic, synthetic and offline demonstration only; never production-ready, audited, deployed, financial or externally authoritative."
+    },
+    {
+      "id": "R0-RESUME-CHECKPOINT",
+      "phase": "R0",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "DONE",
+      "owner": "CODEX_LEAD",
+      "files_owned": [
+        "POM_RX_RESUME_CHECKPOINT.md",
+        "POM_RX_TEAM_ROSTER.md",
+        "POM_RX_TASKS.yaml"
+      ],
+      "proof": "Exact main, PR 24/27/28/29/30, CI jobs/steps, worktrees and legacy registers reconciled at 2026-08-12T12:44:54+02:00."
+    },
+    {
+      "id": "R1-PR30-PROVENANCE-GATE",
+      "phase": "R1",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "MERGED_VERIFIED_CLEANED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 30,
+      "head": "df091a58a282e85d7f0e25fa7f265a225ec94d98",
+      "files_owned": [],
+      "required_model_route": "gpt-5.6-terra high plus Codex; escalate if provenance is ambiguous",
+      "acceptance": [
+        "Every external uses reference is a full 40-hex SHA.",
+        "Each SHA belongs to the expected official upstream action repository.",
+        "Exact-head CI has real jobs and non-empty successful steps.",
+        "Diff remains workflow plus pinning test only and changes no protocol behavior.",
+        "A human merge recommendation is prepared; no automatic merge occurs."
+      ],
+      "human_gate": "Satisfied by explicit integral authorization plus documented before/after review.",
+      "result": "Squash merge 423241f9d70085de0ad0b9c2b36a395f8e8a3223; main CI 31589325741 success; remote head deleted after dependency check."
+    },
+    {
+      "id": "R1-PR29-STRUCTURAL-TEST-GATE",
+      "phase": "R1",
+      "priority": "P1",
+      "complexity": "MEDIUM",
+      "status": "MERGED_VERIFIED_CLEANED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 29,
+      "head": "4d9836d4741713f8becba3814589076bf0e3bd8b",
+      "required_model_route": "gpt-5.6-terra high QA plus Codex",
+      "human_gate": "Satisfied by explicit integral authorization plus documented before/after review.",
+      "result": "Non-destructive sync head 6e4e22b; squash merge fb8967467797725fdf79601722fafc8ae42dbabe; exact-head CI 31589887846 and main CI 31590276944 success; remote/local obsolete heads and temp worktree removed after preservation checks."
+    },
+    {
+      "id": "R1-PR28-CLAUDE-PROCESS-GATE",
+      "phase": "R1",
+      "priority": "P1",
+      "complexity": "MEDIUM",
+      "status": "DONE",
+      "owner": "CODEX_LEAD",
+      "files_owned": [],
+      "required_model_route": "Codex read-only process/lock reconciliation",
+      "acceptance": [
+        "Visible Claude processes are attributed to command, parent, start time and relevant workspace where observable.",
+        "No process is terminated blindly.",
+        "Repository locks and existing PR28 review logs are reconciled.",
+        "A safe decision is recorded: run exact-head Security review or retain the process blocker and switch track."
+      ],
+      "result": "Zero Claude processes active; zero conflicting authorized-worktree locks; only the owned POM-RX Core lock exists. No process terminated."
+    },
+    {
+      "id": "R1-PR28-SECURITY-GATE",
+      "phase": "R1",
+      "priority": "P1",
+      "complexity": "HIGH",
+      "status": "MERGED_VERIFIED_CLEANED_CANDIDATE_NON_NORMATIVE",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 28,
+      "historical_initial_head": "d1b29d578cb6e59c6e2151beefacd9d3a0e4a8e9",
+      "reviewed_final_head": "df05bf1c0137ab9f89ca66bb758a974bfc3c8ddc",
+      "blockers": [],
+      "required_model_route": "Codex plus distinct gpt-5.6-sol Security fallback; the completed fallback reviews remain sufficient and no Claude rerun is required.",
+      "human_gate": "Satisfied by explicit integral authorization plus documented before/after review for this candidate charter only.",
+      "result": "Three P1 fixed at df05bf1; scoped Architecture and Security fallback APPROVE P0/P1 none; Claude NO_VERDICT_EXIT_1; exact-head CI 31591711545; squash merge 79a442c; main CI 31592284797 success; branch/worktree cleaned."
+    },
+    {
+      "id": "R1-PR27-EXPECTED-RED-GATE",
+      "phase": "R1",
+      "priority": "P1",
+      "complexity": "HIGH",
+      "status": "MERGED_VERIFIED_CLEANED_BASELINE_ONLY",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 27,
+      "head": "3e2451566f5aed519378ec7580eedf52d1d646c6",
+      "blockers": [
+        "The seven expected-red protocol defects remain open P0s; this merged task is evidence only."
+      ],
+      "required_model_route": "Codex plus distinct gpt-5.6-sol Protocol and Security reviewers",
+      "human_gate": "Satisfied by explicit integral authorization plus documented before/after review for the baseline-only merge.",
+      "result": "Squash merge 9983f8d6360bbe0023ea6b80256d52e42f694af7; exact-head CI 31593665533 and main CI 31594869217 success; remote/local source branch and clean worktree removed after dependency checks."
+    },
+    {
+      "id": "R2-COMPATIBILITY-ADR",
+      "phase": "R2",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "MERGED_VERIFIED_BRANCH_RETAINED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 32,
+      "branch": "codex/pom-rx-r2-compatibility-adr",
+      "head": "2d4f52d5f8e31819a611987abd25680ae17225d7",
+      "files_owned": [
+        "docs/adr/ADR-POMRX-V01-ERRATA-V02-COMPATIBILITY.md",
+        "docs/decisions/COUNCIL_R2_COMPATIBILITY_ADR.md"
+      ],
+      "required_model_route": "Codex council plus distinct gpt-5.6-sol Protocol and Security reviewers; Claude exact-head review only if runtime returns a usable verdict and served-model evidence",
+      "acceptance": [
+        "Select and justify option A, B, C or D without silently changing historical v0.1 bytes, hashes or canonicalisation.",
+        "Quantify previously accepted and newly rejected chains and define legacy/strict behavior.",
+        "Specify versioned diagnostics, migration, rollback and rule-ID ordering disposition.",
+        "Obtain distinct Architecture and Security reviews before proposing any verifier fix."
+      ],
+      "reviews": "The pre-record Option D artifacts at head 4c7a313 and the ratification record at head 2d4f52d received distinct scoped Architecture, Security and QA APPROVE verdicts with P0/P1 none. Claude was not invoked and no Claude approval is implied.",
+      "ci": "Exact-head run 31604792966, job 94140878897, and post-merge main run 31674099903, job 94364757008, each completed success with 18 non-empty successful steps.",
+      "result": "Human instruction APPROUVE OPTION D POM-RX was recorded with conversation-bound provenance in documentation-only head 2d4f52d. After the distinct exact authorization APPROUVE FUSION PR #32, PR 32 was moved out of draft and squash-merged as 9b1e9bc416ce8cb26ffa3253865984143a7d0579 at 2026-08-13T06:30:41Z. Post-merge main CI succeeded on that exact commit. The source branch and clean worktree were retained; seven PR27 defects remain open and no Witness, Gate, schema, hash or v0.2 release was authorized.",
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #32 for exact reviewed head 2d4f52d5f8e31819a611987abd25680ae17225d7."
+    },
+    {
+      "id": "POMRX-INTEGRITY-01-ACTION-CONTINUITY",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "HIGH",
+      "status": "BLOCKED_BY_PROFILE_FOUNDATION",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "743b8082bfc925d1681af7a239856a0b4f7e8464",
+      "worktree": "C:\\Dev\\pom-rx-action-continuity-worktree",
+      "branch": "codex/pom-rx-strict-profile-prerequisites",
+      "files_owned": [],
+      "required_model_route": "Codex or gpt-5.6-sol implementer in a new isolated worktree, distinct Protocol/Security review, and independent gpt-5.6-terra QA; no Claude identity is implied",
+      "acceptance": [
+        "Use the exact PR 27 defect identifier and the merged Option D ADR without renaming either silently.",
+        "Preserve historical v0.1 schema, canonical bytes, hashes and hash domains.",
+        "Add vulnerable-before, corrected strict-verifier, valid-control and compatibility coverage for action_commitment continuity.",
+        "Emit stable versioned diagnostics with deterministic ordering and preserve archival legacy verification behavior.",
+        "Document rollback and prove the expected-red disappears only for the exact corrected defect."
+      ],
+      "blockers": [
+        "The immutable fixtures/checksums prerequisite is satisfied by merged PR 35; the internal verdict-envelope, trusted-policy capability and artifact-identity foundation still must merge first.",
+        "The receipt-only verifier cannot securely distinguish the surrogate acknowledgement scenario ID from the underlying preflight-to-execution action-continuity defect.",
+        "Changing legacy verifyPomRxChain would violate frozen v0.1 compatibility."
+      ],
+      "result": "Read-only Protocol/Security/QA preflight plus local gates only. No runtime or protocol files changed; 12/12 legacy tests pass and expected-red confirms seven vulnerable cases plus one green control. Action-continuity remains blocked until the prerequisite ADR and fixture/foundation slices merge.",
+      "human_gate": "The prerequisite ADR and immutable fixtures are merged. Action-continuity remains BLOCKED until the profiled-verifier foundation merges; its later scoped Tier-B PR requires exact-head reviews and a PR-specific human merge gate."
+    },
+    {
+      "id": "R3-STRICT-PROFILE-PREREQUISITES-ADR",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "MERGED_VERIFIED_MAIN_CI_GREEN",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "9b1e9bc416ce8cb26ffa3253865984143a7d0579",
+      "worktree": "C:\\Dev\\pom-rx-action-continuity-worktree",
+      "branch": "codex/pom-rx-strict-profile-prerequisites",
+      "head": "496fe9a49459518f6ceedcc3215401b50fe435e1",
+      "files_changed": [
+        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md",
+        "docs/adr/ADR-POMRX-V01-STRICT-PROFILE-PREREQUISITES.md"
+      ],
+      "required_model_route": "Codex Lead plus distinct read-only Protocol and Security reviewers; fixtures may be implemented by a separate owner only after the ADR boundaries are agreed",
+      "acceptance": [
+        "Define immutable v0.1 compatibility fixture and checksum coverage without changing historical bytes or hashes.",
+        "Define the complete profiled verdict envelope, inherited diagnostic mapping, verifier version and deterministic implementation artifact identity.",
+        "Define trusted local exact-tuple policy validation, withdrawal precedence and no legacy fallback.",
+        "Resolve the surrogate scenario defect-ID observability boundary without trusting caller-supplied scenario metadata.",
+        "Provide tests, rollback and a distinct human Tier-B merge gate before runtime implementation."
+      ],
+      "reviews": "Exact head 496fe9a received distinct Protocol, Security and Code Quality APPROVE verdicts with P0/P1/P2 none. Requested Claude identities were unavailable/not used; no Claude approval is implied.",
+      "tests": "Local git diff --check passed; POM-RX Node 12/12 passed; expected-red returned EXPECTED_RED_CONFIRMED with seven vulnerable cases and one green control. Exact-head GitHub Actions run 31682647454, job 94391402206, completed SUCCESS with 18 non-empty successful steps, including npm test, the expected-red gate and npm audit --omit=dev --audit-level=high.",
+      "blockers": [],
+      "result": "Documentation-only council and ADR committed in three review-preserving commits and reviewed at exact head 496fe9a49459518f6ceedcc3215401b50fe435e1. After exact human authorization APPROUVE FUSION PR #33, PR #33 was moved out of draft and squash-merged as 743b8082bfc925d1681af7a239856a0b4f7e8464 at 2026-08-13T08:42:21Z. Exact-head and post-merge main CI are green. The contract freezes legacy behavior, separates the internal readiness harness, defines exact policy/artifact/runtime/verdict semantics, resolves surrogate observability, and proposes the second input-transition evidence ID behind human ratification.",
+      "pr": {
+        "number": 33,
+        "url": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/33",
+        "state": "MERGED",
+        "head": "496fe9a49459518f6ceedcc3215401b50fe435e1",
+        "merge_commit": "743b8082bfc925d1681af7a239856a0b4f7e8464",
+        "merged_at": "2026-08-13T08:42:21Z"
+      },
+      "ci": "Exact-head run 31682647454, job 94391402206, and post-merge main run 31683246573, job 94393318356, each completed SUCCESS with 18 non-empty successful steps.",
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #33 for exact reviewed head 496fe9a49459518f6ceedcc3215401b50fe435e1."
+    },
+    {
+      "id": "R3-STRICT-PROFILE-V01-COMPATIBILITY-FIXTURES",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "MERGED_VERIFIED_MAIN_CI_GREEN_BRANCH_RETAINED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "bd49e11c3adac31a507a4ca1612415ef64139022",
+      "worktree": "C:\\Dev\\pom-rx-v01-fixtures-worktree",
+      "branch": "codex/pom-rx-v01-compat-fixtures",
+      "head": "752f61b8ecff784b625cbb581537ba6fe534b334",
+      "files_owned": [
+        "scripts/generate-pom-rx-v01-compat-fixtures.mjs",
+        "scripts/assert-pom-rx-v01-fixtures-windows.ps1",
+        "scripts/get-pom-rx-v01-ntfs-streams.ps1",
+        "scripts/pom-rx-v01-fixture-contract.mjs",
+        "scripts/pom-rx-v01-fixture-destination-internals.mjs",
+        "scripts/pom-rx-v01-fixture-verifier-internals.mjs",
+        "scripts/verify-pom-rx-v01-compat-fixtures.mjs",
+        "tests/pom-rx-v01-compat-fixtures.node.test.mjs",
+        "fixtures/pom-rx/v0.1-compat/**",
+        "fixtures/pom-rx/support/unicode/17.0.0/**"
+      ],
+      "required_model_route": "Senior implementer plus independent QA and Codex review; no normative behavior change",
+      "acceptance": [
+        "Materialize the exact eight PR27 compatibility scenarios as immutable byte-preserving fixtures.",
+        "Add deterministic checksum verification and the separate punctuation-order canary defined by the merged ADR.",
+        "Prove the legacy verifier and expected-red outcomes are unchanged.",
+        "Do not add or activate the profiled verifier, change schemas, hashes, canonical bytes or diagnostics."
+      ],
+      "pr": {
+        "number": 35,
+        "url": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/35",
+        "state": "MERGED",
+        "base": "main",
+        "head": "752f61b8ecff784b625cbb581537ba6fe534b334",
+        "merge_commit": "2a65bfb555b2eea942c8724819487df06c94242c",
+        "merged_at": "2026-08-14T10:47:40Z"
+      },
+      "ci": "GREEN_EXACT_HEAD_AND_MAIN: PR run 31792617893, job 94742703725, completed SUCCESS at 752f61b8ecff784b625cbb581537ba6fe534b334. Post-merge main run 31793630923, job 94745800115, completed SUCCESS at 2a65bfb555b2eea942c8724819487df06c94242c with every non-empty step green. Exact-head local Windows evidence: 19 applicable Node tests passed, zero failed and one POSIX-only skip in 222.1 seconds; the native harness completed in 10.7 seconds with nine applicable cases passed and the symlink case transparently privilege-limited. No related Node, PowerShell or CSC process remained after the runs.",
+      "blockers": [
+        "P2 residual: production timeout bounds the direct PowerShell child but is not Windows Job Object containment for a transient Add-Type descendant.",
+        "P2 residual: the full Windows suite remains expensive because repeated PowerShell/Add-Type startup took 222.1 seconds on the exact head.",
+        "P2 evidence limitation: symlink creation was not permitted locally and Windows-native coverage is not yet executed in GitHub CI."
+      ],
+      "result": "Commit 752f61b8ecff784b625cbb581537ba6fe534b334 resolved the Windows P1 with an explicit per-target ADS mode, reparse-first stream short-circuit, a 10-second and 1 MiB bounded fail-closed production helper, and a 30-second per-case native harness deadline with exact-PID process-tree cleanup. Protocol, Security and QA independently approved the exact head with no P0/P1. After the exact instruction APPROUVE FUSION PR #35, PR #35 was squash-merged as 2a65bfb555b2eea942c8724819487df06c94242c at 2026-08-14T10:47:40Z; the source branch was retained. Exact-head and post-merge main CI are green. Historical fixture bytes, hashes, canonicalisation, verifier semantics and stable diagnostics are unchanged. The partial local symlink privilege result and performance/containment P2 limits remain explicit.",
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #35 for exact reviewed head 752f61b8ecff784b625cbb581537ba6fe534b334."
+    },
+    {
+      "id": "R3-FIXTURE-CI-HISTORICAL-SOURCE-CHECKOUT",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "MEDIUM",
+      "status": "MERGED_VERIFIED_MAIN_CI_GREEN_BRANCH_RETAINED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "e24997295563fb245b1696f62f07c467349d2c71",
+      "worktree": "C:\\Dev\\pom-rx-ci-history-worktree",
+      "branch": "codex/pom-rx-ci-historical-source-checkout",
+      "head": "0dd95abfd87bf93265b84d04c8ab54f9dc63184c",
+      "pr": {
+        "number": 36,
+        "url": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/36",
+        "state": "MERGED",
+        "base": "main",
+        "head": "0dd95abfd87bf93265b84d04c8ab54f9dc63184c",
+        "merge_commit": "bd49e11c3adac31a507a4ca1612415ef64139022",
+        "merged_at": "2026-08-14T08:20:13Z"
+      },
+      "files_owned": [
+        ".github/workflows/ci.yml"
+      ],
+      "files_read_only": [
+        "tests/pom-rx-v01-compat-fixtures.node.test.mjs",
+        "scripts/pom-rx-v01-fixture-verifier-internals.mjs",
+        "fixtures/pom-rx/v0.1-compat/**"
+      ],
+      "required_model_route": "Senior CI implementer (Codex fallback) plus independent QA and Lead review; no protocol or fixture change",
+      "acceptance": [
+        "Preserve the reviewed full-SHA checkout action pin and change only the history depth required by source binding.",
+        "Do not weaken, skip, mock or rewrite the Git blob/raw-byte source-binding test.",
+        "Prove the CI-only PR contains no protocol, fixture, verifier, SDK, schema or documentation changes.",
+        "Obtain a successful exact-head Actions run with non-empty steps before recommending merge."
+      ],
+      "blockers": [],
+      "reviews": "Independent CI/QA APPROVE at exact head 0dd95abfd87bf93265b84d04c8ab54f9dc63184c with no P0/P1. Requested Sonnet was unavailable; GPT-5.6 Codex fallback was documented and no Claude approval is implied.",
+      "tests": "CI action pinning tests passed 2/2; git diff --check passed; the official checkout manifest at the exact pinned SHA confirms fetch-depth 0 means all history; bounded historical secret-pattern scan found zero matches.",
+      "ci": "Exact-head run 31744486526, job 94595589780, completed SUCCESS with all 18 non-empty steps successful. Post-merge main run 31783490906 completed SUCCESS on exact merge commit bd49e11c3adac31a507a4ca1612415ef64139022.",
+      "result": "CI-only commit 0dd95abfd87bf93265b84d04c8ab54f9dc63184c changes exactly .github/workflows/ci.yml by adding fetch-depth: 0 under the unchanged full-SHA checkout action. After exact authorization, PR #36 was squash-merged as bd49e11c3adac31a507a4ca1612415ef64139022 at 2026-08-14T08:20:13Z. The source branch was retained. PR #35 remains draft and must now be resynced, rerun and re-reviewed at its new exact head.",
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #36 for exact reviewed head 0dd95abfd87bf93265b84d04c8ab54f9dc63184c."
+    },
+    {
+      "id": "R3-STRICT-PROFILE-FIXTURE-CONTRACT-AMENDMENT",
+      "phase": "R3",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "MERGED_VERIFIED_BRANCH_RETAINED",
+      "owner": "CODEX_LEAD",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "743b8082bfc925d1681af7a239856a0b4f7e8464",
+      "worktree": "C:\\Dev\\pom-rx-fixture-contract-worktree",
+      "branch": "codex/pom-rx-fixture-contract-amendment",
+      "head": "b686447522a31c04ce132286607da82c229e8cc5",
+      "pr": {
+        "number": 34,
+        "url": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/34",
+        "state": "MERGED",
+        "base": "main",
+        "head": "b686447522a31c04ce132286607da82c229e8cc5",
+        "merge_commit": "e24997295563fb245b1696f62f07c467349d2c71",
+        "merged_at": "2026-08-13T11:59:05Z"
+      },
+      "files_owned": [
+        "docs/adr/ADR-POMRX-V01-STRICT-PROFILE-FIXTURE-CONTRACT-AMENDMENT.md",
+        "docs/decisions/COUNCIL_R3_STRICT_PROFILE_FIXTURE_CONTRACT_AMENDMENT.md"
+      ],
+      "required_model_route": "Codex Lead plus distinct Protocol and Security reviewers; no fixture generation before agreement",
+      "acceptance": [
+        "Freeze exact scenario and canary nested schemas, order, types, nullability, duplicate-key rejection and per-scenario allow_partial.",
+        "Name and serialize the independent repository pin for fixture_set_sha256 outside the fixture version root.",
+        "Define .gitattributes exact-byte preservation and bounded Linux/Windows filesystem proof without overclaiming cross-platform CI.",
+        "Require a locally versioned Unicode 17.0 full case-fold implementation and adversarial alias vectors.",
+        "Record the already satisfied PR33 human gate without silently rewriting historical v0.1 bytes or verifier behavior."
+      ],
+      "reviews": "Exact head b686447522a31c04ce132286607da82c229e8cc5 received distinct read-only Protocol, Security and Code Quality APPROVE verdicts with P0/P1/P2 none. Requested Claude identities were unavailable/not used; no Claude approval is implied.",
+      "tests": "Local git diff --check passed; POM-RX Node tests passed 12/12; expected-red returned EXPECTED_RED_CONFIRMED with seven vulnerable cases and one green control. No fixture byte was generated.",
+      "ci": "Exact-head run 31693154183, job 94424798589, and post-merge main run 31697930963, job 94439898207, each completed SUCCESS with 18 non-empty successful steps.",
+      "blockers": [],
+      "result": "Documentation-only amendment committed in three review-preserving commits, exact-head approved, pushed after explicit authorization and squash-merged as e24997295563fb245b1696f62f07c467349d2c71. The merge tree is identical to reviewed head b686447 and changes only the two documentation files; the source branch is retained.",
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #34 for reviewed head b686447522a31c04ce132286607da82c229e8cc5."
+    },
+    {
+      "id": "R1-PR24-WITNESS-INTEGRITY-GATE",
+      "phase": "R1",
+      "priority": "P0",
+      "complexity": "CRITICAL",
+      "status": "BLOCKED_PENDING_CORE_INTEGRITY",
+      "owner": "UNASSIGNED",
+      "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "pr": 24,
+      "head": "175d4ddfab8e7efa035a34793205fd53f1e15984",
+      "github_state": "OPEN_DRAFT_CONFLICTING_DIRTY_BASE_STALE",
+      "recorded_base": "6f421c540e9a47a971840847547c9bfc951e1d46",
+      "current_main": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "blockers": [
+        "Option D compatibility boundary is merged, but the seven PR27 Core integrity defects remain open and must be corrected in scoped invariant PRs first.",
+        "GitHub reports CONFLICTING/DIRTY against current main; historical CI predates the pinned workflow and current Core baseline.",
+        "Commitment and action-binding decision absent.",
+        "Enrollment, rotation and revocation model incomplete.",
+        "Trusted clock and persistence model incomplete.",
+        "Executable fail-closed Gate contract absent.",
+        "Exact-head independent Architecture and Security reviews absent."
+      ],
+      "required_model_route": "Codex council plus distinct gpt-5.6-sol Protocol and Security reviewers",
+      "human_gate": "Explicit APPROUVE FUSION PR #24 required."
+    },
+    {
+      "id": "CLAUDE-RUNTIME-ATTRIBUTION-GATE",
+      "phase": "COORDINATION",
+      "priority": "P1",
+      "complexity": "MEDIUM",
+      "status": "BLOCKED_NOT_REQUIRED_FOR_CURRENT_GATE",
+      "owner": "CODEX_LEAD",
+      "observed_at": "2026-08-12T15:45:14+02:00",
+      "observed_process_count": 12,
+      "blockers": [
+        "Process command lines and ownership are unresolved; no process may be terminated blindly.",
+        "No new served-model evidence or usable Claude verdict exists."
+      ],
+      "result": "DO_NOT_INVOKE. Current distinct Architecture, Security and QA fallback approvals on PR 32 remain sufficient; Claude is not required merely to fill a heartbeat.",
+      "files_owned": []
+    }
+  ]
+}
