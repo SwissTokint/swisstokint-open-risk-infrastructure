@@ -1,3 +1,4 @@
+/.gitattributes text eol=lf
 /fixtures/pom-rx/v0.1-compat/1/** -text
 /fixtures/pom-rx/v0.1-compat/pins.json -text
 /fixtures/pom-rx/support/unicode/17.0.0/CaseFolding.txt -text
