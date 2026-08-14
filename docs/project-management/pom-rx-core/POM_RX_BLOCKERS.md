@@ -1,12 +1,12 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T15:28:53+02:00`
+Updated: `2026-08-14T16:25:37+02:00`
 
 ## Prime operational-prototype gate
 
 Status: `NO_GO_IN_PROGRESS`
 
-Current main: `09d87e71e776727422674f37627d10de9276e444`
+Current main: `a89201f165612dd2fc25371d548e59f54cb315e5`
 
 Independent Architecture, Security and Conformance reviews agree that the
 current repository is a reproducible structural prototype, not yet an
@@ -16,8 +16,7 @@ expected-red evidence, not a correction.
 
 P0 delivery blockers:
 
-1. strict-profile Option C ratification is recorded but PR #39 is not yet
-   reviewed, green and merged at its amended exact head;
+1. repository preservation and cleanup has not completed;
 2. internal strict-profile foundation is absent;
 3. action, input, outcome/assertion and receipt-ID invariants are not corrected
    in the strict profile;
@@ -36,7 +35,7 @@ authorized for financial execution.
 
 ## Repository preservation and cleanup blocker
 
-Status: `PRESERVATION_REQUIRED_BEFORE_CLEANUP`
+Status: `PRESERVATION_REQUIRED_BEFORE_CLEANUP / NEXT_READY_TASK`
 
 The primary checkout and five additional worktrees contain dirty unpublished
 material. No dirty path may be deleted or mixed into POM-RX. Each lot requires
@@ -77,7 +76,7 @@ approval, exact-head CI run `31798335870` passed, and it merged as
 
 ## Strict-profile semantic-ratification blocker
 
-Status: `SEMANTIC_RATIFICATION_SATISFIED / PR39_EXACT_HEAD_GATES_AND_MERGE_PENDING`
+Status: `RESOLVED_PR39_MERGED_MAIN_CI_GREEN`
 
 PR #33 merged the exact strict-profile prerequisite proposal. The confirmed
 conversation actor supplied the exact source-bound Option C ratification on
@@ -85,10 +84,14 @@ conversation actor supplied the exact source-bound Option C ratification on
 surrogate observability rule. Conversation-bound provenance and exact Git blob
 identities are recorded in the ADR and reconciliation council.
 
-The semantic decision does not authorize runtime by itself. PR #39 must now
-receive fresh exact-head Protocol, Security and QA approval, green CI and the
-explicit instruction `APPROUVE FUSION PR #39`. Until that merge, no
-strict-profile runtime implementation may begin.
+The semantic decision does not authorize runtime by itself. At exact head
+`77d263f30ea5f1b6cf71645053e25cc993bbbedb`, Protocol Architecture, Security
+and QA/Conformance returned `APPROVE` with no P0/P1/P2. Exact-head CI run
+`31806216191`, job `94785652045`, passed. The human supplied
+`APPROUVE FUSION PR #39`; PR #39 squash-merged as
+`a89201f165612dd2fc25371d548e59f54cb315e5`, and post-merge main CI run
+`31807939958`, job `94791282270`, passed. Runtime remains blocked pending the
+preserving cleanup and a separate profiled-verifier foundation PR.
 
 ## R3 immutable-fixture contract blocker
 
@@ -122,8 +125,8 @@ of draft and squash-merged as
 reviewed head `b686447522a31c04ce132286607da82c229e8cc5`. Exact-head run
 `31693154183` and post-merge main run `31697930963` each completed successfully
 with 18 non-empty steps. This blocker is resolved. The fixture implementation
-is now the next bounded task after its clean worktree is synchronized
-non-destructively to current main.
+was subsequently completed by merged PR #35; the current next bounded task is
+repository preservation and cleanup.
 
 ## R3 action-continuity prerequisite blocker
 
@@ -183,9 +186,8 @@ bounded to commit `496fe9a` and run `31682647454`.
 
 Historical next action, now completed by merged PR #35: create an isolated
 fixture-only slice for the immutable v0.1 compatibility corpus and
-checksum/canary tests. Action-continuity runtime remains blocked by the PR #39
-ratification-reconciliation merge and the separate profiled-verifier
-foundation.
+checksum/canary tests. Action-continuity runtime remains blocked by the
+preserving-cleanup sequence and the separate profiled-verifier foundation.
 
 ## R3 fixture generator destination ownership blocker
 
