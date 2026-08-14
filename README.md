@@ -1,7 +1,20 @@
 # SwissTokint Proof of Method
 
-Open infrastructure for proving which method and risk policy governed an
-autonomous financial action without publishing the private strategy.
+This repository is one public technical research stream of Association
+SwissTokint. It contains work on POM-RX v0.1, pre-execution control,
+verifiable evidence and selected distributed-infrastructure experiments. It
+does not define the full scope of the Association.
+
+POM-RX v0.1 structurally checks a supplied receipt chain describing a declared
+preflight, execution acknowledgement and reconciliation path. Financial
+environments are test beds; Filecoin, Stellar and other chains are anchoring
+or integration experiments.
+
+This research is non-custodial: it does not execute for third parties or
+receive exchange keys, and makes no token-sale or financial-performance claim.
+
+Open infrastructure for deterministic receipt commitments and inspectable
+risk-rule evaluation without publishing the private strategy.
 
 This repository contains three interoperable building blocks:
 
@@ -89,10 +102,10 @@ identifies the uploaded storage piece and is a separate value.
 
 ## POM-RX risk execution receipts
 
-POM-RX is the domain-specific innovation layer above generic Proof of Method
-receipts. It proves the declared preflight, execution and reconciliation path
-of an autonomous financial action without publishing strategy inputs, numeric
-limits or credentials.
+POM-RX v0.1 is the domain-specific research layer above generic Proof of
+Method receipts. It structurally checks a supplied receipt chain describing a
+declared preflight, execution acknowledgement and reconciliation path, without
+publishing strategy inputs, numeric limits or credentials.
 
 ```js
 import {
