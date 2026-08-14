@@ -430,7 +430,7 @@ test('frozen source binding rejects blob, raw-byte, import-URL and four-file dri
   expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertGitSourceBinding((args, options) => args[0] === 'cat-file' ? 'not-a-buffer' : realGit(args, options), baseline, sourceFiles));
 
   const expectedModulePath = path.join(repositoryRoot, 'sdk', 'typescript', 'pom-rx.mjs');
-  verifierInternals.assertImportedModuleUrl(new URL(`file:///${expectedModulePath.replaceAll('\\', '/')}`).href, expectedModulePath);
+  verifierInternals.assertImportedModuleUrl(pathToFileURL(expectedModulePath).href, expectedModulePath);
   expectCode('SOURCE_BINDING_MISMATCH', () => verifierInternals.assertImportedModuleUrl(new URL('file:///substituted/pom-rx.mjs').href, expectedModulePath));
 
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'pomrx-v01-source-drift-'));
