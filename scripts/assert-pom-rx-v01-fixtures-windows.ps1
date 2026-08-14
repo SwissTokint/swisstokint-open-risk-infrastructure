@@ -9,22 +9,48 @@ $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("pomrx-v01-winfs-" + [G
 $fixtureRoot = Join-Path $tempRoot 'root'
 $externalRoot = Join-Path $tempRoot 'external'
 $cases = [System.Collections.Generic.List[object]]::new()
+$caseTimeoutMilliseconds = 30000
 
 function Invoke-NodeCase {
   param([string]$Name, [string]$Mode, [string[]]$Arguments, [int]$ExpectedExit, [string]$ExpectedCode = '')
-  $previousPreference = $ErrorActionPreference
-  $ErrorActionPreference = 'Continue'
-  $output = & node $caseRunner $Mode $modulePath @Arguments 2>&1
-  $exitCode = $LASTEXITCODE
-  $ErrorActionPreference = $previousPreference
-  if ($exitCode -ne $ExpectedExit) {
-    throw "$Name returned $exitCode instead of $ExpectedExit`: $output"
+  $process = $null
+  try {
+    $processArguments = @($caseRunner, $Mode, $modulePath) + $Arguments
+    if ($processArguments.Where({ $_ -match '["\r\n]' }).Count -ne 0) { throw "$Name contains an unsafe process argument" }
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = (Get-Command node).Source
+    $startInfo.Arguments = ($processArguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
+    $startInfo.WorkingDirectory = $RepositoryRoot
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($startInfo)
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    if (-not $process.WaitForExit($caseTimeoutMilliseconds)) {
+      $cleanup = (& taskkill.exe /PID $process.Id /T /F 2>&1) -join "`n"
+      throw "$Name exceeded $caseTimeoutMilliseconds ms; process tree terminated: $cleanup"
+    }
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    $output = (@($stdout, $stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+    if ($exitCode -ne $ExpectedExit) {
+      throw "$Name returned $exitCode instead of $ExpectedExit`: $output"
+    }
+    if ($ExpectedCode) {
+      $parsed = $stdout | ConvertFrom-Json
+      if ($parsed.code -ne $ExpectedCode) { throw "$Name returned code $($parsed.code) instead of $ExpectedCode" }
+    }
+    $cases.Add([pscustomobject]@{ name = $Name; exit_code = $exitCode; output = $output })
+  } finally {
+    if ($process) {
+      if (-not $process.HasExited) { & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null }
+      $process.Dispose()
+    }
   }
-  if ($ExpectedCode) {
-    $parsed = ($output -join "`n") | ConvertFrom-Json
-    if ($parsed.code -ne $ExpectedCode) { throw "$Name returned code $($parsed.code) instead of $ExpectedCode" }
-  }
-  $cases.Add([pscustomobject]@{ name = $Name; exit_code = $exitCode; output = ($output -join "`n") })
 }
 
 try {
@@ -34,6 +60,10 @@ try {
   Set-Content -LiteralPath (Join-Path $externalRoot 'outside.txt') -Value 'outside' -NoNewline -Encoding utf8
 
   Invoke-NodeCase 'regular-file-accepted' 'enumerate' @($fixtureRoot) 0
+
+  Set-Content -LiteralPath ($tempRoot + ':ancestorshadow') -Value 'hidden' -NoNewline -Encoding utf8
+  Invoke-NodeCase 'ancestor-ads-does-not-change-child-resolution' 'enumerate' @($fixtureRoot) 0
+  Remove-Item -LiteralPath ($tempRoot + ':ancestorshadow') -Force
 
   Set-Content -LiteralPath ((Join-Path $fixtureRoot 'regular.txt') + ':shadow') -Value 'hidden' -NoNewline -Encoding utf8
   Invoke-NodeCase 'actual-ads-path-denied' 'read' @($fixtureRoot, 'regular.txt:shadow') 9 'PATH_INVALID'

@@ -251,17 +251,28 @@ export function assertRegularRoot(root) {
   assertWindowsPathMetadata([{ fullPath: path.resolve(root), relativePath: '.' }], { reparseCode: 'NON_REGULAR_ROOT' });
 }
 
-export function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
-  if (process.platform !== 'win32') return;
+export function runWindowsMetadataHelper(targets, { checkAds = true, runner = execFileSync } = {}) {
   let records;
   try {
-    const encodedTargets = Buffer.from(JSON.stringify(targets.map(({ fullPath }) => fullPath)), 'utf8').toString('base64');
-    const raw = execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', windowsStreamHelper, '-TargetsBase64', encodedTargets], { encoding: 'utf8', windowsHide: true }).trim();
+    const encodedTargets = Buffer.from(JSON.stringify(targets.map(({ fullPath }) => ({ path: fullPath, check_ads: checkAds }))), 'utf8').toString('base64');
+    const raw = runner('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', windowsStreamHelper, '-TargetsBase64', encodedTargets], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 10_000,
+      maxBuffer: 1024 * 1024,
+      killSignal: 'SIGKILL',
+    }).trim();
     records = raw ? JSON.parse(raw) : [];
   } catch (error) {
     fail('ADS_ENUMERATION_FAILED', 'alternate-data-stream enumeration failed closed', { cause: error.message });
   }
   if (!Array.isArray(records) || records.length !== targets.length) fail('ADS_ENUMERATION_FAILED', 'alternate-data-stream result cardinality differs');
+  return records;
+}
+
+export function assertWindowsPathMetadata(targets, { checkAds = true, reparseCode = 'NON_REGULAR_FILE' } = {}) {
+  if (process.platform !== 'win32') return;
+  const records = runWindowsMetadataHelper(targets, { checkAds });
   records.forEach((record, index) => {
     if (record.reparse !== false) fail(reparseCode, 'Windows reparse point forbidden', { path: targets[index].relativePath });
     const names = Array.isArray(record.streams) ? record.streams : [record.streams];

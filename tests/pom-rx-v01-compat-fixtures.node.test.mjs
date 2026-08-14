@@ -18,6 +18,7 @@ import {
   parseChecksums,
   parseExactJson,
   readRegularFile,
+  runWindowsMetadataHelper,
   sha256Bytes,
   validateFixturePath,
 } from '../scripts/pom-rx-v01-fixture-contract.mjs';
@@ -335,6 +336,29 @@ test('portable path validation rejects Windows, POSIX, traversal and Unicode haz
   }
   assert.equal(validateFixturePath('canonical/a/0.json'), 'canonical/a/0.json');
   assert.deepEqual(['a\u{10000}', 'a\ue000', 'a', 'aa'].sort(compareUnicodeScalars), ['a', 'aa', 'a\ue000', 'a\u{10000}']);
+});
+
+test('Windows metadata helper is mode-explicit, output-bounded and fail-closed', () => {
+  const target = { fullPath: path.join(repositoryRoot, 'fixtures'), relativePath: '.' };
+  let observed;
+  const records = runWindowsMetadataHelper([target], {
+    checkAds: false,
+    runner: (command, args, options) => {
+      observed = { command, args, options };
+      return JSON.stringify([{ path: target.fullPath, reparse: false, streams: [] }]);
+    },
+  });
+  assert.deepEqual(records, [{ path: target.fullPath, reparse: false, streams: [] }]);
+  assert.equal(observed.command, 'powershell.exe');
+  assert.equal(observed.options.timeout, 10_000);
+  assert.equal(observed.options.maxBuffer, 1024 * 1024);
+  assert.equal(observed.options.killSignal, 'SIGKILL');
+  const encoded = observed.args[observed.args.indexOf('-TargetsBase64') + 1];
+  assert.deepEqual(JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')), [{ path: target.fullPath, check_ads: false }]);
+
+  expectCode('ADS_ENUMERATION_FAILED', () => runWindowsMetadataHelper([target], { runner: () => { throw new Error('synthetic timeout'); } }));
+  expectCode('ADS_ENUMERATION_FAILED', () => runWindowsMetadataHelper([target], { runner: () => '{"invalid":true}' }));
+  expectCode('ADS_ENUMERATION_FAILED', () => runWindowsMetadataHelper([target], { runner: () => '[]' }));
 });
 
 test('POSIX integration rejects real file and root symlinks without following them', (context) => {

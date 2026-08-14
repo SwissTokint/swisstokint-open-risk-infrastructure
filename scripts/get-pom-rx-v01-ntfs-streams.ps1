@@ -69,11 +69,18 @@ namespace PomRx {
 }
 
 $records = @(
-  foreach ($target in $LiteralTarget) {
+  foreach ($targetSpec in $LiteralTarget) {
+    $target = if ($targetSpec -is [string]) { $targetSpec } else { [string]$targetSpec.path }
+    $checkAds = if ($targetSpec -is [string]) { $true } else { [bool]$targetSpec.check_ads }
+    $reparse = [PomRx.NativeStreams]::IsReparsePoint($target)
+    $streams = [System.Collections.Generic.List[string]]::new()
+    if ($checkAds -and -not $reparse) {
+      foreach ($streamName in [PomRx.NativeStreams]::Enumerate($target)) { $streams.Add($streamName) }
+    }
     [pscustomobject]@{
       path = $target
-      reparse = [PomRx.NativeStreams]::IsReparsePoint($target)
-      streams = @([PomRx.NativeStreams]::Enumerate($target))
+      reparse = $reparse
+      streams = [string[]]$streams.ToArray()
     }
   }
 )
