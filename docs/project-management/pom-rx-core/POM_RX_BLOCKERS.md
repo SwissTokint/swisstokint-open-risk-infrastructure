@@ -1,12 +1,12 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T16:25:37+02:00`
+Updated: `2026-08-14T17:34:57+02:00`
 
 ## Prime operational-prototype gate
 
 Status: `NO_GO_IN_PROGRESS`
 
-Current main: `a89201f165612dd2fc25371d548e59f54cb315e5`
+Current main: `60a331540dded68f8e13fa4aae9dc131934b772f`
 
 Independent Architecture, Security and Conformance reviews agree that the
 current repository is a reproducible structural prototype, not yet an
@@ -35,13 +35,22 @@ authorized for financial execution.
 
 ## Repository preservation and cleanup blocker
 
-Status: `PRESERVATION_REQUIRED_BEFORE_CLEANUP / NEXT_READY_TASK`
+Status: `SAFE_REMOVALS_COMPLETE / OWNER_SELECTION_AND_EXPLICIT_UNFREEZE_REQUIRED`
 
-The primary checkout and five additional worktrees contain dirty unpublished
-material. No dirty path may be deleted or mixed into POM-RX. Each lot requires
-ownership attribution, secret scan, a dedicated preservation branch, commit
-and GitHub push before any local cleanup. Clean merged worktrees may be removed
-only after their commits are proven reachable from GitHub.
+Seven clean obsolete POM-RX worktrees were removed locally without force after
+exact path, HEAD, upstream, ahead/behind, merged PR and retained GitHub branch
+checks. Every named remote branch remains available at the recorded exact HEAD;
+the full decision evidence is versioned in `POM_RX_CLEANUP_INVENTORY.md`.
+
+The primary checkout and five additional worktrees still contain dirty
+unpublished material. They remain frozen and untouched. No dirty path may be
+deleted, mixed into POM-RX or published merely from its path name. No dirty lot
+is selected as READY. Explicit human selection and unfreeze authorization are
+required before inspecting or publishing one separate lot; ownership
+attribution, secret scan, a dedicated preservation branch, commit and non-force
+GitHub push remain mandatory before any future local removal. The strict-profile
+foundation remains blocked until this preservation gate is completed and a
+separate Tier-B foundation PR is opened.
 
 ## Fresh Windows checkout exact-LF blocker
 
