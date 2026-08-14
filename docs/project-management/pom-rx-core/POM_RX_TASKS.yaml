@@ -27,12 +27,18 @@
       "phase": "COORDINATION",
       "priority": "P0",
       "complexity": "MEDIUM",
-      "status": "IN_PROGRESS",
+      "status": "PR_OPEN_READY_FOR_CI",
       "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
       "base": "2a65bfb555b2eea942c8724819487df06c94242c",
       "worktree": "C:\\Dev\\pom-rx-prime-control-plane-worktree",
       "branch": "codex/pom-rx-prime-control-plane",
+      "initial_control_plane_commit": "17738e3",
+      "pr": {
+        "number": 37,
+        "url": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/37",
+        "state": "OPEN"
+      },
       "files_owned": [
         "docs/project-management/pom-rx-core/**"
       ],
