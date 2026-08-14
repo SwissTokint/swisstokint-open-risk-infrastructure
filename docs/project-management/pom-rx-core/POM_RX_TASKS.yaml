@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-14T15:28:53+02:00",
-  "current_main": "09d87e71e776727422674f37627d10de9276e444",
+  "updated_at": "2026-08-14T16:25:37+02:00",
+  "current_main": "a89201f165612dd2fc25371d548e59f54cb315e5",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "legacy_registers": {
     "path": "C:\\Dev\\SwissTokint\\project-management\\pom-rx-core",
@@ -60,9 +60,12 @@
       "phase": "COORDINATION",
       "priority": "P0",
       "complexity": "HIGH",
-      "status": "READY_AFTER_CONTROL_PLANE_MERGE",
-      "owner": "UNASSIGNED",
+      "status": "READY",
+      "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
+      "base": "a89201f165612dd2fc25371d548e59f54cb315e5",
+      "worktree": "C:\\Dev\\pom-rx-preserving-cleanup-worktree",
+      "branch": "codex/pom-rx-preserving-cleanup",
       "required_model_route": "Codex Lead plus evidence-standard; security scan before every preservation push",
       "acceptance": [
         "Inventory every worktree, branch, upstream, dirty path and unpublished commit.",
@@ -127,7 +130,7 @@
       "phase": "R3",
       "priority": "P0",
       "complexity": "CRITICAL",
-      "status": "SEMANTIC_RATIFICATION_RECORDED_AWAITING_EXACT_HEAD_REVIEW_CI_AND_PR39_MERGE",
+      "status": "MERGED_VERIFIED_MAIN_CI_GREEN",
       "owner": "CODEX_LEAD",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
       "base": "09d87e71e776727422674f37627d10de9276e444",
@@ -147,10 +150,10 @@
         "Record that PR 35 satisfies the immutable fixture/checksum prerequisite without changing any historical bytes or hashes.",
         "Change no runtime, schema, canonicalisation, fixture, Witness, Gate or DAGR file."
       ],
-      "review_result": "Distinct read-only Protocol and Security reviewers first returned NO_GO_RUNTIME and required source-bound Option C ratification. The exact human instruction was then received on 2026-08-14. PR #35 satisfies the immutable fixture prerequisite and PR #38 preserves fresh-Windows LF checkout integrity without changing fixture bytes. Fresh reviews and CI must bind the amended PR #39 head before merge.",
+      "review_result": "At exact head 77d263f30ea5f1b6cf71645053e25cc993bbbedb, distinct read-only Protocol Architecture, Security and QA/Conformance reviewers returned APPROVE with P0/P1/P2 none. Exact-head CI run 31806216191 job 94785652045 and post-merge main CI run 31807939958 job 94791282270 completed successfully.",
       "required_human_instruction": "RATIFIE OPTION C POM-RX STRICT PROFILE AU HEAD 496fe9a49459518f6ceedcc3215401b50fe435e1, Y COMPRIS POMRX-001-INPUT-EXECUTION-RECONCILIATION ET LA RÈGLE D’OBSERVABILITÉ DU SURROGATE.",
       "semantic_ratification": {
-        "status": "SATISFIED",
+        "status": "SATISFIED_AND_MERGED",
         "source": "Codex task",
         "received_at": "exact_time_not_recorded",
         "recorded_at": "2026-08-14T15:28:53+02:00",
@@ -162,17 +165,27 @@
         "ratified_council_git_blob": "ad64e022c36d76d57547f76db5b1597bc8f15081",
         "ratified_council_git_blob_sha256": "3750bab3d19a5c62b589a7c5a15cd1a505326951dd5864e72251d2ee2e8a93ec"
       },
-      "human_gate": "Semantic Option C gate SATISFIED. PR #39 integration remains blocked pending fresh exact-head Protocol/Security/QA approval, green CI and explicit APPROUVE FUSION PR #39."
+      "pr": {
+        "number": 39,
+        "head": "77d263f30ea5f1b6cf71645053e25cc993bbbedb",
+        "merge_commit": "a89201f165612dd2fc25371d548e59f54cb315e5",
+        "exact_head_ci_run": 31806216191,
+        "exact_head_ci_job": 94785652045,
+        "post_merge_main_ci_run": 31807939958,
+        "post_merge_main_ci_job": 94791282270,
+        "state": "MERGED_VERIFIED_MAIN_CI_GREEN"
+      },
+      "human_gate": "SATISFIED by exact instruction APPROUVE FUSION PR #39 after exact-head Protocol, Security, QA and CI approval."
     },
     {
       "id": "R3-STRICT-PROFILE-FOUNDATION-INTERNAL-01",
       "phase": "R3",
       "priority": "P0",
       "complexity": "CRITICAL",
-      "status": "BLOCKED_PENDING_PR39_RATIFICATION_RECONCILIATION_MERGE_AND_CLEANUP_GATES",
+      "status": "BLOCKED_PENDING_PRESERVING_CLEANUP_AND_SEPARATE_FOUNDATION_PR",
       "owner": "UNASSIGNED",
       "repository": "SwissTokint/swisstokint-open-risk-infrastructure",
-      "base": "2a65bfb555b2eea942c8724819487df06c94242c",
+      "base": "TO_BE_BOUND_TO_ORIGIN_MAIN_AFTER_PRESERVING_CLEANUP",
       "worktree": "C:\\Dev\\pom-rx-strict-profile-foundation-worktree",
       "branch": "codex/pom-rx-strict-profile-foundation",
       "files_owned": [
