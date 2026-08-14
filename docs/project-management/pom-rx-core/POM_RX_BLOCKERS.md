@@ -1,12 +1,12 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T13:25:00+02:00`
+Updated: `2026-08-14T13:45:30+02:00`
 
 ## Prime operational-prototype gate
 
 Status: `NO_GO_IN_PROGRESS`
 
-Current main: `2a65bfb555b2eea942c8724819487df06c94242c`
+Current main: `2f7eca1b63e32061defb11b6d798cf423739df89`
 
 Independent Architecture, Security and Conformance reviews agree that the
 current repository is a reproducible structural prototype, not yet an
@@ -44,7 +44,7 @@ only after their commits are proven reachable from GitHub.
 
 ## Fresh Windows checkout exact-LF blocker
 
-Status: `P1_OPEN / FIXTURE_CORPUS_REPRODUCIBILITY`
+Status: `P1_IN_PROGRESS / ROOT_CAUSE_CONFIRMED / TARGETED_GREEN`
 
 A fresh worktree at main `2a65bfb555b2eea942c8724819487df06c94242c`
 completed the risk, POM-RX, Proof Receipt and integration subsets, including
@@ -57,6 +57,13 @@ Do not weaken the verifier or normalize the expected fixture contract. A
 separate checkout-integrity PR must ensure a fresh Windows worktree preserves
 the root `.gitattributes` contract with exact LF, then rerun the full Windows
 suite and exact-head CI.
+
+Root cause is confirmed: the system Git configuration has `core.autocrlf=true`
+and the root `.gitattributes` file did not declare its own text/eol behavior.
+The minimal candidate fix adds `/.gitattributes text eol=lf` and updates the
+exact contract assertion to include that line. The targeted closure test is
+green after exact LF rematerialization. Fresh-commit/fresh-worktree full-suite
+evidence is still required before closing the P1.
 
 ## R3 immutable-fixture contract blocker
 

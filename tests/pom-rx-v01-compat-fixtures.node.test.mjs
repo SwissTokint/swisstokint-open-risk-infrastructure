@@ -45,7 +45,7 @@ function expectGeneratorCode(code, fn) {
 }
 
 test('immutable corpus has the exact scenario, file, checksum and parent-pin closure', () => {
-  assert.equal(readFileSync(path.join(repositoryRoot, '.gitattributes'), 'utf8'), '/fixtures/pom-rx/v0.1-compat/1/** -text\n/fixtures/pom-rx/v0.1-compat/pins.json -text\n/fixtures/pom-rx/support/unicode/17.0.0/CaseFolding.txt -text\n');
+  assert.equal(readFileSync(path.join(repositoryRoot, '.gitattributes'), 'utf8'), '/.gitattributes text eol=lf\n/fixtures/pom-rx/v0.1-compat/1/** -text\n/fixtures/pom-rx/v0.1-compat/pins.json -text\n/fixtures/pom-rx/support/unicode/17.0.0/CaseFolding.txt -text\n');
   const manifest = parseExactJson(manifestBytes, 'manifest.json');
   assertExactKeys(manifest, ['fixture_schema_version', 'receipt_schema_version', 'hash_domain', 'source_repository', 'source_baseline', 'generated_with_node', 'generated_with_icu', 'generated_with_unicode', 'generated_with_locale', 'generated_with_platform', 'generated_with_arch', 'scenarios', 'canaries'], 'manifest');
   assert.equal(manifest.scenarios.length, 8);
