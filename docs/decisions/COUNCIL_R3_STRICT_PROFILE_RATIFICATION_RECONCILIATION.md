@@ -1,6 +1,6 @@
 # Technical Council — R3 Strict Profile Ratification Reconciliation
 
-Status: `BLOCKED_PENDING_EXPLICIT_SEMANTIC_RATIFICATION / TIER_B`
+Status: `HUMAN_RATIFIED_OPTION_C / TIER_B / PR39_EXACT_HEAD_GATES_REQUIRED`
 
 Date: 2026-08-14
 
@@ -18,12 +18,13 @@ Participants:
 
 ## PROBLEM
 
-PR #33 merged the exact strict-profile prerequisite proposal into `main`, but
-both the ADR and its original council deliberately retain
-`PROPOSED / HUMAN_REVIEW_REQUIRED` and state that no runtime implementation is
-authorized. Repository integration is not evidence that the human adopted the
-new protocol semantics. The control plane must therefore reconcile the merge
-record without silently converting it into ratification.
+Before the source-bound instruction recorded below, PR #33 had merged the exact
+strict-profile prerequisite proposal into `main`, while both the ADR and its
+original council deliberately retained `PROPOSED / HUMAN_REVIEW_REQUIRED` and
+stated that no runtime implementation was authorized. Repository integration
+alone was not evidence that the human adopted the new protocol semantics. The
+control plane therefore required this reconciliation to record an explicit
+source-bound ratification without treating the merge itself as ratification.
 
 The decision is material because it would amend the already ratified R2
 compatibility registry by adding
@@ -56,16 +57,18 @@ materialization produced by Windows `core.autocrlf=true`.
 
 ## SECURITY_IMPACT
 
-Implicit ratification could enable a verifier foundation without explicit
+Implicit ratification could have enabled a verifier foundation without explicit
 adoption of the single-use trusted-policy capability, executable-byte artifact
 identity, exact runtime constraints, no-legacy-fallback rule, diagnostic
 precedence, surrogate observability boundary, or incomplete-profile activation
 barrier. That would create ambiguous selection and misleading conformance
 claims.
 
-Fail-closed disposition is mandatory: no runtime, public profiled API,
-conformant strict verdict, schema, canonicalisation, hash, Witness, Gate, DAGR,
-or v0.2 work is authorized by the PR #33 merge alone.
+The exact source-bound instruction received on 2026-08-14 satisfies the semantic
+decision gate. Fail-closed integration remains mandatory: no runtime, public
+profiled API, conformant strict verdict, schema, canonicalisation, hash,
+Witness, Gate, DAGR, or v0.2 work is authorized until this amended PR #39 is
+reviewed, green and merged.
 
 ## COMPATIBILITY_IMPACT
 
@@ -73,7 +76,7 @@ This reconciliation is documentation-only. It changes no `pom-rx/0.1`
 receipt, canonical byte, hash domain, receipt hash, fixture, historical export,
 schema, verifier behavior, Witness, Gate, DAGR profile, or package version.
 
-If later ratified, Option C remains additive: the legacy API is unchanged,
+As ratified, Option C remains additive: the legacy API is unchanged,
 strict work stays internal and non-authorizing until the complete activation
 matrix passes, and each invariant family remains separately gated.
 
@@ -83,16 +86,20 @@ matrix passes, and each invariant family remains separately gated.
 
 Treat the merge of PR #33 as implicit semantic ratification.
 
-Rejected. The merged documents explicitly say the opposite, and no recorded
-human instruction names Option C or its two diagnostic-registry changes.
+Rejected as the basis for ratification. Before the source-bound human
+instruction recorded below, the merged documents explicitly said the opposite
+and no recorded human instruction named Option C or its two diagnostic-registry
+changes. Ratification now rests only on the later exact instruction, never on
+the merge.
 
 ### OPTION_B
 
 Keep the ADR proposed, record the exact blocker and request a source-bound
 human semantic decision.
 
-Recommended now. This preserves safety and allows the decision to be reviewed
-without changing runtime or historical evidence.
+This was the selected fail-closed disposition before the human instruction. It
+is superseded as the current semantic state but remains the correct historical
+record of the blocked interval.
 
 ### OPTION_C
 
@@ -100,21 +107,19 @@ After explicit source-bound human ratification, append a provenance record and
 change the ADR/original council statuses to
 `HUMAN_RATIFIED_OPTION_C / TIER_B / IMPLEMENTATION_PRS_SEPARATELY_GATED`.
 
-Conditionally recommended after, and only after, the exact human instruction
-in `HUMAN_GATE` is received. The reconciliation PR then still requires fresh
-Protocol, Security and QA reviews, green exact-head CI, and its own explicit
-merge authorization before runtime work begins.
+Selected by the exact human instruction in `HUMAN_GATE`. The reconciliation PR
+still requires fresh Protocol, Security and QA reviews, green exact-head CI,
+and its own explicit merge authorization before runtime work begins.
 
 ## RECOMMENDATION
 
-Select Option B for the current repository state. General standing merge
-authorization and standing DAGR authorization do not substitute for this
-protocol-semantic decision. DAGR remains a separately source-gated POM-RX
-Governance Profile and is outside this task.
+Execute Option C as selected by the exact source-bound human instruction.
+General standing merge authorization and standing DAGR authorization did not
+substitute for this protocol-semantic decision. DAGR remains a separately
+source-gated POM-RX Governance Profile and is outside this task.
 
-After the exact ratification instruction, preserve every Option C technical
-clause verbatim and append bounded provenance. Ratification must explicitly
-cover:
+Preserve every Option C technical clause and append bounded provenance. The
+received ratification explicitly covers:
 
 1. the complete verdict envelope, truth table, nullability and diagnostics;
 2. the fresh, pinned, branded, single-use policy capability and withdrawal
@@ -137,7 +142,7 @@ disposition.
 
 ## TEST_PLAN
 
-For this blocked reconciliation lot:
+For this ratification reconciliation lot:
 
 1. parse the control registry;
 2. verify the exact PR #33 source/merge blob identities and LF-byte SHA-256;
@@ -147,8 +152,8 @@ For this blocked reconciliation lot:
 6. obtain exact-head Protocol, Security and QA reviews and green CI before any
    reconciliation merge.
 
-The full runtime test plan remains unchanged in the proposed prerequisites ADR
-and cannot begin under this blocked disposition.
+The full runtime test plan remains unchanged in the ratified prerequisites ADR
+and cannot begin until PR #39 is reviewed, green and merged.
 
 ## ROLLBACK
 
@@ -158,14 +163,30 @@ legacy after a strict failure, or infer ratification from repository history.
 
 ## HUMAN_GATE
 
-Runtime implementation remains blocked until the confirmed human supplies the
-following exact, source-bound semantic instruction:
+The confirmed human supplied the following exact, source-bound semantic
+instruction in the Codex task on 2026-08-14:
 
 ```text
 RATIFIE OPTION C POM-RX STRICT PROFILE AU HEAD 496fe9a49459518f6ceedcc3215401b50fe435e1, Y COMPRIS POMRX-001-INPUT-EXECUTION-RECONCILIATION ET LA RÈGLE D’OBSERVABILITÉ DU SURROGATE.
 ```
 
-This instruction would satisfy only the semantic decision gate. The resulting
-reconciliation PR and each future Tier-B implementation PR keep their own
-exact-head review, CI and merge gates. It is not a release, deployment, audit,
-certification, or authorization for financial execution.
+Decision provenance:
+
+```text
+source: Codex task
+received_at: exact_time_not_recorded
+recorded_at: 2026-08-14T15:28:53+02:00
+conversation_actor: Mehdi Mauroux
+actor_authentication: conversation-bound; not independently authenticated
+ratified_source_head: 496fe9a49459518f6ceedcc3215401b50fe435e1
+ratified_adr_git_blob: 81fd51733e1eed1baef6d19d457ad3ce0adf0edd
+ratified_adr_git_blob_sha256: aaec7efefe6f6e17ee5dea8c39f36a8dbdfc8563c405118303799999f4fbec7f
+ratified_council_git_blob: ad64e022c36d76d57547f76db5b1597bc8f15081
+ratified_council_git_blob_sha256: 3750bab3d19a5c62b589a7c5a15cd1a505326951dd5864e72251d2ee2e8a93ec
+```
+
+This instruction satisfies only the semantic decision gate. PR #39 and each
+future Tier-B implementation PR keep their own exact-head review, CI and merge
+gates. PR #39 requires `APPROUVE FUSION PR #39` after its amended exact head is
+reviewed and green. This is not a release, deployment, audit, certification, or
+authorization for financial execution.

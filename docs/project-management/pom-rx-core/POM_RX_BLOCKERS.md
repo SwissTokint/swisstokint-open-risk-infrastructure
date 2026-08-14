@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T14:09:59+02:00`
+Updated: `2026-08-14T15:28:53+02:00`
 
 ## Prime operational-prototype gate
 
@@ -16,7 +16,8 @@ expected-red evidence, not a correction.
 
 P0 delivery blockers:
 
-1. strict-profile Option C prerequisites are not explicitly human-ratified;
+1. strict-profile Option C ratification is recorded but PR #39 is not yet
+   reviewed, green and merged at its amended exact head;
 2. internal strict-profile foundation is absent;
 3. action, input, outcome/assertion and receipt-ID invariants are not corrected
    in the strict profile;
@@ -76,18 +77,18 @@ approval, exact-head CI run `31798335870` passed, and it merged as
 
 ## Strict-profile semantic-ratification blocker
 
-Status: `P0_BLOCKED_PENDING_EXPLICIT_OPTION_C_RATIFICATION`
+Status: `SEMANTIC_RATIFICATION_SATISFIED / PR39_EXACT_HEAD_GATES_AND_MERGE_PENDING`
 
-PR #33 merged the exact strict-profile prerequisite proposal, but the source
-ADR and council explicitly remain proposed and prohibit runtime implementation.
-Distinct Protocol and Security reviewers agree that general merge authorization
-and standing DAGR authorization cannot substitute for adoption of the new
-protocol semantics, including the input execution-to-reconciliation evidence
-ID and surrogate observability rule. The exact required human instruction is
-recorded in
-`docs/decisions/COUNCIL_R3_STRICT_PROFILE_RATIFICATION_RECONCILIATION.md`.
-Until it is received and the resulting Tier-B reconciliation is reviewed,
-green and merged, no strict-profile runtime implementation may begin.
+PR #33 merged the exact strict-profile prerequisite proposal. The confirmed
+conversation actor supplied the exact source-bound Option C ratification on
+2026-08-14, including `POMRX-001-INPUT-EXECUTION-RECONCILIATION` and the
+surrogate observability rule. Conversation-bound provenance and exact Git blob
+identities are recorded in the ADR and reconciliation council.
+
+The semantic decision does not authorize runtime by itself. PR #39 must now
+receive fresh exact-head Protocol, Security and QA approval, green CI and the
+explicit instruction `APPROUVE FUSION PR #39`. Until that merge, no
+strict-profile runtime implementation may begin.
 
 ## R3 immutable-fixture contract blocker
 
@@ -152,9 +153,10 @@ The receipt-only chain cannot distinguish
 `POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION` from the underlying
 `POMRX-001-ACTION-PREFLIGHT-EXECUTION` case because the surrogate object is not
 an authenticated verifier input. Untrusted scenario metadata must not select a
-security diagnostic. The implementation ADR must decide whether the surrogate
-ID remains a conformance-scenario evidence ID while the receipt-only verifier
-emits the underlying continuity defect.
+security diagnostic. The ratified Option C ADR keeps the surrogate ID as a
+conformance-scenario evidence ID while the receipt-only verifier emits the
+underlying continuity defect; that decision becomes authoritative for
+implementation only after PR #39 merges.
 
 No POM-RX schema, receipt bytes, canonicalisation, hash domain, receipt hashes,
 legacy verifier behavior, Witness, Gate, DAGR profile or v0.2 candidate runtime
@@ -181,8 +183,9 @@ bounded to commit `496fe9a` and run `31682647454`.
 
 Historical next action, now completed by merged PR #35: create an isolated
 fixture-only slice for the immutable v0.1 compatibility corpus and
-checksum/canary tests. Action-continuity runtime remains blocked by explicit R3
-semantic ratification and the separate profiled-verifier foundation.
+checksum/canary tests. Action-continuity runtime remains blocked by the PR #39
+ratification-reconciliation merge and the separate profiled-verifier
+foundation.
 
 ## R3 fixture generator destination ownership blocker
 

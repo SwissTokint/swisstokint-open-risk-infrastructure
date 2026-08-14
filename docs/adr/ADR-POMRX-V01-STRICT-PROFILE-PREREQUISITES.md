@@ -1,6 +1,6 @@
 # ADR — POM-RX v0.1 Strict Profile Prerequisites
 
-Status: `PROPOSED / TIER_B / HUMAN_REVIEW_REQUIRED`
+Status: `HUMAN_RATIFIED_OPTION_C / TIER_B / IMPLEMENTATION_PRS_SEPARATELY_GATED`
 
 Date: 2026-08-13
 
@@ -10,11 +10,12 @@ Council: `docs/decisions/COUNCIL_R3_STRICT_PROFILE_PREREQUISITES_ADR.md`
 
 Supersedes: nothing
 
-Amends after human ratification: the surrogate row in the stable diagnostic
+Amends under the human ratification recorded in Section 10: the surrogate row in the stable diagnostic
 registry of `ADR-POMRX-V01-ERRATA-V02-COMPATIBILITY.md`. That row remains an
 immutable PR 27 evidence mapping, but a receipt-only runtime cannot emit its
-unobservable Witness-flavoured defect ID. Until this ADR is human-ratified, the
-merged registry remains authoritative and no runtime implementation is allowed.
+unobservable Witness-flavoured defect ID. The amendment becomes authoritative
+for implementation only after the ratification-reconciliation PR is reviewed,
+green and merged; no runtime implementation is allowed before that integration.
 
 Depends on: `docs/adr/ADR-POMRX-V01-ERRATA-V02-COMPATIBILITY.md`
 
@@ -37,8 +38,10 @@ scenario evidence ID. The strict verifier emits the underlying action
 continuity defect for the indistinguishable receipt chain. No caller-supplied
 scenario metadata may change a verifier diagnostic.
 
-This ADR does not implement or authorize runtime, fixtures, schemas,
-canonicalisation, hashes, Witness, Gate, DAGR or v0.2 changes.
+This ADR implements no runtime, fixture, schema, canonicalisation, hash,
+Witness, Gate, DAGR or v0.2 change. Ratification authorizes only the separately
+gated internal implementation sequence after the reconciliation PR merges; it
+does not authorize a public strict export, activation, release or deployment.
 
 ## 1. Scope and non-goals
 
@@ -620,17 +623,18 @@ The receipt-only verifier mapping is:
 | execution → reconciliation action mismatch | `POMRX-001-ACTION-EXECUTION-RECONCILIATION` | `POMRX_V01_E_ACTION_CONTINUITY` |
 
 The merged compatibility ADR requires input continuity across both adjacent
-transitions but PR 27 names only the preflight-to-execution defect. This ADR
-therefore proposes the following new evidence ID for human ratification:
+transitions but PR 27 names only the preflight-to-execution defect. The human
+ratification in Section 10 adopts the following new evidence ID:
 
 | Observable transition | Defect ID | Code |
 |---|---|---|
 | preflight → execution input mismatch | `POMRX-001-INPUT-PREFLIGHT-EXECUTION` | `POMRX_V01_E_INPUT_CONTINUITY` |
 | execution → reconciliation input mismatch | `POMRX-001-INPUT-EXECUTION-RECONCILIATION` | `POMRX_V01_E_INPUT_CONTINUITY` |
 
-`POMRX-001-INPUT-EXECUTION-RECONCILIATION` is not a PR 27 identifier and must
-not be emitted before this ADR is human-ratified. Ratification adds it to the
-profile's versioned evidence registry; it does not rewrite PR 27 evidence.
+`POMRX-001-INPUT-EXECUTION-RECONCILIATION` is not a PR 27 identifier. It is
+ratified as a new profile evidence ID and may be emitted only by a separately
+gated implementation after the ratification reconciliation is merged. This
+addition does not rewrite PR 27 evidence.
 
 The conformance scenario
 `POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION` remains immutable evidence. It is
@@ -652,8 +656,8 @@ without inventing a cryptographic Witness claim.
 
 ## 8. Test and delivery sequence
 
-The only approved order after this ADR receives its own human merge approval
-is:
+The only approved order after this ADR's ratification reconciliation is
+reviewed, green and merged is:
 
 1. fixture/checksum PR with no runtime change;
 2. internal profiled verdict, typed diagnostic registry, policy capability and
@@ -713,8 +717,63 @@ Rollback never:
 
 ## 10. Human gate
 
-This ADR is proposed, not ratified. It authorizes no implementation. The exact
-future ADR head requires distinct Protocol and Security review, green CI and
-explicit human merge authorization for its PR. Fixture and runtime PRs require
-their own review and merge gates. No automatic Tier-B merge, release or
-publication is permitted.
+The semantic decision gate is satisfied. The conversation actor identifying as
+confirmed project contact Mehdi Mauroux supplied this exact instruction in the
+Codex task on 2026-08-14:
+
+```text
+RATIFIE OPTION C POM-RX STRICT PROFILE AU HEAD 496fe9a49459518f6ceedcc3215401b50fe435e1, Y COMPRIS POMRX-001-INPUT-EXECUTION-RECONCILIATION ET LA RÈGLE D’OBSERVABILITÉ DU SURROGATE.
+```
+
+Immutable decision-source provenance:
+
+```text
+source: Codex task
+received_at: exact_time_not_recorded
+recorded_at: 2026-08-14T15:28:53+02:00
+conversation_actor: Mehdi Mauroux
+actor_authentication: conversation-bound; not independently authenticated
+ratified_source_head: 496fe9a49459518f6ceedcc3215401b50fe435e1
+ratified_adr_git_blob: 81fd51733e1eed1baef6d19d457ad3ce0adf0edd
+ratified_adr_git_blob_sha256: aaec7efefe6f6e17ee5dea8c39f36a8dbdfc8563c405118303799999f4fbec7f
+ratified_council_git_blob: ad64e022c36d76d57547f76db5b1597bc8f15081
+ratified_council_git_blob_sha256: 3750bab3d19a5c62b589a7c5a15cd1a505326951dd5864e72251d2ee2e8a93ec
+source_pr: 33
+source_merge_commit: 743b8082bfc925d1681af7a239856a0b4f7e8464
+```
+
+The SHA-256 values bind the exact LF Git blob bytes at the ratified source head,
+not a Windows CRLF working-tree materialization. The amended documents produced
+by recording this section have new identities; they preserve the ratified
+technical clauses and do not replace the source evidence.
+
+The ratification explicitly adopts:
+
+- Option C and this ADR as the implementation contract;
+- the exact verdict envelope, truth table, nullability and diagnostic order;
+- the fresh, pinned, branded, single-use local policy capability and withdrawal
+  precedence;
+- deterministic executable-byte artifact identity, runtime constraints and
+  canary;
+- a separate profiled path with no call, retry or fallback to legacy;
+- the internal-only `PROFILE_INCOMPLETE` barrier and activation only after the
+  complete invariant matrix;
+- `POMRX-001-INPUT-EXECUTION-RECONCILIATION` as the second input-transition
+  profile evidence ID;
+- the surrogate observability boundary: the immutable surrogate ID remains
+  conformance metadata while the receipt-only verifier emits the observable
+  underlying action-continuity defect;
+- all standalone strict verdicts remain non-authorizing and every implementation
+  slice remains separately gated.
+
+This semantic ratification does not itself authorize runtime work. Before it
+becomes an implementation prerequisite on `main`, PR #39 must receive fresh
+exact-head Protocol, Security and QA approval, green CI and explicit human
+authorization:
+
+```text
+APPROUVE FUSION PR #39
+```
+
+Fixture and runtime PRs retain their own review and merge gates. No automatic
+Tier-B merge, release or publication is permitted.
