@@ -60,6 +60,7 @@ The current prototype provides:
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
 | `docs/POM_RX_PROTOCOL_V0_1.md` | Hash-linked risk execution receipts for financial agents |
+| `docs/POM_RX_V0_2_STATUS_BOUNDARY.md` | Exact boundary between the implemented v0.1 receipt profile and the proposed v0.2 migration gates |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
@@ -116,6 +117,10 @@ import {
 
 See [`docs/POM_RX_PROTOCOL_V0_1.md`](docs/POM_RX_PROTOCOL_V0_1.md) for the
 scope, threat model and relationship to ERC-8004 and ERC-8126.
+
+The current code and fixtures are `pom-rx/0.1`. POM-RX v0.2 remains a proposed
+next specification; the exact evidence gaps and migration gates are recorded
+in [`docs/POM_RX_V0_2_STATUS_BOUNDARY.md`](docs/POM_RX_V0_2_STATUS_BOUNDARY.md).
 
 To inspect a receipt without sending anything:
 
