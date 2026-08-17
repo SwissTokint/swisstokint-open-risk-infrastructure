@@ -1,0 +1,54 @@
+{
+  "schema_version": "pom-multichain-manual-operator-plan/0.1",
+  "qualification": "OFFLINE_ACCEPTANCE_ONLY",
+  "network_actions_allowed": false,
+  "batch": {
+    "schema_version": "pom-batch/0.1",
+    "batch_ref": "pom-f6cefd038694ca4a747fca86",
+    "merkle_root": "f6cefd038694ca4a747fca863a9257c4e1df6c04cf4037973d97199b673e376f",
+    "leaf_count": 3
+  },
+  "human_gate": {
+    "status": "required",
+    "scope": "exact-future-unsigned-envelope",
+    "approval_material_present": false
+  },
+  "rails": {
+    "stellar": {
+      "network": "stellar:testnet",
+      "chain_id": "Test SDF Network ; September 2015",
+      "destination": "CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W",
+      "source_account": "GCSBVOYGBBYHW6563MRI67ZK5RPR4KU2OSJVH63TEDLV6LVHK4F4GD4J",
+      "operation": "register",
+      "value_atomic": "0",
+      "fee_cap_atomic": "100000",
+      "submit": false,
+      "intent": {
+        "batch_id": "ceeb50a182c2ea99b84f30c1c8c494d772abd82efdb2e790b4b91618d2d1500f",
+        "merkle_root": "f6cefd038694ca4a747fca863a9257c4e1df6c04cf4037973d97199b673e376f",
+        "manifest_hash": "c908e166de11f7996079d474b4a2db8bd4c42cc2736dd53dc9fe8ebd6ac9ed46",
+        "evidence_hash": "15788e94945196599585eaa993802a7521172023e541e231623f4fc38e3e4f33"
+      },
+      "rail_intent_hash": "bbd0912a3bd82da6e93c788989b56774ad1e3ee10525f29046555a8fd8f24f7c"
+    },
+    "filecoin": {
+      "network": "filecoin:calibration",
+      "chain_id": "314159",
+      "provider_selection_status": "required",
+      "operation": "store-car",
+      "value_atomic": "0",
+      "fee_cap_atomic": "0",
+      "submit": false,
+      "artifact": {
+        "car_root_cid": "bafkreid35libc4fqwf7wjssalgjd7vfdff6cu7akwek4enqmx4u3fxl53e",
+        "car_sha256": "be9294af27690a0e5fcda7fc2221d26b3aa9c7161c90529fe3559e9ab41e0fc2",
+        "byte_length": 2822,
+        "leaf_count": 3,
+        "batch_ref": "pom-f6cefd038694ca4a747fca86",
+        "merkle_root": "f6cefd038694ca4a747fca863a9257c4e1df6c04cf4037973d97199b673e376f"
+      },
+      "rail_intent_hash": "94746d5bd993ec9311b0ef1399e62ba3d2c6da0ec79baef9da8b3f562b499eb3"
+    }
+  },
+  "plan_hash": "eff9e3745c4b77e47029731a7aab40953a1788cf5fef21ec399fbf60843d6e47"
+}

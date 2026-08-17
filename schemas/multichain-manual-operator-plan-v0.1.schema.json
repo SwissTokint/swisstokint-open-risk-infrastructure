@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.swisstokint.ch/pom/multichain-manual-operator-plan-v0.1.schema.json",
+  "title": "POM-RX multichain manual operator plan v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "qualification",
+    "network_actions_allowed",
+    "batch",
+    "human_gate",
+    "rails",
+    "plan_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "pom-multichain-manual-operator-plan/0.1"
+    },
+    "qualification": {
+      "const": "OFFLINE_ACCEPTANCE_ONLY"
+    },
+    "network_actions_allowed": {
+      "const": false
+    },
+    "batch": {
+      "$ref": "#/$defs/batch"
+    },
+    "human_gate": {
+      "$ref": "#/$defs/human_gate"
+    },
+    "rails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stellar", "filecoin"],
+      "properties": {
+        "stellar": {
+          "$ref": "#/$defs/stellar"
+        },
+        "filecoin": {
+          "$ref": "#/$defs/filecoin"
+        }
+      }
+    },
+    "plan_hash": {
+      "$ref": "#/$defs/hash"
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "batch_ref", "merkle_root", "leaf_count"],
+      "properties": {
+        "schema_version": {
+          "const": "pom-batch/0.1"
+        },
+        "batch_ref": {
+          "type": "string",
+          "pattern": "^pom-[a-f0-9]{24}$"
+        },
+        "merkle_root": {
+          "$ref": "#/$defs/hash"
+        },
+        "leaf_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "human_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "scope", "approval_material_present"],
+      "properties": {
+        "status": {
+          "const": "required"
+        },
+        "scope": {
+          "const": "exact-future-unsigned-envelope"
+        },
+        "approval_material_present": {
+          "const": false
+        }
+      }
+    },
+    "stellar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "chain_id",
+        "destination",
+        "source_account",
+        "operation",
+        "value_atomic",
+        "fee_cap_atomic",
+        "submit",
+        "intent",
+        "rail_intent_hash"
+      ],
+      "properties": {
+        "network": {
+          "const": "stellar:testnet"
+        },
+        "chain_id": {
+          "const": "Test SDF Network ; September 2015"
+        },
+        "destination": {
+          "const": "CA6V2EUEGR4HFTRK3K5XOOGENH3Q2ZSHTBMHUG4LB3YOKDOLOETK2C5W"
+        },
+        "source_account": {
+          "const": "GCSBVOYGBBYHW6563MRI67ZK5RPR4KU2OSJVH63TEDLV6LVHK4F4GD4J"
+        },
+        "operation": {
+          "const": "register"
+        },
+        "value_atomic": {
+          "const": "0"
+        },
+        "fee_cap_atomic": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]{0,4}|100000)$"
+        },
+        "submit": {
+          "const": false
+        },
+        "intent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["batch_id", "merkle_root", "manifest_hash", "evidence_hash"],
+          "properties": {
+            "batch_id": {
+              "$ref": "#/$defs/hash"
+            },
+            "merkle_root": {
+              "$ref": "#/$defs/hash"
+            },
+            "manifest_hash": {
+              "$ref": "#/$defs/hash"
+            },
+            "evidence_hash": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        },
+        "rail_intent_hash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    },
+    "filecoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "chain_id",
+        "provider_selection_status",
+        "operation",
+        "value_atomic",
+        "fee_cap_atomic",
+        "submit",
+        "artifact",
+        "rail_intent_hash"
+      ],
+      "properties": {
+        "network": {
+          "const": "filecoin:calibration"
+        },
+        "chain_id": {
+          "const": "314159"
+        },
+        "provider_selection_status": {
+          "const": "required"
+        },
+        "operation": {
+          "const": "store-car"
+        },
+        "value_atomic": {
+          "const": "0"
+        },
+        "fee_cap_atomic": {
+          "const": "0"
+        },
+        "submit": {
+          "const": false
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["car_root_cid", "car_sha256", "byte_length", "leaf_count", "batch_ref", "merkle_root"],
+          "properties": {
+            "car_root_cid": {
+              "type": "string",
+              "pattern": "^b[a-z2-7]{20,127}$"
+            },
+            "car_sha256": {
+              "$ref": "#/$defs/hash"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "leaf_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "batch_ref": {
+              "type": "string",
+              "pattern": "^pom-[a-f0-9]{24}$"
+            },
+            "merkle_root": {
+              "$ref": "#/$defs/hash"
+            }
+          }
+        },
+        "rail_intent_hash": {
+          "$ref": "#/$defs/hash"
+        }
+      }
+    }
+  }
+}
