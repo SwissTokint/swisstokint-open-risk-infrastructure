@@ -1,0 +1,71 @@
+{
+  "chain": [
+    {
+      "schema_version": "pom-rx/0.1",
+      "run_id": "run_pomrx_cross_lang_20260801",
+      "agent_ref": "eip155:84532:erc8004:agent-42",
+      "subject_ref": "market:BTC-USD",
+      "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "action_commitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "source_key_id": "pom-rx-cross-lang-v1",
+      "receipt_id": "receipt_preflight_20260801",
+      "phase": "preflight",
+      "outcome": "allow",
+      "assertions": [
+        { "rule_id": "withdrawals-disabled", "rule_hash": "1111111111111111111111111111111111111111111111111111111111111111", "result": "pass", "proof_mode": "public", "evidence_hash": "2222222222222222222222222222222222222222222222222222222222222222" },
+        { "rule_id": "max-notional", "rule_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "result": "pass", "proof_mode": "commitment", "evidence_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+      ],
+      "previous_receipt_hash": null,
+      "occurred_at": "2026-08-01T12:00:00.000Z"
+    },
+    {
+      "schema_version": "pom-rx/0.1",
+      "run_id": "run_pomrx_cross_lang_20260801",
+      "agent_ref": "eip155:84532:erc8004:agent-42",
+      "subject_ref": "market:BTC-USD",
+      "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "action_commitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "source_key_id": "pom-rx-cross-lang-v1",
+      "receipt_id": "receipt_execution_20260801",
+      "phase": "execution",
+      "outcome": "accepted",
+      "assertions": [
+        { "rule_id": "venue-acknowledged", "rule_hash": "3333333333333333333333333333333333333333333333333333333333333333", "result": "pass", "proof_mode": "commitment", "evidence_hash": "4444444444444444444444444444444444444444444444444444444444444444" }
+      ],
+      "previous_receipt_hash": "e565f1dc45eaf9ed7607d6d649abea8d8b6c821b46b7f5e2ee96a93117979390",
+      "occurred_at": "2026-08-01T12:00:01.000Z"
+    },
+    {
+      "schema_version": "pom-rx/0.1",
+      "run_id": "run_pomrx_cross_lang_20260801",
+      "agent_ref": "eip155:84532:erc8004:agent-42",
+      "subject_ref": "market:BTC-USD",
+      "method_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "policy_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "input_commitment": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "action_commitment": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "source_key_id": "pom-rx-cross-lang-v1",
+      "receipt_id": "receipt_reconcile_20260801",
+      "phase": "reconciliation",
+      "outcome": "matched",
+      "assertions": [
+        { "rule_id": "execution-matches-intent", "rule_hash": "5555555555555555555555555555555555555555555555555555555555555555", "result": "pass", "proof_mode": "commitment", "evidence_hash": "6666666666666666666666666666666666666666666666666666666666666666" }
+      ],
+      "previous_receipt_hash": "6a05d901657ef2b32445161106be24f6026944193c936823f9889082b157100f",
+      "occurred_at": "2026-08-01T12:00:03.000Z"
+    }
+  ],
+  "expected": {
+    "ok": true,
+    "status": "reconciliation:matched",
+    "receipt_hashes": [
+      "e565f1dc45eaf9ed7607d6d649abea8d8b6c821b46b7f5e2ee96a93117979390",
+      "6a05d901657ef2b32445161106be24f6026944193c936823f9889082b157100f",
+      "a250234461e932c60ef74f30d125cb4c0505cf88de2bf68e07513430740c50ff"
+    ]
+  }
+}
