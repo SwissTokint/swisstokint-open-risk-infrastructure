@@ -11,10 +11,11 @@
     "test:pom-rx:integrity-baseline": "node --test tests/pom-rx-integrity-baseline.node.test.mjs",
     "test:pom-rx:integrity-baseline:expected-red": "node scripts/assert-pom-rx-integrity-baseline-red.mjs",
     "test:pom-rx:v01-fixtures": "node --test tests/pom-rx-v01-compat-fixtures.node.test.mjs",
+    "test:pom-rx:v01-crosslang": "node --test tests/pom-rx-cross-language.node.test.mjs && python -m unittest discover -s sdk/python -p \"test_pom_rx*.py\"",
     "test:public-identity": "node --test tests/public-identity.node.test.mjs",
     "test:proof-receipt": "node --test tests/proof-sdk.node.test.mjs && python -m unittest sdk/python/test_swisstokint_proof.py",
     "test:proof-integrations": "node --test tests/filecoin-evidence-bundle.node.test.mjs tests/proof-relay.node.test.mjs",
-    "test:proof": "npm run test:pom-rx && npm run test:proof-receipt && npm run test:proof-integrations",
+    "test:proof": "npm run test:pom-rx && npm run test:pom-rx:v01-crosslang && npm run test:proof-receipt && npm run test:proof-integrations",
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
     "test": "npm run test:risk && npm run test:proof && npm run test:pom-rx:v01-fixtures && npm run test:public-identity"

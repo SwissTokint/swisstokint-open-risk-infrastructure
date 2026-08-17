@@ -60,6 +60,7 @@ The current prototype provides:
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
 | `docs/POM_RX_PROTOCOL_V0_1.md` | Hash-linked risk execution receipts for financial agents |
+| `docs/POM_RX_V0_1_PYTHON_VERIFIER.md` | Second-language local verifier and shared v0.1 cross-language vector |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
