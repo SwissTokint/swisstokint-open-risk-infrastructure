@@ -56,15 +56,19 @@ application-specific implementations.
 
 ### Exact authorization and Gate
 
-The next common Core contract is the exact-authorization/single-use-Gate
-boundary. The candidate council/ADR defines exact action/context commitments,
-short-lived capability binding, terminal single-use consumption and fail-closed
-replay behavior.
+The common exact-authorization/single-use-Gate contract is ratified in Core. It
+defines versioned action/context binding, short-lived capability semantics,
+terminal single-use consumption, fail-closed replay behavior and a private
+trusted bootstrap boundary.
+
+A local reference Gate harness now exercises those semantics with Gate-instance-
+local capability state, synchronous reservation, double expiry checks and a
+trusted prepared-execution snapshot so the raw caller-owned attempt is never
+forwarded downstream. This remains reference-only and non-production.
 
 Production issuance is still unproved because source/witness enrollment,
-revocation and trusted-time semantics are not yet complete. The first allowed
-implementation is therefore a local reference Gate with a fake downstream
-adapter; it must not be presented as production authorization.
+revocation and production trusted-time semantics are not yet complete. Durable
+multi-process consumption is also required if the Gate later leaves one process.
 
 ### Witness
 
@@ -253,14 +257,14 @@ link compatibility.
 
 | Block | Current state | What is still missing |
 | --- | --- | --- |
-| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding exists | exact authorization issuer, single-use Gate, native execution evidence, independent observation |
-| Exact authorization / Gate | candidate Core contract defined; local reference implementation next | witness enrollment/revocation/trusted time, production issuer, durable multi-process consumption if needed |
+| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding and a local reference Gate exist | production exact-authorization issuer, production Gate trust lifecycle, native execution evidence, independent observation |
+| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, expiry and prepared-execution isolation | witness enrollment/revocation, production trusted time, production issuer, durable multi-process consumption if needed |
 | Witness | signed source/witness primitives merged | enrollment, revocation, trusted clock, durable service boundary, key rotation/recovery |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
 | Cybersecurity | application domain and Wallet Guard threat framing | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration and Wallet Guard architecture exist | Wallet Guard implementation, trusted-context adapter, common Gate integration, E2E burner proof |
+| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration and Wallet Guard architecture exist | Wallet Guard implementation, trusted-context normalization, common Gate adapter integration, E2E burner proof |
 | Governance/DAGR | candidate subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
