@@ -9,6 +9,7 @@ import {
 } from './evm-decoders.mjs';
 import {
   WalletGuardIntentError,
+  isLocallyNormalizedWalletGuardIntent,
   validateWalletGuardIntent,
 } from './intent.mjs';
 
@@ -178,6 +179,9 @@ function validateIntent(intent) {
   } catch (error) {
     const detail = error instanceof WalletGuardIntentError ? error.code : 'invalid-intent';
     fail('POMRX_WG_POLICY_E_INVALID', `Wallet Guard intent failed canonical validation: ${detail}`);
+  }
+  if (!isLocallyNormalizedWalletGuardIntent(intent)) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard policy requires a locally normalized intent');
   }
   if (!KNOWN_REQUEST_CLASSES.has(intent.request_class)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent request class is unknown');
