@@ -53,9 +53,31 @@ map is `docs/product/POM_RX_CAPABILITY_MAP.md`.
     PR-specific explicit human gate unless the user has explicitly granted a
     broader standing authorization for the named scope. No standing authority
     can waive a `SKEPTIC_BLOCK`, failing CI or unresolved P0/P1.
-11. Remove only clean obsolete local worktrees whose commits are reachable on
+11. After every non-trivial merge, run the exact-merge-SHA post-merge assurance
+    cycle in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as a
+    completed trusted dependency. The cycle includes SpecKit reconciliation,
+    skeptical/falsification review, security audit, code-quality review,
+    optimization review and integration/regression evidence.
+12. A merged lot without `POST_MERGE_ASSURANCE_PASS` must not be used as trusted
+    evidence for a later readiness, release, deployment or dependent Tier-B
+    merge claim. Conditional/block findings are repaired through a new PR and
+    the normal five-stage gate; never patch `main` directly.
+13. Remove only clean obsolete local worktrees whose commits are reachable on
     GitHub. Preserve dirty/unowned work on a dedicated remote branch first.
-12. Release lock cleanly and record the cycle report.
+14. Release lock cleanly and record the cycle report.
+
+## Post-merge assurance discipline
+
+The post-merge cycle is additive to pre-merge review, not a substitute for it.
+It is read-only over the merged `main` state and binds its report to the exact
+merge SHA. Where `push` CI exists, use it. Where only PR-head CI exists, record
+the exact successful head evidence and verify that the merge commit introduces
+no extra tree changes beyond the reviewed head plus the current `main` parent.
+
+A post-merge finding never justifies silently weakening tests, diagnostics,
+security boundaries or public wording. Material findings create a scoped repair
+PR. Optimization is evidence-driven: prefer simpler fail-closed code over
+micro-optimizations that expand the trusted computing base.
 
 ## Product/capability organization
 
@@ -125,6 +147,7 @@ verifier, Witness or Gate semantics.
 ## Notification gate
 
 Notify only for a pushed commit, new or materially updated PR, green exact-head
-merge gate, CI/gate change, P0/P1 blocker, skeptical block, critical ADR,
-corrected invariant, Witness/Gate/profile/demo readiness, completed site handoff
-or major human blocker. Otherwise return `DONT_NOTIFY`.
+merge gate, post-merge assurance verdict/change, CI/gate change, P0/P1 blocker,
+skeptical block, critical ADR, corrected invariant, Witness/Gate/profile/demo
+readiness, completed site handoff or major human blocker. Otherwise return
+`DONT_NOTIFY`.
