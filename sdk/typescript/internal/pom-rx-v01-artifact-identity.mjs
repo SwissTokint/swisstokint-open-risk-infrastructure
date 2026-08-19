@@ -535,10 +535,10 @@ export function verifyPomRxArtifactIdentity(options) {
   if (!options || Object.hasOwn(options, 'inspectPathMetadata')) {
     invalid('Production artifact verification does not accept an injected metadata inspector');
   }
-  throwPomRxV01Strict(
-    'POMRX_V01_E_PROFILE_INCOMPLETE',
-    'Production artifact identity verification remains disabled until strict profile activation',
-  );
+  return verifyPomRxArtifactIdentityInternal({
+    ...options,
+    inspectPathMetadata: undefined,
+  });
 }
 
 export function verifyPomRxArtifactIdentityTestOnly(options) {
