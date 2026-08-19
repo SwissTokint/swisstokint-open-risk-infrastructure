@@ -224,11 +224,8 @@ export function createReferenceWitnessTrustLifecycle(options) {
     const predecessorKeyId = validateKeyId(predecessor, 'predecessor_key_id');
     const existing = records.get(predecessorKeyId);
     if (!existing) fail('POMRX_WITNESS_TRUST_E_NOT_ENROLLED', 'predecessor is not enrolled');
-    if (existing.status !== 'active' && transitionStatus !== 'recovered') {
+    if (existing.status !== 'active') {
       fail('POMRX_WITNESS_TRUST_E_TRANSITION_INVALID', 'predecessor is not active');
-    }
-    if (transitionStatus === 'recovered' && !['active', 'revoked'].includes(existing.status)) {
-      fail('POMRX_WITNESS_TRUST_E_TRANSITION_INVALID', 'predecessor cannot be recovered');
     }
     ensureNoSuccessor(predecessorKeyId);
 
