@@ -22,6 +22,7 @@ const MAX_DATA_STRING = 16_384;
 const MAX_DATA_KEY = 128;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const RUN_KEYS = Object.freeze(['intent', 'request']);
+const BOOTSTRAP_KEYS = Object.freeze(['simulateRequest']);
 const CALLBACK_RESULT_KEYS = Object.freeze([
   'status',
   'request_id',
@@ -77,6 +78,32 @@ function exactKeys(value, expected, label, code = 'POMRX_WG_SIM_E_INVALID') {
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
     fail(code, `${label} has missing or unknown fields`);
   }
+}
+
+function snapshotExactReferenceObject(
+  value,
+  expected,
+  label,
+  errorCode = 'POMRX_WG_SIM_E_INVALID',
+) {
+  exactKeys(value, expected, label, errorCode);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail(errorCode, `${label} must be a plain object`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(errorCode, `${label} cannot contain symbol keys`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const snapshot = Object.create(null);
+  for (const key of expected) {
+    const descriptor = descriptors[key];
+    if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
+      fail(errorCode, `${label} cannot contain accessors`);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
 }
 
 function clonePlainData(
@@ -289,10 +316,15 @@ function validateEvidence(evidence) {
 }
 
 export function createWalletGuardReferenceSimulationHarness(options) {
-  exactKeys(options, ['simulateRequest'], 'Wallet Guard simulation bootstrap');
-  if (typeof options.simulateRequest !== 'function') {
+  const bootstrap = snapshotExactReferenceObject(
+    options,
+    BOOTSTRAP_KEYS,
+    'Wallet Guard simulation bootstrap',
+  );
+  if (typeof bootstrap.simulateRequest !== 'function') {
     fail('POMRX_WG_SIM_E_INVALID', 'simulateRequest must be a function');
   }
+  const simulateRequest = bootstrap.simulateRequest;
 
   // Simulation provenance is harness-instance-local. Evidence minted by another
   // simulator installation, even through this same module, cannot be accepted as
@@ -310,24 +342,35 @@ export function createWalletGuardReferenceSimulationHarness(options) {
   }
 
   function toPolicySimulation(evidence) {
-    validateEvidence(evidence);
+    // Audience/provenance is checked before structural reads so an arbitrary
+    // forged object cannot execute accessors while being rejected as non-local.
     if (!localEvidenceBrand.has(evidence)) {
       fail('POMRX_WG_SIM_E_INVALID', 'policy simulation requires evidence from this simulation harness');
     }
+    validateEvidence(evidence);
     return Object.freeze({ status: evidence.status });
   }
 
   async function simulate(input) {
-    exactKeys(input, RUN_KEYS, 'Wallet Guard simulation input');
-    validateLocalIntent(input.intent);
-    const requestSnapshot = clonePlainData(input.request);
-    const intentCommitment = replayAndCommitIntent(input.intent, requestSnapshot);
+    // Capture the exact top-level references once. This prevents accessor-backed
+    // input from swapping the branded intent or request between validation,
+    // commitment replay and simulator dispatch.
+    const runInput = snapshotExactReferenceObject(
+      input,
+      RUN_KEYS,
+      'Wallet Guard simulation input',
+      'POMRX_WG_SIM_E_REQUEST_INVALID',
+    );
+    const localIntent = runInput.intent;
+    validateLocalIntent(localIntent);
+    const requestSnapshot = clonePlainData(runInput.request);
+    const intentCommitment = replayAndCommitIntent(localIntent, requestSnapshot);
     const identity = Object.freeze({
-      request_id: input.intent.request_id,
+      request_id: localIntent.request_id,
       intent_commitment: intentCommitment,
-      origin: input.intent.origin,
-      chain_id: input.intent.chain_id,
-      account: input.intent.account,
+      origin: localIntent.origin,
+      chain_id: localIntent.chain_id,
+      account: localIntent.account,
     });
     const simulatorInput = Object.freeze({
       schema_version: WALLET_GUARD_SIMULATION_SCHEMA_VERSION,
@@ -338,7 +381,7 @@ export function createWalletGuardReferenceSimulationHarness(options) {
 
     let rawResult;
     try {
-      rawResult = await options.simulateRequest(simulatorInput);
+      rawResult = await simulateRequest(simulatorInput);
     } catch {
       return makeLocalEvidence(identity, 'unavailable');
     }
