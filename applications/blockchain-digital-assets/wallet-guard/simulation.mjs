@@ -56,8 +56,6 @@ const EVIDENCE_KEYS = Object.freeze([
   'simulator_truth_proved',
 ]);
 
-const localEvidenceBrand = new WeakSet();
-
 export class WalletGuardSimulationError extends Error {
   constructor(code, message) {
     super(message);
@@ -202,14 +200,12 @@ function makeEvidence(identity, status, stateCommitment = null, effectCommitment
   }
   const payload = evidencePayload(identity, status, stateCommitment, effectCommitment);
   const canonical = canonicalizePayload(payload);
-  const evidence = Object.freeze({
+  return Object.freeze({
     ...payload,
     simulation_commitment: sha256Hex(`${WALLET_GUARD_SIMULATION_COMMIT_DOMAIN}${canonical}`),
     reference_only: true,
     simulator_truth_proved: false,
   });
-  localEvidenceBrand.add(evidence);
-  return evidence;
 }
 
 function identityMatches(result, identity) {
@@ -220,7 +216,7 @@ function identityMatches(result, identity) {
     && result.account === identity.account;
 }
 
-function normalizeCallbackResult(rawResult, identity) {
+function normalizeCallbackResult(rawResult, identity, makeLocalEvidence) {
   let result;
   try {
     result = clonePlainData(
@@ -232,31 +228,31 @@ function normalizeCallbackResult(rawResult, identity) {
     exactKeys(result, CALLBACK_RESULT_KEYS, 'simulation callback result', 'POMRX_WG_SIM_E_CALLBACK_INVALID');
   } catch (error) {
     if (error instanceof WalletGuardSimulationError) {
-      return makeEvidence(identity, 'mismatch');
+      return makeLocalEvidence(identity, 'mismatch');
     }
     throw error;
   }
 
   if (typeof result.status !== 'string' || !CALLBACK_STATUSES.has(result.status)) {
-    return makeEvidence(identity, 'mismatch');
+    return makeLocalEvidence(identity, 'mismatch');
   }
   if (!identityMatches(result, identity)) {
-    return makeEvidence(identity, 'mismatch');
+    return makeLocalEvidence(identity, 'mismatch');
   }
 
   if (result.status === 'unavailable') {
     if (result.state_commitment !== null || result.effect_commitment !== null) {
-      return makeEvidence(identity, 'mismatch');
+      return makeLocalEvidence(identity, 'mismatch');
     }
-    return makeEvidence(identity, 'unavailable');
+    return makeLocalEvidence(identity, 'unavailable');
   }
 
   try {
     const stateCommitment = assertHash(result.state_commitment, 'state_commitment');
     const effectCommitment = assertHash(result.effect_commitment, 'effect_commitment');
-    return makeEvidence(identity, result.status, stateCommitment, effectCommitment);
+    return makeLocalEvidence(identity, result.status, stateCommitment, effectCommitment);
   } catch {
-    return makeEvidence(identity, 'mismatch');
+    return makeLocalEvidence(identity, 'mismatch');
   }
 }
 
@@ -292,22 +288,33 @@ function validateEvidence(evidence) {
   return evidence;
 }
 
-export function isLocallyProducedWalletGuardSimulationEvidence(evidence) {
-  return localEvidenceBrand.has(evidence);
-}
-
-export function toWalletGuardPolicySimulation(evidence) {
-  validateEvidence(evidence);
-  if (!localEvidenceBrand.has(evidence)) {
-    fail('POMRX_WG_SIM_E_INVALID', 'policy simulation requires locally produced evidence');
-  }
-  return Object.freeze({ status: evidence.status });
-}
-
 export function createWalletGuardReferenceSimulationHarness(options) {
   exactKeys(options, ['simulateRequest'], 'Wallet Guard simulation bootstrap');
   if (typeof options.simulateRequest !== 'function') {
     fail('POMRX_WG_SIM_E_INVALID', 'simulateRequest must be a function');
+  }
+
+  // Simulation provenance is harness-instance-local. Evidence minted by another
+  // simulator installation, even through this same module, cannot be accepted as
+  // locally produced by this harness.
+  const localEvidenceBrand = new WeakSet();
+
+  function makeLocalEvidence(identity, status, stateCommitment = null, effectCommitment = null) {
+    const evidence = makeEvidence(identity, status, stateCommitment, effectCommitment);
+    localEvidenceBrand.add(evidence);
+    return evidence;
+  }
+
+  function isLocalEvidence(evidence) {
+    return localEvidenceBrand.has(evidence);
+  }
+
+  function toPolicySimulation(evidence) {
+    validateEvidence(evidence);
+    if (!localEvidenceBrand.has(evidence)) {
+      fail('POMRX_WG_SIM_E_INVALID', 'policy simulation requires evidence from this simulation harness');
+    }
+    return Object.freeze({ status: evidence.status });
   }
 
   async function simulate(input) {
@@ -333,10 +340,14 @@ export function createWalletGuardReferenceSimulationHarness(options) {
     try {
       rawResult = await options.simulateRequest(simulatorInput);
     } catch {
-      return makeEvidence(identity, 'unavailable');
+      return makeLocalEvidence(identity, 'unavailable');
     }
-    return normalizeCallbackResult(rawResult, identity);
+    return normalizeCallbackResult(rawResult, identity, makeLocalEvidence);
   }
 
-  return Object.freeze({ simulate });
+  return Object.freeze({
+    simulate,
+    isLocalEvidence,
+    toPolicySimulation,
+  });
 }
