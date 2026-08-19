@@ -74,13 +74,16 @@ function policy(overrides = {}) {
   };
 }
 
-function referenceAuthorization(overrides = {}) {
+function referenceAuthorizationRecord(index = 1, overrides = {}) {
+  const symbols = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+  const preflightSymbol = symbols[(index * 2) % symbols.length];
+  const witnessSymbol = symbols[(index * 2 + 1) % symbols.length];
   return {
-    run_id: 'run-wallet-guard-0001',
+    run_id: `run-wallet-guard-${String(index).padStart(8, '0')}`,
     agent_ref: 'agent-wallet-guard-01',
     subject_ref: 'subject-wallet-guard-01',
-    preflight_receipt_hash: hash('1'),
-    witness_ack_hash: hash('2'),
+    preflight_receipt_hash: hash(preflightSymbol),
+    witness_ack_hash: hash(witnessSymbol),
     source_key_id: `ed25519-${'a'.repeat(32)}`,
     witness_key_id: `ed25519-${'b'.repeat(32)}`,
     verification_profile: 'pom-rx-v0.1/strict-errata-1',
@@ -89,6 +92,15 @@ function referenceAuthorization(overrides = {}) {
     effective_verification_policy_sha256: hash('4'),
     witness_valid_until: '2026-08-19T17:01:00.000Z',
     ...overrides,
+  };
+}
+
+function referenceAuthorizationFactory({ reuse = false, onSummary = () => {}, overrides = {} } = {}) {
+  let count = 0;
+  return (summary) => {
+    count += 1;
+    onSummary(summary);
+    return referenceAuthorizationRecord(reuse ? 1 : count, overrides);
   };
 }
 
@@ -153,14 +165,14 @@ function createGateway({
   captureTrustedOrigin = () => ORIGIN,
   trustedClock = defaultClock(),
   policyValue = policy(),
-  referenceValue = referenceAuthorization(),
+  referenceFactory = referenceAuthorizationFactory(),
 } = {}) {
   const gateway = createWalletGuardReferenceProviderGateway({
     captureTrustedOrigin,
     provider: fakeProvider.provider,
     policy: policyValue,
     trustedClock,
-    referenceAuthorization: referenceValue,
+    referenceAuthorizationForRequest: referenceFactory,
     capabilityLifetimeMs: 30_000,
   });
   return { gateway, controller: fakeProvider.controller };
@@ -195,6 +207,40 @@ test('allowlisted low-value native request is forwarded exactly once after fresh
   assert.equal(stats.sensitiveCalls.length, 1);
   assert.equal(stats.sensitiveCalls[0].method, 'eth_sendTransaction');
   assert.equal(stats.sensitiveCalls[0].params[0].value, '0x64');
+});
+
+test('reference evidence supplier receives the exact per-request commitment summary', async () => {
+  const summaries = [];
+  const { gateway, controller } = createGateway({
+    referenceFactory: referenceAuthorizationFactory({
+      onSummary: (summary) => summaries.push(summary),
+    }),
+  });
+
+  await gateway.request(sendTransaction({ value: '0x1' }));
+  await gateway.request(sendTransaction({ value: '0x2' }));
+
+  assert.equal(summaries.length, 2);
+  assert.notEqual(summaries[0].request_id, summaries[1].request_id);
+  assert.notEqual(summaries[0].action_commitment, summaries[1].action_commitment);
+  assert.match(summaries[0].context_commitment, /^[a-f0-9]{64}$/u);
+  assert.match(summaries[0].policy_hash, /^[a-f0-9]{64}$/u);
+  assert.equal(controller.stats().sensitiveCalls.length, 2);
+});
+
+test('reusing one synthetic run/preflight/Witness evidence set across allowed requests fails closed', async () => {
+  const { gateway, controller } = createGateway({
+    referenceFactory: referenceAuthorizationFactory({ reuse: true }),
+  });
+
+  const first = await gateway.request(sendTransaction({ value: '0x1' }));
+  assert.equal(first.forwarded, true);
+
+  await assert.rejects(
+    gateway.request(sendTransaction({ value: '0x2' })),
+    (error) => expectProviderCode(error, 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY'),
+  );
+  assert.equal(controller.stats().sensitiveCalls.length, 1);
 });
 
 test('caller mutation after gateway entry cannot change the request eventually forwarded', async () => {
@@ -342,11 +388,11 @@ test('context change after Gate observation but immediately before forwarding is
   assert.equal(controller.stats().sensitiveCalls.length, 0);
 });
 
-test('malformed provider responses and duplicate accounts fail closed', async () => {
+test('malformed provider responses and duplicate accounts fail closed with provider diagnostics', async () => {
   const malformedChain = createFakeProvider({ chainId: '1' });
   await assert.rejects(
     createGateway({ fakeProvider: malformedChain }).gateway.request(sendTransaction({ value: '0x1' })),
-    /chain_id/u,
+    (error) => expectProviderCode(error, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID'),
   );
   assert.equal(malformedChain.controller.stats().sensitiveCalls.length, 0);
 
@@ -360,8 +406,8 @@ test('malformed provider responses and duplicate accounts fail closed', async ()
 
 test('capability lifetime cannot outlive the bounded synthetic witness evidence', async () => {
   const { gateway, controller } = createGateway({
-    referenceValue: referenceAuthorization({
-      witness_valid_until: '2026-08-19T17:00:10.000Z',
+    referenceFactory: referenceAuthorizationFactory({
+      overrides: { witness_valid_until: '2026-08-19T17:00:10.000Z' },
     }),
   });
 
