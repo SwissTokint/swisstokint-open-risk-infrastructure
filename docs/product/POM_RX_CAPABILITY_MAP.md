@@ -1,8 +1,12 @@
 # POM-RX capability map
 
-Status: `CURRENT_PRODUCT_INFORMATION_ARCHITECTURE`
+Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-19
+
+This document organizes repository work. It does not change protocol semantics,
+publish a new POM-RX version, activate a verifier or establish production
+readiness.
 
 ## 1. Product rule
 
@@ -28,6 +32,10 @@ A capability block may implement only part of this lifecycle. Missing stages
 must remain explicit and must never be inferred from a structurally valid
 receipt.
 
+Application blocks are not mutually exclusive. A use case may span two blocks,
+but it has one primary implementation owner so shared semantics are not copied
+into multiple competing implementations.
+
 ## 2. Shared core and cross-cutting layers
 
 ### POM-RX Core
@@ -36,6 +44,10 @@ Shared receipt semantics, strict verification, continuity invariants, typed
 diagnostics and policy/artifact binding. Historical `pom-rx/0.1` compatibility
 remains frozen; stronger behavior is additive through separately reviewed
 profiles.
+
+Application blocks may add adapters, profiles and tests. They must not duplicate
+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics into
+separate domain-specific implementations.
 
 ### Witness and authorization
 
@@ -65,9 +77,9 @@ not a second product, audit firm, certification system or global security score.
 
 ## 3. Application blocks
 
-These blocks mirror the public SwissTokint application domains. They are
-contexts in which POM-RX controls can be researched and integrated; they are not
-claims that every block is deployed or operational.
+These block names mirror the public SwissTokint site taxonomy. They are contexts
+in which POM-RX controls can be researched and integrated; they are not claims
+that every block is deployed or operational.
 
 ### Block A — Payments and financial operations
 
@@ -81,7 +93,10 @@ Examples:
 The current market-risk engine is supporting research, not a complete POM-RX
 authorization engine.
 
-### Block B — Autonomous and AI agents
+### Block B — AI agents
+
+This block includes autonomous-agent use cases while retaining the site's public
+label `AI agents`.
 
 Examples:
 
@@ -93,7 +108,7 @@ Examples:
 POM-RX must not imply that model reasoning quality is proved merely because the
 resulting action lifecycle is evidenced.
 
-### Block C — Enterprise APIs and systems
+### Block C — APIs and enterprise systems
 
 Examples:
 
@@ -102,7 +117,7 @@ Examples:
 - approval workflows for ERP, infrastructure or administrative operations;
 - exact target/action binding before a write reaches the downstream system.
 
-### Block D — Cybersecurity and critical-action control
+### Block D — Cybersecurity
 
 Examples:
 
@@ -127,7 +142,9 @@ Examples:
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate,
-observation or reconciliation semantics.
+observation or reconciliation semantics. Its primary product home is
+Blockchain and digital assets, while its defensive control model also overlaps
+the Cybersecurity block.
 
 ## 4. Wallet Guard position
 
@@ -186,7 +203,7 @@ docs/profiles/
 
 docs/applications/
   financial-operations/
-  autonomous-agents/
+  ai-agents/
   enterprise-apis/
   cybersecurity/
   blockchain-digital-assets/
@@ -202,6 +219,10 @@ tests/
   # shared conformance plus profile-specific suites
 ```
 
+Application folders contain only domain adapters, profiles, fixtures and tests.
+Shared verifier, canonicalization, hashing, Witness and Gate rules remain in the
+common POM-RX implementation and are referenced rather than copied.
+
 Existing frozen fixture paths, historical verifier paths and public source pins
 must not be relocated until a dedicated migration PR proves byte/hash and public
 link compatibility.
@@ -212,11 +233,11 @@ link compatibility.
 | --- | --- | --- |
 | Shared Core | strict-profile foundation merged; historical verifier preserved | complete strict invariant matrix and activation |
 | Witness | signed source/witness primitives merged | enrollment, revocation, trusted clock, durable service boundary |
-| Financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
-| Autonomous/AI agents | protocol framing and agent references exist | concrete bounded agent integration |
-| Enterprise APIs | application domain only | exact target adapter and controlled demo |
+| Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
+| AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
+| APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
 | Cybersecurity | application domain and Wallet Guard threat framing | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain/digital assets | anchors, Stellar evidence registry and Wallet Guard architecture exist | Wallet Guard implementation, exact Gate, E2E burner proof |
+| Blockchain and digital assets | anchors, Stellar evidence registry and Wallet Guard architecture exist | Wallet Guard implementation, exact Gate, E2E burner proof |
 | Governance/DAGR | candidate subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
@@ -243,11 +264,11 @@ POM-RX
 ├── Cross-cutting profiles
 │   └── Governance / DAGR
 ├── Application blocks
-│   ├── Financial operations
-│   ├── Autonomous / AI agents
-│   ├── Enterprise APIs
+│   ├── Payments and financial operations
+│   ├── AI agents
+│   ├── APIs and enterprise systems
 │   ├── Cybersecurity
-│   └── Blockchain / digital assets
+│   └── Blockchain and digital assets
 │       └── Wallet Guard
 └── Supporting integrations and evidence adapters
 ```
