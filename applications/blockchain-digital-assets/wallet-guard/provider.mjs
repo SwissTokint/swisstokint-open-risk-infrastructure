@@ -39,7 +39,7 @@ const BOOTSTRAP_KEYS = Object.freeze([
   'provider',
   'policy',
   'trustedClock',
-  'referenceAuthorization',
+  'referenceAuthorizationForRequest',
   'capabilityLifetimeMs',
 ]);
 const REFERENCE_AUTH_KEYS = Object.freeze([
@@ -55,6 +55,15 @@ const REFERENCE_AUTH_KEYS = Object.freeze([
   'implementation_artifact_sha256',
   'effective_verification_policy_sha256',
   'witness_valid_until',
+]);
+const REFERENCE_REQUEST_KEYS = Object.freeze([
+  'request_id',
+  'method_hash',
+  'policy_hash',
+  'action_commitment',
+  'context_commitment',
+  'issued_at',
+  'expires_at',
 ]);
 const PREPARED_KEYS = Object.freeze([
   'schema_version',
@@ -205,11 +214,27 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
   return Object.freeze(output);
 }
 
+function normalizeProviderChain(value) {
+  try {
+    return normalizeChainId(value);
+  } catch {
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid chain id');
+  }
+}
+
+function normalizeProviderAccount(value) {
+  try {
+    return normalizeEvmAddress(value, 'provider account');
+  } catch {
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid account');
+  }
+}
+
 function normalizeAccounts(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
   }
-  const normalized = value.map((account) => normalizeEvmAddress(account, 'provider account'));
+  const normalized = value.map(normalizeProviderAccount);
   if (new Set(normalized).size !== normalized.length) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
   }
@@ -228,7 +253,7 @@ async function readProviderSnapshot(provider) {
   const chainRaw = await providerRead(provider, 'eth_chainId');
   const accountsRaw = await providerRead(provider, 'eth_accounts');
   return Object.freeze({
-    chain_id: normalizeChainId(chainRaw),
+    chain_id: normalizeProviderChain(chainRaw),
     accounts: normalizeAccounts(accountsRaw),
   });
 }
@@ -280,7 +305,7 @@ function commitMethod(method) {
 }
 
 function validateReferenceAuthorization(value) {
-  exactKeys(value, REFERENCE_AUTH_KEYS, 'referenceAuthorization');
+  exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
     if (typeof value[field] !== 'string' || !ID_PATTERN.test(value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
@@ -311,6 +336,20 @@ function validateReferenceAuthorization(value) {
   }
   canonicalUtcInstant(value.witness_valid_until, 'witness_valid_until');
   return Object.freeze({ ...value });
+}
+
+function getReferenceAuthorizationForRequest(factory, requestSummary) {
+  exactKeys(requestSummary, REFERENCE_REQUEST_KEYS, 'reference authorization request');
+  let value;
+  try {
+    value = factory(Object.freeze({ ...requestSummary }));
+  } catch {
+    fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier failed');
+  }
+  if (value && typeof value === 'object' && typeof value.then === 'function') {
+    fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier must be synchronous');
+  }
+  return validateReferenceAuthorization(value);
 }
 
 function validatePreparedExecution(prepared) {
@@ -349,12 +388,14 @@ export function createWalletGuardReferenceProviderGateway(options) {
     captureTrustedOrigin,
     provider,
     trustedClock,
+    referenceAuthorizationForRequest,
   } = options;
   if (typeof captureTrustedOrigin !== 'function'
       || !provider
       || typeof provider !== 'object'
       || typeof provider.request !== 'function'
-      || typeof trustedClock !== 'function') {
+      || typeof trustedClock !== 'function'
+      || typeof referenceAuthorizationForRequest !== 'function') {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'trusted bootstrap dependencies are invalid');
   }
   if (!Number.isSafeInteger(options.capabilityLifetimeMs)
@@ -364,7 +405,9 @@ export function createWalletGuardReferenceProviderGateway(options) {
   }
 
   const policy = normalizeWalletGuardPolicy(options.policy);
-  const referenceAuthorization = validateReferenceAuthorization(options.referenceAuthorization);
+  const usedRunIds = new Set();
+  const usedPreflightHashes = new Set();
+  const usedWitnessHashes = new Set();
   let requestCounter = 0;
 
   const coreGateHarness = createReferenceSingleUseGateHarness({
@@ -454,6 +497,21 @@ export function createWalletGuardReferenceProviderGateway(options) {
 
     const issuedAt = sampleTrustedClock(trustedClock);
     const expiresAt = new Date(issuedAt.getTime() + options.capabilityLifetimeMs).toISOString();
+    const methodHash = commitMethod(intent.rpc_method);
+    const contextCommitment = commitContext(context, policyResult.policy_hash);
+    const referenceAuthorization = getReferenceAuthorizationForRequest(
+      referenceAuthorizationForRequest,
+      {
+        request_id: requestId,
+        method_hash: methodHash,
+        policy_hash: policyResult.policy_hash,
+        action_commitment: committed.intent_commitment,
+        context_commitment: contextCommitment,
+        issued_at: issuedAt.toISOString(),
+        expires_at: expiresAt,
+      },
+    );
+
     const witnessValidUntil = canonicalUtcInstant(
       referenceAuthorization.witness_valid_until,
       'witness_valid_until',
@@ -461,16 +519,24 @@ export function createWalletGuardReferenceProviderGateway(options) {
     if (new Date(expiresAt).getTime() > witnessValidUntil.getTime()) {
       fail('POMRX_WG_PROVIDER_E_TIME_INVALID', 'capability expiry exceeds witness validity');
     }
+    if (usedRunIds.has(referenceAuthorization.run_id)
+        || usedPreflightHashes.has(referenceAuthorization.preflight_receipt_hash)
+        || usedWitnessHashes.has(referenceAuthorization.witness_ack_hash)) {
+      fail(
+        'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
+        'reference authorization evidence was already used by this gateway',
+      );
+    }
 
     const bindingInput = Object.freeze({
       binding_profile: WALLET_GUARD_BINDING_PROFILE,
       run_id: referenceAuthorization.run_id,
       agent_ref: referenceAuthorization.agent_ref,
       subject_ref: referenceAuthorization.subject_ref,
-      method_hash: commitMethod(intent.rpc_method),
+      method_hash: methodHash,
       policy_hash: policyResult.policy_hash,
       action_commitment: committed.intent_commitment,
-      context_commitment: commitContext(context, policyResult.policy_hash),
+      context_commitment: contextCommitment,
       preflight_receipt_hash: referenceAuthorization.preflight_receipt_hash,
       witness_ack_hash: referenceAuthorization.witness_ack_hash,
       source_key_id: referenceAuthorization.source_key_id,
@@ -487,6 +553,10 @@ export function createWalletGuardReferenceProviderGateway(options) {
       bindingInput,
       { witnessValidUntil: referenceAuthorization.witness_valid_until },
     );
+    usedRunIds.add(referenceAuthorization.run_id);
+    usedPreflightHashes.add(referenceAuthorization.preflight_receipt_hash);
+    usedWitnessHashes.add(referenceAuthorization.witness_ack_hash);
+
     const providerResult = await coreGateHarness.gate.consume(
       capability,
       Object.freeze({ request_id: requestId, request: requestSnapshot }),
