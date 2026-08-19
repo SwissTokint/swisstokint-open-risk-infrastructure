@@ -31,8 +31,8 @@
     },
     {
       "path": "sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs",
-      "byte_length": 23442,
-      "sha256": "19ff3f678dd0957b240d6898a377ac429203dbd8e4d3a868f37be4eef4b91fa2"
+      "byte_length": 23625,
+      "sha256": "5705ece6a37ba0f3e53d64cc46a828a26885482d56e54f438f3352c22c3f2ddf"
     },
     {
       "path": "sdk/typescript/internal/pom-rx-v01-diagnostics.mjs",
@@ -85,5 +85,5 @@
       "sha256": "1d2cfbc5c494ee0e54a92b763b2f4563ffd9390fa51ec6071b5b044439db08d5"
     }
   ],
-  "implementation_artifact_sha256": "24c210feb299fe5d9b4adfcdc201305f257a9457566c14d6fe8b77a17af3b0a2"
+  "implementation_artifact_sha256": "affcbd245534ac0c72035c289fd697258c047dbe896efb360cf928a40641c45e"
 }

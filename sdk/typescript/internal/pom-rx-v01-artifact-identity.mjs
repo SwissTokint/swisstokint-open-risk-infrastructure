@@ -382,20 +382,20 @@ function staticLocalDependencies(relativePath, bytes) {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     const previous = tokens[index - 1];
-    const computedMember = token.value === '[' && previous
+    const computedMember = token.type === 'punctuator' && token.value === '[' && previous
       && (['identifier', 'number', 'regex', 'string'].includes(previous.type)
         || [')', ']', '}'].includes(previous.value));
-    if (token.value === '[') {
+    if (token.type === 'punctuator' && token.value === '[') {
       let depth = 1;
       let cursor = index + 1;
       let containsString = false;
       for (; cursor < tokens.length && depth > 0; cursor += 1) {
-        if (tokens[cursor].value === '[') depth += 1;
-        else if (tokens[cursor].value === ']') depth -= 1;
+        if (tokens[cursor].type === 'punctuator' && tokens[cursor].value === '[') depth += 1;
+        else if (tokens[cursor].type === 'punctuator' && tokens[cursor].value === ']') depth -= 1;
         else if (tokens[cursor].type === 'string') containsString = true;
       }
       if (depth !== 0) invalid('Computed member access is unterminated in strict verifier source', { path: relativePath });
-      const computedProperty = tokens[cursor]?.value === ':';
+      const computedProperty = tokens[cursor]?.type === 'punctuator' && tokens[cursor]?.value === ':';
       if (containsString && (computedMember || computedProperty)) {
         invalid('String-computed member access is forbidden in strict verifier source', { path: relativePath });
       }
