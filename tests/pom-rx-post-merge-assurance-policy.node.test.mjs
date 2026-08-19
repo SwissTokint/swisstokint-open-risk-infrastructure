@@ -38,5 +38,5 @@ test('Prime automation policy requires post-merge assurance after every non-triv
   assert.match(policy, /after every non-trivial merge/i);
   assert.match(policy, /SpecKit.*skeptical.*security.*code-quality.*optimization/s);
   assert.match(policy, /POST_MERGE_ASSURANCE_PASS/);
-  assert.match(policy, /must not be used as trusted evidence/i);
+  assert.match(policy, /must not be used as trusted\s+evidence/i);
 });
