@@ -1,0 +1,41 @@
+{
+  "schema_version": "pom-rx-repository-layout/1",
+  "product": "POM-RX",
+  "core": {
+    "directory": "core",
+    "current_canonical_paths": [
+      "sdk/typescript/pom-rx.mjs",
+      "sdk/typescript/internal",
+      "sdk/typescript/pom-rx-witness.mjs"
+    ]
+  },
+  "profiles": [
+    {"name": "Governance / DAGR", "directory": "profiles/governance-dagr"}
+  ],
+  "applications": [
+    {"name": "Payments and financial operations", "directory": "applications/payments-financial"},
+    {"name": "AI agents", "directory": "applications/ai-agents"},
+    {"name": "APIs and enterprise systems", "directory": "applications/enterprise-apis"},
+    {"name": "Cybersecurity", "directory": "applications/cybersecurity"},
+    {"name": "Blockchain and digital assets", "directory": "applications/blockchain-digital-assets"},
+    {"name": "POM-RX Wallet Guard", "directory": "applications/blockchain-digital-assets/wallet-guard"}
+  ],
+  "supporting_infrastructure": {
+    "directory": "integrations",
+    "current_canonical_paths": [
+      "integrations/stellar-evidence-registry",
+      "sdk/typescript/filecoin-evidence-bundle.mjs"
+    ]
+  },
+  "compatibility": {
+    "directory": "compatibility/pom-rx-v0.1",
+    "protected_paths": [
+      "sdk/typescript/pom-rx.mjs",
+      "fixtures/pom-rx/v0.1-compat"
+    ]
+  },
+  "tooling": {
+    "directory": "tooling",
+    "current_canonical_paths": ["scripts", ".github"]
+  }
+}
