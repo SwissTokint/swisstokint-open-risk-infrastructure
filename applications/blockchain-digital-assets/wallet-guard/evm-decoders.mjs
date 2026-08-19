@@ -10,9 +10,39 @@ const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const MAX_JSON_DEPTH = 8;
 const MAX_JSON_NODES = 1_000;
 const MAX_JSON_STRING = 16_384;
-const MAX_JSON_KEY = 128;
-const SAFE_KEY_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/u;
+const MAX_JSON_KEY = 64;
+const SAFE_KEY_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/u;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+const EIP2612_DOMAIN_FIELDS = Object.freeze([
+  ['name', 'string'],
+  ['version', 'string'],
+  ['chainId', 'uint256'],
+  ['verifyingContract', 'address'],
+]);
+const EIP2612_PERMIT_FIELDS = Object.freeze([
+  ['owner', 'address'],
+  ['spender', 'address'],
+  ['value', 'uint256'],
+  ['nonce', 'uint256'],
+  ['deadline', 'uint256'],
+]);
+const PERMIT2_DOMAIN_FIELDS = Object.freeze([
+  ['name', 'string'],
+  ['chainId', 'uint256'],
+  ['verifyingContract', 'address'],
+]);
+const PERMIT2_DETAILS_FIELDS = Object.freeze([
+  ['token', 'address'],
+  ['amount', 'uint160'],
+  ['expiration', 'uint48'],
+  ['nonce', 'uint48'],
+]);
+const PERMIT2_SINGLE_FIELDS = Object.freeze([
+  ['details', 'PermitDetails'],
+  ['spender', 'address'],
+  ['sigDeadline', 'uint256'],
+]);
 
 export const ERC20_APPROVE_SELECTOR = '0x095ea7b3';
 export const ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
@@ -60,19 +90,25 @@ export function normalizeQuantity(value, field = 'value') {
   return BigInt(value).toString(10);
 }
 
-function normalizeNumberish(value, field) {
+function normalizeNumberish(value, field, bits = 256) {
+  let parsed;
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value) || value < 0) {
       fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} must be a non-negative integer`);
     }
-    return BigInt(value).toString(10);
+    parsed = BigInt(value);
+  } else if (typeof value === 'string' && DECIMAL_INTEGER_PATTERN.test(value)) {
+    parsed = BigInt(value);
+  } else if (typeof value === 'string' && HEX_QUANTITY_PATTERN.test(value)) {
+    parsed = BigInt(value);
+  } else {
+    fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} must be a canonical integer`);
   }
-  if (typeof value !== 'string') {
-    fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} must be an integer string`);
+
+  if (parsed >= (1n << BigInt(bits))) {
+    fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} exceeds uint${bits}`);
   }
-  if (DECIMAL_INTEGER_PATTERN.test(value)) return BigInt(value).toString(10);
-  if (HEX_QUANTITY_PATTERN.test(value)) return BigInt(value).toString(10);
-  fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} must be a canonical integer string`);
+  return parsed.toString(10);
 }
 
 function parseAddressWord(word, field) {
@@ -246,7 +282,7 @@ function clonePlainJson(value, depth = 0, budget = { remaining: MAX_JSON_NODES }
 function parseTypedData(rawTypedData) {
   let parsed = rawTypedData;
   if (typeof rawTypedData === 'string') {
-    if (rawTypedData.length > 64 * 1024) {
+    if (rawTypedData.length > 16 * 1024) {
       fail('POMRX_WG_E_TYPED_DATA_INVALID', 'typed data JSON is too large');
     }
     try {
@@ -258,20 +294,70 @@ function parseTypedData(rawTypedData) {
   return clonePlainJson(parsed);
 }
 
+function exactKeys(value, expected) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
+}
+
+function exactTypeDefinition(types, typeName, expectedFields) {
+  const definition = types?.[typeName];
+  if (!Array.isArray(definition) || definition.length !== expectedFields.length) return false;
+  return definition.every((field, index) => (
+    exactKeys(field, ['name', 'type'])
+    && field.name === expectedFields[index][0]
+    && field.type === expectedFields[index][1]
+  ));
+}
+
+function exactTypeSet(types, expectedDefinitions) {
+  if (!types || typeof types !== 'object' || Array.isArray(types)) return false;
+  const typeNames = Object.keys(expectedDefinitions).sort();
+  if (!exactKeys(types, typeNames)) return false;
+  return typeNames.every((name) => exactTypeDefinition(types, name, expectedDefinitions[name]));
+}
+
+function isExactEip2612Permit(typedData) {
+  return exactKeys(typedData, ['types', 'primaryType', 'domain', 'message'])
+    && exactTypeSet(typedData.types, {
+      EIP712Domain: EIP2612_DOMAIN_FIELDS,
+      Permit: EIP2612_PERMIT_FIELDS,
+    })
+    && exactKeys(typedData.domain, ['name', 'version', 'chainId', 'verifyingContract'])
+    && exactKeys(typedData.message, ['owner', 'spender', 'value', 'nonce', 'deadline']);
+}
+
+function isExactPermit2Single(typedData) {
+  return exactKeys(typedData, ['types', 'primaryType', 'domain', 'message'])
+    && exactTypeSet(typedData.types, {
+      EIP712Domain: PERMIT2_DOMAIN_FIELDS,
+      PermitDetails: PERMIT2_DETAILS_FIELDS,
+      PermitSingle: PERMIT2_SINGLE_FIELDS,
+    })
+    && exactKeys(typedData.domain, ['name', 'chainId', 'verifyingContract'])
+    && exactKeys(typedData.message, ['details', 'spender', 'sigDeadline'])
+    && exactKeys(typedData.message.details, ['token', 'amount', 'expiration', 'nonce']);
+}
+
 function normalizeOptionalDomainChainId(domain) {
   if (!Object.hasOwn(domain, 'chainId')) return null;
-  const value = domain.chainId;
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value) || value < 0) {
-      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'typed data domain chainId is invalid');
-    }
-    return `0x${BigInt(value).toString(16)}`;
-  }
-  if (typeof value === 'string') {
-    if (DECIMAL_INTEGER_PATTERN.test(value)) return `0x${BigInt(value).toString(16)}`;
-    if (HEX_QUANTITY_PATTERN.test(value)) return `0x${BigInt(value).toString(16)}`;
-  }
-  fail('POMRX_WG_E_TYPED_DATA_INVALID', 'typed data domain chainId is invalid');
+  const decimal = normalizeNumberish(domain.chainId, 'typed data domain chainId', 256);
+  return `0x${BigInt(decimal).toString(16)}`;
+}
+
+function unknownTypedDataResult(primaryType, typedDataSha256, domainChainId, domainVerifyingContract) {
+  return Object.freeze({
+    request_class: primaryType === 'PermitBatch' ? 'permit2_batch_unknown' : 'unknown_typed_data',
+    target: null,
+    spender: null,
+    requested_allowance: null,
+    typed_data_owner: null,
+    typed_data_sha256: typedDataSha256,
+    typed_data_domain_chain_id: domainChainId,
+    typed_data_verifying_contract: domainVerifyingContract,
+    simulation_required: true,
+  });
 }
 
 export function decodeTypedData(rawTypedData) {
@@ -297,14 +383,25 @@ export function decodeTypedData(rawTypedData) {
     : null;
 
   if (typedData.primaryType === 'Permit') {
-    if (!Object.hasOwn(message, 'spender') || !Object.hasOwn(message, 'value')) {
-      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'Permit requires spender and value');
+    if (!isExactEip2612Permit(typedData)) {
+      return unknownTypedDataResult(
+        typedData.primaryType,
+        typedDataSha256,
+        domainChainId,
+        domainVerifyingContract,
+      );
     }
+    if (domainChainId === null || domainVerifyingContract === null) {
+      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'EIP-2612 Permit requires chainId and verifyingContract');
+    }
+    normalizeNumberish(message.nonce, 'Permit nonce', 256);
+    normalizeNumberish(message.deadline, 'Permit deadline', 256);
     return Object.freeze({
       request_class: 'permit_eip2612',
       target: domainVerifyingContract,
       spender: normalizeEvmAddress(message.spender, 'Permit spender'),
-      requested_allowance: normalizeNumberish(message.value, 'Permit value'),
+      requested_allowance: normalizeNumberish(message.value, 'Permit value', 256),
+      typed_data_owner: normalizeEvmAddress(message.owner, 'Permit owner'),
       typed_data_sha256: typedDataSha256,
       typed_data_domain_chain_id: domainChainId,
       typed_data_verifying_contract: domainVerifyingContract,
@@ -313,17 +410,26 @@ export function decodeTypedData(rawTypedData) {
   }
 
   if (typedData.primaryType === 'PermitSingle') {
-    if (!Object.hasOwn(message, 'spender') || !message.details || typeof message.details !== 'object') {
-      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'PermitSingle requires spender and details');
+    if (!isExactPermit2Single(typedData)) {
+      return unknownTypedDataResult(
+        typedData.primaryType,
+        typedDataSha256,
+        domainChainId,
+        domainVerifyingContract,
+      );
     }
-    if (!Object.hasOwn(message.details, 'token') || !Object.hasOwn(message.details, 'amount')) {
-      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'PermitSingle details require token and amount');
+    if (domainChainId === null || domainVerifyingContract === null) {
+      fail('POMRX_WG_E_TYPED_DATA_INVALID', 'Permit2 requires chainId and verifyingContract');
     }
+    normalizeNumberish(message.details.expiration, 'Permit2 expiration', 48);
+    normalizeNumberish(message.details.nonce, 'Permit2 nonce', 48);
+    normalizeNumberish(message.sigDeadline, 'Permit2 sigDeadline', 256);
     return Object.freeze({
       request_class: 'permit2_single',
       target: normalizeEvmAddress(message.details.token, 'Permit2 token'),
       spender: normalizeEvmAddress(message.spender, 'Permit2 spender'),
-      requested_allowance: normalizeNumberish(message.details.amount, 'Permit2 amount'),
+      requested_allowance: normalizeNumberish(message.details.amount, 'Permit2 amount', 160),
+      typed_data_owner: null,
       typed_data_sha256: typedDataSha256,
       typed_data_domain_chain_id: domainChainId,
       typed_data_verifying_contract: domainVerifyingContract,
@@ -331,14 +437,10 @@ export function decodeTypedData(rawTypedData) {
     });
   }
 
-  return Object.freeze({
-    request_class: typedData.primaryType === 'PermitBatch' ? 'permit2_batch_unknown' : 'unknown_typed_data',
-    target: null,
-    spender: null,
-    requested_allowance: null,
-    typed_data_sha256: typedDataSha256,
-    typed_data_domain_chain_id: domainChainId,
-    typed_data_verifying_contract: domainVerifyingContract,
-    simulation_required: true,
-  });
+  return unknownTypedDataResult(
+    typedData.primaryType,
+    typedDataSha256,
+    domainChainId,
+    domainVerifyingContract,
+  );
 }
