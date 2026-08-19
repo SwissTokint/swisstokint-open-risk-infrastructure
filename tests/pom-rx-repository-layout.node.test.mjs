@@ -18,6 +18,7 @@ const requiredReadmes = [
   'applications/blockchain-digital-assets/README.md',
   'applications/blockchain-digital-assets/wallet-guard/README.md',
   'integrations/README.md',
+  'integrations/filecoin/README.md',
   'compatibility/pom-rx-v0.1/README.md',
   'tooling/README.md',
 ];
@@ -55,6 +56,10 @@ test('machine-readable ownership map points only to current canonical paths that
   expectExisting(
     layout.supporting_infrastructure.current_canonical_paths,
     'supporting integration canonical path',
+  );
+  expectExisting(
+    layout.supporting_infrastructure.compatibility_aliases ?? [],
+    'supporting integration compatibility alias',
   );
   expectExisting(layout.tooling.current_canonical_paths, 'tooling canonical path');
 });

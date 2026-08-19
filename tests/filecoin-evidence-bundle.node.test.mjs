@@ -2,17 +2,27 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
+import * as compatibilityFilecoin from '../sdk/typescript/filecoin-evidence-bundle.mjs';
+import * as canonicalFilecoin from '../integrations/filecoin/evidence-bundle.mjs';
 import {
   buildFilecoinEvidenceBundle,
   inspectSynapseUpload,
   uploadAndVerifyWithSynapse,
   verifyFilecoinEvidenceBundle,
-} from '../sdk/typescript/filecoin-evidence-bundle.mjs';
+} from '../integrations/filecoin/evidence-bundle.mjs';
 
 const receipts = JSON.parse(fs.readFileSync(
   new URL('../schemas/examples/proof-batch-input-v0.1.json', import.meta.url),
   'utf8',
 ));
+
+test('legacy SDK Filecoin entry point remains an exact compatibility re-export', () => {
+  const canonicalExports = Object.keys(canonicalFilecoin).sort();
+  assert.deepEqual(Object.keys(compatibilityFilecoin).sort(), canonicalExports);
+  for (const exportName of canonicalExports) {
+    assert.equal(compatibilityFilecoin[exportName], canonicalFilecoin[exportName], exportName);
+  }
+});
 
 test('Filecoin CAR bundle is deterministic and independently verifiable', async () => {
   const first = await buildFilecoinEvidenceBundle(receipts);
