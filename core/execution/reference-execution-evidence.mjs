@@ -34,7 +34,8 @@ const EVIDENCE_KEYS = Object.freeze([
   'context_commitment',
   'execution_status',
   'effect_commitment',
-  'executed_at',
+  'recording_started_at',
+  'recorded_at',
   'diagnostic',
   'reference_only',
   'gate_consumption_proved',
@@ -228,7 +229,11 @@ function validateEvidenceShape(evidence) {
       || evidence.external_effect_proved !== false) {
     fail('POMRX_EXEC_E_EVIDENCE_INVALID', 'reference proof flags are invalid');
   }
-  canonicalUtcInstant(evidence.executed_at, 'executed_at');
+  const startedAt = canonicalUtcInstant(evidence.recording_started_at, 'recording_started_at');
+  const recordedAt = canonicalUtcInstant(evidence.recorded_at, 'recorded_at');
+  if (recordedAt.getTime() < startedAt.getTime()) {
+    fail('POMRX_EXEC_E_EVIDENCE_INVALID', 'recorded_at cannot predate recording_started_at');
+  }
   return evidence;
 }
 
@@ -247,6 +252,7 @@ export function createReferenceExecutionEvidenceRecorder(options) {
   let lastTrustedTimeMs = null;
   const handleState = new WeakMap();
   const localEvidence = new WeakSet();
+  const usedAuthorizationCommitments = new Set();
 
   function sampleTrustedClock() {
     let raw;
@@ -280,15 +286,22 @@ export function createReferenceExecutionEvidenceRecorder(options) {
     const issuedAt = canonicalUtcInstant(binding.issued_at, 'authorization issued_at');
     const expiresAt = canonicalUtcInstant(binding.expires_at, 'authorization expires_at');
     if (now.getTime() < issuedAt.getTime() || now.getTime() >= expiresAt.getTime()) {
-      fail('POMRX_EXEC_E_AUTHORIZATION_WINDOW', 'execution start is outside authorization validity');
+      fail('POMRX_EXEC_E_AUTHORIZATION_WINDOW', 'recording start is outside authorization validity');
     }
+    if (usedAuthorizationCommitments.has(committed.authorizationCommitment)) {
+      fail(
+        'POMRX_EXEC_E_AUTHORIZATION_REPLAY',
+        'this exact authorization was already opened by this recorder',
+      );
+    }
+    usedAuthorizationCommitments.add(committed.authorizationCommitment);
 
     const handle = Object.freeze(Object.create(null));
     handleState.set(handle, {
       state: 'OPEN',
       binding,
       authorization_commitment: committed.authorizationCommitment,
-      executed_at: now.toISOString(),
+      recording_started_at: now.toISOString(),
       evidence: null,
     });
     return handle;
@@ -307,6 +320,7 @@ export function createReferenceExecutionEvidenceRecorder(options) {
   }
 
   function buildEvidence(record, executionStatus, effectHash, diagnostic) {
+    const recordedAt = sampleTrustedClock();
     const payload = Object.freeze({
       schema_version: POM_RX_REFERENCE_EXECUTION_EVIDENCE_VERSION,
       binding_profile: record.binding.binding_profile,
@@ -317,7 +331,8 @@ export function createReferenceExecutionEvidenceRecorder(options) {
       context_commitment: record.binding.context_commitment,
       execution_status: executionStatus,
       effect_commitment: effectHash,
-      executed_at: record.executed_at,
+      recording_started_at: record.recording_started_at,
+      recorded_at: recordedAt.toISOString(),
       diagnostic,
       reference_only: true,
       gate_consumption_proved: false,
