@@ -22,6 +22,7 @@ function expected(overrides = {}) {
     context_commitment: CONTEXT,
     authorization_issued_at: '2026-08-19T20:00:00.000Z',
     authorization_valid_until: '2026-08-19T20:00:30.000Z',
+    expected_execution_status: 'success',
     expected_effect_commitment: EFFECT,
     ...overrides,
   };
@@ -61,7 +62,7 @@ function expectCode(error, code) {
   return true;
 }
 
-test('matching independently observed binding and effect reconciles as MATCH', async () => {
+test('matching independently observed binding, status and effect reconciles as MATCH', async () => {
   const result = await harness().captureAndReconcile({
     expected: expected(),
     observationRef: { provider: 'fixture', transaction: 'tx-0001' },
@@ -69,6 +70,7 @@ test('matching independently observed binding and effect reconciles as MATCH', a
 
   assert.equal(result.reconciliation.verdict, 'MATCH');
   assert.deepEqual(result.reconciliation.reasons, []);
+  assert.equal(result.reconciliation.expected_execution_status, 'success');
   assert.match(result.observation.observation_hash, /^[a-f0-9]{64}$/u);
   assert.match(result.reconciliation.reconciliation_hash, /^[a-f0-9]{64}$/u);
   assert.equal(result.reconciliation.reference_only, true);
@@ -111,6 +113,23 @@ test('execution outside the exact authorization window is a mismatch', async () 
   }
 });
 
+test('execution status mismatch cannot silently reconcile as MATCH', async () => {
+  const result = await harness({
+    observation: observed({ execution_status: 'error' }),
+  }).captureAndReconcile({ expected: expected(), observationRef: { id: 'status' } });
+
+  assert.equal(result.reconciliation.verdict, 'MISMATCH');
+  assert.deepEqual(result.reconciliation.reasons, ['POMRX_RECON_MISMATCH_STATUS']);
+
+  const explicitlyExpectedError = await harness({
+    observation: observed({ execution_status: 'error' }),
+  }).captureAndReconcile({
+    expected: expected({ expected_execution_status: 'error' }),
+    observationRef: { id: 'expected-error' },
+  });
+  assert.equal(explicitlyExpectedError.reconciliation.verdict, 'MATCH');
+});
+
 test('effect mismatch is never upgraded to MATCH', async () => {
   const result = await harness({
     observation: observed({ effect_commitment: OTHER }),
@@ -133,7 +152,23 @@ test('unknown execution status remains INDETERMINATE and non-proving', async () 
   assert.equal(result.reconciliation.external_world_proved, false);
 });
 
-test('no expected effect can match binding/time without pretending to prove an external effect', async () => {
+test('any expected status permits a known status but still does not prove external truth', async () => {
+  const result = await harness({
+    observation: observed({ execution_status: 'error' }),
+  }).captureAndReconcile({
+    expected: expected({
+      expected_execution_status: 'any',
+      expected_effect_commitment: null,
+    }),
+    observationRef: { id: 'any-status' },
+  });
+
+  assert.equal(result.reconciliation.verdict, 'MATCH');
+  assert.equal(result.reconciliation.expected_execution_status, 'any');
+  assert.equal(result.reconciliation.external_world_proved, false);
+});
+
+test('no expected effect can match binding/status/time without pretending to prove an external effect', async () => {
   const result = await harness({
     observation: observed({ effect_commitment: OTHER }),
   }).captureAndReconcile({
@@ -224,6 +259,24 @@ test('known execution status requires effect evidence', async () => {
     runtime.captureAndReconcile({ expected: expected(), observationRef: { id: 'missing-effect' } }),
     (error) => expectCode(error, 'POMRX_OBS_E_OBSERVER_INVALID'),
   );
+});
+
+test('invalid expected execution status fails closed before observer invocation', async () => {
+  let observerCalls = 0;
+  const runtime = harness({
+    observeExecution: async () => {
+      observerCalls += 1;
+      return observed();
+    },
+  });
+  await assert.rejects(
+    runtime.captureAndReconcile({
+      expected: expected({ expected_execution_status: 'maybe' }),
+      observationRef: { id: 'invalid-status' },
+    }),
+    (error) => expectCode(error, 'POMRX_OBS_E_INVALID'),
+  );
+  assert.equal(observerCalls, 0);
 });
 
 test('trusted clock rollback fails closed', async () => {
