@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import * as authorizationModule from '../core/authorization/reference-exact-authorization.mjs';
 import {
   commitExactAuthorizationBinding,
-  inspectReferenceCapabilityState,
-  issueReferenceExactAuthorization,
 } from '../core/authorization/reference-exact-authorization.mjs';
 import {
   PomRxGateError,
@@ -40,10 +39,42 @@ function bindingInput(overrides = {}) {
   };
 }
 
-function issue(overrides = {}) {
-  return issueReferenceExactAuthorization(bindingInput(overrides), {
-    witnessValidUntil: WITNESS_VALID_UNTIL,
+function createHarness(overrides = {}) {
+  let latestEvidence = null;
+  let observerCalls = 0;
+  let downstreamCalls = 0;
+  let downstreamArgument = null;
+
+  const harness = createReferenceSingleUseGate({
+    trustedClock: overrides.trustedClock ?? sequenceClock(
+      '2026-08-19T17:00:01.000Z',
+      '2026-08-19T17:00:02.000Z',
+    ),
+    observeBinding: overrides.observeBinding ?? (async () => {
+      observerCalls += 1;
+      return observedFrom(latestEvidence);
+    }),
+    executeDownstream: overrides.executeDownstream ?? (async (preparedExecution) => {
+      downstreamCalls += 1;
+      downstreamArgument = preparedExecution;
+      return Object.freeze({ accepted: true });
+    }),
   });
+
+  return {
+    ...harness,
+    issue(overridesForBinding = {}) {
+      const issued = harness.testAuthority.issueReferenceAuthorization(
+        bindingInput(overridesForBinding),
+        { witnessValidUntil: WITNESS_VALID_UNTIL },
+      );
+      latestEvidence = issued.evidence;
+      return issued;
+    },
+    stats() {
+      return { observerCalls, downstreamCalls, downstreamArgument };
+    },
+  };
 }
 
 function observedFrom(evidence, overrides = {}) {
@@ -51,6 +82,7 @@ function observedFrom(evidence, overrides = {}) {
     binding_profile: evidence.binding.binding_profile,
     action_commitment: evidence.binding.action_commitment,
     context_commitment: evidence.binding.context_commitment,
+    prepared_execution: { request: 'prepared-control', value: 1 },
     ...overrides,
   };
 }
@@ -66,8 +98,9 @@ function expectGateCode(error, code) {
   return true;
 }
 
-test('reference exact authorization commitment is deterministic and explicitly non-authorizing', () => {
-  const { evidence } = issue();
+test('reference authorization record is deterministic and explicitly non-authorizing', () => {
+  const harness = createHarness();
+  const { evidence } = harness.issue();
   assert.equal(evidence.reference_only, true);
   assert.equal(evidence.authorization_eligible, false);
   assert.equal(evidence.authorization_proved, false);
@@ -80,57 +113,117 @@ test('reference exact authorization commitment is deterministic and explicitly n
   assert.equal(first.authorizationCommitment, second.authorizationCommitment);
 });
 
-test('reference capability is opaque, non-serializable and clone injection fails closed', async () => {
-  const { capability, evidence } = issue();
+test('authorization module exposes no global capability registry or lifecycle transition API', () => {
+  for (const forbiddenExport of [
+    'issueReferenceExactAuthorization',
+    'reserveReferenceCapabilityForGate',
+    'rejectReferenceCapabilityForGate',
+    'beginReferenceCapabilityConsumptionForGate',
+    'completeReferenceCapabilityConsumptionForGate',
+    'inspectReferenceCapabilityState',
+  ]) {
+    assert.equal(Object.hasOwn(authorizationModule, forbiddenExport), false);
+  }
+});
+
+test('untrusted Gate handle exposes consumption only while issuance/state stay on test authority', () => {
+  const { gate, testAuthority } = createHarness();
+  assert.deepEqual(Object.keys(gate), ['consume']);
+  assert.deepEqual(Object.keys(testAuthority).sort(), [
+    'inspectCapabilityState',
+    'issueReferenceAuthorization',
+  ]);
+});
+
+test('reference capability is opaque and clone injection fails closed', async () => {
+  const harness = createHarness();
+  const { capability } = harness.issue();
   assert.equal(JSON.stringify(capability), '{}');
   assert.deepEqual({ ...capability }, {});
 
-  let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
-    trustedClock: sequenceClock('2026-08-19T17:00:01.000Z'),
-    observeBinding: async () => observedFrom(evidence),
-    executeDownstream: async () => { downstreamCalls += 1; },
-  });
-
   await assert.rejects(
-    gate.consume({ ...capability }, { request: 'clone' }),
+    harness.gate.consume({ ...capability }, { request: 'clone' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_REQUIRED'),
   );
-  assert.equal(downstreamCalls, 0);
-  assert.equal(inspectReferenceCapabilityState(capability), 'AVAILABLE');
+  assert.equal(harness.stats().downstreamCalls, 0);
+  assert.equal(harness.testAuthority.inspectCapabilityState(capability), 'AVAILABLE');
 });
 
-test('exact valid control reaches the private downstream exactly once and success replay fails', async () => {
-  const { capability, evidence } = issue();
-  let observerCalls = 0;
-  let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
+test('a capability is audience-bound to the Gate instance that issued it', async () => {
+  const firstHarness = createHarness();
+  const secondHarness = createHarness();
+  const { capability } = firstHarness.issue();
+
+  await assert.rejects(
+    secondHarness.gate.consume(capability, { request: 'wrong-gate' }),
+    (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_REQUIRED'),
+  );
+  assert.equal(secondHarness.stats().downstreamCalls, 0);
+  assert.equal(firstHarness.testAuthority.inspectCapabilityState(capability), 'AVAILABLE');
+});
+
+test('exact valid control reaches private downstream exactly once with prepared snapshot', async () => {
+  const harness = createHarness();
+  const { capability } = harness.issue();
+  const rawAttempt = { request: 'raw-untrusted', value: 999 };
+
+  const result = await harness.gate.consume(capability, rawAttempt);
+  assert.deepEqual(result, { accepted: true });
+  assert.equal(harness.stats().observerCalls, 1);
+  assert.equal(harness.stats().downstreamCalls, 1);
+  assert.notEqual(harness.stats().downstreamArgument, rawAttempt);
+  assert.equal(harness.stats().downstreamArgument.request, 'prepared-control');
+  assert.equal(harness.stats().downstreamArgument.value, 1);
+  assert.equal(Object.isFrozen(harness.stats().downstreamArgument), true);
+  assert.equal(harness.testAuthority.inspectCapabilityState(capability), 'CONSUMED_SUCCESS');
+
+  await assert.rejects(
+    harness.gate.consume(capability, { request: 'replay' }),
+    (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),
+  );
+  assert.equal(harness.stats().observerCalls, 1);
+  assert.equal(harness.stats().downstreamCalls, 1);
+});
+
+test('caller mutation after validation cannot alter the prepared downstream snapshot', async () => {
+  let evidence;
+  let downstreamStarted;
+  const downstreamStartedPromise = new Promise((resolve) => { downstreamStarted = resolve; });
+  let releaseDownstream;
+  const downstreamBarrier = new Promise((resolve) => { releaseDownstream = resolve; });
+  let observedValue;
+
+  const rawAttempt = { request: 'control', nested: { amount: 1 } };
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(
       '2026-08-19T17:00:01.000Z',
       '2026-08-19T17:00:02.000Z',
     ),
-    observeBinding: async () => {
-      observerCalls += 1;
-      return observedFrom(evidence);
-    },
-    executeDownstream: async () => {
-      downstreamCalls += 1;
-      return Object.freeze({ accepted: true });
+    observeBinding: async (attempt) => ({
+      ...observedFrom(evidence),
+      prepared_execution: attempt,
+    }),
+    executeDownstream: async (preparedExecution) => {
+      downstreamStarted();
+      await downstreamBarrier;
+      observedValue = preparedExecution.nested.amount;
+      return 'ok';
     },
   });
+  const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
 
-  const result = await gate.consume(capability, { request: 'control' });
-  assert.deepEqual(result, { accepted: true });
-  assert.equal(observerCalls, 1);
-  assert.equal(downstreamCalls, 1);
-  assert.equal(inspectReferenceCapabilityState(capability), 'CONSUMED_SUCCESS');
+  const consumption = harness.gate.consume(issued.capability, rawAttempt);
+  await downstreamStartedPromise;
+  rawAttempt.nested.amount = 999;
+  rawAttempt.request = 'mutated-after-validation';
+  releaseDownstream();
 
-  await assert.rejects(
-    gate.consume(capability, { request: 'replay' }),
-    (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),
-  );
-  assert.equal(observerCalls, 1);
-  assert.equal(downstreamCalls, 1);
+  assert.equal(await consumption, 'ok');
+  assert.equal(observedValue, 1);
+  assert.equal(harness.testAuthority.inspectCapabilityState(issued.capability), 'CONSUMED_SUCCESS');
 });
 
 test('action, context and binding-profile mutation are terminal rejects without downstream execution', async () => {
@@ -139,49 +232,55 @@ test('action, context and binding-profile mutation are terminal rejects without 
     { context_commitment: h('9') },
     { binding_profile: 'pom-rx-other-profile/0.1' },
   ]) {
-    const { capability, evidence } = issue();
+    let evidence;
     let downstreamCalls = 0;
-    const gate = createReferenceSingleUseGate({
+    const harness = createReferenceSingleUseGate({
       trustedClock: sequenceClock('2026-08-19T17:00:01.000Z'),
       observeBinding: async () => observedFrom(evidence, mutation),
       executeDownstream: async () => { downstreamCalls += 1; },
     });
+    const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+      witnessValidUntil: WITNESS_VALID_UNTIL,
+    });
+    evidence = issued.evidence;
 
     await assert.rejects(
-      gate.consume(capability, { request: 'mutated' }),
+      harness.gate.consume(issued.capability, { request: 'mutated' }),
       (error) => expectGateCode(error, 'POMRX_GATE_E_BINDING_MISMATCH'),
     );
     assert.equal(downstreamCalls, 0);
-    assert.equal(inspectReferenceCapabilityState(capability), 'REJECTED');
+    assert.equal(harness.testAuthority.inspectCapabilityState(issued.capability), 'REJECTED');
   }
 });
 
 test('expiry at reservation fails closed before observer and downstream', async () => {
-  const { capability, evidence } = issue();
   let observerCalls = 0;
   let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(EXPIRES_AT),
     observeBinding: async () => {
       observerCalls += 1;
-      return observedFrom(evidence);
+      throw new Error('must not run');
     },
     executeDownstream: async () => { downstreamCalls += 1; },
   });
+  const { capability } = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
 
   await assert.rejects(
-    gate.consume(capability, { request: 'expired' }),
+    harness.gate.consume(capability, { request: 'expired' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_EXPIRED'),
   );
   assert.equal(observerCalls, 0);
   assert.equal(downstreamCalls, 0);
-  assert.equal(inspectReferenceCapabilityState(capability), 'REJECTED');
+  assert.equal(harness.testAuthority.inspectCapabilityState(capability), 'REJECTED');
 });
 
 test('expiry during asynchronous observation is rechecked immediately before forwarding', async () => {
-  const { capability, evidence } = issue();
+  let evidence;
   let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(
       '2026-08-19T17:00:29.000Z',
       EXPIRES_AT,
@@ -192,23 +291,27 @@ test('expiry during asynchronous observation is rechecked immediately before for
     },
     executeDownstream: async () => { downstreamCalls += 1; },
   });
+  const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
 
   await assert.rejects(
-    gate.consume(capability, { request: 'expires-during-observation' }),
+    harness.gate.consume(issued.capability, { request: 'expires-during-observation' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_EXPIRED'),
   );
   assert.equal(downstreamCalls, 0);
-  assert.equal(inspectReferenceCapabilityState(capability), 'REJECTED');
+  assert.equal(harness.testAuthority.inspectCapabilityState(issued.capability), 'REJECTED');
 });
 
 test('concurrent double-use reserves synchronously and reaches downstream at most once', async () => {
-  const { capability, evidence } = issue();
+  let evidence;
   let releaseObserver;
   const observerBarrier = new Promise((resolve) => { releaseObserver = resolve; });
   let observerCalls = 0;
   let downstreamCalls = 0;
 
-  const gate = createReferenceSingleUseGate({
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(
       '2026-08-19T17:00:01.000Z',
       '2026-08-19T17:00:02.000Z',
@@ -223,9 +326,13 @@ test('concurrent double-use reserves synchronously and reaches downstream at mos
       return 'ok';
     },
   });
+  const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
 
-  const first = gate.consume(capability, { request: 'first' });
-  const second = gate.consume(capability, { request: 'second' });
+  const first = harness.gate.consume(issued.capability, { request: 'first' });
+  const second = harness.gate.consume(issued.capability, { request: 'second' });
 
   await assert.rejects(
     second,
@@ -237,13 +344,13 @@ test('concurrent double-use reserves synchronously and reaches downstream at mos
   releaseObserver();
   assert.equal(await first, 'ok');
   assert.equal(downstreamCalls, 1);
-  assert.equal(inspectReferenceCapabilityState(capability), 'CONSUMED_SUCCESS');
+  assert.equal(harness.testAuthority.inspectCapabilityState(issued.capability), 'CONSUMED_SUCCESS');
 });
 
 test('downstream failure is terminal and cannot be replayed', async () => {
-  const { capability, evidence } = issue();
+  let evidence;
   let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(
       '2026-08-19T17:00:01.000Z',
       '2026-08-19T17:00:02.000Z',
@@ -254,66 +361,89 @@ test('downstream failure is terminal and cannot be replayed', async () => {
       throw new Error('sensitive downstream detail');
     },
   });
+  const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
 
   await assert.rejects(
-    gate.consume(capability, { request: 'downstream-error' }),
+    harness.gate.consume(issued.capability, { request: 'downstream-error' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_DOWNSTREAM_FAILED'),
   );
   assert.equal(downstreamCalls, 1);
-  assert.equal(inspectReferenceCapabilityState(capability), 'CONSUMED_ERROR');
+  assert.equal(harness.testAuthority.inspectCapabilityState(issued.capability), 'CONSUMED_ERROR');
 
   await assert.rejects(
-    gate.consume(capability, { request: 'retry' }),
+    harness.gate.consume(issued.capability, { request: 'retry' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),
   );
   assert.equal(downstreamCalls, 1);
 });
 
-test('observer failure and malformed trusted observation are terminal without forwarding', async () => {
-  for (const observeBinding of [
+test('observer failure, malformed binding and unsafe prepared execution are terminal', async () => {
+  const observerCases = [
     async () => { throw new Error('observer unavailable'); },
     async () => ({ binding_profile: 'pom-rx-core-reference/0.1' }),
-  ]) {
-    const { capability } = issue();
+    async () => ({
+      binding_profile: 'pom-rx-core-reference/0.1',
+      action_commitment: h('3'),
+      context_commitment: h('4'),
+      prepared_execution: new Date(),
+    }),
+  ];
+
+  for (const observeBinding of observerCases) {
     let downstreamCalls = 0;
-    const gate = createReferenceSingleUseGate({
+    const harness = createReferenceSingleUseGate({
       trustedClock: sequenceClock('2026-08-19T17:00:01.000Z'),
       observeBinding,
       executeDownstream: async () => { downstreamCalls += 1; },
     });
+    const { capability } = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+      witnessValidUntil: WITNESS_VALID_UNTIL,
+    });
 
     await assert.rejects(
-      gate.consume(capability, { request: 'observer-failure' }),
+      harness.gate.consume(capability, { request: 'observer-failure' }),
       (error) => expectGateCode(error, 'POMRX_GATE_E_OBSERVER_FAILED'),
     );
     assert.equal(downstreamCalls, 0);
-    assert.equal(inspectReferenceCapabilityState(capability), 'REJECTED');
+    assert.equal(harness.testAuthority.inspectCapabilityState(capability), 'REJECTED');
   }
 });
 
-test('caller-supplied fake trusted fields and extra callbacks cannot replace Gate bootstrap authorities', async () => {
-  const { capability, evidence } = issue();
+test('caller fake trusted fields and extra callback cannot replace Gate bootstrap authorities', async () => {
+  let evidence;
   let injectedCallbackCalls = 0;
   let downstreamCalls = 0;
-  const gate = createReferenceSingleUseGate({
+  let downstreamArgument;
+  const harness = createReferenceSingleUseGate({
     trustedClock: sequenceClock(
       '2026-08-19T17:00:01.000Z',
       '2026-08-19T17:00:02.000Z',
     ),
-    observeBinding: async () => observedFrom(evidence),
-    executeDownstream: async () => {
+    observeBinding: async () => observedFrom(evidence, {
+      prepared_execution: { operation: 'trusted-prepared' },
+    }),
+    executeDownstream: async (preparedExecution) => {
       downstreamCalls += 1;
+      downstreamArgument = preparedExecution;
       return 'trusted-downstream';
     },
   });
+  const issued = harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
 
   const attempt = {
     trusted_clock: '2099-01-01T00:00:00.000Z',
     context_commitment: h('9'),
     origin: 'https://attacker.invalid',
+    operation: 'caller-controlled',
   };
-  const result = await gate.consume(
-    capability,
+  const result = await harness.gate.consume(
+    issued.capability,
     attempt,
     () => { injectedCallbackCalls += 1; },
   );
@@ -321,11 +451,15 @@ test('caller-supplied fake trusted fields and extra callbacks cannot replace Gat
   assert.equal(result, 'trusted-downstream');
   assert.equal(injectedCallbackCalls, 0);
   assert.equal(downstreamCalls, 1);
+  assert.equal(downstreamArgument.operation, 'trusted-prepared');
+  assert.notEqual(downstreamArgument, attempt);
 });
 
-test('reference issuer rejects invalid trust binding and capability lifetime claims', () => {
+test('reference test authority rejects invalid trust binding and capability lifetime claims', () => {
+  const harness = createHarness();
+
   assert.throws(
-    () => issueReferenceExactAuthorization(
+    () => harness.testAuthority.issueReferenceAuthorization(
       bindingInput({ witness_key_id: `ed25519-${'a'.repeat(32)}` }),
       { witnessValidUntil: WITNESS_VALID_UNTIL },
     ),
@@ -333,7 +467,7 @@ test('reference issuer rejects invalid trust binding and capability lifetime cla
   );
 
   assert.throws(
-    () => issueReferenceExactAuthorization(
+    () => harness.testAuthority.issueReferenceAuthorization(
       bindingInput({ expires_at: '2026-08-19T17:06:00.000Z' }),
       { witnessValidUntil: '2026-08-19T17:10:00.000Z' },
     ),
@@ -341,7 +475,7 @@ test('reference issuer rejects invalid trust binding and capability lifetime cla
   );
 
   assert.throws(
-    () => issueReferenceExactAuthorization(bindingInput(), {
+    () => harness.testAuthority.issueReferenceAuthorization(bindingInput(), {
       witnessValidUntil: '2026-08-19T17:00:10.000Z',
     }),
     /cannot exceed witness validity/u,
