@@ -1,0 +1,89 @@
+{
+  "artifact_manifest_schema_version": "pom-rx-verifier-artifact-manifest/1",
+  "artifact_id": "pom-rx-v0.1-strict-verifier-1",
+  "verifier_version": "pom-rx-v0.1-strict-verifier/1",
+  "verification_root": "package-root",
+  "entries": [
+    {
+      "path": "core/strict-verification/pom-rx-v01-profiled-verifier.mjs",
+      "byte_length": 16617,
+      "sha256": "82c674330a6e676ef8a74544c591b43d86131538b66af21197c7469271698b20"
+    },
+    {
+      "path": "fixtures/pom-rx/support/unicode/17.0.0/CaseFolding.txt",
+      "byte_length": 87539,
+      "sha256": "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183"
+    },
+    {
+      "path": "fixtures/pom-rx/v0.1-compat/1/canaries/localecompare-order-v1.expected.json",
+      "byte_length": 19,
+      "sha256": "3707fd4c6e3322d3cbc6e1c3c7d68b669d2f409b8b675d1b4d8c70519b95e9d7"
+    },
+    {
+      "path": "fixtures/pom-rx/v0.1-compat/1/canaries/localecompare-order-v1.input.json",
+      "byte_length": 19,
+      "sha256": "811d8ff308bf40f503b1d0b27ede1e1cf2ec952b191dd90fbfef8e5601888c9b"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-action-continuity.mjs",
+      "byte_length": 3637,
+      "sha256": "e8dfea210aaec6821fcf1cd15c64b63797611a6d9269ee9355faaa48b8ec308c"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs",
+      "byte_length": 23721,
+      "sha256": "eb654e324f294b49cdcba2522272418962a3c96843f9d66dbb2ecfa82db70d3c"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-diagnostics.mjs",
+      "byte_length": 6996,
+      "sha256": "34a5cd331b19b7124b10c2b95f3dd7de2e2427f7e01a7f32fdcc8f3d7a549270"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-execution-assertion-consistency.mjs",
+      "byte_length": 4055,
+      "sha256": "f71bc970667cf3d96f4fed6321bbb64eadf83a19b3ef9b1543c8c538cbf40b0e"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-input-continuity.mjs",
+      "byte_length": 3023,
+      "sha256": "c77e85e42e0add638564602eff5e97cf086b1aa4de613580c249ec29f9a10a75"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-policy-capability.mjs",
+      "byte_length": 16069,
+      "sha256": "7010c156d9c5d2912c2e3ce196038c4f8a0c1e8b015f6f53bb7bed33c4c7d368"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-receipt-id-uniqueness.mjs",
+      "byte_length": 2830,
+      "sha256": "4c92a28354b356f9a152c5d725912a7de42edbb45a62d7e3967078c00624be30"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-reconciliation-assertion-consistency.mjs",
+      "byte_length": 4168,
+      "sha256": "a5c795e01bf53ae10f1f37e8f7498d14a3e8f5a37c012eddb885b35439846891"
+    },
+    {
+      "path": "sdk/typescript/internal/pom-rx-v01-verdict.mjs",
+      "byte_length": 10990,
+      "sha256": "c3645cf5da5535a350ba81771cf68609aa6f88008799af2716e6df63163b3ad2"
+    },
+    {
+      "path": "sdk/typescript/pom-rx-profiled.mjs",
+      "byte_length": 276,
+      "sha256": "e672ffa8d76b3e255cd6d4f51bd4d2bc12fe4dcfd3a4fef55b3b33107db95072"
+    },
+    {
+      "path": "sdk/typescript/pom-rx.mjs",
+      "byte_length": 7724,
+      "sha256": "28bfb41a51126548226472a34b382a05531a9e2b954a61fd959818fe6a9b6047"
+    },
+    {
+      "path": "sdk/typescript/swisstokint-proof.mjs",
+      "byte_length": 16292,
+      "sha256": "1d2cfbc5c494ee0e54a92b763b2f4563ffd9390fa51ec6071b5b044439db08d5"
+    }
+  ],
+  "implementation_artifact_sha256": "10d775b6abde4e42bbb79e70a5380fe27e91415d19759cd52d5dbda509f1fca6"
+}

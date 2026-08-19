@@ -382,30 +382,29 @@ function staticLocalDependencies(relativePath, bytes) {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     const previous = tokens[index - 1];
-    const computedMember = token.value === '[' && previous
-      && (['identifier', 'number', 'regex', 'string'].includes(previous.type)
+    const computedMember = token.type === 'punctuator' && token.value === '[' && previous
+      && ((previous.type === 'identifier' && !REGEX_PREFIX_IDENTIFIERS.has(previous.value))
+        || ['number', 'regex', 'string'].includes(previous.type)
         || [')', ']', '}'].includes(previous.value));
-    if (token.value === '[') {
+    if (token.type === 'punctuator' && token.value === '[') {
       let depth = 1;
       let cursor = index + 1;
       let containsString = false;
       for (; cursor < tokens.length && depth > 0; cursor += 1) {
-        if (tokens[cursor].value === '[') depth += 1;
-        else if (tokens[cursor].value === ']') depth -= 1;
+        if (tokens[cursor].type === 'punctuator' && tokens[cursor].value === '[') depth += 1;
+        else if (tokens[cursor].type === 'punctuator' && tokens[cursor].value === ']') depth -= 1;
         else if (tokens[cursor].type === 'string') containsString = true;
       }
       if (depth !== 0) invalid('Computed member access is unterminated in strict verifier source', { path: relativePath });
-      const computedProperty = tokens[cursor]?.value === ':';
+      const computedProperty = tokens[cursor]?.type === 'punctuator' && tokens[cursor]?.value === ':';
       if (containsString && (computedMember || computedProperty)) {
-        invalid('String-computed member access is forbidden in strict verifier source', { path: relativePath });
+        invalid(`String-computed member access is forbidden in strict verifier source: ${relativePath}`, { path: relativePath });
       }
     }
     const constructorReference = token.type === 'identifier' && token.value === 'constructor'
       && !(tokens[index - 1]?.value === '{' && tokens[index + 1]?.value === '(');
-    const computedForbiddenName = token.type === 'string' && tokens[index - 1]?.value === '['
-      && (token.escaped || FORBIDDEN_CODE_LOADING_IDENTIFIERS.has(token.value) || token.value === 'constructor');
     if ((token.type === 'identifier' && (FORBIDDEN_CODE_LOADING_IDENTIFIERS.has(token.value)
-      || FORBIDDEN_GLOBAL_IDENTIFIERS.has(token.value))) || constructorReference || computedForbiddenName) {
+      || FORBIDDEN_GLOBAL_IDENTIFIERS.has(token.value))) || constructorReference) {
       invalid('Dynamic code-loading surfaces are forbidden in the strict verifier artifact closure', {
         path: relativePath,
         identifier: token.value,
@@ -535,10 +534,10 @@ export function verifyPomRxArtifactIdentity(options) {
   if (!options || Object.hasOwn(options, 'inspectPathMetadata')) {
     invalid('Production artifact verification does not accept an injected metadata inspector');
   }
-  throwPomRxV01Strict(
-    'POMRX_V01_E_PROFILE_INCOMPLETE',
-    'Production artifact identity verification remains disabled until strict profile activation',
-  );
+  return verifyPomRxArtifactIdentityInternal({
+    ...options,
+    inspectPathMetadata: undefined,
+  });
 }
 
 export function verifyPomRxArtifactIdentityTestOnly(options) {

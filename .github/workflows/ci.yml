@@ -32,6 +32,42 @@ jobs:
         run: python -m pip install --disable-pip-version-check ./sdk/python
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Reproduce strict verifier artifact manifest from two clean trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository_root="$(pwd)"
+          scratch="$(mktemp -d)"
+          first_tree="$scratch/first-tree"
+          second_tree="$scratch/second-tree"
+          first_manifest="$scratch/first-manifest.json"
+          second_manifest="$scratch/second-manifest.json"
+
+          cleanup() {
+            git worktree remove --force "$first_tree" >/dev/null 2>&1 || true
+            git worktree remove --force "$second_tree" >/dev/null 2>&1 || true
+            rm -rf "$scratch"
+          }
+          trap cleanup EXIT
+
+          git worktree add --detach "$first_tree" HEAD >/dev/null
+          git worktree add --detach "$second_tree" HEAD >/dev/null
+
+          (
+            cd "$first_tree"
+            node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$first_manifest" >/dev/null
+          )
+          (
+            cd "$second_tree"
+            node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$second_manifest" >/dev/null
+          )
+
+          if [ ! -f "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json" ]; then
+            echo "Committed strict artifact manifest is missing." >&2
+            exit 1
+          fi
+          cmp --silent "$first_manifest" "$second_manifest"
+          cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
