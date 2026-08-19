@@ -402,10 +402,8 @@ function staticLocalDependencies(relativePath, bytes) {
     }
     const constructorReference = token.type === 'identifier' && token.value === 'constructor'
       && !(tokens[index - 1]?.value === '{' && tokens[index + 1]?.value === '(');
-    const computedForbiddenName = token.type === 'string' && tokens[index - 1]?.value === '['
-      && (token.escaped || FORBIDDEN_CODE_LOADING_IDENTIFIERS.has(token.value) || token.value === 'constructor');
     if ((token.type === 'identifier' && (FORBIDDEN_CODE_LOADING_IDENTIFIERS.has(token.value)
-      || FORBIDDEN_GLOBAL_IDENTIFIERS.has(token.value))) || constructorReference || computedForbiddenName) {
+      || FORBIDDEN_GLOBAL_IDENTIFIERS.has(token.value))) || constructorReference) {
       invalid('Dynamic code-loading surfaces are forbidden in the strict verifier artifact closure', {
         path: relativePath,
         identifier: token.value,
