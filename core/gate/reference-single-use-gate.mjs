@@ -77,7 +77,18 @@ function clonePreparedExecution(value, depth = 0, budget = { remaining: MAX_PREP
   }
 
   if (Array.isArray(value)) {
-    return Object.freeze(value.map((item) => clonePreparedExecution(item, depth + 1, budget)));
+    const keys = Object.keys(value);
+    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution arrays must be dense plain arrays');
+    }
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const key of keys) {
+      const descriptor = descriptors[key];
+      if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
+        throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution arrays cannot contain accessors');
+      }
+    }
+    return Object.freeze(keys.map((key) => clonePreparedExecution(descriptors[key].value, depth + 1, budget)));
   }
 
   if (!value || typeof value !== 'object') {
@@ -153,14 +164,14 @@ function exactBindingMatches(binding, observed) {
     && binding.context_commitment === observed.context_commitment;
 }
 
-export function createReferenceSingleUseGate(options) {
+export function createReferenceSingleUseGateHarness(options) {
   if (!options || typeof options !== 'object' || Array.isArray(options)) {
-    throw new TypeError('Reference Gate bootstrap options are required');
+    throw new TypeError('Reference Gate harness bootstrap options are required');
   }
   const keys = Object.keys(options).sort();
   const expected = ['executeDownstream', 'observeBinding', 'trustedClock'];
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
-    throw new TypeError('Reference Gate bootstrap has missing or unknown fields');
+    throw new TypeError('Reference Gate harness bootstrap has missing or unknown fields');
   }
 
   const {
@@ -171,14 +182,14 @@ export function createReferenceSingleUseGate(options) {
   if (typeof trustedClock !== 'function'
     || typeof observeBinding !== 'function'
     || typeof executeDownstream !== 'function') {
-    throw new TypeError('Reference Gate bootstrap dependencies must be functions');
+    throw new TypeError('Reference Gate harness bootstrap dependencies must be functions');
   }
 
   // Capability lifecycle is private and bound to this Gate instance. A capability
   // created by another reference Gate cannot be consumed here.
   const capabilityState = new WeakMap();
 
-  function issueReferenceAuthorization(bindingInput, { witnessValidUntil } = {}) {
+  function issueReferenceAuthorizationForTest(bindingInput, { witnessValidUntil } = {}) {
     const capabilityId = `cap-${crypto.randomBytes(16).toString('hex')}`;
     const prepared = prepareReferenceExactAuthorizationRecord(bindingInput, {
       witnessValidUntil,
@@ -192,7 +203,7 @@ export function createReferenceSingleUseGate(options) {
     return Object.freeze({ capability, evidence: prepared.evidence });
   }
 
-  function inspectCapabilityState(capability) {
+  function inspectCapabilityStateForTest(capability) {
     return capabilityState.get(capability)?.state ?? null;
   }
 
@@ -287,8 +298,8 @@ export function createReferenceSingleUseGate(options) {
 
   const gate = Object.freeze({ consume });
   const testAuthority = Object.freeze({
-    issueReferenceAuthorization,
-    inspectCapabilityState,
+    issueReferenceAuthorizationForTest,
+    inspectCapabilityStateForTest,
   });
 
   return Object.freeze({ gate, testAuthority });
