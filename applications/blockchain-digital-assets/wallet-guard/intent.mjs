@@ -28,6 +28,8 @@ const NORMALIZE_KEYS = Object.freeze([
   'request',
 ]);
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
+const normalizedIntentBrand = new WeakSet();
+
 export const WALLET_GUARD_INTENT_KEYS = Object.freeze([
   'schema_version',
   'request_id',
@@ -313,6 +315,10 @@ export function validateWalletGuardIntent(intent) {
   return intent;
 }
 
+export function isLocallyNormalizedWalletGuardIntent(intent) {
+  return normalizedIntentBrand.has(intent);
+}
+
 export function normalizeWalletGuardIntent(input) {
   assertExactKeys(input, NORMALIZE_KEYS, 'Wallet Guard normalization input');
   if (typeof input.requestId !== 'string' || !REQUEST_ID_PATTERN.test(input.requestId)) {
@@ -364,6 +370,7 @@ export function normalizeWalletGuardIntent(input) {
     simulation_required: action.simulation_required,
   });
   validateWalletGuardIntent(intent);
+  normalizedIntentBrand.add(intent);
   return intent;
 }
 
