@@ -60,8 +60,11 @@ test('recorder exposes evidence-only operations and separate test inspection', (
   assert.equal(Object.isFrozen(recorder), true);
 });
 
-test('valid success outcome binds complete authorization, action, context and effect', () => {
-  const { recorder, testAuthority } = recorderAt('2026-08-19T17:00:01.000Z');
+test('valid success outcome binds authorization, action, context, effect and recorder chronology', () => {
+  const { recorder, testAuthority } = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+  );
   const handle = recorder.begin({ authorization_binding: binding() });
   const evidence = recorder.complete(handle, {
     execution_status: 'success',
@@ -76,7 +79,9 @@ test('valid success outcome binds complete authorization, action, context and ef
   assert.match(evidence.authorization_commitment, /^[a-f0-9]{64}$/u);
   assert.match(evidence.effect_commitment, /^[a-f0-9]{64}$/u);
   assert.match(evidence.execution_evidence_hash, /^[a-f0-9]{64}$/u);
-  assert.equal(evidence.executed_at, '2026-08-19T17:00:01.000Z');
+  assert.equal(evidence.recording_started_at, '2026-08-19T17:00:01.000Z');
+  assert.equal(evidence.recorded_at, '2026-08-19T17:00:02.000Z');
+  assert.equal(Object.hasOwn(evidence, 'executed_at'), false);
   assert.equal(evidence.diagnostic, null);
   assert.equal(evidence.reference_only, true);
   assert.equal(evidence.gate_consumption_proved, false);
@@ -90,6 +95,8 @@ test('error outcome is known only when a bounded effect is supplied', () => {
   const { recorder } = recorderAt(
     '2026-08-19T17:00:01.000Z',
     '2026-08-19T17:00:02.000Z',
+    '2026-08-19T17:00:03.000Z',
+    '2026-08-19T17:00:04.000Z',
   );
   const knownHandle = recorder.begin({ authorization_binding: binding() });
   const known = recorder.complete(knownHandle, {
@@ -118,6 +125,8 @@ test('explicit unknown outcome cannot claim an effect', () => {
   const { recorder } = recorderAt(
     '2026-08-19T17:00:01.000Z',
     '2026-08-19T17:00:02.000Z',
+    '2026-08-19T17:00:03.000Z',
+    '2026-08-19T17:00:04.000Z',
   );
   const first = recorder.begin({ authorization_binding: binding() });
   const unknown = recorder.complete(first, {
@@ -145,7 +154,10 @@ test('explicit unknown outcome cannot claim an effect', () => {
 
 test('authorization binding is snapshotted before later caller mutation', () => {
   const raw = binding();
-  const { recorder } = recorderAt('2026-08-19T17:00:01.000Z');
+  const { recorder } = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+  );
   const handle = recorder.begin({ authorization_binding: raw });
   raw.run_id = 'run-mutated-9999';
   raw.action_commitment = h('f');
@@ -160,8 +172,31 @@ test('authorization binding is snapshotted before later caller mutation', () => 
   assert.equal(evidence.context_commitment, h('4'));
 });
 
+test('same authorization cannot open multiple locally branded records', () => {
+  const { recorder, testAuthority } = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+    '2026-08-19T17:00:03.000Z',
+  );
+  const first = recorder.begin({ authorization_binding: binding() });
+  assert.throws(
+    () => recorder.begin({ authorization_binding: binding() }),
+    (error) => expectCode(error, 'POMRX_EXEC_E_AUTHORIZATION_REPLAY'),
+  );
+  assert.equal(testAuthority.inspectHandleStateForTest(first), 'OPEN');
+  const evidence = recorder.complete(first, {
+    execution_status: 'success',
+    effect: { once: true },
+  });
+  assert.equal(evidence.execution_status, 'success');
+  assert.equal(testAuthority.inspectHandleStateForTest(first), 'RECORDED');
+});
+
 test('opaque handle is recorder-instance-local, single-use and clone injection fails', () => {
-  const first = recorderAt('2026-08-19T17:00:01.000Z');
+  const first = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+  );
   const second = recorderAt('2026-08-19T17:00:01.000Z');
   const handle = first.recorder.begin({ authorization_binding: binding() });
 
@@ -192,6 +227,8 @@ test('malformed or accessor-backed outcome becomes terminal unknown evidence wit
   const { recorder, testAuthority } = recorderAt(
     '2026-08-19T17:00:01.000Z',
     '2026-08-19T17:00:02.000Z',
+    '2026-08-19T17:00:03.000Z',
+    '2026-08-19T17:00:04.000Z',
   );
   const first = recorder.begin({ authorization_binding: binding() });
   const hostile = {};
@@ -236,7 +273,10 @@ test('nested effect accessors are rejected without invocation and cannot obtain 
       return 100;
     },
   });
-  const { recorder } = recorderAt('2026-08-19T17:00:01.000Z');
+  const { recorder } = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+  );
   const handle = recorder.begin({ authorization_binding: binding() });
   const evidence = recorder.complete(handle, {
     execution_status: 'success',
@@ -248,7 +288,7 @@ test('nested effect accessors are rejected without invocation and cannot obtain 
   assert.equal(evidence.diagnostic, 'POMRX_EXEC_DIAG_OUTCOME_INVALID');
 });
 
-test('execution start must be inside the exact authorization window', () => {
+test('recording start must be inside the exact authorization window', () => {
   const before = recorderAt('2026-08-19T16:59:59.999Z');
   assert.throws(
     () => before.recorder.begin({ authorization_binding: binding() }),
@@ -262,10 +302,24 @@ test('execution start must be inside the exact authorization window', () => {
   );
 });
 
-test('trusted clock rollback is detected before a later execution record opens', () => {
-  const { recorder } = recorderAt(
+test('trusted clock rollback during completion fails rather than fabricating chronology', () => {
+  const { recorder, testAuthority } = recorderAt(
     '2026-08-19T17:00:05.000Z',
     '2026-08-19T17:00:04.000Z',
+  );
+  const handle = recorder.begin({ authorization_binding: binding() });
+  assert.throws(
+    () => recorder.complete(handle, { execution_status: 'success', effect: { changed: true } }),
+    (error) => expectCode(error, 'POMRX_EXEC_E_TIME_ROLLBACK'),
+  );
+  assert.equal(testAuthority.inspectHandleStateForTest(handle), 'FAILED');
+});
+
+test('trusted clock rollback is detected before a later record opens', () => {
+  const { recorder } = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+    '2026-08-19T17:00:01.500Z',
   );
   const first = recorder.begin({ authorization_binding: binding() });
   recorder.complete(first, { execution_status: 'unknown', effect: null });
@@ -318,7 +372,10 @@ test('bootstrap accessors are rejected without executing the getter', () => {
 });
 
 test('local evidence provenance is recorder-specific and structural clones are rejected', () => {
-  const first = recorderAt('2026-08-19T17:00:01.000Z');
+  const first = recorderAt(
+    '2026-08-19T17:00:01.000Z',
+    '2026-08-19T17:00:02.000Z',
+  );
   const second = recorderAt('2026-08-19T17:00:01.000Z');
   const handle = first.recorder.begin({ authorization_binding: binding() });
   const evidence = first.recorder.complete(handle, {
@@ -331,9 +388,12 @@ test('local evidence provenance is recorder-specific and structural clones are r
   assert.equal(first.recorder.isLocallyRecorded({ ...evidence }), false);
 });
 
-test('same binding, trusted start and outcome produce deterministic commitments', () => {
+test('same binding, recorder chronology and outcome produce deterministic commitments', () => {
   function record() {
-    const { recorder } = recorderAt('2026-08-19T17:00:01.000Z');
+    const { recorder } = recorderAt(
+      '2026-08-19T17:00:01.000Z',
+      '2026-08-19T17:00:02.000Z',
+    );
     const handle = recorder.begin({ authorization_binding: binding() });
     return recorder.complete(handle, {
       execution_status: 'success',
