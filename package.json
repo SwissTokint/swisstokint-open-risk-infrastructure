@@ -12,6 +12,7 @@
     "test:pom-rx:input-continuity": "node --test tests/pom-rx-v01-input-continuity.node.test.mjs",
     "test:pom-rx:execution-assertion-consistency": "node --test tests/pom-rx-v01-execution-assertion-consistency.node.test.mjs",
     "test:pom-rx:capability-map": "node --test tests/pom-rx-capability-map.node.test.mjs",
+    "test:pom-rx:post-merge-assurance": "node --test tests/pom-rx-post-merge-assurance-policy.node.test.mjs",
     "test:pom-rx:integrity-baseline": "node --test tests/pom-rx-integrity-baseline.node.test.mjs",
     "test:pom-rx:integrity-baseline:expected-red": "node scripts/assert-pom-rx-integrity-baseline-red.mjs",
     "test:pom-rx:profile-foundation": "node --test tests/pom-rx-v01-profile-foundation.node.test.mjs",
@@ -23,7 +24,7 @@
     "test:proof": "npm run test:pom-rx && npm run test:proof-receipt && npm run test:proof-integrations",
     "filecoin:build": "node scripts/build-filecoin-bundle.mjs",
     "filecoin:verify": "node scripts/verify-filecoin-bundle.mjs",
-    "test": "npm run test:risk && npm run test:proof && npm run test:pom-rx:v01-fixtures && npm run test:pom-rx:profile-foundation && npm run test:pom-rx:action-continuity && npm run test:pom-rx:input-continuity && npm run test:pom-rx:execution-assertion-consistency && npm run test:pom-rx:witness-primitives && npm run test:pom-rx:capability-map && npm run test:public-identity"
+    "test": "npm run test:risk && npm run test:proof && npm run test:pom-rx:v01-fixtures && npm run test:pom-rx:profile-foundation && npm run test:pom-rx:action-continuity && npm run test:pom-rx:input-continuity && npm run test:pom-rx:execution-assertion-consistency && npm run test:pom-rx:witness-primitives && npm run test:pom-rx:capability-map && npm run test:pom-rx:post-merge-assurance && npm run test:public-identity"
   },
   "license": "(MIT OR Apache-2.0)",
   "devDependencies": {
