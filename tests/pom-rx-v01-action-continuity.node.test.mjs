@@ -53,6 +53,32 @@ test('action-continuity checker emits no diagnostic for an unchanged full chain'
   assert.deepEqual(diagnostics, []);
 });
 
+test('a single preflight has no adjacent continuity defect but cannot activate strict readiness', () => {
+  assert.deepEqual(checkPomRxV01ActionContinuity([receipt('preflight')]), []);
+
+  const readiness = createPomRxV01ProfileReadiness({
+    sourceClosure: [{ path: implementationPath, bytes: readFileSync(implementationPath) }],
+    implementedInvariants: [POM_RX_V01_ACTION_CONTINUITY_INVARIANT],
+  });
+  assert.equal(readiness.structural_status, 'indeterminate');
+  assert.equal(readiness.authorization_eligible, false);
+  assert.equal(readiness.authorization_proved, false);
+});
+
+test('consistent commitment substitution is continuity-clean but is not an authenticity claim', () => {
+  const substituted = hash('9');
+  const diagnostics = checkPomRxV01ActionContinuity([
+    receipt('preflight', substituted),
+    receipt('execution', substituted),
+    receipt('reconciliation', substituted),
+  ]);
+
+  assert.deepEqual(diagnostics, []);
+  const source = readFileSync(implementationPath, 'utf8');
+  assert.match(source, /does not authenticate the commitment/);
+  assert.match(source, /Witness\/Gate authorization/);
+});
+
 test('action-continuity checker detects preflight to execution substitution exactly', () => {
   const diagnostics = checkPomRxV01ActionContinuity([
     receipt('preflight'),
@@ -151,8 +177,10 @@ test('one implemented invariant remains PROFILE_INCOMPLETE and never authorizes'
   assert.equal(readiness.diagnostic_code, 'POMRX_V01_E_PROFILE_INCOMPLETE');
 });
 
-test('action-continuity implementation remains internal and does not alter legacy verifier source', () => {
+test('action-continuity implementation remains internal and never calls the legacy verifier', () => {
   const legacySource = readFileSync('sdk/typescript/pom-rx.mjs', 'utf8');
+  const implementationSource = readFileSync(implementationPath, 'utf8');
   assert.doesNotMatch(legacySource, /pom-rx-v01-action-continuity/u);
   assert.doesNotMatch(legacySource, /checkPomRxV01ActionContinuity/u);
+  assert.doesNotMatch(implementationSource, /verifyPomRxChain\s*\(/u);
 });
