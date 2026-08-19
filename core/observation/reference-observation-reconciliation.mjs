@@ -2,6 +2,9 @@ import {
   canonicalizePayload,
   sha256Hex,
 } from '../../sdk/typescript/swisstokint-proof.mjs';
+import {
+  commitExactAuthorizationBinding,
+} from '../authorization/reference-exact-authorization.mjs';
 
 export const POM_RX_REFERENCE_OBSERVATION_VERSION =
   'pom-rx-reference-observation/0.1';
@@ -14,11 +17,8 @@ export const POM_RX_REFERENCE_RECONCILIATION_HASH_DOMAIN =
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{15,127}$/u;
-const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,127}$/u;
 const EXECUTION_STATUSES = new Set(['success', 'error', 'unknown']);
 const EXPECTED_EXECUTION_STATUSES = new Set(['success', 'error', 'any']);
-const MAX_AUTHORIZATION_LIFETIME_MS = 300_000;
-const MIN_AUTHORIZATION_LIFETIME_MS = 1_000;
 const MAX_REFERENCE_DEPTH = 8;
 const MAX_REFERENCE_NODES = 1_000;
 const MAX_REFERENCE_STRING = 16_384;
@@ -26,13 +26,7 @@ const MAX_REFERENCE_KEY = 128;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const EXPECTED_KEYS = Object.freeze([
-  'binding_profile',
-  'run_id',
-  'authorization_commitment',
-  'action_commitment',
-  'context_commitment',
-  'authorization_issued_at',
-  'authorization_valid_until',
+  'authorization_binding',
   'expected_execution_status',
   'expected_effect_commitment',
 ]);
@@ -61,104 +55,106 @@ function fail(code, message) {
   throw new PomRxObservationError(code, message);
 }
 
-function exactKeys(value, expected, label) {
+function exactKeys(value, expected, label, code = 'POMRX_OBS_E_INVALID') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('POMRX_OBS_E_INVALID', `${label} must be an object`);
+    fail(code, `${label} must be an object`);
   }
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    fail('POMRX_OBS_E_INVALID', `${label} has missing or unknown fields`);
+    fail(code, `${label} has missing or unknown fields`);
   }
 }
 
-function canonicalUtcInstant(value, field) {
+function canonicalUtcInstant(value, field, code = 'POMRX_OBS_E_TIME_INVALID') {
   if (typeof value !== 'string' || !value.endsWith('Z')) {
-    fail('POMRX_OBS_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
+    fail(code, `${field} must be a canonical UTC instant`);
   }
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
-    fail('POMRX_OBS_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
+    fail(code, `${field} must be a canonical UTC instant`);
   }
   return parsed;
 }
 
-function assertHash(value, field, { nullable = false } = {}) {
+function assertHash(value, field, { nullable = false, code = 'POMRX_OBS_E_INVALID' } = {}) {
   if (nullable && value === null) return null;
   if (typeof value !== 'string' || !HASH_PATTERN.test(value)) {
-    fail('POMRX_OBS_E_INVALID', `${field} must be a lowercase SHA-256 hash${nullable ? ' or null' : ''}`);
+    fail(code, `${field} must be a lowercase SHA-256 hash${nullable ? ' or null' : ''}`);
   }
   return value;
 }
 
-function assertId(value, field) {
+function assertId(value, field, code = 'POMRX_OBS_E_INVALID') {
   if (typeof value !== 'string' || !ID_PATTERN.test(value)) {
-    fail('POMRX_OBS_E_INVALID', `${field} is invalid`);
+    fail(code, `${field} is invalid`);
   }
   return value;
 }
 
-function clonePlainData(value, depth = 0, budget = { remaining: MAX_REFERENCE_NODES }) {
+function clonePlainData(
+  value,
+  depth = 0,
+  budget = { remaining: MAX_REFERENCE_NODES },
+  errorCode = 'POMRX_OBS_E_REFERENCE_INVALID',
+) {
   if (depth > MAX_REFERENCE_DEPTH || budget.remaining-- <= 0) {
-    fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference exceeds bounds');
+    fail(errorCode, 'plain-data snapshot exceeds bounds');
   }
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     if (value.length > MAX_REFERENCE_STRING) {
-      fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference string is too long');
+      fail(errorCode, 'plain-data snapshot string is too long');
     }
     return value;
   }
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value)) {
-      fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference numbers must be safe integers');
+      fail(errorCode, 'plain-data snapshot numbers must be safe integers');
     }
     return value;
   }
   if (Array.isArray(value)) {
     const keys = Object.keys(value);
     if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
-      fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference arrays must be dense');
+      fail(errorCode, 'plain-data snapshot arrays must be dense');
     }
     const descriptors = Object.getOwnPropertyDescriptors(value);
     return Object.freeze(keys.map((key) => {
       const descriptor = descriptors[key];
       if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-        fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference cannot contain accessors');
+        fail(errorCode, 'plain-data snapshot cannot contain accessors');
       }
-      return clonePlainData(descriptor.value, depth + 1, budget);
+      return clonePlainData(descriptor.value, depth + 1, budget, errorCode);
     }));
   }
   if (!value || typeof value !== 'object') {
-    fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference contains unsupported data');
+    fail(errorCode, 'plain-data snapshot contains unsupported data');
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference must contain plain objects only');
+    fail(errorCode, 'plain-data snapshot must contain plain objects only');
   }
   if (Object.getOwnPropertySymbols(value).length !== 0) {
-    fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference cannot contain symbol keys');
+    fail(errorCode, 'plain-data snapshot cannot contain symbol keys');
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
   for (const key of Object.keys(value)) {
     if (key.length === 0 || key.length > MAX_REFERENCE_KEY || FORBIDDEN_KEYS.has(key)) {
-      fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference contains an unsafe key');
+      fail(errorCode, 'plain-data snapshot contains an unsafe key');
     }
     const descriptor = descriptors[key];
     if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-      fail('POMRX_OBS_E_REFERENCE_INVALID', 'observation reference cannot contain accessors');
+      fail(errorCode, 'plain-data snapshot cannot contain accessors');
     }
-    output[key] = clonePlainData(descriptor.value, depth + 1, budget);
+    output[key] = clonePlainData(descriptor.value, depth + 1, budget, errorCode);
   }
   return Object.freeze(output);
 }
 
 function normalizeExpected(value) {
-  exactKeys(value, EXPECTED_KEYS, 'expected authorization binding');
-  if (typeof value.binding_profile !== 'string' || !PROFILE_PATTERN.test(value.binding_profile)) {
-    fail('POMRX_OBS_E_INVALID', 'binding_profile is invalid');
-  }
+  exactKeys(value, EXPECTED_KEYS, 'expected reconciliation input');
   if (typeof value.expected_execution_status !== 'string'
       || !EXPECTED_EXECUTION_STATUSES.has(value.expected_execution_status)) {
     fail(
@@ -166,21 +162,36 @@ function normalizeExpected(value) {
       'expected_execution_status must be success, error or any',
     );
   }
-  const issuedAt = canonicalUtcInstant(value.authorization_issued_at, 'authorization_issued_at');
-  const validUntil = canonicalUtcInstant(value.authorization_valid_until, 'authorization_valid_until');
-  const lifetimeMs = validUntil.getTime() - issuedAt.getTime();
-  if (lifetimeMs < MIN_AUTHORIZATION_LIFETIME_MS
-      || lifetimeMs > MAX_AUTHORIZATION_LIFETIME_MS) {
-    fail('POMRX_OBS_E_TIME_INVALID', 'authorization lifetime must be between 1 second and 5 minutes');
+
+  let authorizationBinding;
+  let committedAuthorization;
+  try {
+    authorizationBinding = clonePlainData(
+      value.authorization_binding,
+      0,
+      { remaining: MAX_REFERENCE_NODES },
+      'POMRX_OBS_E_AUTHORIZATION_INVALID',
+    );
+    committedAuthorization = commitExactAuthorizationBinding(authorizationBinding);
+  } catch (error) {
+    if (error instanceof PomRxObservationError
+        && error.code === 'POMRX_OBS_E_AUTHORIZATION_INVALID') {
+      throw error;
+    }
+    fail(
+      'POMRX_OBS_E_AUTHORIZATION_INVALID',
+      'exact authorization binding is invalid',
+    );
   }
+
   return Object.freeze({
-    binding_profile: value.binding_profile,
-    run_id: assertId(value.run_id, 'run_id'),
-    authorization_commitment: assertHash(value.authorization_commitment, 'authorization_commitment'),
-    action_commitment: assertHash(value.action_commitment, 'action_commitment'),
-    context_commitment: assertHash(value.context_commitment, 'context_commitment'),
-    authorization_issued_at: issuedAt.toISOString(),
-    authorization_valid_until: validUntil.toISOString(),
+    binding_profile: authorizationBinding.binding_profile,
+    run_id: authorizationBinding.run_id,
+    authorization_commitment: committedAuthorization.authorizationCommitment,
+    action_commitment: authorizationBinding.action_commitment,
+    context_commitment: authorizationBinding.context_commitment,
+    authorization_issued_at: authorizationBinding.issued_at,
+    authorization_valid_until: authorizationBinding.expires_at,
     expected_execution_status: value.expected_execution_status,
     expected_effect_commitment: assertHash(
       value.expected_effect_commitment,
@@ -190,28 +201,62 @@ function normalizeExpected(value) {
   });
 }
 
+function snapshotObservedRecord(value) {
+  return clonePlainData(
+    value,
+    0,
+    { remaining: MAX_REFERENCE_NODES },
+    'POMRX_OBS_E_OBSERVER_INVALID',
+  );
+}
+
 function normalizeObserved(value, trustedNow) {
-  exactKeys(value, OBSERVED_KEYS, 'independent observation');
+  exactKeys(
+    value,
+    OBSERVED_KEYS,
+    'independent observation',
+    'POMRX_OBS_E_OBSERVER_INVALID',
+  );
   if (typeof value.execution_status !== 'string' || !EXECUTION_STATUSES.has(value.execution_status)) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'execution_status is invalid');
   }
-  const executedAt = canonicalUtcInstant(value.executed_at, 'executed_at');
-  const observedAt = canonicalUtcInstant(value.observed_at, 'observed_at');
+  const executedAt = canonicalUtcInstant(
+    value.executed_at,
+    'executed_at',
+    'POMRX_OBS_E_OBSERVER_INVALID',
+  );
+  const observedAt = canonicalUtcInstant(
+    value.observed_at,
+    'observed_at',
+    'POMRX_OBS_E_OBSERVER_INVALID',
+  );
   if (observedAt.getTime() < executedAt.getTime()) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'observation cannot predate execution');
   }
   if (observedAt.getTime() > trustedNow.getTime()) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'observer reported a future observation');
   }
-  const effectCommitment = assertHash(value.effect_commitment, 'effect_commitment', { nullable: true });
+  const effectCommitment = assertHash(
+    value.effect_commitment,
+    'effect_commitment',
+    { nullable: true, code: 'POMRX_OBS_E_OBSERVER_INVALID' },
+  );
   if (value.execution_status !== 'unknown' && effectCommitment === null) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'known execution status requires an effect commitment');
   }
   return Object.freeze({
     schema_version: POM_RX_REFERENCE_OBSERVATION_VERSION,
-    run_id: assertId(value.run_id, 'observed run_id'),
-    action_commitment: assertHash(value.action_commitment, 'observed action_commitment'),
-    context_commitment: assertHash(value.context_commitment, 'observed context_commitment'),
+    run_id: assertId(value.run_id, 'observed run_id', 'POMRX_OBS_E_OBSERVER_INVALID'),
+    action_commitment: assertHash(
+      value.action_commitment,
+      'observed action_commitment',
+      { code: 'POMRX_OBS_E_OBSERVER_INVALID' },
+    ),
+    context_commitment: assertHash(
+      value.context_commitment,
+      'observed context_commitment',
+      { code: 'POMRX_OBS_E_OBSERVER_INVALID' },
+    ),
     execution_status: value.execution_status,
     effect_commitment: effectCommitment,
     executed_at: executedAt.toISOString(),
@@ -332,7 +377,8 @@ export function createReferenceObservationReconciliation(options) {
       fail('POMRX_OBS_E_OBSERVER_FAILED', 'independent observer failed');
     }
     const trustedNow = sampleTrustedClock();
-    const observation = normalizeObserved(rawObservation, trustedNow);
+    const observedSnapshot = snapshotObservedRecord(rawObservation);
+    const observation = normalizeObserved(observedSnapshot, trustedNow);
     const committedObservation = commitObservation(observation);
     const classification = classify(expected, observation);
     const reconciliation = commitReconciliation(
