@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://swisstokint.ch/schemas/pom-rx-witness-ack-v0.1.schema.json",
+  "title": "SwissTokint POM-RX Witness Acknowledgement v0.1",
+  "description": "A signed acknowledgement of one exact POM-RX preflight. Verification does not establish witness enrollment, trusted time or execution authorization unless those controls are supplied by a stronger profile.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_hash",
+    "receipt_id",
+    "run_id",
+    "outcome",
+    "source_key_id",
+    "received_at",
+    "valid_until",
+    "mode",
+    "witness_key_id",
+    "witness_public_key",
+    "witness_signature"
+  ],
+  "properties": {
+    "schema_version": { "const": "pom-rx-witness-ack/0.1" },
+    "receipt_hash": { "$ref": "#/$defs/sha256" },
+    "receipt_id": { "$ref": "#/$defs/id" },
+    "run_id": { "$ref": "#/$defs/id" },
+    "outcome": { "enum": ["allow", "deny"] },
+    "source_key_id": { "$ref": "#/$defs/keyId" },
+    "received_at": { "type": "string", "format": "date-time" },
+    "valid_until": { "type": "string", "format": "date-time" },
+    "mode": { "enum": ["dry_run", "witnessed"] },
+    "witness_key_id": { "$ref": "#/$defs/keyId" },
+    "witness_public_key": {
+      "type": "string",
+      "minLength": 40,
+      "maxLength": 256,
+      "contentEncoding": "base64"
+    },
+    "witness_signature": {
+      "type": "string",
+      "minLength": 80,
+      "maxLength": 128,
+      "contentEncoding": "base64"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$"
+    },
+    "keyId": {
+      "type": "string",
+      "pattern": "^ed25519-[a-f0-9]{32}$"
+    }
+  }
+}
