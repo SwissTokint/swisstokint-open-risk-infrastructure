@@ -143,6 +143,50 @@ test('caller mutation after entry cannot alter the request received by the simul
   assert.equal(captured.request.params[0].to, RECIPIENT);
 });
 
+test('top-level accessor-backed run input is rejected without invoking the accessor', async () => {
+  let getterCalls = 0;
+  let simulatorCalls = 0;
+  const rawRequest = request();
+  const normalizedIntent = intent(rawRequest);
+  const runtime = harness(async (input) => {
+    simulatorCalls += 1;
+    return callbackResult(input);
+  });
+  const hostile = { request: rawRequest };
+  Object.defineProperty(hostile, 'intent', {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return normalizedIntent;
+    },
+  });
+
+  await assert.rejects(
+    runtime.simulate(hostile),
+    (error) => expectCode(error, 'POMRX_WG_SIM_E_REQUEST_INVALID'),
+  );
+  assert.equal(getterCalls, 0);
+  assert.equal(simulatorCalls, 0);
+});
+
+test('bootstrap accessor is rejected without invoking the trusted callback getter', () => {
+  let getterCalls = 0;
+  const bootstrap = {};
+  Object.defineProperty(bootstrap, 'simulateRequest', {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return async () => null;
+    },
+  });
+
+  assert.throws(
+    () => createWalletGuardReferenceSimulationHarness(bootstrap),
+    (error) => expectCode(error, 'POMRX_WG_SIM_E_INVALID'),
+  );
+  assert.equal(getterCalls, 0);
+});
+
 test('simulator identity substitution is downgraded to mismatch evidence', async () => {
   const runtime = harness(async (input) => callbackResult(input, {
     account: OTHER,
@@ -261,6 +305,25 @@ test('forged structural and cross-harness evidence cannot enter policy as local 
     () => otherHarness.toPolicySimulation(evidence),
     (error) => expectCode(error, 'POMRX_WG_SIM_E_INVALID'),
   );
+});
+
+test('non-local evidence is rejected before any forged accessor is read', () => {
+  const runtime = harness();
+  let getterCalls = 0;
+  const forged = {};
+  Object.defineProperty(forged, 'status', {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      throw new Error('must not execute');
+    },
+  });
+
+  assert.throws(
+    () => runtime.toPolicySimulation(forged),
+    (error) => expectCode(error, 'POMRX_WG_SIM_E_INVALID'),
+  );
+  assert.equal(getterCalls, 0);
 });
 
 test('simulation commitment is deterministic for identical intent and semantic simulator result', async () => {
