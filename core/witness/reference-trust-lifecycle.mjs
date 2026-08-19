@@ -104,6 +104,12 @@ function recordActiveAt(record, instant) {
   return true;
 }
 
+function lexicalKeyIdCompare(left, right) {
+  if (left.key_id < right.key_id) return -1;
+  if (left.key_id > right.key_id) return 1;
+  return 0;
+}
+
 export function createReferenceWitnessTrustLifecycle(options) {
   exactKeys(options, ['trustedClock'], 'reference Witness trust bootstrap');
   if (typeof options.trustedClock !== 'function') {
@@ -147,7 +153,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
   function snapshot() {
     const identities = [...records.values()]
       .map((record) => ({ ...record }))
-      .sort((left, right) => left.key_id.localeCompare(right.key_id));
+      .sort(lexicalKeyIdCompare);
     const payload = Object.freeze({
       schema_version: POM_RX_REFERENCE_WITNESS_TRUST_STATE_VERSION,
       revision,
@@ -224,8 +230,8 @@ export function createReferenceWitnessTrustLifecycle(options) {
     const predecessorKeyId = validateKeyId(predecessor, 'predecessor_key_id');
     const existing = records.get(predecessorKeyId);
     if (!existing) fail('POMRX_WITNESS_TRUST_E_NOT_ENROLLED', 'predecessor is not enrolled');
-    if (existing.status !== 'active') {
-      fail('POMRX_WITNESS_TRUST_E_TRANSITION_INVALID', 'predecessor is not active');
+    if (existing.status !== 'active' || !recordActiveAt(existing, now)) {
+      fail('POMRX_WITNESS_TRUST_E_TRANSITION_INVALID', 'predecessor is not currently active');
     }
     ensureNoSuccessor(predecessorKeyId);
 
@@ -355,6 +361,12 @@ export function createReferenceWitnessTrustLifecycle(options) {
 
       const occurredAt = canonicalUtcInstant(sourceVerified.receipt.occurred_at, 'occurred_at');
       const receivedAt = canonicalUtcInstant(acknowledgement.received_at, 'received_at');
+      if (receivedAt.getTime() < occurredAt.getTime()) {
+        return verificationFailure(
+          'POMRX_WITNESS_TRUST_E_CHRONOLOGY',
+          'Witness acknowledgement predates the source occurrence time',
+        );
+      }
       if (!recordActiveAt(sourceRecord, occurredAt)
           || !recordActiveAt(witnessRecord, receivedAt)
           || sourceRecord.status !== 'active'
@@ -367,6 +379,22 @@ export function createReferenceWitnessTrustLifecycle(options) {
         );
       }
 
+      const acknowledgementValidUntil = canonicalUtcInstant(
+        acknowledgement.valid_until,
+        'acknowledgement valid_until',
+      );
+      const authorizationValidUntilMs = Math.min(
+        acknowledgementValidUntil.getTime(),
+        new Date(sourceRecord.valid_until).getTime(),
+        new Date(witnessRecord.valid_until).getTime(),
+      );
+      if (authorizationValidUntilMs <= now.getTime()) {
+        return verificationFailure(
+          'POMRX_WITNESS_TRUST_E_INACTIVE',
+          'trust-bounded authorization window is exhausted',
+        );
+      }
+
       const trust = snapshot();
       return Object.freeze({
         ok: true,
@@ -375,6 +403,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
         receipt_hash: sourceVerified.receiptHash,
         acknowledgement_hash: acknowledgementVerified.acknowledgementHash,
         current_time: now.toISOString(),
+        authorization_valid_until: new Date(authorizationValidUntilMs).toISOString(),
         trust_revision: trust.revision,
         trust_state_hash: trust.trust_state_hash,
         reference_only: true,
