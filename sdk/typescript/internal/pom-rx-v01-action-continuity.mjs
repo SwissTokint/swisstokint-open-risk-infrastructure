@@ -13,6 +13,15 @@ const DEFECT_BY_TRANSITION = new Map([
   ['execution>reconciliation', 'POMRX-001-ACTION-EXECUTION-RECONCILIATION'],
 ]);
 
+// Internal invariant-family checker only. It compares the action commitment
+// across contiguous receipt phases after the caller has established the wider
+// strict-profile prerequisites. An empty diagnostic list proves only equality
+// across the supplied transitions. It does not authenticate the commitment,
+// bind it to native execution, establish Witness/Gate authorization, or make a
+// partial chain conformant. A consistently substituted commitment therefore
+// remains outside this invariant and must be stopped by the surrounding
+// preflight/Witness/exact-authorization/Gate path.
+
 function fail(message, details = {}) {
   throwPomRxV01Strict('POMRX_V01_E_INTERNAL_VERIFIER_ERROR', message, details);
 }
