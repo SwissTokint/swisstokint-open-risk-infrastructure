@@ -374,12 +374,27 @@ test('artifact identity binds exact path and bytes and fails closed on tampering
   const fixture = writeArtifactFixture(directory);
   const expectedArtifactManifestSha256 = sha256(fixture.manifestBytes);
   const metadata = () => ({ reparse: false, streams: ['::$DATA'] });
-  expectCode('POMRX_V01_E_PROFILE_INCOMPLETE', () => verifyPomRxArtifactIdentityProduction({
-    packageRoot: directory,
-    artifactManifestPath: fixture.manifestPath,
-    expectedArtifactManifestSha256,
-    caseFoldingPath,
-  }));
+
+  if (process.platform === 'win32') {
+    expectCode('POMRX_V01_E_IMPLEMENTATION_ARTIFACT_MISMATCH', () => verifyPomRxArtifactIdentityProduction({
+      packageRoot: directory,
+      artifactManifestPath: fixture.manifestPath,
+      expectedArtifactManifestSha256,
+      caseFoldingPath,
+    }));
+  } else {
+    const productionResult = verifyPomRxArtifactIdentityProduction({
+      packageRoot: directory,
+      artifactManifestPath: fixture.manifestPath,
+      expectedArtifactManifestSha256,
+      caseFoldingPath,
+    });
+    assert.equal(
+      productionResult.implementation_artifact_sha256,
+      fixture.manifest.implementation_artifact_sha256,
+    );
+  }
+
   const result = verifyPomRxArtifactIdentity({
     packageRoot: directory,
     artifactManifestPath: fixture.manifestPath,
