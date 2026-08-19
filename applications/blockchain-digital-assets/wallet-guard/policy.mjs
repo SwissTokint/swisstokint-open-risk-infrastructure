@@ -1,0 +1,330 @@
+import {
+  canonicalizePayload,
+  sha256Hex,
+} from '../../../sdk/typescript/swisstokint-proof.mjs';
+import {
+  MAX_UINT256_DECIMAL,
+  normalizeChainId,
+  normalizeEvmAddress,
+} from './evm-decoders.mjs';
+import {
+  WALLET_GUARD_INTENT_SCHEMA_VERSION,
+} from './intent.mjs';
+
+export const WALLET_GUARD_POLICY_SCHEMA_VERSION = 'wallet-guard-policy/0.1';
+export const WALLET_GUARD_POLICY_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-policy:v1:';
+
+const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
+const POLICY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{7,127}$/u;
+const POLICY_KEYS = Object.freeze([
+  'schema_version',
+  'policy_id',
+  'enabled',
+  'kill_switch',
+  'expected_chain_id',
+  'allowed_origins',
+  'allowed_targets',
+  'allowed_recipients',
+  'allowed_spenders',
+  'allowed_typed_data_verifying_contracts',
+  'max_native_value',
+  'max_token_amount',
+  'deny_unlimited_allowance',
+  'deny_operator_approval',
+  'require_simulation_for',
+]);
+const KNOWN_REQUEST_CLASSES = new Set([
+  'native_transfer',
+  'erc20_approve',
+  'erc20_transfer',
+  'set_approval_for_all',
+  'permit_eip2612',
+  'permit2_single',
+  'permit2_batch_unknown',
+  'unknown_calldata',
+  'unknown_typed_data',
+  'generic_signature',
+  'unsupported_rpc',
+]);
+const CRITICAL_UNKNOWN_CLASSES = new Set([
+  'permit2_batch_unknown',
+  'unknown_calldata',
+  'unknown_typed_data',
+  'generic_signature',
+  'unsupported_rpc',
+]);
+const SIMULATION_STATUSES = new Set(['not_run', 'pass', 'fail', 'unavailable', 'mismatch']);
+
+export class WalletGuardPolicyError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'WalletGuardPolicyError';
+    this.code = code;
+  }
+}
+
+function fail(code, message) {
+  throw new WalletGuardPolicyError(code, message);
+}
+
+function assertExactKeys(value, expected, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an object`);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing or unknown fields`);
+  }
+}
+
+function normalizeOrigin(value) {
+  if (typeof value !== 'string') fail('POMRX_WG_POLICY_E_INVALID', 'origin must be a string');
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    fail('POMRX_WG_POLICY_E_INVALID', 'origin must be an absolute URL origin');
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || url.origin !== value || url.username || url.password) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'origin must be canonical HTTP(S) origin');
+  }
+  return url.origin;
+}
+
+function normalizeCanonicalDecimal(value, field) {
+  if (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value)) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a canonical decimal integer string`);
+  }
+  return BigInt(value).toString(10);
+}
+
+function normalizeUniqueList(values, field, normalizeItem) {
+  if (!Array.isArray(values) || values.length > 256) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
+  }
+  const normalized = values.map(normalizeItem);
+  const unique = new Set(normalized);
+  if (unique.size !== normalized.length) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
+  }
+  return Object.freeze([...normalized].sort());
+}
+
+function normalizePolicy(policy) {
+  assertExactKeys(policy, POLICY_KEYS, 'Wallet Guard policy');
+  if (policy.schema_version !== WALLET_GUARD_POLICY_SCHEMA_VERSION) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'unsupported Wallet Guard policy version');
+  }
+  if (typeof policy.policy_id !== 'string' || !POLICY_ID_PATTERN.test(policy.policy_id)) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'policy_id has an invalid format');
+  }
+  for (const field of ['enabled', 'kill_switch', 'deny_unlimited_allowance', 'deny_operator_approval']) {
+    if (typeof policy[field] !== 'boolean') {
+      fail('POMRX_WG_POLICY_E_INVALID', `${field} must be boolean`);
+    }
+  }
+
+  const requireSimulationFor = normalizeUniqueList(
+    policy.require_simulation_for,
+    'require_simulation_for',
+    (value) => {
+      if (typeof value !== 'string' || !KNOWN_REQUEST_CLASSES.has(value)) {
+        fail('POMRX_WG_POLICY_E_INVALID', 'require_simulation_for contains an unknown request class');
+      }
+      return value;
+    },
+  );
+
+  return Object.freeze({
+    schema_version: WALLET_GUARD_POLICY_SCHEMA_VERSION,
+    policy_id: policy.policy_id,
+    enabled: policy.enabled,
+    kill_switch: policy.kill_switch,
+    expected_chain_id: normalizeChainId(policy.expected_chain_id),
+    allowed_origins: normalizeUniqueList(policy.allowed_origins, 'allowed_origins', normalizeOrigin),
+    allowed_targets: normalizeUniqueList(
+      policy.allowed_targets,
+      'allowed_targets',
+      (value) => normalizeEvmAddress(value, 'allowed target'),
+    ),
+    allowed_recipients: normalizeUniqueList(
+      policy.allowed_recipients,
+      'allowed_recipients',
+      (value) => normalizeEvmAddress(value, 'allowed recipient'),
+    ),
+    allowed_spenders: normalizeUniqueList(
+      policy.allowed_spenders,
+      'allowed_spenders',
+      (value) => normalizeEvmAddress(value, 'allowed spender'),
+    ),
+    allowed_typed_data_verifying_contracts: normalizeUniqueList(
+      policy.allowed_typed_data_verifying_contracts,
+      'allowed_typed_data_verifying_contracts',
+      (value) => normalizeEvmAddress(value, 'allowed typed-data verifying contract'),
+    ),
+    max_native_value: normalizeCanonicalDecimal(policy.max_native_value, 'max_native_value'),
+    max_token_amount: normalizeCanonicalDecimal(policy.max_token_amount, 'max_token_amount'),
+    deny_unlimited_allowance: policy.deny_unlimited_allowance,
+    deny_operator_approval: policy.deny_operator_approval,
+    require_simulation_for: requireSimulationFor,
+  });
+}
+
+function validateIntent(intent) {
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)
+      || intent.schema_version !== WALLET_GUARD_INTENT_SCHEMA_VERSION) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent is invalid');
+  }
+  if (!KNOWN_REQUEST_CLASSES.has(intent.request_class)) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent request class is unknown');
+  }
+}
+
+function normalizeSimulation(simulation) {
+  const value = simulation ?? { status: 'not_run' };
+  assertExactKeys(value, ['status'], 'simulation evidence');
+  if (typeof value.status !== 'string' || !SIMULATION_STATUSES.has(value.status)) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'simulation status is invalid');
+  }
+  return value.status;
+}
+
+function includes(list, value) {
+  return value !== null && value !== undefined && list.includes(value);
+}
+
+function greaterThan(value, limit) {
+  if (value === null || value === undefined || !DECIMAL_INTEGER_PATTERN.test(value)) {
+    return true;
+  }
+  return BigInt(value) > BigInt(limit);
+}
+
+function makeResult(decision, reasons, normalizedPolicy) {
+  const canonicalPolicy = canonicalizePayload(normalizedPolicy);
+  return Object.freeze({
+    decision,
+    reasons: Object.freeze([...reasons]),
+    policy_id: normalizedPolicy.policy_id,
+    policy_hash: sha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
+  });
+}
+
+export function evaluateWalletGuardPolicy(intent, policy, simulation = { status: 'not_run' }) {
+  validateIntent(intent);
+  const normalizedPolicy = normalizePolicy(policy);
+  const simulationStatus = normalizeSimulation(simulation);
+  const denyReasons = [];
+  const indeterminateReasons = [];
+
+  if (!normalizedPolicy.enabled) denyReasons.push('WG_POLICY_DENY_DISABLED');
+  if (normalizedPolicy.kill_switch) denyReasons.push('WG_POLICY_DENY_KILL_SWITCH');
+  if (!normalizedPolicy.allowed_origins.includes(intent.origin)) {
+    denyReasons.push('WG_POLICY_DENY_ORIGIN');
+  }
+  if (intent.chain_id !== normalizedPolicy.expected_chain_id) {
+    denyReasons.push('WG_POLICY_DENY_CHAIN');
+  }
+
+  if (CRITICAL_UNKNOWN_CLASSES.has(intent.request_class)) {
+    indeterminateReasons.push('WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
+  }
+
+  if (intent.request_class === 'native_transfer') {
+    if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
+      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+    }
+    if (greaterThan(intent.native_value, normalizedPolicy.max_native_value)) {
+      denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
+    }
+  }
+
+  if (intent.request_class === 'erc20_transfer') {
+    if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
+      denyReasons.push('WG_POLICY_DENY_TARGET');
+    }
+    if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
+      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+    }
+    if (greaterThan(intent.token_amount, normalizedPolicy.max_token_amount)) {
+      denyReasons.push('WG_POLICY_DENY_TOKEN_AMOUNT');
+    }
+  }
+
+  if (intent.request_class === 'erc20_approve') {
+    if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
+      denyReasons.push('WG_POLICY_DENY_TARGET');
+    }
+    if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
+      denyReasons.push('WG_POLICY_DENY_SPENDER');
+    }
+    if (normalizedPolicy.deny_unlimited_allowance
+        && intent.requested_allowance === MAX_UINT256_DECIMAL) {
+      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+    }
+    if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
+      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+    }
+  }
+
+  if (intent.request_class === 'set_approval_for_all') {
+    if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
+      denyReasons.push('WG_POLICY_DENY_TARGET');
+    }
+    if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
+      denyReasons.push('WG_POLICY_DENY_OPERATOR');
+    }
+    if (normalizedPolicy.deny_operator_approval && intent.requested_operator_approval === true) {
+      denyReasons.push('WG_POLICY_DENY_OPERATOR_APPROVAL');
+    }
+  }
+
+  if (intent.request_class === 'permit_eip2612' || intent.request_class === 'permit2_single') {
+    if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
+      denyReasons.push('WG_POLICY_DENY_TARGET');
+    }
+    if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
+      denyReasons.push('WG_POLICY_DENY_SPENDER');
+    }
+    if (intent.typed_data_domain_chain_id !== null
+        && intent.typed_data_domain_chain_id !== intent.chain_id) {
+      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_CHAIN');
+    }
+    if (!includes(
+      normalizedPolicy.allowed_typed_data_verifying_contracts,
+      intent.typed_data_verifying_contract,
+    )) {
+      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_DOMAIN');
+    }
+    if (normalizedPolicy.deny_unlimited_allowance
+        && intent.requested_allowance === MAX_UINT256_DECIMAL) {
+      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+    }
+    if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
+      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+    }
+  }
+
+  const simulationRequired = intent.simulation_required === true
+    || normalizedPolicy.require_simulation_for.includes(intent.request_class);
+  if (simulationRequired) {
+    if (simulationStatus === 'fail' || simulationStatus === 'mismatch') {
+      denyReasons.push('WG_POLICY_DENY_SIMULATION');
+    } else if (simulationStatus !== 'pass') {
+      indeterminateReasons.push('WG_POLICY_INDETERMINATE_SIMULATION');
+    }
+  }
+
+  if (denyReasons.length > 0) {
+    return makeResult('DENY', denyReasons, normalizedPolicy);
+  }
+  if (indeterminateReasons.length > 0) {
+    return makeResult('INDETERMINATE', indeterminateReasons, normalizedPolicy);
+  }
+  return makeResult('ALLOW', ['WG_POLICY_ALLOW_EXACT'], normalizedPolicy);
+}
+
+export function normalizeWalletGuardPolicy(policy) {
+  return normalizePolicy(policy);
+}
