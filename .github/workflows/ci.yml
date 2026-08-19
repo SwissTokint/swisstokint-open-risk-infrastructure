@@ -32,6 +32,16 @@ jobs:
         run: python -m pip install --disable-pip-version-check ./sdk/python
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Verify strict verifier artifact manifest
+        run: |
+          generated="$(mktemp)"
+          rm -f "$generated"
+          node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$generated"
+          if [ ! -f core/strict-verification/pom-rx-v01-artifact-manifest.json ]; then
+            echo "Committed strict artifact manifest is missing." >&2
+            exit 1
+          fi
+          cmp --silent "$generated" core/strict-verification/pom-rx-v01-artifact-manifest.json
       - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
