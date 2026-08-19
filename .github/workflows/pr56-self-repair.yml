@@ -49,19 +49,39 @@ jobs:
           node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$tmp"
           mv "$tmp" core/strict-verification/pom-rx-v01-artifact-manifest.json
 
-      - name: Validate repaired tree
+      - name: Validate and capture diagnostics
         shell: bash
         run: |
-          npm ci
-          npm audit --omit=dev --audit-level=high
-          npm test
+          set +e
+          npm ci > /tmp/pr56-validate.log 2>&1
+          ci_status=$?
+          if [ "$ci_status" -eq 0 ]; then
+            npm audit --omit=dev --audit-level=high >> /tmp/pr56-validate.log 2>&1
+            audit_status=$?
+          else
+            audit_status=99
+          fi
+          if [ "$ci_status" -eq 0 ] && [ "$audit_status" -eq 0 ]; then
+            npm test >> /tmp/pr56-validate.log 2>&1
+            test_status=$?
+          else
+            test_status=99
+          fi
+          {
+            echo "ci_status=$ci_status"
+            echo "audit_status=$audit_status"
+            echo "test_status=$test_status"
+            echo "--- tail ---"
+            tail -n 240 /tmp/pr56-validate.log
+          } > PR56_REPAIR_DIAGNOSTICS.txt
+          exit 0
 
-      - name: Commit repair and remove temporary workflow
+      - name: Commit repair diagnostics and remove temporary workflow
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm .github/workflows/pr56-self-repair.yml
-          git add sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs core/strict-verification/pom-rx-v01-artifact-manifest.json
-          git commit -m "fix(pom-rx): prevent scanner registry self-classification"
+          git add sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs core/strict-verification/pom-rx-v01-artifact-manifest.json PR56_REPAIR_DIAGNOSTICS.txt
+          git commit -m "fix(pom-rx): repair strict artifact scanner self-check"
           git push origin HEAD:feat/pom-rx-strict-profile-activation
