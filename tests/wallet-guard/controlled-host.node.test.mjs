@@ -254,6 +254,38 @@ test('bootstrap accessors are rejected without executing the accessor body', () 
   assert.equal(getterCalls, 0);
 });
 
+test('nested bootstrap accessors are rejected without executing their bodies', () => {
+  let accountGetterCalls = 0;
+  const accounts = [ACCOUNT];
+  Object.defineProperty(accounts, '0', {
+    enumerable: true,
+    get() {
+      accountGetterCalls += 1;
+      return OTHER_ACCOUNT;
+    },
+  });
+  assert.throws(
+    () => createHost({ accounts }),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_ACCOUNTS_INVALID'),
+  );
+  assert.equal(accountGetterCalls, 0);
+
+  let policyGetterCalls = 0;
+  const hostilePolicy = policy();
+  Object.defineProperty(hostilePolicy, 'kill_switch', {
+    enumerable: true,
+    get() {
+      policyGetterCalls += 1;
+      return false;
+    },
+  });
+  assert.throws(
+    () => createHost({ policy: hostilePolicy }),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_SNAPSHOT_INVALID'),
+  );
+  assert.equal(policyGetterCalls, 0);
+});
+
 test('malformed controlled host bootstrap context fails closed at construction', () => {
   assert.throws(
     () => createHost({ trustedOrigin: 'https://fixture.wallet-guard.local/path' }),
