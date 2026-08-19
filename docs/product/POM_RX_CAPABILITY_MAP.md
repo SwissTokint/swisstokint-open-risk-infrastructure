@@ -50,8 +50,9 @@ Core. Its verdicts remain structurally non-authorizing: strict conformance is a
 prerequisite for later authorization, not permission to execute.
 
 Application blocks may add adapters, profiles and tests. They must not duplicate
-or fork Core canonicalization, hashing, verifier, Witness, authorization or Gate
-semantics into separate domain-specific implementations.
+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics.
+Exact authorization is also common Core behavior and must not be forked into
+application-specific implementations.
 
 ### Exact authorization and Gate
 
