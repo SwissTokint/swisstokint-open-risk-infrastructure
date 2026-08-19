@@ -13,9 +13,10 @@ export const POM_RX_REFERENCE_RECONCILIATION_HASH_DOMAIN =
   'swisstokint:pom-rx-reference-reconciliation:v1:';
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
+const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{15,127}$/u;
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,127}$/u;
 const EXECUTION_STATUSES = new Set(['success', 'error', 'unknown']);
+const EXPECTED_EXECUTION_STATUSES = new Set(['success', 'error', 'any']);
 const MAX_AUTHORIZATION_LIFETIME_MS = 300_000;
 const MIN_AUTHORIZATION_LIFETIME_MS = 1_000;
 const MAX_REFERENCE_DEPTH = 8;
@@ -32,6 +33,7 @@ const EXPECTED_KEYS = Object.freeze([
   'context_commitment',
   'authorization_issued_at',
   'authorization_valid_until',
+  'expected_execution_status',
   'expected_effect_commitment',
 ]);
 
@@ -157,6 +159,13 @@ function normalizeExpected(value) {
   if (typeof value.binding_profile !== 'string' || !PROFILE_PATTERN.test(value.binding_profile)) {
     fail('POMRX_OBS_E_INVALID', 'binding_profile is invalid');
   }
+  if (typeof value.expected_execution_status !== 'string'
+      || !EXPECTED_EXECUTION_STATUSES.has(value.expected_execution_status)) {
+    fail(
+      'POMRX_OBS_E_INVALID',
+      'expected_execution_status must be success, error or any',
+    );
+  }
   const issuedAt = canonicalUtcInstant(value.authorization_issued_at, 'authorization_issued_at');
   const validUntil = canonicalUtcInstant(value.authorization_valid_until, 'authorization_valid_until');
   const lifetimeMs = validUntil.getTime() - issuedAt.getTime();
@@ -172,6 +181,7 @@ function normalizeExpected(value) {
     context_commitment: assertHash(value.context_commitment, 'context_commitment'),
     authorization_issued_at: issuedAt.toISOString(),
     authorization_valid_until: validUntil.toISOString(),
+    expected_execution_status: value.expected_execution_status,
     expected_effect_commitment: assertHash(
       value.expected_effect_commitment,
       'expected_effect_commitment',
@@ -234,6 +244,12 @@ function classify(expected, observation) {
     reasons.push('POMRX_RECON_MISMATCH_AUTH_WINDOW');
   }
 
+  if (observation.execution_status !== 'unknown'
+      && expected.expected_execution_status !== 'any'
+      && observation.execution_status !== expected.expected_execution_status) {
+    reasons.push('POMRX_RECON_MISMATCH_STATUS');
+  }
+
   if (expected.expected_effect_commitment !== null
       && observation.execution_status !== 'unknown'
       && observation.effect_commitment !== expected.expected_effect_commitment) {
@@ -249,12 +265,6 @@ function classify(expected, observation) {
       reasons: Object.freeze(['POMRX_RECON_INDETERMINATE_EXECUTION']),
     });
   }
-  if (expected.expected_effect_commitment !== null && observation.effect_commitment === null) {
-    return Object.freeze({
-      verdict: 'INDETERMINATE',
-      reasons: Object.freeze(['POMRX_RECON_INDETERMINATE_EFFECT']),
-    });
-  }
   return Object.freeze({ verdict: 'MATCH', reasons: Object.freeze([]) });
 }
 
@@ -266,6 +276,7 @@ function commitReconciliation(expected, observationHash, classification) {
     authorization_commitment: expected.authorization_commitment,
     action_commitment: expected.action_commitment,
     context_commitment: expected.context_commitment,
+    expected_execution_status: expected.expected_execution_status,
     expected_effect_commitment: expected.expected_effect_commitment,
     observation_hash: observationHash,
     verdict: classification.verdict,
