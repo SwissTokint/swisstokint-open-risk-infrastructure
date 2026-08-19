@@ -10,9 +10,11 @@ The Witness Core owns trust decisions around source and Witness identities. It i
 - bounded validity windows evaluated against an injected synchronous trusted clock;
 - monotonic trusted-time enforcement that fails closed on clock rollback;
 - immediate revocation;
-- atomic rotation and recovery to one new successor key;
-- deterministic public trust-state snapshots with a domain-separated state hash;
-- authorization-candidate verification that requires cryptographically valid source/Witness evidence, exact role enrollment, exact enrolled public-key bytes, active trust both at the signed event time and at the current trusted time, `allow` preflight outcome and an unexpired `witnessed` acknowledgement.
+- atomic rotation and recovery to one new successor key, only while the predecessor is currently time-active;
+- deterministic public trust-state snapshots with a domain-separated state hash and locale-independent key ordering;
+- authorization-candidate verification that requires cryptographically valid source/Witness evidence, exact role enrollment, exact enrolled public-key bytes, active trust both at the signed event time and at the current trusted time, `allow` preflight outcome and an unexpired `witnessed` acknowledgement;
+- independent chronology enforcement requiring Witness receipt time not to predate source occurrence time;
+- `authorization_valid_until` bounded by the earliest of acknowledgement validity, source enrollment validity and Witness enrollment validity so a later Gate cannot safely inherit a longer lifetime from the acknowledgement alone.
 
 No private key is stored in the trust lifecycle. Enrollment, revocation, rotation and recovery are operator/bootstrap authority actions in this reference implementation.
 
