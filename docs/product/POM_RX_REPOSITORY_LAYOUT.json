@@ -24,6 +24,9 @@
     "directory": "integrations",
     "current_canonical_paths": [
       "integrations/stellar-evidence-registry",
+      "integrations/filecoin/evidence-bundle.mjs"
+    ],
+    "compatibility_aliases": [
       "sdk/typescript/filecoin-evidence-bundle.mjs"
     ]
   },
