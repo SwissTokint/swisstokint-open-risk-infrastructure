@@ -37,7 +37,7 @@ test('skeptical gate requires two review-control passes and an explicit falsific
   assert.match(skepticGate, /SKEPTIC_PASS/);
   assert.match(skepticGate, /SKEPTIC_CONDITIONAL/);
   assert.match(skepticGate, /SKEPTIC_BLOCK/);
-  assert.match(skepticGate, /writer can never serve as the skeptic/i);
+  assert.match(skepticGate, /The writer can never serve as\s+the skeptic/i);
 });
 
 test('Prime automation policy binds capability blocks and skeptic review before merge', () => {
