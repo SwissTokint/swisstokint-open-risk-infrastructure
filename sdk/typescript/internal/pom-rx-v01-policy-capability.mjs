@@ -310,6 +310,18 @@ export function withFreshPomRxPolicyCapability(trustedBootstrapConfig, callback)
   }
 }
 
+export function inspectFreshPomRxPolicyCapabilityHostPins(capability) {
+  const state = capabilityStates.get(capability);
+  if (!state) throwPomRxV01Strict('POMRX_V01_E_POLICY_CAPABILITY_REQUIRED', 'A branded policy capability is required');
+  if (!state.active || state.used) {
+    throwPomRxV01Strict('POMRX_V01_E_POLICY_CAPABILITY_STALE', 'Policy capability is stale, reused or invalidated');
+  }
+  return Object.freeze({
+    artifact_manifest_path: state.artifactManifestPath,
+    expected_artifact_manifest_sha256: state.expectedArtifactManifestSha256,
+  });
+}
+
 export function bindFreshPomRxPolicyCapability(capability, selectedVerifierTuple, measuredRuntime) {
   const state = capabilityStates.get(capability);
   if (!state) throwPomRxV01Strict('POMRX_V01_E_POLICY_CAPABILITY_REQUIRED', 'A branded policy capability is required');
@@ -336,14 +348,14 @@ export function bindFreshPomRxPolicyCapability(capability, selectedVerifierTuple
     capabilityState: state,
     used: false,
     value: Object.freeze({
-    effective_policy_id: state.policy.policy_id,
-    effective_policy_version: state.policy.policy_version,
-    effective_policy_sha256: state.policy.policy_sha256,
-    trusted_evaluation_instant: state.trustedEvaluationInstant,
-    artifact_manifest_path: state.artifactManifestPath,
-    expected_artifact_manifest_sha256: state.expectedArtifactManifestSha256,
-    selected_verifier: accepted,
-    execution_environment: runtime,
+      effective_policy_id: state.policy.policy_id,
+      effective_policy_version: state.policy.policy_version,
+      effective_policy_sha256: state.policy.policy_sha256,
+      trusted_evaluation_instant: state.trustedEvaluationInstant,
+      artifact_manifest_path: state.artifactManifestPath,
+      expected_artifact_manifest_sha256: state.expectedArtifactManifestSha256,
+      selected_verifier: accepted,
+      execution_environment: runtime,
     }),
   });
   return binding;
