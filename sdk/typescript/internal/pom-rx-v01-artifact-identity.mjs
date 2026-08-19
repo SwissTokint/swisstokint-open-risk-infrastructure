@@ -383,7 +383,8 @@ function staticLocalDependencies(relativePath, bytes) {
     const token = tokens[index];
     const previous = tokens[index - 1];
     const computedMember = token.type === 'punctuator' && token.value === '[' && previous
-      && (['identifier', 'number', 'regex', 'string'].includes(previous.type)
+      && ((previous.type === 'identifier' && !REGEX_PREFIX_IDENTIFIERS.has(previous.value))
+        || ['number', 'regex', 'string'].includes(previous.type)
         || [')', ']', '}'].includes(previous.value));
     if (token.type === 'punctuator' && token.value === '[') {
       let depth = 1;
