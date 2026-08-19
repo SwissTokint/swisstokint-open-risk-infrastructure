@@ -243,6 +243,15 @@ function identityMatches(result, identity) {
     && result.account === identity.account;
 }
 
+function evidenceMatchesIntent(evidence, intent) {
+  const intentCommitment = commitWalletGuardIntent(intent).intent_commitment;
+  return evidence.request_id === intent.request_id
+    && evidence.intent_commitment === intentCommitment
+    && evidence.origin === intent.origin
+    && evidence.chain_id === intent.chain_id
+    && evidence.account === intent.account;
+}
+
 function normalizeCallbackResult(rawResult, identity, makeLocalEvidence) {
   let result;
   try {
@@ -341,13 +350,20 @@ export function createWalletGuardReferenceSimulationHarness(options) {
     return localEvidenceBrand.has(evidence);
   }
 
-  function toPolicySimulation(evidence) {
+  function toPolicySimulation(intent, evidence) {
     // Audience/provenance is checked before structural reads so an arbitrary
     // forged object cannot execute accessors while being rejected as non-local.
     if (!localEvidenceBrand.has(evidence)) {
       fail('POMRX_WG_SIM_E_INVALID', 'policy simulation requires evidence from this simulation harness');
     }
+    validateLocalIntent(intent);
     validateEvidence(evidence);
+    if (!evidenceMatchesIntent(evidence, intent)) {
+      fail(
+        'POMRX_WG_SIM_E_BINDING_MISMATCH',
+        'simulation evidence does not match the policy-evaluated intent',
+      );
+    }
     return Object.freeze({ status: evidence.status });
   }
 
