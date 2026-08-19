@@ -158,16 +158,16 @@ test('strict activation closes every frozen structural integrity gap in the five
   skip: process.platform === 'win32',
 }, () => {
   const cases = [
-    ['POMRX-001-ACTION-PREFLIGHT-EXECUTION', 'POMRX_V01_E_ACTION_CONTINUITY'],
-    ['POMRX-001-ACTION-EXECUTION-RECONCILIATION', 'POMRX_V01_E_ACTION_CONTINUITY'],
-    ['POMRX-001-INPUT-PREFLIGHT-EXECUTION', 'POMRX_V01_E_INPUT_CONTINUITY'],
-    ['POMRX-006-EXECUTION-FAIL-ASSERTION', 'POMRX_V01_E_EXECUTION_ASSERTION_CONFLICT'],
-    ['POMRX-006-RECONCILIATION-FAIL-ASSERTION', 'POMRX_V01_E_RECONCILIATION_ASSERTION_CONFLICT'],
-    ['POMRX-007-DUPLICATE-RECEIPT-ID', 'POMRX_V01_E_DUPLICATE_RECEIPT_ID'],
+    ['POMRX-001-ACTION-PREFLIGHT-EXECUTION', 'POMRX_V01_E_ACTION_CONTINUITY', true],
+    ['POMRX-001-ACTION-EXECUTION-RECONCILIATION', 'POMRX_V01_E_ACTION_CONTINUITY', false],
+    ['POMRX-001-INPUT-PREFLIGHT-EXECUTION', 'POMRX_V01_E_INPUT_CONTINUITY', true],
+    ['POMRX-006-EXECUTION-FAIL-ASSERTION', 'POMRX_V01_E_EXECUTION_ASSERTION_CONFLICT', true],
+    ['POMRX-006-RECONCILIATION-FAIL-ASSERTION', 'POMRX_V01_E_RECONCILIATION_ASSERTION_CONFLICT', false],
+    ['POMRX-007-DUPLICATE-RECEIPT-ID', 'POMRX_V01_E_DUPLICATE_RECEIPT_ID', true],
   ];
 
-  for (const [fixture, expectedCode] of cases) {
-    const verdict = verifyWithFreshPolicy(readChain(fixture));
+  for (const [fixture, expectedCode, allowPartial] of cases) {
+    const verdict = verifyWithFreshPolicy(readChain(fixture), { allowPartial });
     assert.equal(
       verdict.structural_status,
       'nonconformant',
