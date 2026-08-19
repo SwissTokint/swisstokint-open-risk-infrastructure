@@ -8,7 +8,8 @@ import {
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
 import {
-  WALLET_GUARD_INTENT_SCHEMA_VERSION,
+  WalletGuardIntentError,
+  validateWalletGuardIntent,
 } from './intent.mjs';
 
 export const WALLET_GUARD_POLICY_SCHEMA_VERSION = 'wallet-guard-policy/0.1';
@@ -172,9 +173,11 @@ function normalizePolicy(policy) {
 }
 
 function validateIntent(intent) {
-  if (!intent || typeof intent !== 'object' || Array.isArray(intent)
-      || intent.schema_version !== WALLET_GUARD_INTENT_SCHEMA_VERSION) {
-    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent is invalid');
+  try {
+    validateWalletGuardIntent(intent);
+  } catch (error) {
+    const detail = error instanceof WalletGuardIntentError ? error.code : 'invalid-intent';
+    fail('POMRX_WG_POLICY_E_INVALID', `Wallet Guard intent failed canonical validation: ${detail}`);
   }
   if (!KNOWN_REQUEST_CLASSES.has(intent.request_class)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent request class is unknown');
@@ -205,7 +208,7 @@ function makeResult(decision, reasons, normalizedPolicy) {
   const canonicalPolicy = canonicalizePayload(normalizedPolicy);
   return Object.freeze({
     decision,
-    reasons: Object.freeze([...reasons]),
+    reasons: Object.freeze([...new Set(reasons)]),
     policy_id: normalizedPolicy.policy_id,
     policy_hash: sha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
   });
@@ -226,6 +229,9 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   if (intent.chain_id !== normalizedPolicy.expected_chain_id) {
     denyReasons.push('WG_POLICY_DENY_CHAIN');
   }
+  if (greaterThan(intent.native_value, normalizedPolicy.max_native_value)) {
+    denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
+  }
 
   if (CRITICAL_UNKNOWN_CLASSES.has(intent.request_class)) {
     indeterminateReasons.push('WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
@@ -234,9 +240,6 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   if (intent.request_class === 'native_transfer') {
     if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
       denyReasons.push('WG_POLICY_DENY_RECIPIENT');
-    }
-    if (greaterThan(intent.native_value, normalizedPolicy.max_native_value)) {
-      denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
     }
   }
 
@@ -287,8 +290,7 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
       denyReasons.push('WG_POLICY_DENY_SPENDER');
     }
-    if (intent.typed_data_domain_chain_id !== null
-        && intent.typed_data_domain_chain_id !== intent.chain_id) {
+    if (intent.typed_data_domain_chain_id !== intent.chain_id) {
       denyReasons.push('WG_POLICY_DENY_TYPED_DATA_CHAIN');
     }
     if (!includes(
@@ -296,6 +298,9 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
       intent.typed_data_verifying_contract,
     )) {
       denyReasons.push('WG_POLICY_DENY_TYPED_DATA_DOMAIN');
+    }
+    if (intent.request_class === 'permit_eip2612' && intent.typed_data_owner !== intent.account) {
+      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_OWNER');
     }
     if (normalizedPolicy.deny_unlimited_allowance
         && intent.requested_allowance === MAX_UINT256_DECIMAL) {
