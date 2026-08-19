@@ -90,6 +90,10 @@ function diagnosticCodes(verdict) {
   return verdict.diagnostics.map(({ diagnostic_code: code }) => code);
 }
 
+function diagnosticSummary(verdict) {
+  return JSON.stringify(verdict.diagnostics);
+}
+
 function assertNeverAuthorizes(verdict) {
   assert.equal(verdict.authorization_eligible, false);
   assert.equal(verdict.authorization_proved, false);
@@ -135,7 +139,7 @@ test('strict activation produces a fully bound non-authorizing conformant verdic
   skip: process.platform === 'win32',
 }, () => {
   const verdict = verifyWithFreshPolicy(readChain('valid-control'));
-  assert.equal(verdict.structural_status, 'conformant');
+  assert.equal(verdict.structural_status, 'conformant', diagnosticSummary(verdict));
   assert.equal(verdict.qualification, 'STRICT_STRUCTURAL_CONFORMANCE_OBSERVED');
   assert.equal(verdict.structural_prerequisite_satisfied, true);
   assert.equal(verdict.receipt_schema_version, 'pom-rx/0.1');
@@ -164,7 +168,11 @@ test('strict activation closes every frozen structural integrity gap in the five
 
   for (const [fixture, expectedCode] of cases) {
     const verdict = verifyWithFreshPolicy(readChain(fixture));
-    assert.equal(verdict.structural_status, 'nonconformant', fixture);
+    assert.equal(
+      verdict.structural_status,
+      'nonconformant',
+      `${fixture}: ${diagnosticSummary(verdict)}`,
+    );
     assert.equal(verdict.qualification, 'STRICT_STRUCTURAL_NONCONFORMANCE_OBSERVED', fixture);
     assert.ok(diagnosticCodes(verdict).includes(expectedCode), fixture);
     assertNeverAuthorizes(verdict);
@@ -178,7 +186,11 @@ test('strict activation rejects policy/artifact mismatch as indeterminate', {
     policyArtifactSha256: '0'.repeat(64),
   });
   assert.equal(verdict.structural_status, 'indeterminate');
-  assert.deepEqual(diagnosticCodes(verdict), ['POMRX_V01_E_VERIFIER_NOT_ALLOWED']);
+  assert.deepEqual(
+    diagnosticCodes(verdict),
+    ['POMRX_V01_E_VERIFIER_NOT_ALLOWED'],
+    diagnosticSummary(verdict),
+  );
   assertNeverAuthorizes(verdict);
 });
 
@@ -187,7 +199,11 @@ test('strict activation maps malformed receipt input to an indeterminate typed v
 }, () => {
   const verdict = verifyWithFreshPolicy([{ phase: 'preflight' }]);
   assert.equal(verdict.structural_status, 'indeterminate');
-  assert.deepEqual(diagnosticCodes(verdict), ['POMRX_V01_E_SCHEMA_INVALID']);
+  assert.deepEqual(
+    diagnosticCodes(verdict),
+    ['POMRX_V01_E_SCHEMA_INVALID'],
+    diagnosticSummary(verdict),
+  );
   assertNeverAuthorizes(verdict);
 });
 
