@@ -12,18 +12,22 @@ const automationPolicy = readFileSync(
   'utf8',
 );
 
-test('capability map keeps one POM-RX product with site-aligned application blocks', () => {
+test('capability map keeps one non-normative POM-RX hierarchy with site-aligned application blocks', () => {
+  assert.match(capabilityMap, /CURRENT_INFORMATION_ARCHITECTURE \/ NON_NORMATIVE/);
   assert.match(capabilityMap, /POM-RX is the single principal technical product/);
   for (const heading of [
     'Payments and financial operations',
-    'Autonomous and AI agents',
-    'Enterprise APIs and systems',
-    'Cybersecurity and critical-action control',
+    'AI agents',
+    'APIs and enterprise systems',
+    'Cybersecurity',
     'Blockchain and digital assets',
   ]) {
     assert.match(capabilityMap, new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+  assert.match(capabilityMap, /Application blocks are not mutually exclusive/);
+  assert.match(capabilityMap, /must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics/s);
   assert.match(capabilityMap, /`POM-RX Wallet Guard` is one application profile inside this block/);
+  assert.match(capabilityMap, /primary product home is\s+Blockchain and digital assets, while its defensive control model also overlaps\s+the Cybersecurity block/s);
   assert.match(capabilityMap, /POM-RX Governance Profile — DAGR/);
   assert.match(capabilityMap, /Do not mass-move frozen protocol or fixture files/);
 });
