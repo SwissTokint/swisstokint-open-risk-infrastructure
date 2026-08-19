@@ -4,6 +4,9 @@
   "core": {
     "directory": "core",
     "current_canonical_paths": [
+      "core/strict-verification",
+      "core/authorization",
+      "core/gate",
       "sdk/typescript/pom-rx.mjs",
       "sdk/typescript/internal",
       "sdk/typescript/pom-rx-witness.mjs"

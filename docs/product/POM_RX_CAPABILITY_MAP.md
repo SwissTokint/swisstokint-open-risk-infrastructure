@@ -5,8 +5,8 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 Date: 2026-08-19
 
 This document organizes repository work. It does not change protocol semantics,
-publish a new POM-RX version, activate a verifier or establish production
-readiness.
+publish a new POM-RX version, establish production readiness, or by itself
+activate an authorization/Gate claim.
 
 ## 1. Product rule
 
@@ -45,17 +45,33 @@ diagnostics and policy/artifact binding. Historical `pom-rx/0.1` compatibility
 remains frozen; stronger behavior is additive through separately reviewed
 profiles.
 
+The bounded `pom-rx-v0.1/strict-errata-1` profiled verifier is now activated in
+Core. Its verdicts remain structurally non-authorizing: strict conformance is a
+prerequisite for later authorization, not permission to execute.
+
 Application blocks may add adapters, profiles and tests. They must not duplicate
-or fork Core canonicalization, hashing, verifier, Witness or Gate semantics into
-separate domain-specific implementations.
+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics.
+Exact authorization is also common Core behavior and must not be forked into
+application-specific implementations.
 
-### Witness and authorization
+### Exact authorization and Gate
 
-Source-signed preflight material, witness acknowledgement, enrollment,
-revocation, clock, exact authorization and single-use capability consumption.
-The merged Witness cryptographic primitives establish bounded signature
-semantics only; they do not by themselves establish enrollment, trusted time or
-execution authorization.
+The next common Core contract is the exact-authorization/single-use-Gate
+boundary. The candidate council/ADR defines exact action/context commitments,
+short-lived capability binding, terminal single-use consumption and fail-closed
+replay behavior.
+
+Production issuance is still unproved because source/witness enrollment,
+revocation and trusted-time semantics are not yet complete. The first allowed
+implementation is therefore a local reference Gate with a fake downstream
+adapter; it must not be presented as production authorization.
+
+### Witness
+
+Source-signed preflight material and signed witness acknowledgement primitives
+are merged. They establish bounded cryptographic verification only; they do not
+by themselves establish enrollment, revocation, trusted time, durable service
+semantics or execution authorization.
 
 ### Observation and reconciliation
 
@@ -188,40 +204,46 @@ product solely because it uses a blockchain.
 
 ## 6. Target information architecture
 
-Do not mass-move frozen protocol or fixture files merely for cosmetic
-organization. The target information architecture should be introduced
-incrementally through compatibility-preserving PRs:
+Do not mass-move frozen protocol or fixture files merely for cosmetic organization.
+The product-oriented repository layout is now established incrementally. New
+Core work goes into the common Core blocks; application-specific code stays in
+its application owner and references Core instead of copying it.
 
 ```text
-docs/product/
-  POM_RX_PRODUCT_CHARTER.md
-  POM_RX_CAPABILITY_MAP.md
+core/
+  strict-verification/
+  authorization/
+  gate/
 
-docs/profiles/
-  wallet-guard/
+profiles/
   governance-dagr/
 
-docs/applications/
-  financial-operations/
+applications/
+  payments-financial/
   ai-agents/
   enterprise-apis/
   cybersecurity/
   blockchain-digital-assets/
-
-sdk/typescript/
-  # shared POM-RX and Proof Receipt implementation
-  wallet-guard/
+    wallet-guard/
 
 integrations/
-  # network/storage/anchor adapters
+  stellar-evidence-registry/
+  filecoin/
+
+compatibility/
+  pom-rx-v0.1/
+
+sdk/typescript/
+  # frozen/shared compatibility entry points remain here during migration
 
 tests/
-  # shared conformance plus profile-specific suites
+  # shared conformance plus profile/application suites
 ```
 
 Application folders contain only domain adapters, profiles, fixtures and tests.
-Shared verifier, canonicalization, hashing, Witness and Gate rules remain in the
-common POM-RX implementation and are referenced rather than copied.
+Shared verifier, canonicalization, hashing, Witness, authorization and Gate
+rules remain in the common POM-RX implementation and are referenced rather than
+copied.
 
 Existing frozen fixture paths, historical verifier paths and public source pins
 must not be relocated until a dedicated migration PR proves byte/hash and public
@@ -231,13 +253,14 @@ link compatibility.
 
 | Block | Current state | What is still missing |
 | --- | --- | --- |
-| Shared Core | strict-profile foundation merged; historical verifier preserved | complete strict invariant matrix and activation |
-| Witness | signed source/witness primitives merged | enrollment, revocation, trusted clock, durable service boundary |
+| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding exists | exact authorization issuer, single-use Gate, native execution evidence, independent observation |
+| Exact authorization / Gate | candidate Core contract defined; local reference implementation next | witness enrollment/revocation/trusted time, production issuer, durable multi-process consumption if needed |
+| Witness | signed source/witness primitives merged | enrollment, revocation, trusted clock, durable service boundary, key rotation/recovery |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
 | Cybersecurity | application domain and Wallet Guard threat framing | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar evidence registry and Wallet Guard architecture exist | Wallet Guard implementation, exact Gate, E2E burner proof |
+| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration and Wallet Guard architecture exist | Wallet Guard implementation, trusted-context adapter, common Gate integration, E2E burner proof |
 | Governance/DAGR | candidate subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
@@ -261,6 +284,9 @@ The product hierarchy is therefore:
 ```text
 POM-RX
 ├── Core and common evidence lifecycle
+│   ├── Strict verification
+│   ├── Exact authorization
+│   └── Single-use Gate
 ├── Cross-cutting profiles
 │   └── Governance / DAGR
 ├── Application blocks
