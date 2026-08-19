@@ -204,6 +204,7 @@ product solely because it uses a blockchain.
 
 ## 6. Target information architecture
 
+Do not mass-move frozen protocol or fixture files merely for cosmetic organization.
 The product-oriented repository layout is now established incrementally. New
 Core work goes into the common Core blocks; application-specific code stays in
 its application owner and references Core instead of copying it.
