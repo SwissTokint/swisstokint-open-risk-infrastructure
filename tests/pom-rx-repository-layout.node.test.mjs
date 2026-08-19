@@ -22,10 +22,16 @@ const requiredReadmes = [
   'tooling/README.md',
 ];
 
+function expectExisting(paths, label) {
+  for (const path of paths) {
+    assert.equal(existsSync(path), true, `${label} missing: ${path}`);
+  }
+}
+
 test('repository layout exposes every product-oriented ownership block', () => {
   assert.equal(layout.schema_version, 'pom-rx-repository-layout/1');
   assert.equal(layout.product, 'POM-RX');
-  for (const path of requiredReadmes) assert.equal(existsSync(path), true, path);
+  expectExisting(requiredReadmes, 'ownership marker');
 
   assert.deepEqual(
     layout.applications.map(({ name }) => name),
@@ -38,12 +44,23 @@ test('repository layout exposes every product-oriented ownership block', () => {
       'POM-RX Wallet Guard',
     ],
   );
+
+  const applicationDirectories = layout.applications.map(({ directory }) => directory);
+  assert.equal(new Set(applicationDirectories).size, applicationDirectories.length);
+  expectExisting(applicationDirectories, 'application directory');
+});
+
+test('machine-readable ownership map points only to current canonical paths that exist', () => {
+  expectExisting(layout.core.current_canonical_paths, 'core canonical path');
+  expectExisting(
+    layout.supporting_infrastructure.current_canonical_paths,
+    'supporting integration canonical path',
+  );
+  expectExisting(layout.tooling.current_canonical_paths, 'tooling canonical path');
 });
 
 test('layout preserves frozen v0.1 paths instead of performing a cosmetic move', () => {
-  for (const path of layout.compatibility.protected_paths) {
-    assert.equal(existsSync(path), true, `protected path missing: ${path}`);
-  }
+  expectExisting(layout.compatibility.protected_paths, 'protected path');
 
   const compatibility = readFileSync('compatibility/pom-rx-v0.1/README.md', 'utf8');
   assert.match(compatibility, /future physical move requires byte\/hash parity/i);
