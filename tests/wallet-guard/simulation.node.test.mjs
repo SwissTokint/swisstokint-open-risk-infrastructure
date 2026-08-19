@@ -8,8 +8,6 @@ import {
 import {
   WalletGuardSimulationError,
   createWalletGuardReferenceSimulationHarness,
-  isLocallyProducedWalletGuardSimulationEvidence,
-  toWalletGuardPolicySimulation,
 } from '../../applications/blockchain-digital-assets/wallet-guard/simulation.mjs';
 
 const ACCOUNT = `0x${'1'.repeat(40)}`;
@@ -91,8 +89,8 @@ test('pass evidence is bound to the exact locally normalized intent and request'
   assert.match(evidence.simulation_commitment, /^[a-f0-9]{64}$/u);
   assert.equal(evidence.reference_only, true);
   assert.equal(evidence.simulator_truth_proved, false);
-  assert.equal(isLocallyProducedWalletGuardSimulationEvidence(evidence), true);
-  assert.deepEqual(toWalletGuardPolicySimulation(evidence), { status: 'pass' });
+  assert.equal(runtime.isLocalEvidence(evidence), true);
+  assert.deepEqual(runtime.toPolicySimulation(evidence), { status: 'pass' });
   assert.equal(Object.isFrozen(captured), true);
   assert.equal(Object.isFrozen(captured.request), true);
   assert.equal(Object.isFrozen(captured.request.params), true);
@@ -157,7 +155,7 @@ test('simulator identity substitution is downgraded to mismatch evidence', async
   assert.equal(evidence.account, ACCOUNT);
   assert.equal(evidence.state_commitment, null);
   assert.equal(evidence.effect_commitment, null);
-  assert.deepEqual(toWalletGuardPolicySimulation(evidence), { status: 'mismatch' });
+  assert.deepEqual(runtime.toPolicySimulation(evidence), { status: 'mismatch' });
 });
 
 test('malformed or accessor-bearing simulator output becomes mismatch without semantic reads', async () => {
@@ -191,15 +189,16 @@ test('malformed or accessor-bearing simulator output becomes mismatch without se
 
 test('simulator operational failure becomes unavailable and remains non-proving', async () => {
   const rawRequest = request();
-  const evidence = await harness(async () => {
+  const runtime = harness(async () => {
     throw new Error('simulator offline');
-  }).simulate({ intent: intent(rawRequest), request: rawRequest });
+  });
+  const evidence = await runtime.simulate({ intent: intent(rawRequest), request: rawRequest });
 
   assert.equal(evidence.status, 'unavailable');
   assert.equal(evidence.state_commitment, null);
   assert.equal(evidence.effect_commitment, null);
   assert.equal(evidence.simulator_truth_proved, false);
-  assert.deepEqual(toWalletGuardPolicySimulation(evidence), { status: 'unavailable' });
+  assert.deepEqual(runtime.toPolicySimulation(evidence), { status: 'unavailable' });
 });
 
 test('pass and fail require exact state/effect commitments while unavailable requires null commitments', async () => {
@@ -212,37 +211,54 @@ test('pass and fail require exact state/effect commitments while unavailable req
     { state_commitment: 'not-a-hash' },
     { effect_commitment: 'not-a-hash' },
   ]) {
-    const evidence = await harness(async (input) => callbackResult(input, overrides))
-      .simulate({ intent: normalizedIntent, request: rawRequest });
+    const runtime = harness(async (input) => callbackResult(input, overrides));
+    const evidence = await runtime.simulate({ intent: normalizedIntent, request: rawRequest });
     assert.equal(evidence.status, 'mismatch');
+    assert.deepEqual(runtime.toPolicySimulation(evidence), { status: 'mismatch' });
   }
 
-  const failed = await harness(async (input) => callbackResult(input, { status: 'fail' }))
-    .simulate({ intent: normalizedIntent, request: rawRequest });
+  const failedRuntime = harness(async (input) => callbackResult(input, { status: 'fail' }));
+  const failed = await failedRuntime.simulate({ intent: normalizedIntent, request: rawRequest });
   assert.equal(failed.status, 'fail');
-  assert.deepEqual(toWalletGuardPolicySimulation(failed), { status: 'fail' });
+  assert.deepEqual(failedRuntime.toPolicySimulation(failed), { status: 'fail' });
 
-  const invalidUnavailable = await harness(async (input) => callbackResult(input, {
+  const invalidUnavailableRuntime = harness(async (input) => callbackResult(input, {
     status: 'unavailable',
-  })).simulate({ intent: normalizedIntent, request: rawRequest });
+  }));
+  const invalidUnavailable = await invalidUnavailableRuntime.simulate({
+    intent: normalizedIntent,
+    request: rawRequest,
+  });
   assert.equal(invalidUnavailable.status, 'mismatch');
 
-  const unavailable = await harness(async (input) => callbackResult(input, {
+  const unavailableRuntime = harness(async (input) => callbackResult(input, {
     status: 'unavailable',
     state_commitment: null,
     effect_commitment: null,
-  })).simulate({ intent: normalizedIntent, request: rawRequest });
+  }));
+  const unavailable = await unavailableRuntime.simulate({
+    intent: normalizedIntent,
+    request: rawRequest,
+  });
   assert.equal(unavailable.status, 'unavailable');
 });
 
-test('forged structural simulation evidence cannot be supplied to policy as locally produced evidence', async () => {
+test('forged structural and cross-harness evidence cannot enter policy as local simulation evidence', async () => {
   const rawRequest = request();
-  const evidence = await harness().simulate({ intent: intent(rawRequest), request: rawRequest });
+  const sourceHarness = harness();
+  const evidence = await sourceHarness.simulate({ intent: intent(rawRequest), request: rawRequest });
   const forged = Object.freeze({ ...evidence });
+  const otherHarness = harness();
 
-  assert.equal(isLocallyProducedWalletGuardSimulationEvidence(forged), false);
+  assert.equal(sourceHarness.isLocalEvidence(forged), false);
   assert.throws(
-    () => toWalletGuardPolicySimulation(forged),
+    () => sourceHarness.toPolicySimulation(forged),
+    (error) => expectCode(error, 'POMRX_WG_SIM_E_INVALID'),
+  );
+
+  assert.equal(otherHarness.isLocalEvidence(evidence), false);
+  assert.throws(
+    () => otherHarness.toPolicySimulation(evidence),
     (error) => expectCode(error, 'POMRX_WG_SIM_E_INVALID'),
   );
 });
@@ -250,11 +266,15 @@ test('forged structural simulation evidence cannot be supplied to policy as loca
 test('simulation commitment is deterministic for identical intent and semantic simulator result', async () => {
   const rawRequest = request();
   const normalizedIntent = intent(rawRequest);
-  const first = await harness().simulate({ intent: normalizedIntent, request: rawRequest });
-  const second = await harness().simulate({ intent: normalizedIntent, request: rawRequest });
+  const firstRuntime = harness();
+  const secondRuntime = harness();
+  const first = await firstRuntime.simulate({ intent: normalizedIntent, request: rawRequest });
+  const second = await secondRuntime.simulate({ intent: normalizedIntent, request: rawRequest });
 
   assert.equal(first.simulation_commitment, second.simulation_commitment);
   assert.equal(first.intent_commitment, second.intent_commitment);
+  assert.equal(firstRuntime.isLocalEvidence(second), false);
+  assert.equal(secondRuntime.isLocalEvidence(first), false);
 });
 
 test('hostile request structures fail closed before simulator invocation', async () => {
