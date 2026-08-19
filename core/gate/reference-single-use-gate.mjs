@@ -1,9 +1,8 @@
+import crypto from 'node:crypto';
+
 import {
   PomRxReferenceCapabilityError,
-  beginReferenceCapabilityConsumptionForGate,
-  completeReferenceCapabilityConsumptionForGate,
-  rejectReferenceCapabilityForGate,
-  reserveReferenceCapabilityForGate,
+  prepareReferenceExactAuthorizationRecord,
 } from '../authorization/reference-exact-authorization.mjs';
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
@@ -12,7 +11,13 @@ const OBSERVED_KEYS = Object.freeze([
   'binding_profile',
   'action_commitment',
   'context_commitment',
+  'prepared_execution',
 ]);
+const MAX_PREPARED_DEPTH = 8;
+const MAX_PREPARED_NODES = 1_000;
+const MAX_PREPARED_STRING_LENGTH = 16_384;
+const MAX_PREPARED_KEY_LENGTH = 128;
+const FORBIDDEN_PREPARED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export class PomRxGateError extends Error {
   constructor(code, message) {
@@ -50,6 +55,58 @@ function sampleTrustedClock(trustedClock) {
   return canonicalClockInstant(value);
 }
 
+function clonePreparedExecution(value, depth = 0, budget = { remaining: MAX_PREPARED_NODES }) {
+  if (depth > MAX_PREPARED_DEPTH || budget.remaining-- <= 0) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution exceeds reference bounds');
+  }
+
+  if (value === null || typeof value === 'boolean') return value;
+
+  if (typeof value === 'string') {
+    if (value.length > MAX_PREPARED_STRING_LENGTH) {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution string is too long');
+    }
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution numbers must be safe integers');
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => clonePreparedExecution(item, depth + 1, budget)));
+  }
+
+  if (!value || typeof value !== 'object') {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution contains an unsupported value');
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution must contain plain data only');
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution cannot contain symbol keys');
+  }
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const output = Object.create(null);
+  for (const key of Object.keys(value)) {
+    const descriptor = descriptors[key];
+    if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution cannot contain accessors');
+    }
+    if (key.length === 0 || key.length > MAX_PREPARED_KEY_LENGTH || FORBIDDEN_PREPARED_KEYS.has(key)) {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution contains an unsafe key');
+    }
+    output[key] = clonePreparedExecution(descriptor.value, depth + 1, budget);
+  }
+  return Object.freeze(output);
+}
+
 function validateObservedBinding(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
@@ -71,6 +128,7 @@ function validateObservedBinding(value) {
     binding_profile: value.binding_profile,
     action_commitment: value.action_commitment,
     context_commitment: value.context_commitment,
+    prepared_execution: clonePreparedExecution(value.prepared_execution),
   });
 }
 
@@ -116,11 +174,69 @@ export function createReferenceSingleUseGate(options) {
     throw new TypeError('Reference Gate bootstrap dependencies must be functions');
   }
 
+  // Capability lifecycle is private and bound to this Gate instance. A capability
+  // created by another reference Gate cannot be consumed here.
+  const capabilityState = new WeakMap();
+
+  function issueReferenceAuthorization(bindingInput, { witnessValidUntil } = {}) {
+    const capabilityId = `cap-${crypto.randomBytes(16).toString('hex')}`;
+    const prepared = prepareReferenceExactAuthorizationRecord(bindingInput, {
+      witnessValidUntil,
+      capabilityId,
+    });
+    const capability = Object.freeze(Object.create(null));
+    capabilityState.set(capability, {
+      state: 'AVAILABLE',
+      binding: prepared.binding,
+    });
+    return Object.freeze({ capability, evidence: prepared.evidence });
+  }
+
+  function inspectCapabilityState(capability) {
+    return capabilityState.get(capability)?.state ?? null;
+  }
+
+  function reserveCapability(capability) {
+    const record = capabilityState.get(capability);
+    if (!record) {
+      throw gateError('POMRX_GATE_E_CAPABILITY_REQUIRED', 'A capability from this reference Gate is required');
+    }
+    if (record.state !== 'AVAILABLE') {
+      throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is no longer available');
+    }
+    record.state = 'VALIDATING';
+    return record.binding;
+  }
+
+  function rejectCapability(capability) {
+    const record = capabilityState.get(capability);
+    if (!record || record.state !== 'VALIDATING') {
+      throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot be rejected from its current state');
+    }
+    record.state = 'REJECTED';
+  }
+
+  function beginConsumption(capability) {
+    const record = capabilityState.get(capability);
+    if (!record || record.state !== 'VALIDATING') {
+      throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot begin consumption');
+    }
+    record.state = 'CONSUMING';
+  }
+
+  function completeConsumption(capability, success) {
+    const record = capabilityState.get(capability);
+    if (!record || record.state !== 'CONSUMING') {
+      throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is not consuming');
+    }
+    record.state = success ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
+  }
+
   async function consume(capability, executionAttempt) {
     let binding;
     try {
-      // This reservation is synchronous and occurs before the first await.
-      binding = reserveReferenceCapabilityForGate(capability);
+      // Synchronous reservation happens before the first await.
+      binding = reserveCapability(capability);
     } catch (error) {
       throw normalizeCapabilityError(error);
     }
@@ -129,7 +245,7 @@ export function createReferenceSingleUseGate(options) {
       const firstNow = sampleTrustedClock(trustedClock);
       assertNotExpired(binding, firstNow);
     } catch (error) {
-      rejectReferenceCapabilityForGate(capability);
+      rejectCapability(capability);
       throw normalizeCapabilityError(error);
     }
 
@@ -137,13 +253,13 @@ export function createReferenceSingleUseGate(options) {
     try {
       observed = validateObservedBinding(await observeBinding(executionAttempt));
     } catch (error) {
-      rejectReferenceCapabilityForGate(capability);
+      rejectCapability(capability);
       if (error instanceof PomRxGateError) throw error;
       throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer failed');
     }
 
     if (!exactBindingMatches(binding, observed)) {
-      rejectReferenceCapabilityForGate(capability);
+      rejectCapability(capability);
       throw gateError('POMRX_GATE_E_BINDING_MISMATCH', 'Observed execution binding does not match authorization');
     }
 
@@ -151,25 +267,29 @@ export function createReferenceSingleUseGate(options) {
       const preForwardNow = sampleTrustedClock(trustedClock);
       assertNotExpired(binding, preForwardNow);
     } catch (error) {
-      rejectReferenceCapabilityForGate(capability);
+      rejectCapability(capability);
       throw normalizeCapabilityError(error);
     }
 
-    try {
-      beginReferenceCapabilityConsumptionForGate(capability);
-    } catch (error) {
-      throw normalizeCapabilityError(error);
-    }
+    beginConsumption(capability);
 
     try {
-      const result = await executeDownstream(executionAttempt);
-      completeReferenceCapabilityConsumptionForGate(capability, true);
+      // The caller-owned executionAttempt is never forwarded. Only the defensive
+      // snapshot returned by the trusted observer can reach the downstream adapter.
+      const result = await executeDownstream(observed.prepared_execution);
+      completeConsumption(capability, true);
       return result;
     } catch {
-      completeReferenceCapabilityConsumptionForGate(capability, false);
+      completeConsumption(capability, false);
       throw gateError('POMRX_GATE_E_DOWNSTREAM_FAILED', 'Downstream execution failed');
     }
   }
 
-  return Object.freeze({ consume });
+  const gate = Object.freeze({ consume });
+  const testAuthority = Object.freeze({
+    issueReferenceAuthorization,
+    inspectCapabilityState,
+  });
+
+  return Object.freeze({ gate, testAuthority });
 }
