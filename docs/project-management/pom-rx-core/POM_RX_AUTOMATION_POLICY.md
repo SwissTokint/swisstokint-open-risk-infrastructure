@@ -59,24 +59,29 @@ map is `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 ## Product/capability organization
 
-The public-site application domains are the logical development blocks:
+The public-site application domains are the logical development blocks and keep
+the same public labels:
 
-1. payments and financial operations;
-2. autonomous and AI agents;
-3. enterprise APIs and systems;
-4. cybersecurity and critical-action control;
-5. blockchain and digital assets.
+1. Payments and financial operations;
+2. AI agents;
+3. APIs and enterprise systems;
+4. Cybersecurity;
+5. Blockchain and digital assets.
 
-`POM-RX Wallet Guard` belongs under blockchain/digital assets. It is one POM-RX
-application profile, not the whole product. `POM-RX Governance Profile — DAGR`
-is cross-cutting and subordinate to POM-RX, not a peer product. Filecoin,
-Stellar and other network/storage work remains supporting integration/adapter
-infrastructure unless a specific reviewed adapter actually enforces an
-execution Gate.
+`POM-RX Wallet Guard` belongs primarily under Blockchain and digital assets and
+also overlaps Cybersecurity. It is one POM-RX application profile, not the whole
+product. `POM-RX Governance Profile — DAGR` is cross-cutting and subordinate to
+POM-RX, not a peer product. Filecoin, Stellar and other network/storage work
+remains supporting integration/adapter infrastructure unless a specific reviewed
+adapter actually enforces an execution Gate.
 
 Do not perform a cosmetic mass move of frozen protocol, verifier or fixture
 paths. Reorganization is information-architecture first; physical moves require
 separate compatibility-preserving PRs with link/hash/path impact review.
+
+Application blocks may own domain adapters, profiles, fixtures and tests. They
+must not create competing copies of shared POM-RX canonicalization, hashing,
+verifier, Witness or Gate semantics.
 
 ## Delivery order
 
