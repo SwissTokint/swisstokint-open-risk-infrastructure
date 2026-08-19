@@ -26,18 +26,27 @@ The current repository contains a bounded local reference slice for:
 - bootstrap-captured origin that is not accepted from request fields;
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
-- per-request synthetic reference authorization metadata with local reuse rejection.
+- per-request synthetic reference authorization metadata with local reuse rejection;
+- a controlled in-memory host fixture whose page-facing object graph exposes only
+  the guarded `ethereum.request` surface while keeping the fake raw provider in
+  an unreachable closure.
 
 `DENY` and critical `INDETERMINATE` paths are non-forwarding. The reference
 provider integration is exercised only with controlled fake-provider tests.
+
+The controlled-host fixture closes the **second-provider bypass inside that
+specific returned page surface**: neither the page object nor its `ethereum`
+object contains the raw provider, Core Gate, capability issuer or test authority.
+That is a useful installation invariant for the simulated demo, not a claim
+about arbitrary browser extensions or hostile host code.
 
 This is **not** yet the complete Wallet Guard security claim. In particular:
 
 - the reference authorization supplier is synthetic and does not prove a real
   signed Witness acknowledgement;
-- the bootstrap origin/provider authorities are trusted installation inputs;
-- the caller-facing gateway does not expose the provider, but this alone does
-  not prove that a browser/dApp has no second unguarded provider reference;
+- the controlled host itself is trusted bootstrap code; a compromised browser,
+  extension, injected script with an independently retained provider, or another
+  provider installation outside this fixture remains out of scope;
 - simulation/effect evidence, production Witness enrollment/revocation/trusted
   time, independent observation and reconciliation are still separate lots;
 - no real wallet, private key, testnet/mainnet transaction, custody path or
