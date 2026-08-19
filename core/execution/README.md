@@ -7,17 +7,20 @@ common authorization, canonicalization, hashing or evidence lifecycle.
 ## Current reference recorder
 
 `reference-execution-evidence.mjs` adds a bounded, process-local recorder for a
-trusted execution adapter to mark the start of an execution under one complete
-exact-authorization binding and later record a bounded outcome.
+trusted execution adapter to open one recording under a complete exact-
+authorization binding and later record a bounded adapter outcome.
 
 The recorder:
 
 - snapshots and validates the complete exact-authorization binding;
 - recomputes the authorization commitment rather than accepting a caller hash;
-- samples a synchronous monotonic trusted clock and requires the recorded
-  execution start to fall inside the authorization validity window;
+- samples a synchronous monotonic trusted clock and requires recording to open
+  inside the authorization validity window;
+- rejects a second local recording for the same authorization commitment;
 - returns an opaque recorder-instance-local handle and terminally consumes it
-  once, including concurrent completion attempts;
+  once;
+- records explicit `recording_started_at` and `recorded_at` chronology rather
+  than claiming a Gate/native `executed_at` timestamp it cannot establish;
 - snapshots outcome data without invoking accessors and bounds depth, node
   count, strings and keys;
 - accepts `success | error | unknown` outcomes;
@@ -29,6 +32,8 @@ The recorder:
 
 The local evidence brand is scoped to one recorder instance. A structural clone
 or evidence produced by another recorder is not considered locally recorded.
+Authorization-reuse rejection is likewise process-local to that recorder; it is
+not a durable cross-process replay service.
 
 ## Deliberate limitation
 
@@ -36,7 +41,7 @@ This recorder **does not authorize or perform an execution**. Possession of a
 structurally valid exact-authorization binding is not permission to call a
 downstream system. The recorder must later be composed with the common
 single-use Gate so that evidence is emitted from the actual guarded forwarding
-path.
+path and native execution timing can be established there.
 
 Likewise, the effect object supplied on completion is trusted adapter-reported
 reference data. Hashing it proves only the bytes committed by this recorder; it
