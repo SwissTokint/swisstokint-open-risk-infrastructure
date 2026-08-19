@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 import {
   canonicalizePayload,
   sha256Hex,
@@ -42,8 +40,6 @@ const BINDING_KEYS = Object.freeze([
   'capability_id',
   ...INPUT_KEYS,
 ]);
-
-const capabilityState = new WeakMap();
 
 export class PomRxReferenceCapabilityError extends Error {
   constructor(code, message) {
@@ -140,13 +136,17 @@ export function commitExactAuthorizationBinding(binding) {
   return Object.freeze({ canonicalBinding, authorizationCommitment });
 }
 
-export function issueReferenceExactAuthorization(bindingInput, { witnessValidUntil } = {}) {
+export function prepareReferenceExactAuthorizationRecord(
+  bindingInput,
+  { witnessValidUntil, capabilityId } = {},
+) {
   assertExactKeys(bindingInput, INPUT_KEYS, 'Reference exact authorization input');
+  assertStringPattern(capabilityId, CAPABILITY_ID_PATTERN, 'capability_id');
   const witnessExpiry = canonicalUtcInstant(witnessValidUntil, 'witness_valid_until');
 
   const binding = Object.freeze({
     schema_version: POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION,
-    capability_id: `cap-${crypto.randomBytes(16).toString('hex')}`,
+    capability_id: capabilityId,
     ...bindingInput,
   });
 
@@ -159,7 +159,6 @@ export function issueReferenceExactAuthorization(bindingInput, { witnessValidUnt
   }
 
   const committed = commitExactAuthorizationBinding(binding);
-  const capability = Object.freeze(Object.create(null));
   const evidence = Object.freeze({
     binding,
     authorization_commitment: committed.authorizationCommitment,
@@ -168,51 +167,5 @@ export function issueReferenceExactAuthorization(bindingInput, { witnessValidUnt
     authorization_proved: false,
   });
 
-  capabilityState.set(capability, {
-    state: 'AVAILABLE',
-    binding,
-    authorizationCommitment: committed.authorizationCommitment,
-  });
-
-  return Object.freeze({ capability, evidence });
-}
-
-export function reserveReferenceCapabilityForGate(capability) {
-  const record = capabilityState.get(capability);
-  if (!record) {
-    fail('POMRX_GATE_E_CAPABILITY_REQUIRED', 'A branded reference capability is required');
-  }
-  if (record.state !== 'AVAILABLE') {
-    fail('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is no longer available');
-  }
-  record.state = 'VALIDATING';
-  return record.binding;
-}
-
-export function rejectReferenceCapabilityForGate(capability) {
-  const record = capabilityState.get(capability);
-  if (!record || record.state !== 'VALIDATING') {
-    fail('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot be rejected from its current state');
-  }
-  record.state = 'REJECTED';
-}
-
-export function beginReferenceCapabilityConsumptionForGate(capability) {
-  const record = capabilityState.get(capability);
-  if (!record || record.state !== 'VALIDATING') {
-    fail('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot begin consumption');
-  }
-  record.state = 'CONSUMING';
-}
-
-export function completeReferenceCapabilityConsumptionForGate(capability, success) {
-  const record = capabilityState.get(capability);
-  if (!record || record.state !== 'CONSUMING') {
-    fail('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is not consuming');
-  }
-  record.state = success ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
-}
-
-export function inspectReferenceCapabilityState(capability) {
-  return capabilityState.get(capability)?.state ?? null;
+  return Object.freeze({ binding, evidence });
 }
