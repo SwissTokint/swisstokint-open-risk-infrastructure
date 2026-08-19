@@ -9,9 +9,13 @@ import {
   POM_RX_V01_ACTION_CONTINUITY_INVARIANT,
   checkPomRxV01ActionContinuity,
 } from '../sdk/typescript/internal/pom-rx-v01-action-continuity.mjs';
+import {
+  createPomRxV01ProfileReadiness,
+} from './support/pom-rx-v01-profile-readiness.mjs';
 
 const hash = (character) => character.repeat(64);
 const fixtureRoot = 'fixtures/pom-rx/v0.1-compat/1/chains';
+const implementationPath = 'sdk/typescript/internal/pom-rx-v01-action-continuity.mjs';
 
 function receipt(phase, actionCommitment = hash('a')) {
   return Object.freeze({
@@ -122,6 +126,29 @@ test('action-continuity checker fails closed on malformed or noncontiguous inter
   expectInternalFailure(() => checkPomRxV01ActionContinuity([
     receipt('preflight', 'not-a-hash'),
   ]));
+});
+
+test('one implemented invariant remains PROFILE_INCOMPLETE and never authorizes', () => {
+  const readiness = createPomRxV01ProfileReadiness({
+    sourceClosure: [{
+      path: implementationPath,
+      bytes: readFileSync(implementationPath),
+    }],
+    implementedInvariants: [POM_RX_V01_ACTION_CONTINUITY_INVARIANT],
+  });
+
+  assert.deepEqual(readiness.implemented_invariants, ['POMRX_V01_I_ACTION_CONTINUITY']);
+  assert.deepEqual(readiness.missing_invariants, [
+    'POMRX_V01_I_INPUT_CONTINUITY',
+    'POMRX_V01_I_EXECUTION_ASSERTION_CONSISTENCY',
+    'POMRX_V01_I_RECONCILIATION_ASSERTION_CONSISTENCY',
+    'POMRX_V01_I_RECEIPT_ID_UNIQUENESS',
+  ]);
+  assert.equal(readiness.structural_status, 'indeterminate');
+  assert.equal(readiness.structural_prerequisite_satisfied, false);
+  assert.equal(readiness.authorization_eligible, false);
+  assert.equal(readiness.authorization_proved, false);
+  assert.equal(readiness.diagnostic_code, 'POMRX_V01_E_PROFILE_INCOMPLETE');
 });
 
 test('action-continuity implementation remains internal and does not alter legacy verifier source', () => {
