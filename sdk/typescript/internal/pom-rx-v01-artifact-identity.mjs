@@ -397,7 +397,7 @@ function staticLocalDependencies(relativePath, bytes) {
       if (depth !== 0) invalid('Computed member access is unterminated in strict verifier source', { path: relativePath });
       const computedProperty = tokens[cursor]?.type === 'punctuator' && tokens[cursor]?.value === ':';
       if (containsString && (computedMember || computedProperty)) {
-        invalid('String-computed member access is forbidden in strict verifier source', { path: relativePath });
+        invalid(`String-computed member access is forbidden in strict verifier source: ${relativePath}`, { path: relativePath });
       }
     }
     const constructorReference = token.type === 'identifier' && token.value === 'constructor'

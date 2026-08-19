@@ -1,135 +1,37 @@
-ci_status=0
-audit_status=0
-test_status=1
+targeted_status=1
 --- tail ---
-  ...
-# Subtest: passing matched assertions do not prove independent observation or external truth
-ok 8 - passing matched assertions do not prove independent observation or external truth
-  ---
-  duration_ms: 1.505312
-  type: 'test'
-  ...
-# Subtest: reconciliation assertion implementation remains internal and leaves legacy verifier unchanged
-ok 9 - reconciliation assertion implementation remains internal and leaves legacy verifier unchanged
-  ---
-  duration_ms: 0.458629
-  type: 'test'
-  ...
-1..9
-# tests 9
-# suites 0
-# pass 9
-# fail 0
-# cancelled 0
-# skipped 0
-# todo 0
-# duration_ms 73.691977
 
-> @swisstokint/open-risk-infrastructure@0.1.1 test:pom-rx:receipt-id-uniqueness
-> node --test tests/pom-rx-v01-receipt-id-uniqueness.node.test.mjs
+added 9 packages, and audited 10 packages in 2s
 
-TAP version 13
-# Subtest: receipt-ID uniqueness invariant identifier is stable
-ok 1 - receipt-ID uniqueness invariant identifier is stable
-  ---
-  duration_ms: 0.922276
-  type: 'test'
-  ...
-# Subtest: unique receipt IDs across a full chain emit no diagnostic
-ok 2 - unique receipt IDs across a full chain emit no diagnostic
-  ---
-  duration_ms: 0.9318
-  type: 'test'
-  ...
-# Subtest: duplicate preflight/execution receipt ID emits the tracked exact defect at the duplicate
-ok 3 - duplicate preflight/execution receipt ID emits the tracked exact defect at the duplicate
-  ---
-  duration_ms: 0.520672
-  type: 'test'
-  ...
-# Subtest: duplicate execution/reconciliation receipt ID is detected at reconciliation
-ok 4 - duplicate execution/reconciliation receipt ID is detected at reconciliation
-  ---
-  duration_ms: 0.252179
-  type: 'test'
-  ...
-# Subtest: three equal receipt IDs deterministically report both later duplicate positions
-ok 5 - three equal receipt IDs deterministically report both later duplicate positions
-  ---
-  duration_ms: 0.384698
-  type: 'test'
-  ...
-# Subtest: receipt-ID checker closes the frozen duplicate-ID fixture
-ok 6 - receipt-ID checker closes the frozen duplicate-ID fixture
-  ---
-  duration_ms: 1.034805
-  type: 'test'
-  ...
-# Subtest: checker fails closed on malformed IDs and noncontiguous internal chain shape
-ok 7 - checker fails closed on malformed IDs and noncontiguous internal chain shape
-  ---
-  duration_ms: 0.549305
-  type: 'test'
-  ...
-# Subtest: same receipt ID reused in separate invocations is not claimed as cross-chain replay detection
-ok 8 - same receipt ID reused in separate invocations is not claimed as cross-chain replay detection
-  ---
-  duration_ms: 0.127682
-  type: 'test'
-  ...
-# Subtest: all five invariant families cannot self-activate through the test-only readiness harness
-ok 9 - all five invariant families cannot self-activate through the test-only readiness harness
-  ---
-  duration_ms: 0.715054
-  type: 'test'
-  ...
-# Subtest: receipt-ID uniqueness implementation remains internal and leaves legacy verifier unchanged
-ok 10 - receipt-ID uniqueness implementation remains internal and leaves legacy verifier unchanged
-  ---
-  duration_ms: 0.502785
-  type: 'test'
-  ...
-1..10
-# tests 10
-# suites 0
-# pass 10
-# fail 0
-# cancelled 0
-# skipped 0
-# todo 0
-# duration_ms 73.875943
-
-> @swisstokint/open-risk-infrastructure@0.1.1 test:pom-rx:strict-activation
-> node --test tests/pom-rx-v01-strict-activation.node.test.mjs
-
+found 0 vulnerabilities
 TAP version 13
 # Subtest: strict activation exports the exact ratified profile and verifier identifiers
 ok 1 - strict activation exports the exact ratified profile and verifier identifiers
   ---
-  duration_ms: 0.984008
+  duration_ms: 1.219423
   type: 'test'
   ...
 # Subtest: strict profile options fail closed without downgrade or implicit fallback
 ok 2 - strict profile options fail closed without downgrade or implicit fallback
   ---
-  duration_ms: 1.998964
+  duration_ms: 2.119338
   type: 'test'
   ...
 # Subtest: strict activation requires a branded fresh policy capability
 ok 3 - strict activation requires a branded fresh policy capability
   ---
-  duration_ms: 15.641442
+  duration_ms: 300.432213
   type: 'test'
   ...
 # Subtest: strict activation produces a fully bound non-authorizing conformant verdict
 not ok 4 - strict activation produces a fully bound non-authorizing conformant verdict
   ---
-  duration_ms: 31.212609
+  duration_ms: 34.132313
   type: 'test'
   location: '/home/runner/work/swisstokint-open-risk-infrastructure/swisstokint-open-risk-infrastructure/tests/pom-rx-v01-strict-activation.node.test.mjs:138:1'
   failureType: 'testCodeFailure'
   error: |-
-    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source"}]
+    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source: sdk/typescript/internal/pom-rx-v01-policy-capability.mjs"}]
     + actual - expected
     
     + 'indeterminate'
@@ -152,12 +54,12 @@ not ok 4 - strict activation produces a fully bound non-authorizing conformant v
 # Subtest: strict activation closes every frozen structural integrity gap in the five-invariant matrix
 not ok 5 - strict activation closes every frozen structural integrity gap in the five-invariant matrix
   ---
-  duration_ms: 23.654863
+  duration_ms: 27.171971
   type: 'test'
   location: '/home/runner/work/swisstokint-open-risk-infrastructure/swisstokint-open-risk-infrastructure/tests/pom-rx-v01-strict-activation.node.test.mjs:157:1'
   failureType: 'testCodeFailure'
   error: |-
-    POMRX-001-ACTION-PREFLIGHT-EXECUTION: [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source"}]
+    POMRX-001-ACTION-PREFLIGHT-EXECUTION: [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source: sdk/typescript/internal/pom-rx-v01-policy-capability.mjs"}]
     + actual - expected
     
     + 'indeterminate'
@@ -180,12 +82,12 @@ not ok 5 - strict activation closes every frozen structural integrity gap in the
 # Subtest: strict activation rejects policy/artifact mismatch as indeterminate
 not ok 6 - strict activation rejects policy/artifact mismatch as indeterminate
   ---
-  duration_ms: 10.55518
+  duration_ms: 15.36125
   type: 'test'
   location: '/home/runner/work/swisstokint-open-risk-infrastructure/swisstokint-open-risk-infrastructure/tests/pom-rx-v01-strict-activation.node.test.mjs:182:1'
   failureType: 'testCodeFailure'
   error: |-
-    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source"}]
+    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source: sdk/typescript/internal/pom-rx-v01-policy-capability.mjs"}]
     + actual - expected
     
       [
@@ -212,12 +114,12 @@ not ok 6 - strict activation rejects policy/artifact mismatch as indeterminate
 # Subtest: strict activation maps malformed receipt input to an indeterminate typed verdict
 not ok 7 - strict activation maps malformed receipt input to an indeterminate typed verdict
   ---
-  duration_ms: 14.027077
+  duration_ms: 19.373971
   type: 'test'
   location: '/home/runner/work/swisstokint-open-risk-infrastructure/swisstokint-open-risk-infrastructure/tests/pom-rx-v01-strict-activation.node.test.mjs:197:1'
   failureType: 'testCodeFailure'
   error: |-
-    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source"}]
+    [{"defect_id":null,"diagnostic_code":"POMRX_V01_E_ARTIFACT_MANIFEST_INVALID","severity":"error","phase":null,"receipt_index":null,"field":null,"message":"String-computed member access is forbidden in strict verifier source: sdk/typescript/internal/pom-rx-v01-policy-capability.mjs"}]
     + actual - expected
     
       [
@@ -244,13 +146,13 @@ not ok 7 - strict activation maps malformed receipt input to an indeterminate ty
 # Subtest: strict activation source never calls or falls back to the historical verifier
 ok 8 - strict activation source never calls or falls back to the historical verifier
   ---
-  duration_ms: 0.768014
+  duration_ms: 0.355726
   type: 'test'
   ...
 # Subtest: Windows strict production boundary is explicit fail-closed until native metadata evidence exists
 ok 9 - Windows strict production boundary is explicit fail-closed until native metadata evidence exists # SKIP
   ---
-  duration_ms: 0.458859
+  duration_ms: 0.317424
   type: 'test'
   ...
 1..9
@@ -261,4 +163,4 @@ ok 9 - Windows strict production boundary is explicit fail-closed until native m
 # cancelled 0
 # skipped 1
 # todo 0
-# duration_ms 186.131422
+# duration_ms 500.799449
