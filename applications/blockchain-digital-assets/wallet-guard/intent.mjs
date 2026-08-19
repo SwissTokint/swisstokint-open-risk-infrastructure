@@ -17,6 +17,8 @@ export const WALLET_GUARD_INTENT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guar
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/u;
 const RPC_METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
+const HASH_PATTERN = /^[a-f0-9]{64}$/u;
+const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const REQUEST_KEYS = Object.freeze(['method', 'params']);
 const NORMALIZE_KEYS = Object.freeze([
   'requestId',
@@ -26,6 +28,28 @@ const NORMALIZE_KEYS = Object.freeze([
   'request',
 ]);
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
+export const WALLET_GUARD_INTENT_KEYS = Object.freeze([
+  'schema_version',
+  'request_id',
+  'origin',
+  'chain_id',
+  'account',
+  'rpc_method',
+  'request_class',
+  'target',
+  'spender',
+  'recipient',
+  'native_value',
+  'calldata_sha256',
+  'typed_data_sha256',
+  'requested_allowance',
+  'token_amount',
+  'requested_operator_approval',
+  'typed_data_owner',
+  'typed_data_domain_chain_id',
+  'typed_data_verifying_contract',
+  'simulation_required',
+]);
 
 export class WalletGuardIntentError extends Error {
   constructor(code, message) {
@@ -115,6 +139,7 @@ function normalizeSendTransaction(request, trustedAccount) {
     requested_allowance: decoded.requested_allowance,
     token_amount: decoded.token_amount,
     requested_operator_approval: decoded.requested_operator_approval,
+    typed_data_owner: null,
     typed_data_domain_chain_id: null,
     typed_data_verifying_contract: null,
     simulation_required: decoded.simulation_required,
@@ -130,6 +155,9 @@ function normalizeTypedDataRequest(request, trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'typed data account does not match trusted active account');
   }
   const decoded = decodeTypedData(request.params[1]);
+  if (decoded.request_class === 'permit_eip2612' && decoded.typed_data_owner !== trustedAccount) {
+    fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'Permit owner does not match trusted active account');
+  }
   return Object.freeze({
     request_class: decoded.request_class,
     target: decoded.target,
@@ -141,6 +169,7 @@ function normalizeTypedDataRequest(request, trustedAccount) {
     requested_allowance: decoded.requested_allowance,
     token_amount: null,
     requested_operator_approval: null,
+    typed_data_owner: decoded.typed_data_owner,
     typed_data_domain_chain_id: decoded.typed_data_domain_chain_id,
     typed_data_verifying_contract: decoded.typed_data_verifying_contract,
     simulation_required: decoded.simulation_required,
@@ -151,7 +180,12 @@ function normalizeGenericSignature(request) {
   if (request.params.length < 1 || request.params.length > 2) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${request.method} has an unsupported parameter shape`);
   }
-  const canonicalParams = canonicalizePayload({ params: request.params });
+  let canonicalParams;
+  try {
+    canonicalParams = canonicalizePayload({ params: request.params });
+  } catch {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'generic signature payload is outside bounded canonical form');
+  }
   return Object.freeze({
     request_class: 'generic_signature',
     target: null,
@@ -163,6 +197,7 @@ function normalizeGenericSignature(request) {
     requested_allowance: null,
     token_amount: null,
     requested_operator_approval: null,
+    typed_data_owner: null,
     typed_data_domain_chain_id: null,
     typed_data_verifying_contract: null,
     simulation_required: true,
@@ -170,10 +205,15 @@ function normalizeGenericSignature(request) {
 }
 
 function normalizeUnsupportedRpc(request) {
-  const canonicalRequest = canonicalizePayload({
-    method: request.method,
-    params: request.params,
-  });
+  let canonicalRequest;
+  try {
+    canonicalRequest = canonicalizePayload({
+      method: request.method,
+      params: request.params,
+    });
+  } catch {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported RPC payload is outside bounded canonical form');
+  }
   return Object.freeze({
     request_class: 'unsupported_rpc',
     target: null,
@@ -185,6 +225,7 @@ function normalizeUnsupportedRpc(request) {
     requested_allowance: null,
     token_amount: null,
     requested_operator_approval: null,
+    typed_data_owner: null,
     typed_data_domain_chain_id: null,
     typed_data_verifying_contract: null,
     simulation_required: true,
@@ -196,6 +237,80 @@ function freezeIntent(fields) {
     schema_version: WALLET_GUARD_INTENT_SCHEMA_VERSION,
     ...fields,
   });
+}
+
+function assertNullableAddress(value, field) {
+  if (value === null) return;
+  if (normalizeEvmAddress(value, field) !== value) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${field} is not canonical`);
+  }
+}
+
+function assertNullableHash(value, field) {
+  if (value !== null && (typeof value !== 'string' || !HASH_PATTERN.test(value))) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${field} must be null or lowercase SHA-256`);
+  }
+}
+
+function assertNullableDecimal(value, field) {
+  if (value !== null && (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value))) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${field} must be null or canonical decimal`);
+  }
+}
+
+export function validateWalletGuardIntent(intent) {
+  assertExactKeys(intent, WALLET_GUARD_INTENT_KEYS, 'Wallet Guard intent');
+  if (intent.schema_version !== WALLET_GUARD_INTENT_SCHEMA_VERSION) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported Wallet Guard intent version');
+  }
+  if (typeof intent.request_id !== 'string' || !REQUEST_ID_PATTERN.test(intent.request_id)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'intent request_id is invalid');
+  }
+  if (normalizeTrustedOrigin(intent.origin) !== intent.origin) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'intent origin is not canonical');
+  }
+  if (normalizeChainId(intent.chain_id) !== intent.chain_id) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'intent chain_id is not canonical');
+  }
+  if (normalizeEvmAddress(intent.account, 'intent account') !== intent.account) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'intent account is not canonical');
+  }
+  if (typeof intent.rpc_method !== 'string' || !RPC_METHOD_PATTERN.test(intent.rpc_method)
+      || typeof intent.request_class !== 'string' || intent.request_class.length < 1) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'intent RPC identity is invalid');
+  }
+  for (const field of [
+    'target',
+    'spender',
+    'recipient',
+    'typed_data_owner',
+    'typed_data_verifying_contract',
+  ]) {
+    assertNullableAddress(intent[field], field);
+  }
+  assertNullableHash(intent.calldata_sha256, 'calldata_sha256');
+  assertNullableHash(intent.typed_data_sha256, 'typed_data_sha256');
+  for (const field of ['native_value', 'requested_allowance', 'token_amount']) {
+    assertNullableDecimal(intent[field], field);
+  }
+  if (intent.native_value === null) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'native_value must always be canonical decimal');
+  }
+  if (intent.requested_operator_approval !== null
+      && typeof intent.requested_operator_approval !== 'boolean') {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'requested_operator_approval must be null or boolean');
+  }
+  if (intent.typed_data_domain_chain_id !== null
+      && normalizeChainId(intent.typed_data_domain_chain_id) !== intent.typed_data_domain_chain_id) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'typed_data_domain_chain_id is not canonical');
+  }
+  if (typeof intent.simulation_required !== 'boolean') {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'simulation_required must be boolean');
+  }
+  if (intent.request_class === 'permit_eip2612' && intent.typed_data_owner !== intent.account) {
+    fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'Permit owner must equal intent account');
+  }
+  return intent;
 }
 
 export function normalizeWalletGuardIntent(input) {
@@ -227,7 +342,7 @@ export function normalizeWalletGuardIntent(input) {
     throw error;
   }
 
-  return freezeIntent({
+  const intent = freezeIntent({
     request_id: input.requestId,
     origin,
     chain_id: chainId,
@@ -243,16 +358,17 @@ export function normalizeWalletGuardIntent(input) {
     requested_allowance: action.requested_allowance,
     token_amount: action.token_amount,
     requested_operator_approval: action.requested_operator_approval,
+    typed_data_owner: action.typed_data_owner,
     typed_data_domain_chain_id: action.typed_data_domain_chain_id,
     typed_data_verifying_contract: action.typed_data_verifying_contract,
     simulation_required: action.simulation_required,
   });
+  validateWalletGuardIntent(intent);
+  return intent;
 }
 
 export function commitWalletGuardIntent(intent) {
-  if (!intent || intent.schema_version !== WALLET_GUARD_INTENT_SCHEMA_VERSION) {
-    fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported Wallet Guard intent');
-  }
+  validateWalletGuardIntent(intent);
   const canonical_intent = canonicalizePayload(intent);
   return Object.freeze({
     canonical_intent,
