@@ -4,6 +4,7 @@ import {
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
 import {
   MAX_UINT256_DECIMAL,
+  WalletGuardDecoderError,
   normalizeChainId,
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
@@ -101,6 +102,24 @@ function normalizeCanonicalDecimal(value, field) {
   return BigInt(value).toString(10);
 }
 
+function normalizePolicyChainId(value) {
+  try {
+    return normalizeChainId(value);
+  } catch (error) {
+    const detail = error instanceof WalletGuardDecoderError ? error.code : 'invalid-chain';
+    fail('POMRX_WG_POLICY_E_INVALID', `expected_chain_id is invalid: ${detail}`);
+  }
+}
+
+function normalizePolicyAddress(value, field) {
+  try {
+    return normalizeEvmAddress(value, field);
+  } catch (error) {
+    const detail = error instanceof WalletGuardDecoderError ? error.code : 'invalid-address';
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} is invalid: ${detail}`);
+  }
+}
+
 function normalizeUniqueList(values, field, normalizeItem) {
   if (!Array.isArray(values) || values.length > 256) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
@@ -143,27 +162,27 @@ function normalizePolicy(policy) {
     policy_id: policy.policy_id,
     enabled: policy.enabled,
     kill_switch: policy.kill_switch,
-    expected_chain_id: normalizeChainId(policy.expected_chain_id),
+    expected_chain_id: normalizePolicyChainId(policy.expected_chain_id),
     allowed_origins: normalizeUniqueList(policy.allowed_origins, 'allowed_origins', normalizeOrigin),
     allowed_targets: normalizeUniqueList(
       policy.allowed_targets,
       'allowed_targets',
-      (value) => normalizeEvmAddress(value, 'allowed target'),
+      (value) => normalizePolicyAddress(value, 'allowed target'),
     ),
     allowed_recipients: normalizeUniqueList(
       policy.allowed_recipients,
       'allowed_recipients',
-      (value) => normalizeEvmAddress(value, 'allowed recipient'),
+      (value) => normalizePolicyAddress(value, 'allowed recipient'),
     ),
     allowed_spenders: normalizeUniqueList(
       policy.allowed_spenders,
       'allowed_spenders',
-      (value) => normalizeEvmAddress(value, 'allowed spender'),
+      (value) => normalizePolicyAddress(value, 'allowed spender'),
     ),
     allowed_typed_data_verifying_contracts: normalizeUniqueList(
       policy.allowed_typed_data_verifying_contracts,
       'allowed_typed_data_verifying_contracts',
-      (value) => normalizeEvmAddress(value, 'allowed typed-data verifying contract'),
+      (value) => normalizePolicyAddress(value, 'allowed typed-data verifying contract'),
     ),
     max_native_value: normalizeCanonicalDecimal(policy.max_native_value, 'max_native_value'),
     max_token_amount: normalizeCanonicalDecimal(policy.max_token_amount, 'max_token_amount'),
