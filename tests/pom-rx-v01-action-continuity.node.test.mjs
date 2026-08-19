@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -10,12 +11,17 @@ import {
 } from '../sdk/typescript/internal/pom-rx-v01-action-continuity.mjs';
 
 const hash = (character) => character.repeat(64);
+const fixtureRoot = 'fixtures/pom-rx/v0.1-compat/1/chains';
 
 function receipt(phase, actionCommitment = hash('a')) {
   return Object.freeze({
     phase,
     action_commitment: actionCommitment,
   });
+}
+
+function readChain(scenarioId) {
+  return JSON.parse(readFileSync(`${fixtureRoot}/${scenarioId}.json`, 'utf8'));
 }
 
 function expectInternalFailure(callback) {
@@ -90,6 +96,20 @@ test('action-continuity checker deterministically reports both adjacent substitu
   );
 });
 
+test('action-continuity checker closes the two frozen v0.1 action-substitution fixtures', () => {
+  const scenarios = [
+    ['POMRX-001-ACTION-PREFLIGHT-EXECUTION', 'POMRX-001-ACTION-PREFLIGHT-EXECUTION'],
+    ['POMRX-001-ACTION-EXECUTION-RECONCILIATION', 'POMRX-001-ACTION-EXECUTION-RECONCILIATION'],
+  ];
+
+  for (const [scenarioId, expectedDefectId] of scenarios) {
+    const diagnostics = checkPomRxV01ActionContinuity(readChain(scenarioId));
+    assert.equal(diagnostics.length, 1, scenarioId);
+    assert.equal(diagnostics[0].defect_id, expectedDefectId, scenarioId);
+    assert.equal(diagnostics[0].diagnostic_code, 'POMRX_V01_E_ACTION_CONTINUITY', scenarioId);
+  }
+});
+
 test('action-continuity checker fails closed on malformed or noncontiguous internal input', () => {
   expectInternalFailure(() => checkPomRxV01ActionContinuity([]));
   expectInternalFailure(() => checkPomRxV01ActionContinuity([
@@ -102,4 +122,10 @@ test('action-continuity checker fails closed on malformed or noncontiguous inter
   expectInternalFailure(() => checkPomRxV01ActionContinuity([
     receipt('preflight', 'not-a-hash'),
   ]));
+});
+
+test('action-continuity implementation remains internal and does not alter legacy verifier source', () => {
+  const legacySource = readFileSync('sdk/typescript/pom-rx.mjs', 'utf8');
+  assert.doesNotMatch(legacySource, /pom-rx-v01-action-continuity/u);
+  assert.doesNotMatch(legacySource, /checkPomRxV01ActionContinuity/u);
 });
