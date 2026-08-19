@@ -2,7 +2,7 @@
 
 import fs from 'node:fs';
 
-import { verifyFilecoinEvidenceBundle } from '../sdk/typescript/filecoin-evidence-bundle.mjs';
+import { verifyFilecoinEvidenceBundle } from '../integrations/filecoin/evidence-bundle.mjs';
 
 const inputPath = process.argv[2];
 if (!inputPath) {
