@@ -10,13 +10,16 @@ Candidate state machine:
 
 ```text
 AVAILABLE
-  -> REJECTED
-  -> CONSUMING
-       -> CONSUMED_SUCCESS
-       -> CONSUMED_ERROR
+  -> VALIDATING
+       -> REJECTED
+       -> CONSUMING
+            -> CONSUMED_SUCCESS
+            -> CONSUMED_ERROR
 ```
 
-Reservation must occur before the first downstream call or asynchronous boundary. Every terminal state is non-reusable. A downstream error never rearms a capability automatically.
+A branded capability is reserved synchronously by moving to `VALIDATING` before asynchronous context observation. This prevents concurrent double-use. The Gate rechecks expiry immediately before forwarding; every terminal state is non-reusable and a downstream error never rearms a capability automatically.
+
+The Gate is bootstrapped with private `trusted_clock`, `observe_binding` and `execute_downstream` references. Per-call consumers do not supply a downstream callback, trusted timestamp or self-asserted trusted context.
 
 The local reference Gate will use a fake downstream adapter only. A production Gate remains blocked by the production exact-authorization issuer prerequisites and, outside one process, durable atomic consumption.
 
