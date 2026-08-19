@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  commitExactAuthorizationBinding,
+} from '../core/authorization/reference-exact-authorization.mjs';
+import {
   PomRxObservationError,
   createReferenceObservationReconciliation,
 } from '../core/observation/reference-observation-reconciliation.mjs';
@@ -9,19 +12,38 @@ import {
 const hash = (character) => character.repeat(64);
 const ACTION = hash('a');
 const CONTEXT = hash('b');
-const AUTHORIZATION = hash('c');
 const EFFECT = hash('d');
 const OTHER = hash('e');
 
-function expected(overrides = {}) {
+function authorizationBinding(overrides = {}) {
   return {
+    schema_version: 'pom-rx-exact-authorization/0.1',
+    capability_id: `cap-${'1'.repeat(32)}`,
     binding_profile: 'pom-rx-reference-observation/0.1',
     run_id: 'run-reference-observation-0001',
-    authorization_commitment: AUTHORIZATION,
+    agent_ref: 'agent-reference-observation-01',
+    subject_ref: 'subject-reference-observation-01',
+    method_hash: hash('1'),
+    policy_hash: hash('2'),
     action_commitment: ACTION,
     context_commitment: CONTEXT,
-    authorization_issued_at: '2026-08-19T20:00:00.000Z',
-    authorization_valid_until: '2026-08-19T20:00:30.000Z',
+    preflight_receipt_hash: hash('3'),
+    witness_ack_hash: hash('4'),
+    source_key_id: `ed25519-${'a'.repeat(32)}`,
+    witness_key_id: `ed25519-${'b'.repeat(32)}`,
+    verification_profile: 'pom-rx-v0.1/strict-errata-1',
+    verifier_version: 'pom-rx-v0.1-strict-verifier/1',
+    implementation_artifact_sha256: hash('5'),
+    effective_verification_policy_sha256: hash('6'),
+    issued_at: '2026-08-19T20:00:00.000Z',
+    expires_at: '2026-08-19T20:00:30.000Z',
+    ...overrides,
+  };
+}
+
+function expected(overrides = {}) {
+  return {
+    authorization_binding: authorizationBinding(),
     expected_execution_status: 'success',
     expected_effect_commitment: EFFECT,
     ...overrides,
@@ -63,18 +85,77 @@ function expectCode(error, code) {
 }
 
 test('matching independently observed binding, status and effect reconciles as MATCH', async () => {
+  const binding = authorizationBinding();
   const result = await harness().captureAndReconcile({
-    expected: expected(),
+    expected: expected({ authorization_binding: binding }),
     observationRef: { provider: 'fixture', transaction: 'tx-0001' },
   });
 
   assert.equal(result.reconciliation.verdict, 'MATCH');
   assert.deepEqual(result.reconciliation.reasons, []);
   assert.equal(result.reconciliation.expected_execution_status, 'success');
+  assert.equal(
+    result.reconciliation.authorization_commitment,
+    commitExactAuthorizationBinding(binding).authorizationCommitment,
+  );
   assert.match(result.observation.observation_hash, /^[a-f0-9]{64}$/u);
   assert.match(result.reconciliation.reconciliation_hash, /^[a-f0-9]{64}$/u);
   assert.equal(result.reconciliation.reference_only, true);
   assert.equal(result.reconciliation.external_world_proved, false);
+});
+
+test('authorization commitment is derived from the exact binding, not caller-supplied metadata', async () => {
+  let observerCalls = 0;
+  const runtime = harness({
+    observeExecution: async () => {
+      observerCalls += 1;
+      return observed();
+    },
+  });
+
+  await assert.rejects(
+    runtime.captureAndReconcile({
+      expected: {
+        ...expected(),
+        authorization_commitment: hash('f'),
+      },
+      observationRef: { id: 'forged-commitment' },
+    }),
+    (error) => expectCode(error, 'POMRX_OBS_E_INVALID'),
+  );
+  assert.equal(observerCalls, 0);
+
+  const alteredBinding = authorizationBinding({ action_commitment: OTHER });
+  const result = await runtime.captureAndReconcile({
+    expected: expected({ authorization_binding: alteredBinding }),
+    observationRef: { id: 'altered-binding' },
+  });
+  assert.equal(result.reconciliation.verdict, 'MISMATCH');
+  assert.ok(result.reconciliation.reasons.includes('POMRX_RECON_MISMATCH_ACTION'));
+  assert.equal(
+    result.reconciliation.authorization_commitment,
+    commitExactAuthorizationBinding(alteredBinding).authorizationCommitment,
+  );
+});
+
+test('malformed exact authorization binding fails closed before observer invocation', async () => {
+  let observerCalls = 0;
+  const runtime = harness({
+    observeExecution: async () => {
+      observerCalls += 1;
+      return observed();
+    },
+  });
+  await assert.rejects(
+    runtime.captureAndReconcile({
+      expected: expected({
+        authorization_binding: authorizationBinding({ capability_id: 'cap-invalid' }),
+      }),
+      observationRef: { id: 'bad-binding' },
+    }),
+    (error) => expectCode(error, 'POMRX_OBS_E_AUTHORIZATION_INVALID'),
+  );
+  assert.equal(observerCalls, 0);
 });
 
 test('action, context and run substitutions are explicit mismatches', async () => {
@@ -210,6 +291,19 @@ test('caller mutation after entry cannot alter the observation reference seen by
   assert.equal(Object.isFrozen(captured.nested), true);
 });
 
+test('observer output is snapshotted and accessors are rejected before semantic reads', async () => {
+  const accessorObservation = observed();
+  Object.defineProperty(accessorObservation, 'run_id', {
+    enumerable: true,
+    get() { return 'run-reference-observation-0001'; },
+  });
+  const runtime = harness({ observation: accessorObservation });
+  await assert.rejects(
+    runtime.captureAndReconcile({ expected: expected(), observationRef: { id: 'accessor-output' } }),
+    (error) => expectCode(error, 'POMRX_OBS_E_OBSERVER_INVALID'),
+  );
+});
+
 test('observer failure and malformed output fail closed with stable diagnostics', async () => {
   const throwing = harness({
     observeExecution: async () => { throw new Error('unavailable'); },
@@ -224,7 +318,7 @@ test('observer failure and malformed output fail closed with stable diagnostics'
   });
   await assert.rejects(
     malformed.captureAndReconcile({ expected: expected(), observationRef: { id: 'y' } }),
-    (error) => expectCode(error, 'POMRX_OBS_E_INVALID'),
+    (error) => expectCode(error, 'POMRX_OBS_E_OBSERVER_INVALID'),
   );
 });
 
