@@ -18,6 +18,7 @@ const HOST_KEYS = Object.freeze([
 ]);
 const TX_HASH_PATTERN = /^0x[a-f0-9]{64}$/u;
 const MAX_ACCOUNTS = 64;
+const MAX_SENSITIVE_CALLS = 1_000;
 const MAX_SNAPSHOT_DEPTH = 8;
 const MAX_SNAPSHOT_NODES = 1_000;
 const MAX_SNAPSHOT_STRING = 16_384;
@@ -97,9 +98,21 @@ function canonicalAccounts(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a bounded non-empty array');
   }
-  const normalized = value.map((account) => {
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain symbol keys');
+  }
+  const keys = Object.keys(value);
+  if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+    fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a dense plain array');
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const normalized = keys.map((key) => {
+    const descriptor = descriptors[key];
+    if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
+      fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain accessors');
+    }
     try {
-      return normalizeEvmAddress(account, 'controlled host account');
+      return normalizeEvmAddress(descriptor.value, 'controlled host account');
     } catch {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts contain an invalid address');
     }
@@ -112,55 +125,58 @@ function canonicalAccounts(value) {
 
 function clonePlainData(value, depth = 0, budget = { remaining: MAX_SNAPSHOT_NODES }) {
   if (depth > MAX_SNAPSHOT_DEPTH || budget.remaining-- <= 0) {
-    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request exceeds reference bounds');
+    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data exceeds reference bounds');
   }
   if (value === null || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     if (value.length > MAX_SNAPSHOT_STRING) {
-      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request string is too long');
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data string is too long');
     }
     return value;
   }
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value)) {
-      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request numbers must be safe integers');
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data numbers must be safe integers');
     }
     return value;
   }
   if (Array.isArray(value)) {
+    if (Object.getOwnPropertySymbols(value).length !== 0) {
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data arrays cannot contain symbol keys');
+    }
     const keys = Object.keys(value);
     if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
-      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request arrays must be dense');
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data arrays must be dense');
     }
     const descriptors = Object.getOwnPropertyDescriptors(value);
     return Object.freeze(keys.map((key) => {
       const descriptor = descriptors[key];
       if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-        fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request arrays cannot contain accessors');
+        fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data arrays cannot contain accessors');
       }
       return clonePlainData(descriptor.value, depth + 1, budget);
     }));
   }
   if (!value || typeof value !== 'object') {
-    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request contains unsupported values');
+    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data contains unsupported values');
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request must contain plain objects only');
+    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data must contain plain objects only');
   }
   if (Object.getOwnPropertySymbols(value).length !== 0) {
-    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request cannot contain symbol keys');
+    fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data cannot contain symbol keys');
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
   for (const key of Object.keys(value)) {
     if (key.length === 0 || key.length > MAX_SNAPSHOT_KEY || FORBIDDEN_KEYS.has(key)) {
-      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request contains an unsafe key');
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data contains an unsafe key');
     }
     const descriptor = descriptors[key];
     if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'provider request cannot contain accessors');
+      fail('POMRX_WG_HOST_E_SNAPSHOT_INVALID', 'data cannot contain accessors');
     }
     output[key] = clonePlainData(descriptor.value, depth + 1, budget);
   }
@@ -182,6 +198,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     fail('POMRX_WG_HOST_E_INVALID', 'providerResult must be a lowercase 32-byte transaction hash');
   }
 
+  const policy = clonePlainData(options.policy);
   const state = {
     origin: canonicalOrigin(options.trustedOrigin),
     chainId: canonicalChainId(options.chainId),
@@ -202,6 +219,9 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
         state.contextReads += 1;
         return [...state.accounts];
       }
+      if (state.sensitiveCalls.length >= MAX_SENSITIVE_CALLS) {
+        fail('POMRX_WG_HOST_E_LOG_FULL', 'controlled provider sensitive-call log is full');
+      }
       state.sensitiveCalls.push(clonePlainData(request));
       return options.providerResult;
     },
@@ -210,7 +230,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
   const gateway = createWalletGuardReferenceProviderGateway({
     captureTrustedOrigin: () => state.origin,
     provider: rawProvider,
-    policy: options.policy,
+    policy,
     trustedClock: options.trustedClock,
     referenceAuthorizationForRequest: options.referenceAuthorizationForRequest,
     capabilityLifetimeMs: options.capabilityLifetimeMs,
