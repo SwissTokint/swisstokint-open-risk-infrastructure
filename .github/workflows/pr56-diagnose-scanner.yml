@@ -1,0 +1,64 @@
+name: PR56 identify remaining scanner rejection
+
+on:
+  push:
+    branches:
+      - feat/pom-rx-strict-profile-activation
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/pom-rx-strict-profile-activation
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Add source path to scanner diagnostics
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs')
+          text = path.read_text(encoding='utf-8')
+          old = "invalid('String-computed member access is forbidden in strict verifier source', { path: relativePath });"
+          new = "invalid(`String-computed member access is forbidden in strict verifier source: ${relativePath}`, { path: relativePath });"
+          if text.count(old) != 1:
+              raise SystemExit('expected scanner diagnostic fragment exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8', newline='\n')
+          PY
+      - name: Regenerate manifest
+        shell: bash
+        run: |
+          tmp="$(mktemp)"; rm -f "$tmp"
+          node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$tmp"
+          mv "$tmp" core/strict-verification/pom-rx-v01-artifact-manifest.json
+      - name: Capture targeted test
+        shell: bash
+        run: |
+          set +e
+          npm ci > /tmp/pr56.log 2>&1
+          node --test tests/pom-rx-v01-strict-activation.node.test.mjs >> /tmp/pr56.log 2>&1
+          status=$?
+          {
+            echo "targeted_status=$status"
+            echo "--- tail ---"
+            tail -n 180 /tmp/pr56.log
+          } > PR56_REPAIR_DIAGNOSTICS.txt
+          exit 0
+      - name: Commit diagnosis and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/pr56-diagnose-scanner.yml
+          git add -A sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs core/strict-verification/pom-rx-v01-artifact-manifest.json PR56_REPAIR_DIAGNOSTICS.txt .github/workflows/pr56-diagnose-scanner.yml || true
+          git commit -am "chore(pom-rx): expose strict scanner rejection path"
+          git push origin HEAD:feat/pom-rx-strict-profile-activation
