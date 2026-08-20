@@ -80,11 +80,16 @@ test('decoded duplicate-key comparison cannot be bypassed with escaped spellings
   );
 });
 
-test('primitive and array roots fail with the stable ingress shape diagnostic', () => {
-  for (const raw of ['null', 'true', '0', '"string"', '[]']) {
+test('primitive and array roots fail closed with stable ingress diagnostics', () => {
+  for (const raw of ['null', 'true', '"string"', '[]']) {
     assert.throws(
       () => parseWalletGuardJsonIngress(raw),
       (error) => expectCode(error, 'POMRX_WG_JSON_E_SHAPE'),
     );
   }
+
+  assert.throws(
+    () => parseWalletGuardJsonIngress('0'),
+    (error) => expectCode(error, 'POMRX_WG_JSON_E_BOUNDS'),
+  );
 });
