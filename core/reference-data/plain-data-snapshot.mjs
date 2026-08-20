@@ -48,6 +48,15 @@ function isOwnEnumerableDataDescriptor(descriptor) {
     && descriptor.enumerable === true;
 }
 
+function defineOwnArrayElement(output, key, value) {
+  const descriptor = Object.create(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  Object.defineProperty(output, key, descriptor);
+}
+
 function captureArray(value, label, depth, budget) {
   rejectProxy(value, label);
   if (Object.getPrototypeOf(value) !== Array.prototype) {
@@ -84,12 +93,7 @@ function captureArray(value, label, depth, budget) {
       fail('POMRX_DATA_E_ARRAY', `${label} must contain dense data elements only`);
     }
     const captured = captureValue(descriptor.value, `${label}[${key}]`, depth + 1, budget);
-    Object.defineProperty(output, key, {
-      value: captured,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
+    defineOwnArrayElement(output, key, captured);
   }
   return Object.freeze(output);
 }
