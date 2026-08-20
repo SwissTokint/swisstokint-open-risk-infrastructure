@@ -65,6 +65,39 @@ For the exact merged `main` SHA:
    - re-check relevant expected-red, compatibility, checksum, dependency-audit,
      secret-scan and build evidence when the merged scope can affect them.
 
+## Exact-main CI observability
+
+The repository publishes a machine-readable commit status for the configured
+`CI` workflow after that workflow completes on a `push` to `main`.
+`.github/workflows/exact-main-ci-status.yml` writes the fixed context
+`pom-rx/exact-main-ci` to the upstream run's exact
+`github.event.workflow_run.head_sha`. `success` is published only when the
+upstream `CI` conclusion is exactly `success`; every other completed conclusion
+is published as `failure`.
+
+The publisher is deliberately privilege-separated from normal CI. The normal
+`CI` workflow remains read-only while it checks out and executes repository
+code. The status publisher has only `statuses: write`, never checks out
+repository code, never downloads upstream artifacts or caches, and does not run
+PR-controlled scripts. It accepts only a completed `CI` run whose event is
+`push`, whose head branch is `main`, and whose head repository is this exact
+repository. Values from the workflow-run payload are passed through environment
+variables and validated before the GitHub status API is called; they are not
+interpolated into executable script source.
+
+For post-merge integration evidence, a `pom-rx/exact-main-ci` status is usable
+only when it is attached to the exact merge SHA and reports `success`. The
+status target must remain the corresponding GitHub Actions run. When creator
+metadata is available, it must identify the GitHub Actions automation rather
+than an unrelated publisher. Absence, failure, wrong-SHA binding, wrong context
+or inconsistent target metadata keeps the integration verdict conditional or
+blocked as appropriate.
+
+This mechanism is prospective. It does not retroactively turn an older merge
+with unobservable push-CI evidence into a PASS. A later reviewed repair merge
+may establish a new trusted `main` state only after its own exact-merge status
+and the rest of this assurance gate pass.
+
 ## Verdict
 
 The report ends with exactly one of:
