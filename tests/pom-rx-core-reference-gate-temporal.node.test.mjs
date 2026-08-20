@@ -81,6 +81,47 @@ test('capability cannot be consumed before its issued_at boundary', async () => 
   assert.equal(harness.testAuthority.inspectCapabilityStateForTest(capability), 'REJECTED');
 });
 
+test('a not-yet-valid rejection does not corrupt a separate capability at the same trusted instant', async () => {
+  let evidence;
+  let observerCalls = 0;
+  let downstreamCalls = 0;
+  const trustedNow = '2026-08-19T16:59:59.999Z';
+  const harness = createReferenceSingleUseGateHarness({
+    trustedClock: sequenceClock(trustedNow, trustedNow, trustedNow),
+    observeBinding: async () => {
+      observerCalls += 1;
+      return observedFrom(evidence);
+    },
+    executeDownstream: async () => {
+      downstreamCalls += 1;
+      return 'ok';
+    },
+  });
+
+  const future = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  await assert.rejects(
+    harness.gate.consume(future.capability, { operation: 'future' }),
+    (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_NOT_YET_VALID'),
+  );
+
+  const active = harness.testAuthority.issueReferenceAuthorizationForTest(
+    bindingInput({
+      run_id: 'run-temporal-active-after-rejection',
+      issued_at: '2026-08-19T16:59:00.000Z',
+    }),
+    { witnessValidUntil: WITNESS_VALID_UNTIL },
+  );
+  evidence = active.evidence;
+
+  assert.equal(await harness.gate.consume(active.capability, { operation: 'active' }), 'ok');
+  assert.equal(observerCalls, 1);
+  assert.equal(downstreamCalls, 1);
+  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(future.capability), 'REJECTED');
+  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(active.capability), 'CONSUMED_SUCCESS');
+});
+
 test('trusted clock rollback during observation is terminal and non-forwarding', async () => {
   let evidence;
   let downstreamCalls = 0;
