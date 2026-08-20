@@ -1,9 +1,13 @@
 import crypto from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 
 import {
   PomRxReferenceCapabilityError,
   prepareReferenceExactAuthorizationRecord,
 } from '../authorization/reference-exact-authorization.mjs';
+import {
+  captureReferencePlainData,
+} from '../reference-data/plain-data-snapshot.mjs';
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,127}$/u;
@@ -13,11 +17,11 @@ const OBSERVED_KEYS = Object.freeze([
   'context_commitment',
   'prepared_execution',
 ]);
-const MAX_PREPARED_DEPTH = 8;
-const MAX_PREPARED_NODES = 1_000;
-const MAX_PREPARED_STRING_LENGTH = 16_384;
-const MAX_PREPARED_KEY_LENGTH = 128;
-const FORBIDDEN_PREPARED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const HARNESS_KEYS = Object.freeze([
+  'executeDownstream',
+  'observeBinding',
+  'trustedClock',
+]);
 
 export class PomRxGateError extends Error {
   constructor(code, message) {
@@ -29,6 +33,41 @@ export class PomRxGateError extends Error {
 
 function gateError(code, message) {
   return new PomRxGateError(code, message);
+}
+
+function snapshotExactReferences(value, expectedKeys, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || utilTypes.isProxy(value)) {
+    throw new TypeError(`${label} must be an exact plain data object`);
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`${label} must use Object.prototype or a null prototype`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError(`${label} cannot contain symbol keys`);
+  }
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors).sort();
+  const expected = [...expectedKeys].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new TypeError(`${label} has missing, hidden or unknown fields`);
+  }
+
+  const snapshot = Object.create(null);
+  for (const key of expectedKeys) {
+    const descriptor = descriptors[key];
+    if (!descriptor
+      || descriptor.enumerable !== true
+      || typeof descriptor.get === 'function'
+      || typeof descriptor.set === 'function'
+      || !Object.hasOwn(descriptor, 'value')) {
+      throw new TypeError(`${label} fields must be enumerable data properties`);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
 }
 
 function canonicalClockInstant(value) {
@@ -55,91 +94,39 @@ function sampleTrustedClock(trustedClock) {
   return canonicalClockInstant(value);
 }
 
-function clonePreparedExecution(value, depth = 0, budget = { remaining: MAX_PREPARED_NODES }) {
-  if (depth > MAX_PREPARED_DEPTH || budget.remaining-- <= 0) {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution exceeds reference bounds');
-  }
-
-  if (value === null || typeof value === 'boolean') return value;
-
-  if (typeof value === 'string') {
-    if (value.length > MAX_PREPARED_STRING_LENGTH) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution string is too long');
-    }
-    return value;
-  }
-
-  if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value)) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution numbers must be safe integers');
-    }
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    const keys = Object.keys(value);
-    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution arrays must be dense plain arrays');
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    for (const key of keys) {
-      const descriptor = descriptors[key];
-      if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-        throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution arrays cannot contain accessors');
-      }
-    }
-    return Object.freeze(keys.map((key) => clonePreparedExecution(descriptors[key].value, depth + 1, budget)));
-  }
-
-  if (!value || typeof value !== 'object') {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution contains an unsupported value');
-  }
-
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution must contain plain data only');
-  }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution cannot contain symbol keys');
-  }
-
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const output = Object.create(null);
-  for (const key of Object.keys(value)) {
-    const descriptor = descriptors[key];
-    if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution cannot contain accessors');
-    }
-    if (key.length === 0 || key.length > MAX_PREPARED_KEY_LENGTH || FORBIDDEN_PREPARED_KEYS.has(key)) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Prepared execution contains an unsafe key');
-    }
-    output[key] = clonePreparedExecution(descriptor.value, depth + 1, budget);
-  }
-  return Object.freeze(output);
-}
-
 function validateObservedBinding(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  let snapshot;
+  try {
+    snapshot = captureReferencePlainData(value, 'trusted Gate observer result');
+  } catch {
+    throw gateError(
+      'POMRX_GATE_E_OBSERVER_FAILED',
+      'Trusted binding observer returned non-inert or out-of-bounds data',
+    );
+  }
+
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
   }
-  const actual = Object.keys(value).sort();
+  const actual = Object.keys(snapshot).sort();
   const expected = [...OBSERVED_KEYS].sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
   }
-  if (typeof value.binding_profile !== 'string' || !PROFILE_PATTERN.test(value.binding_profile)) {
+  if (typeof snapshot.binding_profile !== 'string'
+    || !PROFILE_PATTERN.test(snapshot.binding_profile)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid profile');
   }
   for (const field of ['action_commitment', 'context_commitment']) {
-    if (typeof value[field] !== 'string' || !HASH_PATTERN.test(value[field])) {
+    if (typeof snapshot[field] !== 'string' || !HASH_PATTERN.test(snapshot[field])) {
       throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
     }
   }
   return Object.freeze({
-    binding_profile: value.binding_profile,
-    action_commitment: value.action_commitment,
-    context_commitment: value.context_commitment,
-    prepared_execution: clonePreparedExecution(value.prepared_execution),
+    binding_profile: snapshot.binding_profile,
+    action_commitment: snapshot.action_commitment,
+    context_commitment: snapshot.context_commitment,
+    prepared_execution: snapshot.prepared_execution,
   });
 }
 
@@ -165,20 +152,16 @@ function exactBindingMatches(binding, observed) {
 }
 
 export function createReferenceSingleUseGateHarness(options) {
-  if (!options || typeof options !== 'object' || Array.isArray(options)) {
-    throw new TypeError('Reference Gate harness bootstrap options are required');
-  }
-  const keys = Object.keys(options).sort();
-  const expected = ['executeDownstream', 'observeBinding', 'trustedClock'];
-  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
-    throw new TypeError('Reference Gate harness bootstrap has missing or unknown fields');
-  }
-
+  const bootstrap = snapshotExactReferences(
+    options,
+    HARNESS_KEYS,
+    'Reference Gate harness bootstrap',
+  );
   const {
     trustedClock,
     observeBinding,
     executeDownstream,
-  } = options;
+  } = bootstrap;
   if (typeof trustedClock !== 'function'
     || typeof observeBinding !== 'function'
     || typeof executeDownstream !== 'function') {
@@ -262,6 +245,10 @@ export function createReferenceSingleUseGateHarness(options) {
 
     let observed;
     try {
+      // The observer is a trusted async bootstrap dependency. JavaScript resolves
+      // its return channel before this boundary. Once a value is resolved, Core
+      // immediately captures it as detached bounded inert data before any binding
+      // field is read or any prepared value can reach downstream.
       observed = validateObservedBinding(await observeBinding(executionAttempt));
     } catch (error) {
       rejectCapability(capability);
@@ -285,8 +272,8 @@ export function createReferenceSingleUseGateHarness(options) {
     beginConsumption(capability);
 
     try {
-      // The caller-owned executionAttempt is never forwarded. Only the defensive
-      // snapshot returned by the trusted observer can reach the downstream adapter.
+      // The caller-owned executionAttempt is never forwarded. Only the detached,
+      // frozen snapshot captured from the trusted observer can reach downstream.
       const result = await executeDownstream(observed.prepared_execution);
       completeConsumption(capability, true);
       return result;
