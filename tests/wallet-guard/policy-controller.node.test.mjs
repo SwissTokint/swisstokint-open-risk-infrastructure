@@ -73,7 +73,8 @@ test('initial snapshot is deterministic, immutable and explicitly reference-only
   assert.equal(left.policy_hash, right.policy_hash);
   assert.equal(left.state_commitment, right.state_commitment);
   assert.equal(left.reference_only, true);
-  assert.equal(left.process_local_atomicity, true);
+  assert.equal(left.controller_instance_synchronous_atomicity, true);
+  assert.equal(left.process_wide_policy_state_proved, false);
   assert.equal(left.durable_policy_state_proved, false);
   assert.equal(left.remote_operator_authorization_proved, false);
   assert.equal(Object.isFrozen(left), true);
@@ -184,7 +185,7 @@ test('caller mutation after replacement cannot alter the stored normalized polic
   assert.equal(controller.evaluate(nativeIntent()).decision, 'ALLOW');
 });
 
-test('top-level and nested accessors are rejected without executing getters', () => {
+test('top-level and nested policy accessors are rejected without executing getters', () => {
   let getterCalls = 0;
   const bootstrap = {};
   Object.defineProperty(bootstrap, 'policy', {
@@ -216,6 +217,25 @@ test('top-level and nested accessors are rejected without executing getters', ()
 
   assert.throws(
     () => createWalletGuardReferencePolicyController({ policy: hostilePolicy }),
+    (error) => expectCode(error, 'POMRX_WG_POLICY_STATE_E_INVALID'),
+  );
+  assert.equal(getterCalls, 0);
+});
+
+test('simulation accessors are rejected at the controller boundary without executing getters', () => {
+  const controller = createWalletGuardReferencePolicyController({ policy: policy() });
+  let getterCalls = 0;
+  const simulation = {};
+  Object.defineProperty(simulation, 'status', {
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return 'pass';
+    },
+  });
+
+  assert.throws(
+    () => controller.evaluate(nativeIntent(), simulation),
     (error) => expectCode(error, 'POMRX_WG_POLICY_STATE_E_INVALID'),
   );
   assert.equal(getterCalls, 0);
