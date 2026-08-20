@@ -126,6 +126,41 @@ test('prepare options reject accessors without invoking capability or witness ge
   assert.equal(getterCalls, 0);
 });
 
+test('missing prepare options cannot be synthesized by inherited prototype descriptors', () => {
+  const originalCapability = Object.getOwnPropertyDescriptor(Object.prototype, 'capabilityId');
+  const originalWitness = Object.getOwnPropertyDescriptor(Object.prototype, 'witnessValidUntil');
+  let hostileReads = 0;
+
+  Object.defineProperty(Object.prototype, 'capabilityId', {
+    configurable: true,
+    get() {
+      hostileReads += 1;
+      return { value: CAPABILITY_ID };
+    },
+  });
+  Object.defineProperty(Object.prototype, 'witnessValidUntil', {
+    configurable: true,
+    get() {
+      hostileReads += 1;
+      return { value: WITNESS_VALID_UNTIL };
+    },
+  });
+
+  try {
+    assert.throws(
+      () => prepareReferenceExactAuthorizationRecord(validInput(), {}),
+      expectBindingMismatch,
+    );
+  } finally {
+    if (originalCapability) Object.defineProperty(Object.prototype, 'capabilityId', originalCapability);
+    else delete Object.prototype.capabilityId;
+    if (originalWitness) Object.defineProperty(Object.prototype, 'witnessValidUntil', originalWitness);
+    else delete Object.prototype.witnessValidUntil;
+  }
+
+  assert.equal(hostileReads, 0);
+});
+
 test('Proxy bindings fail before user-defined Proxy traps can participate in snapshotting', () => {
   let trapCalls = 0;
   const proxy = new Proxy(validBinding(), {
