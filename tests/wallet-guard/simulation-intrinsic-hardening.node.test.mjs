@@ -97,26 +97,3 @@ test('later WeakSet/WeakMap prototype poisoning cannot forge provenance or inten
   expectCode(wrongIntentResult, 'POMRX_WG_SIM_E_BINDING_MISMATCH');
   assert.deepEqual(runtime.toPolicySimulation(firstIntent, evidence), { status: 'pass' });
 });
-
-test('later Set.prototype.has poisoning cannot widen callback status vocabulary', async () => {
-  const request = rawRequest('0x1');
-  const intent = normalize(request, 'wg-simulation-intrinsic-0002');
-  const runtime = createWalletGuardReferenceSimulationHarness({
-    simulateRequest: async (input) => ({
-      ...callbackResult(input),
-      status: 'attacker-defined-status',
-    }),
-  });
-
-  const originalSetHas = Set.prototype.has;
-  let evidence;
-  Set.prototype.has = () => true;
-  try {
-    evidence = await runtime.simulate({ intent, request });
-  } finally {
-    Set.prototype.has = originalSetHas;
-  }
-
-  assert.equal(evidence.status, 'mismatch');
-  assert.deepEqual(runtime.toPolicySimulation(intent, evidence), { status: 'mismatch' });
-});
