@@ -31,6 +31,27 @@ function isWhitespace(character) {
   return character === ' ' || character === '\n' || character === '\r' || character === '\t';
 }
 
+function assertUnicodeScalarString(value, label) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      if (index + 1 >= value.length) {
+        fail('POMRX_WG_JSON_E_UNICODE', `${label} contains an unpaired high surrogate`);
+      }
+      const next = value.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) {
+        fail('POMRX_WG_JSON_E_UNICODE', `${label} contains an unpaired high surrogate`);
+      }
+      index += 1;
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) {
+      fail('POMRX_WG_JSON_E_UNICODE', `${label} contains an unpaired low surrogate`);
+    }
+  }
+  return value;
+}
+
 class StrictJsonScanner {
   constructor(raw) {
     this.raw = raw;
@@ -190,7 +211,7 @@ class StrictJsonScanner {
         if (typeof decoded !== 'string') {
           fail('POMRX_WG_JSON_E_SYNTAX', 'JSON string token is invalid');
         }
-        return decoded;
+        return assertUnicodeScalarString(decoded, 'JSON string');
       }
       if (character === '\\') {
         this.index += 1;
@@ -233,7 +254,11 @@ class StrictJsonScanner {
     if (!match) {
       fail('POMRX_WG_JSON_E_SYNTAX', 'JSON number is invalid');
     }
-    this.index += match[0].length;
+    const token = match[0];
+    if (token === '-0' || token.includes('.') || token.includes('e') || token.includes('E')) {
+      fail('POMRX_WG_JSON_E_NUMBER', 'Wallet Guard JSON numbers must use canonical integer syntax');
+    }
+    this.index += token.length;
   }
 }
 
@@ -246,11 +271,11 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
     if (value.length > MAX_STRING_LENGTH) {
       fail('POMRX_WG_JSON_E_BOUNDS', 'parsed JSON string exceeds the maximum length');
     }
-    return value;
+    return assertUnicodeScalarString(value, 'parsed JSON string');
   }
   if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value)) {
-      fail('POMRX_WG_JSON_E_NUMBER', 'Wallet Guard JSON numbers must be safe integers');
+    if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
+      fail('POMRX_WG_JSON_E_NUMBER', 'Wallet Guard JSON numbers must be canonical safe integers');
     }
     return value;
   }
@@ -262,6 +287,7 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
   }
   const output = Object.create(null);
   for (const [key, entry] of Object.entries(value)) {
+    assertUnicodeScalarString(key, 'parsed JSON key');
     if (key.length === 0 || key.length > MAX_KEY_LENGTH || FORBIDDEN_KEYS.has(key)) {
       fail('POMRX_WG_JSON_E_UNSAFE_KEY', 'parsed JSON contains an unsafe object key');
     }
@@ -297,7 +323,7 @@ function validateJsonRpcId(value) {
     }
     return value;
   }
-  if (Number.isSafeInteger(value) && value >= 0) return value;
+  if (Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0)) return value;
   fail('POMRX_WG_JSON_E_ID', 'JSON-RPC id must be a non-negative safe integer or bounded string');
 }
 
