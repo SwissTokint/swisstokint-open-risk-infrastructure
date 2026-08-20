@@ -15,4 +15,6 @@ During the compatibility migration, frozen/shared implementations that predate t
 
 Application blocks may normalize their own domain intents/context and own downstream adapters, but they must not duplicate canonicalization, hashing, verifier, Witness or Gate semantics. Exact authorization is also common Core behavior and must not be forked into an application-specific implementation. Observation/reconciliation comparison semantics likewise remain shared Core behavior rather than an application-specific fork.
 
+The shared canonical payload contract currently remains in `sdk/typescript/swisstokint-proof.mjs`. Validation failures from `canonicalizePayload()` are positively identified by the exported `ProofPayloadValidationError` class and stable `PROOF_E_PAYLOAD_*` codes while remaining `TypeError`-compatible. POM-RX Core/application adapters that deliberately normalize canonical-payload rejection must catch that branded validation class/code rather than broad `TypeError` or message text. Unrelated runtime/intrinsic failures are intentionally unbranded and must propagate with their original provenance.
+
 Historical v0.1 paths are moved only through dedicated compatibility-preserving PRs that prove the required byte/hash/import/link invariants.

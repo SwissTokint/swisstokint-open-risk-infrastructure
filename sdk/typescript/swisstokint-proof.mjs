@@ -37,8 +37,20 @@ const sensitivePayloadKeys = new Set([
   'positions',
 ]);
 
+export class ProofPayloadValidationError extends TypeError {
+  constructor(code, message) {
+    super(message);
+    this.name = 'ProofPayloadValidationError';
+    this.code = code;
+  }
+}
+
 function assert(condition, message) {
   if (!condition) throw new TypeError(message);
+}
+
+function payloadAssert(condition, code, message) {
+  if (!condition) throw new ProofPayloadValidationError(code, message);
 }
 
 function normalizedSensitiveKey(key) {
@@ -46,18 +58,30 @@ function normalizedSensitiveKey(key) {
 }
 
 function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
-  assert(depth <= MAX_DEPTH, 'Payload exceeds the maximum depth');
-  assert(budget.remaining-- > 0, 'Payload exceeds the maximum node count');
+  payloadAssert(depth <= MAX_DEPTH, 'PROOF_E_PAYLOAD_DEPTH', 'Payload exceeds the maximum depth');
+  payloadAssert(
+    budget.remaining-- > 0,
+    'PROOF_E_PAYLOAD_NODES',
+    'Payload exceeds the maximum node count',
+  );
 
   if (value === null || typeof value === 'boolean') return;
 
   if (typeof value === 'string') {
-    assert(value.length <= MAX_STRING_LENGTH, 'Payload string is too long');
+    payloadAssert(
+      value.length <= MAX_STRING_LENGTH,
+      'PROOF_E_PAYLOAD_STRING',
+      'Payload string is too long',
+    );
     return;
   }
 
   if (typeof value === 'number') {
-    assert(Number.isSafeInteger(value), 'Payload numbers must be safe integers');
+    payloadAssert(
+      Number.isSafeInteger(value),
+      'PROOF_E_PAYLOAD_NUMBER',
+      'Payload numbers must be safe integers',
+    );
     return;
   }
 
@@ -66,10 +90,22 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
     return;
   }
 
-  assert(value && typeof value === 'object', 'Payload contains an unsupported value');
+  payloadAssert(
+    value && typeof value === 'object',
+    'PROOF_E_PAYLOAD_TYPE',
+    'Payload contains an unsupported value',
+  );
   for (const [key, nestedValue] of Object.entries(value)) {
-    assert(PAYLOAD_KEY_PATTERN.test(key), `Unsafe payload key: ${key}`);
-    assert(!sensitivePayloadKeys.has(normalizedSensitiveKey(key)), `Sensitive payload key: ${key}`);
+    payloadAssert(
+      PAYLOAD_KEY_PATTERN.test(key),
+      'PROOF_E_PAYLOAD_KEY',
+      `Unsafe payload key: ${key}`,
+    );
+    payloadAssert(
+      !sensitivePayloadKeys.has(normalizedSensitiveKey(key)),
+      'PROOF_E_PAYLOAD_SENSITIVE_KEY',
+      `Sensitive payload key: ${key}`,
+    );
     validateSafeValue(nestedValue, depth + 1, budget);
   }
 }
@@ -92,10 +128,18 @@ export function sha256Hex(value) {
 }
 
 export function canonicalizePayload(payload) {
-  assert(payload && typeof payload === 'object' && !Array.isArray(payload), 'Payload must be a JSON object');
+  payloadAssert(
+    payload && typeof payload === 'object' && !Array.isArray(payload),
+    'PROOF_E_PAYLOAD_SHAPE',
+    'Payload must be a JSON object',
+  );
   validateSafeValue(payload);
   const canonical = canonicalizeValue(payload);
-  assert(Buffer.byteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES, 'Canonical payload exceeds 16 KiB');
+  payloadAssert(
+    Buffer.byteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES,
+    'PROOF_E_PAYLOAD_CANONICAL_BYTES',
+    'Canonical payload exceeds 16 KiB',
+  );
   return canonical;
 }
 
