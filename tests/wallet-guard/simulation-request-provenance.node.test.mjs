@@ -47,6 +47,20 @@ function neverCalledHarness() {
   });
 }
 
+function unavailableResult(simulatorInput) {
+  return {
+    status: 'unavailable',
+    request_id: simulatorInput.request_id,
+    request_commitment: simulatorInput.request_commitment,
+    intent_commitment: simulatorInput.intent_commitment,
+    origin: simulatorInput.origin,
+    chain_id: simulatorInput.chain_id,
+    account: simulatorInput.account,
+    state_commitment: null,
+    effect_commitment: null,
+  };
+}
+
 test('foreign ProofPayloadValidationError during request commitment preserves exact provenance', async () => {
   const request = rawRequest();
   const intent = normalize(request, 'wg-simulation-request-provenance-0001');
@@ -106,4 +120,89 @@ test('foreign WalletGuardIntentError during replay normalization preserves exact
   } finally {
     Object.keys = originalKeys;
   }
+});
+
+test('bounded JSON-string typed data above the shared string limit remains simulatable', async () => {
+  const typedData = {
+    types: {
+      EIP712Domain: [],
+      CustomMessage: [
+        { name: 'partA', type: 'string' },
+        { name: 'partB', type: 'string' },
+      ],
+    },
+    primaryType: 'CustomMessage',
+    domain: {},
+    message: {
+      partA: 'a'.repeat(1_800),
+      partB: 'b'.repeat(1_800),
+    },
+  };
+  const typedDataJson = JSON.stringify(typedData);
+  assert.ok(typedDataJson.length > 2_048);
+  assert.ok(typedDataJson.length < 16 * 1_024);
+
+  const request = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, typedDataJson],
+  };
+  const intent = normalize(request, 'wg-simulation-request-provenance-0003');
+  assert.equal(intent.request_class, 'unknown_typed_data');
+  assert.equal(intent.simulation_required, true);
+
+  let callbackCalls = 0;
+  let firstCommitment;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (simulatorInput) => {
+      callbackCalls += 1;
+      assert.equal(simulatorInput.request.params[1], typedDataJson);
+      firstCommitment = simulatorInput.request_commitment;
+      return unavailableResult(simulatorInput);
+    },
+  });
+
+  const evidence = await runtime.simulate({ intent, request });
+  assert.equal(callbackCalls, 1);
+  assert.equal(evidence.status, 'unavailable');
+  assert.match(evidence.request_commitment, /^[a-f0-9]{64}$/u);
+  assert.equal(evidence.request_commitment, firstCommitment);
+});
+
+test('JSON-string typed-data request commitment binds exact captured text', async () => {
+  const typedData = {
+    types: {
+      EIP712Domain: [],
+      CustomMessage: [{ name: 'partA', type: 'string' }],
+    },
+    primaryType: 'CustomMessage',
+    domain: {},
+    message: { partA: 'a'.repeat(2_200) },
+  };
+  const compactJson = JSON.stringify(typedData);
+  const spacedJson = JSON.stringify(typedData, null, 1);
+  assert.ok(compactJson.length > 2_048);
+  assert.ok(spacedJson.length > 2_048);
+  assert.notEqual(compactJson, spacedJson);
+
+  const commitments = [];
+  async function simulateText(rawJson, requestId) {
+    const request = {
+      method: 'eth_signTypedData_v4',
+      params: [ACCOUNT, rawJson],
+    };
+    const intent = normalize(request, requestId);
+    const runtime = createWalletGuardReferenceSimulationHarness({
+      simulateRequest: async (simulatorInput) => {
+        commitments.push(simulatorInput.request_commitment);
+        return unavailableResult(simulatorInput);
+      },
+    });
+    return runtime.simulate({ intent, request });
+  }
+
+  await simulateText(compactJson, 'wg-simulation-request-provenance-0004');
+  await simulateText(spacedJson, 'wg-simulation-request-provenance-0005');
+
+  assert.equal(commitments.length, 2);
+  assert.notEqual(commitments[0], commitments[1]);
 });
