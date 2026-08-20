@@ -10,7 +10,7 @@ import {
 import {
   commitWalletGuardIntent,
   isLocallyNormalizedWalletGuardIntent,
-  normalizeWalletGuardIntent,
+  normalizeWalletGuardIntentForReplay,
 } from './intent.mjs';
 
 export const WALLET_GUARD_SIMULATION_SCHEMA_VERSION =
@@ -21,9 +21,13 @@ export const WALLET_GUARD_SIMULATION_REQUEST_COMMIT_DOMAIN =
   'swisstokint:pom-rx-wallet-guard-simulation-request:v1:';
 
 const TYPED_DATA_JSON_COMMIT_DOMAIN =
-  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-json:v1:';
+  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-json-utf16:v2:';
 const TYPED_DATA_JSON_COMMITMENT_SCHEMA =
-  'wallet_guard_typed_data_json_commitment/0.1';
+  'wallet_guard_typed_data_json_commitment/0.2';
+const TYPED_DATA_OBJECT_COMMIT_DOMAIN =
+  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-object:v1:';
+const TYPED_DATA_OBJECT_COMMITMENT_SCHEMA =
+  'wallet_guard_typed_data_object_commitment/0.1';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const CALLBACK_STATUSES = new Set(['pass', 'fail', 'unavailable']);
 const EVIDENCE_STATUSES = new Set(['pass', 'fail', 'unavailable', 'mismatch']);
@@ -60,20 +64,29 @@ const EVIDENCE_KEYS = Object.freeze([
   'simulation_to_forwarding_bound',
   'simulator_callback_return_channel_proved',
 ]);
+const HEX_NIBBLES = '0123456789abcdef';
 
-// Provenance, status registries and hash validation are load-bearing security
-// state. Capture their intrinsics once so later same-realm prototype poisoning
-// cannot forge local evidence, substitute its originating intent, widen status
-// vocabulary, or inject failures into the hash-shape decision itself. As
+// Provenance, status registries, object freezing, exact-text hashing and hash
+// validation are load-bearing security state. Capture their intrinsics once so
+// later same-realm prototype/global mutation cannot forge local evidence,
+// substitute its originating intent, widen status vocabulary, make minted
+// evidence mutable, collapse distinct UTF-16 request text through UTF-8
+// replacement, or inject failures into the hash-shape decision itself. As
 // elsewhere in the reference runtime, poisoning before module initialization
 // remains outside this scoped guarantee.
 const REFLECT_APPLY = Reflect.apply;
+const OBJECT_FREEZE = Object.freeze;
 const REGEXP_TEST = RegExp.prototype.test;
+const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const SET_HAS = Set.prototype.has;
 const WEAK_SET_ADD = WeakSet.prototype.add;
 const WEAK_SET_HAS = WeakSet.prototype.has;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const WEAK_MAP_GET = WeakMap.prototype.get;
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
 
 function regexpTest(pattern, value) {
   return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
@@ -97,6 +110,18 @@ function weakMapSet(map, key, value) {
 
 function weakMapGet(map, key) {
   return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
+function utf16CodeUnitTranscript(value) {
+  let transcript = `${value.length}:`;
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = REFLECT_APPLY(STRING_CHAR_CODE_AT, value, [index]);
+    transcript += HEX_NIBBLES[(codeUnit >>> 12) & 0x0f];
+    transcript += HEX_NIBBLES[(codeUnit >>> 8) & 0x0f];
+    transcript += HEX_NIBBLES[(codeUnit >>> 4) & 0x0f];
+    transcript += HEX_NIBBLES[codeUnit & 0x0f];
+  }
+  return transcript;
 }
 
 export class WalletGuardSimulationError extends Error {
@@ -157,7 +182,7 @@ function captureExactDataRecord(value, expectedKeys, label, code) {
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return freezeValue(snapshot);
 }
 
 function requireLocalIntent(intent) {
@@ -172,31 +197,56 @@ function requireLocalIntent(intent) {
   return commitWalletGuardIntent(intent);
 }
 
+function typedDataRequestCommitmentMarker(typedData) {
+  if (typeof typedData === 'string') {
+    // sha256Hex consumes UTF-8. Hashing an arbitrary JavaScript string directly
+    // would therefore collapse distinct unpaired UTF-16 surrogates to the same
+    // replacement byte sequence. Commit an ASCII transcript of exact UTF-16 code
+    // units instead. The request snapshot already bounds this string to 16 KiB.
+    const exactTextCommitment = sha256Hex(
+      `${TYPED_DATA_JSON_COMMIT_DOMAIN}${utf16CodeUnitTranscript(typedData)}`,
+    );
+    return freezeValue({
+      schema_version: TYPED_DATA_JSON_COMMITMENT_SCHEMA,
+      exact_utf16_sha256: exactTextCommitment,
+    });
+  }
+
+  if (typedData && typeof typedData === 'object' && !Array.isArray(typedData)) {
+    // The typed-data object has already passed Wallet Guard replay, whose decoder
+    // canonicalizes this object by itself. Canonicalize that same bounded object
+    // alone, then project its digest into the larger RPC request so the wrapper's
+    // method/account fields cannot consume the remaining 16 KiB Core headroom.
+    const canonicalTypedData = canonicalizePayload(typedData);
+    return freezeValue({
+      schema_version: TYPED_DATA_OBJECT_COMMITMENT_SCHEMA,
+      canonical_typed_data_sha256: sha256Hex(
+        `${TYPED_DATA_OBJECT_COMMIT_DOMAIN}${canonicalTypedData}`,
+      ),
+    });
+  }
+
+  return null;
+}
+
 function requestCommitmentProjection(requestSnapshot) {
   if (requestSnapshot.method !== 'eth_signTypedData_v4'
       || !Array.isArray(requestSnapshot.params)
-      || requestSnapshot.params.length !== 2
-      || typeof requestSnapshot.params[1] !== 'string') {
+      || requestSnapshot.params.length !== 2) {
     return requestSnapshot;
   }
 
-  // Wallet Guard deliberately accepts a bounded JSON-string EIP-712 payload up
-  // to 16 KiB, while the shared proof canonicalizer caps each individual string
-  // at a smaller generic bound. Preserve an exact commitment to the captured
-  // request without weakening Core canonicalizer limits by replacing only that
-  // already-replayed raw JSON string with a domain-separated digest marker.
-  // The original captured request is still passed unchanged to the simulator.
-  const typedDataJsonCommitment = sha256Hex(
-    `${TYPED_DATA_JSON_COMMIT_DOMAIN}${requestSnapshot.params[1]}`,
-  );
-  return Object.freeze({
+  const marker = typedDataRequestCommitmentMarker(requestSnapshot.params[1]);
+  if (marker === null) return requestSnapshot;
+
+  // Only the request-commitment projection is compacted. The exact captured and
+  // replayed request remains the simulator input and is never replaced by this
+  // marker object.
+  return freezeValue({
     method: requestSnapshot.method,
-    params: Object.freeze([
+    params: freezeValue([
       requestSnapshot.params[0],
-      Object.freeze({
-        schema_version: TYPED_DATA_JSON_COMMITMENT_SCHEMA,
-        raw_json_sha256: typedDataJsonCommitment,
-      }),
+      marker,
     ]),
   });
 }
@@ -206,13 +256,13 @@ function commitRequestSnapshot(requestSnapshot) {
   // through Wallet Guard normalization before this point. Any later failure in
   // the shared canonicalizer is therefore a runtime/contract failure, not a new
   // simulation diagnostic. Preserve that exact provenance instead of translating
-  // by exported error class. JSON-string EIP-712 payloads use a domain-separated
-  // digest projection so Wallet Guard's accepted 16 KiB representation does not
-  // require widening the shared canonicalizer's generic per-string limit.
+  // by exported error class. Typed-data requests use a domain-separated digest
+  // projection so Wallet Guard's accepted representation does not require
+  // widening the shared canonicalizer's generic string or 16 KiB total limits.
   const canonicalRequest = canonicalizePayload(
     requestCommitmentProjection(requestSnapshot),
   );
-  return Object.freeze({
+  return freezeValue({
     canonical_request: canonicalRequest,
     request_commitment: sha256Hex(
       `${WALLET_GUARD_SIMULATION_REQUEST_COMMIT_DOMAIN}${canonicalRequest}`,
@@ -222,10 +272,10 @@ function commitRequestSnapshot(requestSnapshot) {
 
 function replayIntentAgainstRequest(intent, requestSnapshot) {
   const committedIntent = requireLocalIntent(intent);
-  // Preserve the exact Wallet Guard normalization failure. A successful replay
-  // that normalizes to different semantics is the only case translated into the
-  // local binding-mismatch diagnostic below.
-  const replayed = normalizeWalletGuardIntent({
+  // Replay uses the intent module's no-translation path. Expected and foreign
+  // decoder errors keep their exact provenance; only a successful replay whose
+  // normalized semantic commitment differs becomes a local binding mismatch.
+  const replayed = normalizeWalletGuardIntentForReplay({
     requestId: intent.request_id,
     trustedOrigin: intent.origin,
     trustedChainId: intent.chain_id,
@@ -248,7 +298,7 @@ function isLowercaseSha256(value) {
 }
 
 function evidencePayload(identity, status, stateCommitment, effectCommitment) {
-  return Object.freeze({
+  return freezeValue({
     schema_version: WALLET_GUARD_SIMULATION_SCHEMA_VERSION,
     request_id: identity.request_id,
     request_commitment: identity.request_commitment,
@@ -268,7 +318,7 @@ function makeEvidence(identity, status, stateCommitment = null, effectCommitment
   }
   const payload = evidencePayload(identity, status, stateCommitment, effectCommitment);
   const canonical = canonicalizePayload(payload);
-  return Object.freeze({
+  return freezeValue({
     ...payload,
     simulation_commitment: sha256Hex(
       `${WALLET_GUARD_SIMULATION_COMMIT_DOMAIN}${canonical}`,
@@ -453,7 +503,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
         'simulation evidence does not match the policy-evaluated intent',
       );
     }
-    return Object.freeze({ status: evidence.status });
+    return freezeValue({ status: evidence.status });
   }
 
   async function simulate(rawInput) {
@@ -480,7 +530,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
 
     const intentCommitment = replayIntentAgainstRequest(localIntent, requestSnapshot);
     const requestCommitment = commitRequestSnapshot(requestSnapshot).request_commitment;
-    const identity = Object.freeze({
+    const identity = freezeValue({
       request_id: localIntent.request_id,
       request_commitment: requestCommitment,
       intent_commitment: intentCommitment,
@@ -488,7 +538,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
       chain_id: localIntent.chain_id,
       account: localIntent.account,
     });
-    const simulatorInput = Object.freeze({
+    const simulatorInput = freezeValue({
       schema_version: WALLET_GUARD_SIMULATION_SCHEMA_VERSION,
       ...identity,
       request: requestSnapshot,
@@ -516,7 +566,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     return normalizeResolvedCallbackResult(rawResult, identity, mintLocalEvidence);
   }
 
-  return Object.freeze({
+  return freezeValue({
     simulate,
     isLocalEvidence,
     toPolicySimulation,
