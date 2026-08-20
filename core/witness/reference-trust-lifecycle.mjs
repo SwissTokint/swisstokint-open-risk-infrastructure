@@ -26,12 +26,6 @@ const MIN_VALIDITY_MS = 1_000;
 const ROLES = new Set(['source', 'witness']);
 const REVOCATION_REASONS = new Set(['compromise', 'retired', 'operator', 'policy']);
 const RECOVERY_REASONS = new Set(['compromise', 'lost', 'operator_recovery']);
-const CANONICAL_CAPACITY_MESSAGES = new Set([
-  'Payload exceeds the maximum depth',
-  'Payload exceeds the maximum node count',
-  'Payload string is too long',
-  'Canonical payload exceeds 16 KiB',
-]);
 
 export class PomRxWitnessTrustError extends Error {
   constructor(code, message) {
@@ -145,20 +139,6 @@ function lexicalKeyIdCompare(left, right) {
   return 0;
 }
 
-function canonicalizeBoundedTrustPayload(payload) {
-  try {
-    return canonicalizePayload(payload);
-  } catch (error) {
-    if (error instanceof TypeError && CANONICAL_CAPACITY_MESSAGES.has(error.message)) {
-      fail(
-        'POMRX_WITNESS_TRUST_E_CAPACITY',
-        'prospective Witness trust state exceeds the bounded canonical snapshot contract',
-      );
-    }
-    throw error;
-  }
-}
-
 export function createReferenceWitnessTrustLifecycle(options) {
   const bootstrap = snapshotExactReferences(
     options,
@@ -213,7 +193,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       revision: sourceRevision,
       identities: Object.freeze(identities.map((record) => Object.freeze(record))),
     });
-    const canonical = canonicalizeBoundedTrustPayload(payload);
+    const canonical = canonicalizePayload(payload);
     return Object.freeze({
       ...payload,
       trust_state_hash: sha256Hex(`${POM_RX_REFERENCE_WITNESS_TRUST_HASH_DOMAIN}${canonical}`),
