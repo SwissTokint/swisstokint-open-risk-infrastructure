@@ -102,6 +102,53 @@ test('Witness trust successor capacity rejection is atomic for predecessor and r
   );
 });
 
+test('transition-heavy recovery history remains canonical through the explicit ceiling', () => {
+  const lifecycle = makeTrustLifecycle();
+  const enrollment = lifecycle.admin.enrollIdentity({
+    publicKey: generateEd25519PublicKey(),
+    role: 'witness',
+    validUntil: VALID_UNTIL,
+  });
+  let activeIdentity = enrollment.identity;
+  let fullSnapshot = enrollment.trust;
+
+  while (fullSnapshot.identities.length < POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES) {
+    const recovery = lifecycle.admin.recoverIdentity({
+      compromisedKeyId: activeIdentity.key_id,
+      successorPublicKey: generateEd25519PublicKey(),
+      validUntil: VALID_UNTIL,
+      reason: 'operator_recovery',
+    });
+    activeIdentity = recovery.successor;
+    fullSnapshot = recovery.trust;
+  }
+
+  assert.equal(fullSnapshot.identities.length, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES);
+  assert.equal(
+    fullSnapshot.identities.filter((identity) => identity.status === 'recovered').length,
+    POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES - 1,
+  );
+  assert.equal(fullSnapshot.identities.filter((identity) => identity.status === 'active').length, 1);
+
+  assert.throws(
+    () => lifecycle.admin.recoverIdentity({
+      compromisedKeyId: activeIdentity.key_id,
+      successorPublicKey: generateEd25519PublicKey(),
+      validUntil: VALID_UNTIL,
+      reason: 'operator_recovery',
+    }),
+    assertCapacityError,
+  );
+  assert.deepEqual(lifecycle.admin.snapshot(), fullSnapshot);
+
+  const revocation = lifecycle.admin.revokeIdentity({
+    keyId: activeIdentity.key_id,
+    reason: 'compromise',
+  });
+  assert.equal(revocation.trust.identities.length, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES);
+  assert.equal(revocation.identity.status, 'revoked');
+});
+
 test('the explicit identity ceiling preserves revocation headroom', () => {
   const lifecycle = makeTrustLifecycle();
   const identities = [];
