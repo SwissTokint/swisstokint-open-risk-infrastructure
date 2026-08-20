@@ -1,0 +1,99 @@
+name: Exact main CI status
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+# This workflow is intentionally privileged but does not check out repository
+# code or consume artifacts from the upstream workflow. It only publishes the
+# GitHub-generated result of a completed main-branch push CI run onto that
+# run's exact head SHA.
+permissions:
+  statuses: write
+
+jobs:
+  publish:
+    if: >-
+      ${{ github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+      RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      STATUS_CONTEXT: pom-rx/exact-main-ci
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Publish exact-main CI status
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+
+          repository = os.environ['HEAD_REPOSITORY']
+          sha = os.environ['HEAD_SHA']
+          conclusion = os.environ['RUN_CONCLUSION']
+          run_url = os.environ['RUN_URL']
+          context = os.environ['STATUS_CONTEXT']
+          token = os.environ['GH_TOKEN']
+
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+              raise SystemExit('invalid repository identity')
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('invalid exact-main head SHA')
+          if not run_url.startswith('https://github.com/'):
+              raise SystemExit('invalid workflow-run URL')
+          if context != 'pom-rx/exact-main-ci':
+              raise SystemExit('unexpected status context')
+
+          state = 'success' if conclusion == 'success' else 'failure'
+          description = (
+              'Exact main CI succeeded.'
+              if state == 'success'
+              else f'Exact main CI concluded: {conclusion or "unknown"}.'
+          )
+          payload = json.dumps({
+              'state': state,
+              'target_url': run_url,
+              'description': description[:140],
+              'context': context,
+          }).encode('utf-8')
+
+          request = urllib.request.Request(
+              f'https://api.github.com/repos/{repository}/statuses/{sha}',
+              data=payload,
+              method='POST',
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': f'Bearer {token}',
+                  'Content-Type': 'application/json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              },
+          )
+
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  body = json.load(response)
+                  if response.status != 201:
+                      raise SystemExit(f'unexpected status API response: {response.status}')
+          except urllib.error.HTTPError as error:
+              # Do not print response headers: they are unnecessary and keeping
+              # diagnostics minimal avoids accidental credential disclosure.
+              raise SystemExit(f'commit-status publication failed: HTTP {error.code}') from error
+
+          if body.get('sha') != sha:
+              raise SystemExit('commit-status API response was not bound to exact head SHA')
+          if body.get('context') != context:
+              raise SystemExit('commit-status API response changed the status context')
+          if body.get('state') != state:
+              raise SystemExit('commit-status API response changed the status state')
+          PY
