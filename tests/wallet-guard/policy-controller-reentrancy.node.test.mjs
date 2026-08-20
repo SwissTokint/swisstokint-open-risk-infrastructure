@@ -5,7 +5,11 @@ import {
   WalletGuardPolicyStateError,
   createWalletGuardReferencePolicyController,
 } from '../../applications/blockchain-digital-assets/wallet-guard/policy-controller.mjs';
+import {
+  normalizeWalletGuardIntent,
+} from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
 
+const ACCOUNT = `0x${'1'.repeat(40)}`;
 const RECIPIENT = `0x${'3'.repeat(40)}`;
 const ORIGIN = 'https://fixture.wallet-guard.local';
 const CHAIN_ID = '0x1';
@@ -29,6 +33,24 @@ function policy(overrides = {}) {
     require_simulation_for: [],
     ...overrides,
   };
+}
+
+function nativeIntent() {
+  return normalizeWalletGuardIntent({
+    requestId: 'wg-policy-controller-reentrant-eval-0001',
+    trustedOrigin: ORIGIN,
+    trustedChainId: CHAIN_ID,
+    trustedAccount: ACCOUNT,
+    request: {
+      method: 'eth_sendTransaction',
+      params: [{
+        from: ACCOUNT,
+        to: RECIPIENT,
+        value: '0x1',
+        data: '0x',
+      }],
+    },
+  });
 }
 
 test('reentrant mutation cannot overwrite an in-progress compare-and-swap transition', { concurrency: false }, () => {
@@ -67,7 +89,41 @@ test('reentrant mutation cannot overwrite an in-progress compare-and-swap transi
   assert.strictEqual(controller.readSnapshot(), replacement);
 });
 
-test('mutation lock is released after a failed prospective transition', { concurrency: false }, () => {
+test('reentrant kill-switch mutation cannot turn a state-stable evaluation into stale ALLOW', { concurrency: false }, () => {
+  const controller = createWalletGuardReferencePolicyController({ policy: policy() });
+  const intent = nativeIntent();
+  const originalNormalize = String.prototype.normalize;
+  let nestedError = null;
+  let attempted = false;
+
+  String.prototype.normalize = function normalize(form) {
+    if (!attempted && String(this) === 'wallet-guard-reference-policy/0.1' && form === 'NFC') {
+      attempted = true;
+      try {
+        controller.engageKillSwitch({ expected_revision: 0 });
+      } catch (error) {
+        nestedError = error;
+      }
+    }
+    return originalNormalize.call(this, form);
+  };
+
+  let result;
+  try {
+    result = controller.evaluate(intent);
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+
+  assert.ok(nestedError instanceof WalletGuardPolicyStateError);
+  assert.equal(nestedError.code, 'POMRX_WG_POLICY_STATE_E_REENTRANT');
+  assert.equal(result.decision, 'ALLOW');
+  assert.equal(result.policy_state_revision, 0);
+  assert.equal(controller.readSnapshot().revision, 0);
+  assert.equal(controller.readSnapshot().kill_switch, false);
+});
+
+test('operation lock is released after a failed prospective transition', { concurrency: false }, () => {
   const controller = createWalletGuardReferencePolicyController({ policy: policy() });
   const originalNormalize = String.prototype.normalize;
   const sentinel = new TypeError('prospective transition failed');
