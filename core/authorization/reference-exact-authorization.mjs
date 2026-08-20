@@ -41,6 +41,11 @@ const BINDING_KEYS = Object.freeze([
   ...INPUT_KEYS,
 ]);
 
+const PREPARE_OPTION_KEYS = Object.freeze([
+  'witnessValidUntil',
+  'capabilityId',
+]);
+
 export class PomRxReferenceCapabilityError extends Error {
   constructor(code, message) {
     super(message);
@@ -53,15 +58,66 @@ function fail(code, message) {
   throw new PomRxReferenceCapabilityError(code, message);
 }
 
-function assertExactKeys(value, expectedKeys, label) {
+function assertPlainObjectBoundary(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be a plain object`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} cannot contain symbol keys`);
+  }
+}
+
+function snapshotExactDataObject(value, expectedKeys, label) {
+  assertPlainObjectBoundary(value, label);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors).sort();
   const expected = [...expectedKeys].sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} has missing or unknown fields`);
   }
+
+  const snapshot = Object.create(null);
+  for (const key of expectedKeys) {
+    const descriptor = descriptors[key];
+    if (!descriptor
+        || typeof descriptor.get === 'function'
+        || typeof descriptor.set === 'function'
+        || descriptor.enumerable !== true) {
+      fail('POMRX_GATE_E_BINDING_MISMATCH', `${label}.${key} must be an enumerable data property`);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
+}
+
+function snapshotPrepareOptions(value) {
+  assertPlainObjectBoundary(value, 'Reference exact authorization options');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors);
+  for (const key of actual) {
+    if (!PREPARE_OPTION_KEYS.includes(key)) {
+      fail('POMRX_GATE_E_BINDING_MISMATCH', 'Reference exact authorization options have unknown fields');
+    }
+    const descriptor = descriptors[key];
+    if (!descriptor
+        || typeof descriptor.get === 'function'
+        || typeof descriptor.set === 'function'
+        || descriptor.enumerable !== true) {
+      fail(
+        'POMRX_GATE_E_BINDING_MISMATCH',
+        `Reference exact authorization options.${key} must be an enumerable data property`,
+      );
+    }
+  }
+
+  return Object.freeze({
+    witnessValidUntil: descriptors.witnessValidUntil?.value,
+    capabilityId: descriptors.capabilityId?.value,
+  });
 }
 
 function assertStringPattern(value, pattern, field) {
@@ -81,8 +137,7 @@ function canonicalUtcInstant(value, field) {
   return parsed;
 }
 
-function validateBindingRecord(binding) {
-  assertExactKeys(binding, BINDING_KEYS, 'Exact authorization binding');
+function validateBindingSnapshot(binding) {
   if (binding.schema_version !== POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', 'Unsupported exact authorization schema version');
   }
@@ -127,8 +182,13 @@ function validateBindingRecord(binding) {
   return Object.freeze({ issuedAt, expiresAt });
 }
 
-export function commitExactAuthorizationBinding(binding) {
-  validateBindingRecord(binding);
+function snapshotAndValidateBinding(binding) {
+  const snapshot = snapshotExactDataObject(binding, BINDING_KEYS, 'Exact authorization binding');
+  const times = validateBindingSnapshot(snapshot);
+  return Object.freeze({ binding: snapshot, ...times });
+}
+
+function commitValidatedBinding(binding) {
   const canonicalBinding = canonicalizePayload(binding);
   const authorizationCommitment = sha256Hex(
     `${POM_RX_EXACT_AUTHORIZATION_COMMIT_DOMAIN}${canonicalBinding}`,
@@ -136,21 +196,31 @@ export function commitExactAuthorizationBinding(binding) {
   return Object.freeze({ canonicalBinding, authorizationCommitment });
 }
 
-export function prepareReferenceExactAuthorizationRecord(
-  bindingInput,
-  { witnessValidUntil, capabilityId } = {},
-) {
-  assertExactKeys(bindingInput, INPUT_KEYS, 'Reference exact authorization input');
-  assertStringPattern(capabilityId, CAPABILITY_ID_PATTERN, 'capability_id');
-  const witnessExpiry = canonicalUtcInstant(witnessValidUntil, 'witness_valid_until');
+export function commitExactAuthorizationBinding(binding) {
+  const { binding: snapshot } = snapshotAndValidateBinding(binding);
+  return commitValidatedBinding(snapshot);
+}
 
-  const binding = Object.freeze({
+export function prepareReferenceExactAuthorizationRecord(bindingInput, options = {}) {
+  const inputSnapshot = snapshotExactDataObject(
+    bindingInput,
+    INPUT_KEYS,
+    'Reference exact authorization input',
+  );
+  const optionSnapshot = snapshotPrepareOptions(options);
+  assertStringPattern(optionSnapshot.capabilityId, CAPABILITY_ID_PATTERN, 'capability_id');
+  const witnessExpiry = canonicalUtcInstant(
+    optionSnapshot.witnessValidUntil,
+    'witness_valid_until',
+  );
+
+  const binding = Object.assign(Object.create(null), {
     schema_version: POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION,
-    capability_id: capabilityId,
-    ...bindingInput,
-  });
+    capability_id: optionSnapshot.capabilityId,
+  }, inputSnapshot);
+  Object.freeze(binding);
 
-  const { expiresAt } = validateBindingRecord(binding);
+  const { expiresAt } = validateBindingSnapshot(binding);
   if (expiresAt.getTime() > witnessExpiry.getTime()) {
     fail(
       'POMRX_GATE_E_TIME_INVALID',
@@ -158,7 +228,7 @@ export function prepareReferenceExactAuthorizationRecord(
     );
   }
 
-  const committed = commitExactAuthorizationBinding(binding);
+  const committed = commitValidatedBinding(binding);
   const evidence = Object.freeze({
     binding,
     authorization_commitment: committed.authorizationCommitment,
