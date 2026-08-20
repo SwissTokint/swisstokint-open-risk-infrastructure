@@ -248,17 +248,24 @@ test('an accepted clock sample remains monotonic even if later evidence construc
     '2026-08-20T01:00:01.000Z',
   ];
   let timeIndex = 0;
-  const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
-    trustedClock: () => times[Math.min(timeIndex++, times.length - 1)],
-  });
   const rawInput = input();
   const originalNormalize = String.prototype.normalize;
   const sentinel = new TypeError('post-clock construction failure');
+  let injectPostClockFailure = true;
+  const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
+    trustedClock: () => {
+      const sampled = times[Math.min(timeIndex++, times.length - 1)];
+      if (injectPostClockFailure) {
+        injectPostClockFailure = false;
+        String.prototype.normalize = function normalize(form) {
+          if (String(this) === 'schema_version' && form === 'NFKC') throw sentinel;
+          return originalNormalize.call(this, form);
+        };
+      }
+      return sampled;
+    },
+  });
 
-  String.prototype.normalize = function normalize(form) {
-    if (String(this) === rawInput.agentRef && form === 'NFC') throw sentinel;
-    return originalNormalize.call(this, form);
-  };
   try {
     assert.throws(() => evidenceBuilder.build(rawInput), (error) => error === sentinel);
   } finally {
