@@ -92,8 +92,15 @@ elif method == 'POST':
     payload = json.load(sys.stdin)
     with open(os.environ['FAKE_GH_POST_LOG'], 'a', encoding='utf-8') as handle:
         handle.write(json.dumps(payload, sort_keys=True) + '\\n')
+    status_id = 424242
     sys.stdout.write(json.dumps({
-        'url': 'https://api.github.com/' + path,
+        'id': status_id,
+        'url': (
+            'https://api.github.com/repos/'
+            + os.environ['HEAD_REPOSITORY']
+            + '/statuses/'
+            + str(status_id)
+        ),
         'context': payload['context'],
         'state': payload['state'],
         'target_url': payload['target_url'],
@@ -234,10 +241,15 @@ test('privileged exact-main status publisher executes no repository or upstream 
   assert.match(runBlock, /workflow_path != '\.github\/workflows\/ci\.yml'/);
   assert.match(runBlock, /actions\/workflows\/ci\.yml\/runs/);
   assert.match(runBlock, /'head_sha=' \+ sha|'head_sha=\{sha\}'|f'head_sha=\{sha\}'/);
+  assert.match(runBlock, /type\(total_count\) is not int/);
+  assert.match(runBlock, /type\(value\) is int and value >= 1/);
   assert.match(runBlock, /total_count > 100/);
   assert.match(runBlock, /key=lambda entry: \(entry\[0\], entry\[1\]\)/);
   assert.match(runBlock, /stale exact-main workflow_run event ignored/);
-  assert.match(runBlock, /body\.get\('url'\) != status_url/);
+  assert.match(runBlock, /status_id = body\.get\('id'\)/);
+  assert.match(runBlock, /type\(status_id\) is not int/);
+  assert.match(runBlock, /statuses\/\{status_id\}/);
+  assert.match(runBlock, /body\.get\('url'\) != expected_status_url/);
   assert.match(runBlock, /body\.get\('context'\) != context/);
   assert.match(runBlock, /body\.get\('state'\) != state/);
   assert.match(runBlock, /body\.get\('target_url'\) != run_url/);
@@ -360,6 +372,49 @@ test(
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /too many exact-SHA workflow runs/);
+    assert.deepEqual(posts, []);
+  },
+);
+
+test(
+  'publisher rejects boolean total_count instead of treating it as integer one',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: true, workflow_runs: [current] },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /freshness lookup was empty/);
+    assert.deepEqual(posts, []);
+  },
+);
+
+test(
+  'publisher rejects boolean run identity fields instead of aliasing integer one',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const malformed = { ...current, run_attempt: true };
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: 1, workflow_runs: [malformed] },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /invalid run identity/);
     assert.deepEqual(posts, []);
   },
 );
