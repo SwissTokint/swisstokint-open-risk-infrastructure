@@ -19,6 +19,7 @@ const OTHER_ORIGIN = 'https://other.wallet-guard.local';
 const CHAIN_ID = '0x1';
 const TX_RESULT = `0x${'a'.repeat(64)}`;
 const MAX_UINT256 = (1n << 256n) - 1n;
+const SENSITIVE_CALL_CAPACITY = 64;
 const hash = (character) => character.repeat(64);
 
 function addressWord(address) {
@@ -72,16 +73,17 @@ function policy(overrides = {}) {
   };
 }
 
+function indexedHash(index, offset) {
+  return (10_000n + (BigInt(index) * 2n) + BigInt(offset)).toString(16).padStart(64, '0');
+}
+
 function referenceAuthorizationRecord(index) {
-  const symbols = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-  const preflightSymbol = symbols[(index * 2) % symbols.length];
-  const witnessSymbol = symbols[(index * 2 + 1) % symbols.length];
   return {
     run_id: `run-controlled-host-${String(index).padStart(8, '0')}`,
     agent_ref: 'agent-controlled-host-01',
     subject_ref: 'subject-controlled-host-01',
-    preflight_receipt_hash: hash(preflightSymbol),
-    witness_ack_hash: hash(witnessSymbol),
+    preflight_receipt_hash: indexedHash(index, 0),
+    witness_ack_hash: indexedHash(index, 1),
     source_key_id: `ed25519-${'a'.repeat(32)}`,
     witness_key_id: `ed25519-${'b'.repeat(32)}`,
     verification_profile: 'pom-rx-v0.1/strict-errata-1',
@@ -92,10 +94,11 @@ function referenceAuthorizationRecord(index) {
   };
 }
 
-function referenceAuthorizationFactory() {
+function referenceAuthorizationFactory({ onCall = () => {} } = {}) {
   let counter = 0;
   return () => {
     counter += 1;
+    onCall(counter);
     return referenceAuthorizationRecord(counter);
   };
 }
@@ -160,6 +163,7 @@ test('allowlisted native request forwards once through the closure-owned fake pr
 
   const state = testAuthority.inspect();
   assert.equal(state.sensitive_call_count, 1);
+  assert.equal(state.in_flight_request_count, 0);
   assert.equal(state.sensitive_calls[0].method, 'eth_sendTransaction');
   assert.equal(state.sensitive_calls[0].params[0].value, '0x64');
   assert.ok(state.context_reads > 0);
@@ -242,7 +246,7 @@ test('page request rejects a Proxy without executing any caller trap or forwardi
   });
 
   await assert.rejects(
-    Promise.resolve().then(() => page.ethereum.request(request)),
+    page.ethereum.request(request),
     (error) => expectPlainDataCode(error, 'POMRX_DATA_E_PROXY'),
   );
   assert.equal(trapCalls, 0);
@@ -258,7 +262,7 @@ test('page request rejects decorated nested arrays before the historical gateway
   });
 
   await assert.rejects(
-    Promise.resolve().then(() => page.ethereum.request(request)),
+    page.ethereum.request(request),
     (error) => expectPlainDataCode(error, 'POMRX_DATA_E_ARRAY'),
   );
   assert.equal(testAuthority.inspect().sensitive_call_count, 0);
@@ -270,10 +274,46 @@ test('page request rejects symbol decoration before any provider interaction', a
   request[Symbol('hidden')] = 'not inert request data';
 
   await assert.rejects(
-    Promise.resolve().then(() => page.ethereum.request(request)),
+    page.ethereum.request(request),
     (error) => expectPlainDataCode(error, 'POMRX_DATA_E_SYMBOL'),
   );
   assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});
+
+test('capacity is reserved before authorization and closes the gateway at the bound', async () => {
+  let authorizationCalls = 0;
+  const { page, testAuthority } = createHost({
+    referenceAuthorizationForRequest: referenceAuthorizationFactory({
+      onCall: () => {
+        authorizationCalls += 1;
+      },
+    }),
+  });
+
+  for (let index = 0; index < SENSITIVE_CALL_CAPACITY - 1; index += 1) {
+    const result = await page.ethereum.request(sendTransaction({ value: '0x1' }));
+    assert.equal(result.forwarded, true);
+  }
+
+  const lastReserved = page.ethereum.request(sendTransaction({ value: '0x1' }));
+  await assert.rejects(
+    page.ethereum.request(sendTransaction({ value: '0x1' })),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_LOG_FULL'),
+  );
+  const lastResult = await lastReserved;
+  assert.equal(lastResult.forwarded, true);
+
+  const fullState = testAuthority.inspect();
+  assert.equal(fullState.sensitive_call_count, SENSITIVE_CALL_CAPACITY);
+  assert.equal(fullState.in_flight_request_count, 0);
+  assert.equal(authorizationCalls, SENSITIVE_CALL_CAPACITY);
+
+  await assert.rejects(
+    page.ethereum.request(sendTransaction({ value: '0x1' })),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_LOG_FULL'),
+  );
+  assert.equal(authorizationCalls, SENSITIVE_CALL_CAPACITY);
+  assert.equal(testAuthority.inspect().sensitive_call_count, SENSITIVE_CALL_CAPACITY);
 });
 
 test('top-level bootstrap accessors and proxies fail without executing caller traps', () => {
