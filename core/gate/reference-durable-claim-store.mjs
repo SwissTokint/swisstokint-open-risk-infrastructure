@@ -94,6 +94,18 @@ function validateAuthorizationCommitment(value) {
   return value;
 }
 
+function normalizePersistedValidation(label, operation) {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof PomRxDurableClaimStoreError
+        && error.code === 'POMRX_GATE_E_DURABLE_INVALID') {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', `${label} is structurally invalid`);
+    }
+    throw error;
+  }
+}
+
 function makeClaimRecord(capabilityId, authorizationCommitment) {
   const payload = Object.freeze({
     schema_version: POM_RX_DURABLE_CLAIM_SCHEMA_VERSION,
@@ -130,47 +142,51 @@ function makeTerminalRecord(claimRecord, terminalState) {
 }
 
 function validateClaimRecord(value) {
-  const record = exactOwnData(value, CLAIM_RECORD_KEYS, 'durable claim record');
-  if (record.schema_version !== POM_RX_DURABLE_CLAIM_SCHEMA_VERSION
-      || record.reference_only !== true
-      || record.single_host_local_filesystem_atomic_claim_proved !== true
-      || record.distributed_consensus_proved !== false
-      || record.network_filesystem_atomicity_proved !== false
-      || record.crash_recovery_proved !== false) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim record flags/version are invalid');
-  }
-  validateCapabilityId(record.capability_id);
-  validateAuthorizationCommitment(record.authorization_commitment);
-  if (typeof record.claim_commitment !== 'string' || !HASH_PATTERN.test(record.claim_commitment)) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment is invalid');
-  }
-  const expected = makeClaimRecord(record.capability_id, record.authorization_commitment);
-  if (expected.claim_commitment !== record.claim_commitment) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment does not match record contents');
-  }
-  return Object.freeze({ ...record });
+  return normalizePersistedValidation('durable claim record', () => {
+    const record = exactOwnData(value, CLAIM_RECORD_KEYS, 'durable claim record');
+    if (record.schema_version !== POM_RX_DURABLE_CLAIM_SCHEMA_VERSION
+        || record.reference_only !== true
+        || record.single_host_local_filesystem_atomic_claim_proved !== true
+        || record.distributed_consensus_proved !== false
+        || record.network_filesystem_atomicity_proved !== false
+        || record.crash_recovery_proved !== false) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim record flags/version are invalid');
+    }
+    validateCapabilityId(record.capability_id);
+    validateAuthorizationCommitment(record.authorization_commitment);
+    if (typeof record.claim_commitment !== 'string' || !HASH_PATTERN.test(record.claim_commitment)) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment is invalid');
+    }
+    const expected = makeClaimRecord(record.capability_id, record.authorization_commitment);
+    if (expected.claim_commitment !== record.claim_commitment) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment does not match record contents');
+    }
+    return Object.freeze({ ...record });
+  });
 }
 
 function validateTerminalRecord(value, claimRecord) {
-  const record = exactOwnData(value, TERMINAL_RECORD_KEYS, 'durable terminal record');
-  if (record.schema_version !== POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION
-      || record.reference_only !== true
-      || !['CONSUMED_SUCCESS', 'CONSUMED_ERROR'].includes(record.terminal_state)) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record flags/version/state are invalid');
-  }
-  if (record.capability_id !== claimRecord.capability_id
-      || record.authorization_commitment !== claimRecord.authorization_commitment
-      || record.claim_commitment !== claimRecord.claim_commitment) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record is not bound to the persisted claim');
-  }
-  if (typeof record.terminal_commitment !== 'string' || !HASH_PATTERN.test(record.terminal_commitment)) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment is invalid');
-  }
-  const expected = makeTerminalRecord(claimRecord, record.terminal_state);
-  if (expected.terminal_commitment !== record.terminal_commitment) {
-    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment does not match record contents');
-  }
-  return Object.freeze({ ...record });
+  return normalizePersistedValidation('durable terminal record', () => {
+    const record = exactOwnData(value, TERMINAL_RECORD_KEYS, 'durable terminal record');
+    if (record.schema_version !== POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION
+        || record.reference_only !== true
+        || !['CONSUMED_SUCCESS', 'CONSUMED_ERROR'].includes(record.terminal_state)) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record flags/version/state are invalid');
+    }
+    if (record.capability_id !== claimRecord.capability_id
+        || record.authorization_commitment !== claimRecord.authorization_commitment
+        || record.claim_commitment !== claimRecord.claim_commitment) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record is not bound to the persisted claim');
+    }
+    if (typeof record.terminal_commitment !== 'string' || !HASH_PATTERN.test(record.terminal_commitment)) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment is invalid');
+    }
+    const expected = makeTerminalRecord(claimRecord, record.terminal_state);
+    if (expected.terminal_commitment !== record.terminal_commitment) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment does not match record contents');
+    }
+    return Object.freeze({ ...record });
+  });
 }
 
 async function fsyncDirectory(directory) {
@@ -276,8 +292,18 @@ export function createReferenceDurableClaimStore(options) {
         } catch {
           fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be inspected');
         }
-        if (!stat.isDirectory() || stat.isSymbolicLink() || resolved !== configuredRoot) {
-          fail('POMRX_GATE_E_DURABLE_ROOT_INVALID', 'durable claim root must be a direct local directory path without symlink indirection');
+        const currentUid = typeof process.getuid === 'function' ? process.getuid() : null;
+        const unsafePermissions = (stat.mode & 0o022) !== 0;
+        const wrongOwner = currentUid !== null && stat.uid !== currentUid;
+        if (!stat.isDirectory()
+            || stat.isSymbolicLink()
+            || resolved !== configuredRoot
+            || unsafePermissions
+            || wrongOwner) {
+          fail(
+            'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+            'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
+          );
         }
         return resolved;
       })();
@@ -308,7 +334,6 @@ export function createReferenceDurableClaimStore(options) {
       return Object.freeze({
         ...makeInspection('RESERVED_INCOMPLETE'),
         capability_id: capabilityId,
-        authorization_commitment: authorizationCommitment,
       });
     }
     const claimRecord = validateClaimRecord(rawClaim);
@@ -375,6 +400,16 @@ export function createReferenceDurableClaimStore(options) {
     const terminalState = outcome === 'success' ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
+      const rawPersistedClaim = await readBoundedJson(path.join(state.claimDirectory, 'claim.json'));
+      if (rawPersistedClaim === null) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
+      }
+      const persistedClaim = validateClaimRecord(rawPersistedClaim);
+      if (persistedClaim.capability_id !== state.claimRecord.capability_id
+          || persistedClaim.authorization_commitment !== state.claimRecord.authorization_commitment
+          || persistedClaim.claim_commitment !== state.claimRecord.claim_commitment) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
+      }
       await writeExclusiveDurable(path.join(state.claimDirectory, 'terminal.json'), terminalRecord);
       state.state = terminalState;
     } catch (error) {
