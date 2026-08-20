@@ -93,7 +93,7 @@ function snapshotExactDataRecord(value, expected, label) {
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing, hidden or unknown fields`);
   }
-  const snapshot = {};
+  const snapshot = Object.create(null);
   for (const key of expected) {
     const descriptor = descriptors[key];
     if (!descriptor
