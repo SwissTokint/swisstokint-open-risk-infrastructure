@@ -176,3 +176,37 @@ test('the explicit identity ceiling preserves revocation headroom', () => {
   assert.equal(latestSnapshot.revision, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES * 2);
   assert.deepEqual(lifecycle.admin.snapshot(), latestSnapshot);
 });
+
+test('non-capacity canonical TypeErrors are not mislabeled and leave trust state unchanged', { concurrency: false }, () => {
+  const lifecycle = makeTrustLifecycle();
+  const before = lifecycle.admin.snapshot();
+  const originalNormalize = String.prototype.normalize;
+
+  try {
+    String.prototype.normalize = function injectedCanonicalFailure() {
+      throw new TypeError('injected canonical semantic failure');
+    };
+
+    assert.throws(
+      () => lifecycle.admin.enrollIdentity({
+        publicKey: generateEd25519PublicKey(),
+        role: 'source',
+        validUntil: VALID_UNTIL,
+      }),
+      (error) => {
+        assert.ok(error instanceof TypeError);
+        assert.equal(error instanceof PomRxWitnessTrustError, false);
+        assert.equal(error.message, 'injected canonical semantic failure');
+        return true;
+      },
+    );
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+
+  assert.deepEqual(
+    lifecycle.admin.snapshot(),
+    before,
+    'non-capacity canonical failure must not mutate trust records or revision',
+  );
+});
