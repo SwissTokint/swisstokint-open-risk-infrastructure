@@ -180,9 +180,24 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
   const initialPolicy = normalizePolicyCandidate(options.policy);
   const fixedPolicyId = initialPolicy.policy_id;
   let current = makeSnapshot(initialPolicy, 0);
+  let mutationInProgress = false;
 
   function readSnapshot() {
     return current;
+  }
+
+  function enterMutation() {
+    if (mutationInProgress) {
+      fail(
+        'POMRX_WG_POLICY_STATE_E_REENTRANT',
+        'policy-state mutation is already in progress in this controller',
+      );
+    }
+    mutationInProgress = true;
+  }
+
+  function leaveMutation() {
+    mutationInProgress = false;
   }
 
   function replacePolicy(rawUpdate) {
@@ -196,14 +211,19 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
       fail('POMRX_WG_POLICY_STATE_E_STALE', 'policy replacement revision is stale');
     }
 
-    const candidate = normalizePolicyCandidate(update.policy);
-    if (candidate.policy_id !== fixedPolicyId) {
-      fail('POMRX_WG_POLICY_STATE_E_IDENTITY', 'policy_id cannot change inside one controller');
-    }
+    enterMutation();
+    try {
+      const candidate = normalizePolicyCandidate(update.policy);
+      if (candidate.policy_id !== fixedPolicyId) {
+        fail('POMRX_WG_POLICY_STATE_E_IDENTITY', 'policy_id cannot change inside one controller');
+      }
 
-    const next = makeSnapshot(candidate, nextRevision(current.revision));
-    current = next;
-    return next;
+      const next = makeSnapshot(candidate, nextRevision(current.revision));
+      current = next;
+      return next;
+    } finally {
+      leaveMutation();
+    }
   }
 
   function engageKillSwitch(rawUpdate) {
@@ -218,10 +238,15 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
     }
     if (current.policy.kill_switch === true) return current;
 
-    const candidate = normalizePolicyCandidate(policyWithKillSwitch(current.policy));
-    const next = makeSnapshot(candidate, nextRevision(current.revision));
-    current = next;
-    return next;
+    enterMutation();
+    try {
+      const candidate = normalizePolicyCandidate(policyWithKillSwitch(current.policy));
+      const next = makeSnapshot(candidate, nextRevision(current.revision));
+      current = next;
+      return next;
+    } finally {
+      leaveMutation();
+    }
   }
 
   function evaluate(intent, simulation = Object.freeze({ status: 'not_run' })) {
