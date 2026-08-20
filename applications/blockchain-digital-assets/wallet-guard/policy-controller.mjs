@@ -201,18 +201,21 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
   }
 
   function replacePolicy(rawUpdate) {
-    const update = captureExactDataRecord(
-      rawUpdate,
-      REPLACE_KEYS,
-      'policy replacement',
-    );
-    assertRevision(update.expected_revision);
-    if (update.expected_revision !== current.revision) {
-      fail('POMRX_WG_POLICY_STATE_E_STALE', 'policy replacement revision is stale');
-    }
-
+    // Acquire the controller operation lock before inspecting the update or the
+    // current revision. A nested synchronous operation must never observe an
+    // in-progress transition as if it were an independent CAS attempt.
     enterOperation();
     try {
+      const update = captureExactDataRecord(
+        rawUpdate,
+        REPLACE_KEYS,
+        'policy replacement',
+      );
+      assertRevision(update.expected_revision);
+      if (update.expected_revision !== current.revision) {
+        fail('POMRX_WG_POLICY_STATE_E_STALE', 'policy replacement revision is stale');
+      }
+
       const candidate = normalizePolicyCandidate(update.policy);
       if (candidate.policy_id !== fixedPolicyId) {
         fail('POMRX_WG_POLICY_STATE_E_IDENTITY', 'policy_id cannot change inside one controller');
@@ -227,19 +230,22 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
   }
 
   function engageKillSwitch(rawUpdate) {
-    const update = captureExactDataRecord(
-      rawUpdate,
-      KILL_SWITCH_KEYS,
-      'kill-switch update',
-    );
-    assertRevision(update.expected_revision);
-    if (update.expected_revision !== current.revision) {
-      fail('POMRX_WG_POLICY_STATE_E_STALE', 'kill-switch revision is stale');
-    }
-    if (current.policy.kill_switch === true) return current;
-
+    // The lock intentionally covers the already-killed idempotent return too.
+    // Otherwise a nested kill-switch call could report success while an outer
+    // in-progress replacement is about to publish a re-enabled policy.
     enterOperation();
     try {
+      const update = captureExactDataRecord(
+        rawUpdate,
+        KILL_SWITCH_KEYS,
+        'kill-switch update',
+      );
+      assertRevision(update.expected_revision);
+      if (update.expected_revision !== current.revision) {
+        fail('POMRX_WG_POLICY_STATE_E_STALE', 'kill-switch revision is stale');
+      }
+      if (current.policy.kill_switch === true) return current;
+
       const candidate = normalizePolicyCandidate(policyWithKillSwitch(current.policy));
       const next = makeSnapshot(candidate, nextRevision(current.revision));
       current = next;
