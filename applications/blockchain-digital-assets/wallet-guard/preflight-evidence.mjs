@@ -30,6 +30,7 @@ const RULE_EVIDENCE_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-rule-evi
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$/u;
 const SOURCE_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 const MAX_LOCAL_EVIDENCE_IDENTITIES = 1_000;
 const BUILD_KEYS = Object.freeze([
   'intent',
@@ -153,6 +154,19 @@ function sampleTrustedClock(trustedClock, lastSampleMs) {
   return parsed;
 }
 
+function normalizeReference(field, value) {
+  if (typeof value !== 'string') {
+    fail('POMRX_WG_PREFLIGHT_E_INVALID', `${field} has an invalid format`);
+  }
+  const normalized = value.normalize('NFC');
+  if (normalized.trim().length < 1
+      || normalized.length > 256
+      || CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    fail('POMRX_WG_PREFLIGHT_E_INVALID', `${field} has an invalid format`);
+  }
+  return normalized;
+}
+
 function validateMetadata(input) {
   for (const [field, value] of [
     ['evidenceId', input.evidenceId],
@@ -162,21 +176,16 @@ function validateMetadata(input) {
       fail('POMRX_WG_PREFLIGHT_E_INVALID', `${field} has an invalid format`);
     }
   }
-  for (const [field, value] of [
-    ['agentRef', input.agentRef],
-    ['subjectRef', input.subjectRef],
-  ]) {
-    if (typeof value !== 'string'
-        || value.trim().length < 1
-        || value.length > 256
-        || /[\u0000-\u001f\u007f]/u.test(value)) {
-      fail('POMRX_WG_PREFLIGHT_E_INVALID', `${field} has an invalid format`);
-    }
-  }
+
+  const agentRef = normalizeReference('agentRef', input.agentRef);
+  const subjectRef = normalizeReference('subjectRef', input.subjectRef);
+
   if (typeof input.sourceKeyId !== 'string'
       || !SOURCE_KEY_ID_PATTERN.test(input.sourceKeyId)) {
     fail('POMRX_WG_PREFLIGHT_E_INVALID', 'sourceKeyId has an invalid format');
   }
+
+  return Object.freeze({ agentRef, subjectRef });
 }
 
 function deepFreeze(value) {
@@ -204,15 +213,22 @@ function makeAssertion(ruleId, result, decisionCommitment) {
   });
 }
 
-function commitDecision({ input, intent, policyResult, intentCommitment, occurredAt }) {
+function commitDecision({
+  input,
+  metadata,
+  intent,
+  policyResult,
+  intentCommitment,
+  occurredAt,
+}) {
   const reasons = Object.freeze([...policyResult.reasons].sort(asciiCompare));
   const payload = Object.freeze({
     schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
     evidence_id: input.evidenceId,
     run_id: input.runId,
     request_id: intent.request_id,
-    agent_ref: input.agentRef.normalize('NFC'),
-    subject_ref: input.subjectRef.normalize('NFC'),
+    agent_ref: metadata.agentRef,
+    subject_ref: metadata.subjectRef,
     source_key_id: input.sourceKeyId,
     occurred_at: occurredAt,
     decision: policyResult.decision,
@@ -253,7 +269,7 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
     buildInProgress = true;
     try {
       const input = captureExactDataRecord(rawInput, BUILD_KEYS, 'preflight evidence input');
-      validateMetadata(input);
+      const metadata = validateMetadata(input);
 
       if (setHas(usedEvidenceIds, input.evidenceId)) {
         fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'evidenceId was already used by this builder');
@@ -310,6 +326,7 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
       const methodHash = commitWalletGuardMethod(input.intent.rpc_method);
       const committedDecision = commitDecision({
         input,
+        metadata,
         intent: input.intent,
         policyResult,
         intentCommitment: actionCommitment,
@@ -321,8 +338,8 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
         evidence_id: input.evidenceId,
         run_id: input.runId,
         request_id: input.intent.request_id,
-        agent_ref: input.agentRef.normalize('NFC'),
-        subject_ref: input.subjectRef.normalize('NFC'),
+        agent_ref: metadata.agentRef,
+        subject_ref: metadata.subjectRef,
         source_key_id: input.sourceKeyId,
         occurred_at: occurredAt,
         wallet_guard_decision: policyResult.decision,
@@ -330,6 +347,7 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
         decision_commitment: committedDecision.decision_commitment,
         input_commitment: inputCommitment,
         action_commitment: actionCommitment,
+        method_hash: methodHash,
         policy_hash: policyResult.policy_hash,
         policy_id: policyResult.policy_id,
         normalized_input_only: true,
@@ -369,7 +387,7 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
           outcome: policyResult.decision === 'ALLOW' ? 'allow' : 'deny',
           agent_ref: common.agent_ref,
           subject_ref: common.subject_ref,
-          method_hash: methodHash,
+          method_hash: common.method_hash,
           policy_hash: policyResult.policy_hash,
           input_commitment: inputCommitment,
           action_commitment: actionCommitment,
