@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 
 import {
   canonicalizePayload,
@@ -9,6 +10,9 @@ import {
   verifyPomRxSourceEnvelope,
   verifyPomRxWitnessAck,
 } from '../../sdk/typescript/pom-rx-witness.mjs';
+import {
+  captureReferencePlainData,
+} from '../reference-data/plain-data-snapshot.mjs';
 
 export const POM_RX_REFERENCE_WITNESS_TRUST_STATE_VERSION =
   'pom-rx-witness-trust-state/0.1';
@@ -34,15 +38,39 @@ function fail(code, message) {
   throw new PomRxWitnessTrustError(code, message);
 }
 
-function exactKeys(value, expected, label) {
+function snapshotExactReferences(value, expected, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_WITNESS_TRUST_E_INVALID', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
+  if (utilTypes.isProxy(value)) {
+    fail('POMRX_WITNESS_TRUST_E_INVALID', `${label} cannot be a Proxy`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail('POMRX_WITNESS_TRUST_E_INVALID', `${label} must be a plain object`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WITNESS_TRUST_E_INVALID', `${label} cannot contain symbol keys`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
     fail('POMRX_WITNESS_TRUST_E_INVALID', `${label} has missing or unknown fields`);
   }
+  const snapshot = Object.create(null);
+  for (const key of expected) {
+    const descriptor = descriptors[key];
+    if (!descriptor
+        || descriptor.enumerable !== true
+        || typeof descriptor.get === 'function'
+        || typeof descriptor.set === 'function'
+        || !Object.hasOwn(descriptor, 'value')) {
+      fail('POMRX_WITNESS_TRUST_E_INVALID', `${label}.${key} must be an enumerable data property`);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
 }
 
 function canonicalUtcInstant(value, field) {
@@ -97,7 +125,7 @@ function recordActiveAt(record, instant) {
   const instantMs = instant.getTime();
   const enrolledMs = new Date(record.enrolled_at).getTime();
   const validUntilMs = new Date(record.valid_until).getTime();
-  if (instantMs < enrolledMs || instantMs > validUntilMs) return false;
+  if (instantMs < enrolledMs || instantMs >= validUntilMs) return false;
   if (record.transition_at !== null && instantMs >= new Date(record.transition_at).getTime()) {
     return false;
   }
@@ -111,10 +139,15 @@ function lexicalKeyIdCompare(left, right) {
 }
 
 export function createReferenceWitnessTrustLifecycle(options) {
-  exactKeys(options, ['trustedClock'], 'reference Witness trust bootstrap');
-  if (typeof options.trustedClock !== 'function') {
+  const bootstrap = snapshotExactReferences(
+    options,
+    ['trustedClock'],
+    'reference Witness trust bootstrap',
+  );
+  if (typeof bootstrap.trustedClock !== 'function') {
     fail('POMRX_WITNESS_TRUST_E_INVALID', 'trustedClock must be a function');
   }
+  const trustedClock = bootstrap.trustedClock;
 
   const records = new Map();
   let revision = 0;
@@ -123,7 +156,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
   function sampleTrustedClock() {
     let raw;
     try {
-      raw = options.trustedClock();
+      raw = trustedClock();
     } catch {
       fail('POMRX_WITNESS_TRUST_E_TIME_INVALID', 'trusted clock failed');
     }
@@ -178,17 +211,21 @@ export function createReferenceWitnessTrustLifecycle(options) {
   }
 
   function enrollIdentity(input) {
-    exactKeys(input, ['publicKey', 'role', 'validUntil'], 'identity enrollment');
+    const captured = snapshotExactReferences(
+      input,
+      ['publicKey', 'role', 'validUntil'],
+      'identity enrollment',
+    );
     const now = sampleTrustedClock();
-    const publicKey = toEd25519PublicKey(input.publicKey);
+    const publicKey = toEd25519PublicKey(captured.publicKey);
     const keyId = pomRxKeyId(publicKey);
     if (records.has(keyId)) {
       fail('POMRX_WITNESS_TRUST_E_DUPLICATE', 'identity is already enrolled');
     }
-    const expiry = validateValidityWindow(now, input.validUntil);
+    const expiry = validateValidityWindow(now, captured.validUntil);
     const record = frozenRecord({
       key_id: keyId,
-      role: validateRole(input.role),
+      role: validateRole(captured.role),
       public_key_spki: canonicalPublicKeySpki(publicKey),
       enrolled_at: now.toISOString(),
       valid_until: expiry.toISOString(),
@@ -203,10 +240,10 @@ export function createReferenceWitnessTrustLifecycle(options) {
   }
 
   function revokeIdentity(input) {
-    exactKeys(input, ['keyId', 'reason'], 'identity revocation');
+    const captured = snapshotExactReferences(input, ['keyId', 'reason'], 'identity revocation');
     const now = sampleTrustedClock();
-    const keyId = validateKeyId(input.keyId);
-    if (!REVOCATION_REASONS.has(input.reason)) {
+    const keyId = validateKeyId(captured.keyId);
+    if (!REVOCATION_REASONS.has(captured.reason)) {
       fail('POMRX_WITNESS_TRUST_E_INVALID', 'revocation reason is invalid');
     }
     const existing = records.get(keyId);
@@ -218,7 +255,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       ...existing,
       status: 'revoked',
       transition_at: now.toISOString(),
-      transition_reason: input.reason,
+      transition_reason: captured.reason,
     });
     records.set(keyId, updated);
     revision += 1;
@@ -270,31 +307,35 @@ export function createReferenceWitnessTrustLifecycle(options) {
   }
 
   function rotateIdentity(input) {
-    exactKeys(input, ['predecessorKeyId', 'successorPublicKey', 'validUntil'], 'identity rotation');
+    const captured = snapshotExactReferences(
+      input,
+      ['predecessorKeyId', 'successorPublicKey', 'validUntil'],
+      'identity rotation',
+    );
     return replaceIdentity(
-      input.predecessorKeyId,
-      input.successorPublicKey,
-      input.validUntil,
+      captured.predecessorKeyId,
+      captured.successorPublicKey,
+      captured.validUntil,
       'rotated',
       'key_rotation',
     );
   }
 
   function recoverIdentity(input) {
-    exactKeys(
+    const captured = snapshotExactReferences(
       input,
       ['compromisedKeyId', 'successorPublicKey', 'validUntil', 'reason'],
       'identity recovery',
     );
-    if (!RECOVERY_REASONS.has(input.reason)) {
+    if (!RECOVERY_REASONS.has(captured.reason)) {
       fail('POMRX_WITNESS_TRUST_E_INVALID', 'recovery reason is invalid');
     }
     return replaceIdentity(
-      input.compromisedKeyId,
-      input.successorPublicKey,
-      input.validUntil,
+      captured.compromisedKeyId,
+      captured.successorPublicKey,
+      captured.validUntil,
       'recovered',
-      input.reason,
+      captured.reason,
     );
   }
 
@@ -305,7 +346,17 @@ export function createReferenceWitnessTrustLifecycle(options) {
   function verifyAuthorizationCandidate(envelope, acknowledgement) {
     try {
       const now = sampleTrustedClock();
-      const sourceVerified = verifyPomRxSourceEnvelope(envelope);
+
+      let envelopeSnapshot;
+      try {
+        envelopeSnapshot = captureReferencePlainData(envelope, 'source envelope');
+      } catch {
+        return verificationFailure(
+          'POMRX_WITNESS_TRUST_E_SOURCE_INVALID',
+          'source envelope is not inert bounded plain data',
+        );
+      }
+      const sourceVerified = verifyPomRxSourceEnvelope(envelopeSnapshot);
       if (!sourceVerified.ok) {
         return verificationFailure(
           'POMRX_WITNESS_TRUST_E_SOURCE_INVALID',
@@ -313,13 +364,25 @@ export function createReferenceWitnessTrustLifecycle(options) {
         );
       }
 
-      const acknowledgementVerified = verifyPomRxWitnessAck(acknowledgement, {
+      let acknowledgementSnapshot;
+      try {
+        acknowledgementSnapshot = captureReferencePlainData(
+          acknowledgement,
+          'witness acknowledgement',
+        );
+      } catch {
+        return verificationFailure(
+          'POMRX_WITNESS_TRUST_E_ACK_INVALID',
+          'Witness acknowledgement is not inert bounded plain data',
+        );
+      }
+      const acknowledgementVerified = verifyPomRxWitnessAck(acknowledgementSnapshot, {
         receiptHash: sourceVerified.receiptHash,
         receiptId: sourceVerified.receipt.receipt_id,
         runId: sourceVerified.receipt.run_id,
         outcome: sourceVerified.receipt.outcome,
         sourceKeyId: sourceVerified.sourceKeyId,
-        witnessKeyId: acknowledgement?.witness_key_id,
+        witnessKeyId: acknowledgementSnapshot.witness_key_id,
         mode: 'witnessed',
         requireUnexpired: true,
         currentTime: now.toISOString(),
@@ -330,6 +393,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
           acknowledgementVerified.error,
         );
       }
+      const acknowledgementPayload = acknowledgementVerified.payload;
       if (sourceVerified.receipt.outcome !== 'allow') {
         return verificationFailure(
           'POMRX_WITNESS_TRUST_E_NOT_AUTHORIZABLE',
@@ -338,7 +402,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       }
 
       const sourceRecord = records.get(sourceVerified.sourceKeyId);
-      const witnessRecord = records.get(acknowledgement.witness_key_id);
+      const witnessRecord = records.get(acknowledgementPayload.witness_key_id);
       if (!sourceRecord || !witnessRecord) {
         return verificationFailure(
           'POMRX_WITNESS_TRUST_E_NOT_ENROLLED',
@@ -351,8 +415,8 @@ export function createReferenceWitnessTrustLifecycle(options) {
           'source or witness role does not match trust enrollment',
         );
       }
-      if (sourceRecord.public_key_spki !== envelope.source_public_key
-          || witnessRecord.public_key_spki !== acknowledgement.witness_public_key) {
+      if (sourceRecord.public_key_spki !== envelopeSnapshot.source_public_key
+          || witnessRecord.public_key_spki !== acknowledgementSnapshot.witness_public_key) {
         return verificationFailure(
           'POMRX_WITNESS_TRUST_E_KEY_MISMATCH',
           'signed public key does not match enrolled key bytes',
@@ -360,7 +424,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       }
 
       const occurredAt = canonicalUtcInstant(sourceVerified.receipt.occurred_at, 'occurred_at');
-      const receivedAt = canonicalUtcInstant(acknowledgement.received_at, 'received_at');
+      const receivedAt = canonicalUtcInstant(acknowledgementPayload.received_at, 'received_at');
       if (receivedAt.getTime() < occurredAt.getTime()) {
         return verificationFailure(
           'POMRX_WITNESS_TRUST_E_CHRONOLOGY',
@@ -380,7 +444,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       }
 
       const acknowledgementValidUntil = canonicalUtcInstant(
-        acknowledgement.valid_until,
+        acknowledgementPayload.valid_until,
         'acknowledgement valid_until',
       );
       const authorizationValidUntilMs = Math.min(
@@ -399,7 +463,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
       return Object.freeze({
         ok: true,
         source_key_id: sourceVerified.sourceKeyId,
-        witness_key_id: acknowledgement.witness_key_id,
+        witness_key_id: acknowledgementPayload.witness_key_id,
         receipt_hash: sourceVerified.receiptHash,
         acknowledgement_hash: acknowledgementVerified.acknowledgementHash,
         current_time: now.toISOString(),
