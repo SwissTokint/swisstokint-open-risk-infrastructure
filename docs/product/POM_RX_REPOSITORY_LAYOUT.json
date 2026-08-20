@@ -7,6 +7,8 @@
       "core/strict-verification",
       "core/authorization",
       "core/gate",
+      "core/reference-data",
+      "core/witness",
       "sdk/typescript/pom-rx.mjs",
       "sdk/typescript/internal",
       "sdk/typescript/pom-rx-witness.mjs"
