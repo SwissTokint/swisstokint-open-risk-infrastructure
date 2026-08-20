@@ -93,23 +93,35 @@ script source.
 
 ### Stale-run and rerun rule
 
-A commit status is a latest-state surface, so a delayed publisher must never
-allow an older successful run to overwrite a newer failed run or rerun. Before
-any status write, the publisher queries the canonical `ci.yml` workflow for
-`push` runs on `main` with the exact same head SHA. It requires that the complete
-matching result set fit in one bounded 100-run page and then selects the maximum
-`(run_number, run_attempt)` pair. GitHub defines `run_number` as increasing with
-each new workflow run and `run_attempt` as increasing with each rerun attempt.
-Only an event whose run ID, run number and attempt still match that selected
-latest entry may publish. An older or superseded event exits without writing.
-If the bounded freshness query is empty, malformed, incomplete or exceeds the
-100-run proof budget, publication fails closed.
+A commit status is a latest-state surface, so a delayed publisher must suppress
+an older run whenever a newer canonical run/attempt is already observable at
+its freshness check. Before any status write, the publisher queries the
+canonical `ci.yml` workflow for `push` runs on `main` with the exact same head
+SHA. It requires that the complete matching result set fit in one bounded
+100-run page and then selects the maximum `(run_number, run_attempt)` pair.
+GitHub defines `run_number` as increasing with each new workflow run and
+`run_attempt` as increasing with each rerun attempt. Only an event whose run ID,
+run number and attempt still match that selected latest entry may publish. An
+event already stale or superseded at that lookup exits without writing. If the
+bounded freshness query is empty, malformed, incomplete or exceeds the 100-run
+proof budget, publication fails closed.
+
+The freshness lookup and commit-status write are separate GitHub API operations;
+there is no atomic compare-and-set across those resources. A newer run can be
+created in the observation/write interval. Therefore the commit status by itself
+is never sufficient assurance evidence, even though the publisher suppresses
+stale events visible before each write. The assurance consumer must independently
+re-read the canonical run set at decision time and reject a status whose target
+is no longer the latest exact-SHA run/attempt or when any newer queued or
+in-progress canonical run is visible. This decision-time revalidation is the
+control that closes the residual observation/write race for PASS decisions.
 
 The publisher also listens for `in_progress`, including rerun attempts, so a
 new latest attempt replaces any earlier success with `pending` once execution
-starts. A delayed `in_progress` event that has already become `completed` is
-ignored because the re-read status no longer matches its event state. This does
-not claim knowledge of a future run before GitHub has created or exposed it.
+starts and its publisher writes. A delayed `in_progress` event that has already
+become `completed` is ignored because the re-read status no longer matches its
+event state. This does not claim knowledge of a future run before GitHub has
+created or exposed it.
 
 For post-merge integration evidence, a `pom-rx/exact-main-ci` status is usable
 only when it is attached to the exact merge SHA and reports `success`. Its target
