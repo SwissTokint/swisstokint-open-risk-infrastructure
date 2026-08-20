@@ -178,6 +178,10 @@ function capturePolicy(value) {
   return captureReferencePlainData(value, 'Wallet Guard controlled host policy');
 }
 
+function capturePageRequest(value) {
+  return captureReferencePlainData(value, 'Wallet Guard controlled page request');
+}
+
 function captureSensitiveRequest(value) {
   return captureReferencePlainData(value, 'Wallet Guard controlled provider request');
 }
@@ -265,7 +269,17 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     capabilityLifetimeMs: options.capabilityLifetimeMs,
   });
 
-  const ethereum = freeze({ request: gateway.request });
+  // The page-facing boundary is stricter than the historical provider gateway:
+  // capture caller-owned request data through the shared hardened plain-data
+  // boundary before invoking gateway code that predates Proxy/decorated-array
+  // rejection. Proxy/accessor/hidden/symbol/custom-prototype request behavior
+  // therefore cannot execute inside the controlled page path.
+  function request(untrustedRequest) {
+    const requestSnapshot = capturePageRequest(untrustedRequest);
+    return gateway.request(requestSnapshot);
+  }
+
+  const ethereum = freeze({ request });
   const page = freeze({ ethereum });
   const testAuthority = freeze({
     setTrustedOrigin(value) {
