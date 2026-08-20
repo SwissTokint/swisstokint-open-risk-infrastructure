@@ -18,7 +18,7 @@
     "test:pom-rx:core-reference-gate": "node --test tests/pom-rx-core-reference-gate.node.test.mjs",
     "test:pom-rx:wallet-guard-intent-policy": "node --test tests/wallet-guard/intent-policy.node.test.mjs",
     "test:pom-rx:wallet-guard-provider-gate": "node --test tests/wallet-guard/provider-gate.node.test.mjs",
-    "test:pom-rx:wallet-guard-json-ingress": "node --test tests/wallet-guard/json-ingress.node.test.mjs",
+    "test:pom-rx:wallet-guard-json-ingress": "node --test tests/wallet-guard/json-ingress.node.test.mjs tests/wallet-guard/json-ingress-hardening.node.test.mjs",
     "test:pom-rx:repository-layout": "node --test tests/pom-rx-repository-layout.node.test.mjs",
     "test:pom-rx:capability-map": "node --test tests/pom-rx-capability-map.node.test.mjs",
     "test:pom-rx:post-merge-assurance": "node --test tests/pom-rx-post-merge-assurance-policy.node.test.mjs",
