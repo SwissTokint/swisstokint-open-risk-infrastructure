@@ -20,6 +20,10 @@ export const WALLET_GUARD_SIMULATION_COMMIT_DOMAIN =
 export const WALLET_GUARD_SIMULATION_REQUEST_COMMIT_DOMAIN =
   'swisstokint:pom-rx-wallet-guard-simulation-request:v1:';
 
+const TYPED_DATA_JSON_COMMIT_DOMAIN =
+  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-json:v1:';
+const TYPED_DATA_JSON_COMMITMENT_SCHEMA =
+  'wallet_guard_typed_data_json_commitment/0.1';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const CALLBACK_STATUSES = new Set(['pass', 'fail', 'unavailable']);
 const EVIDENCE_STATUSES = new Set(['pass', 'fail', 'unavailable', 'mismatch']);
@@ -168,13 +172,46 @@ function requireLocalIntent(intent) {
   return commitWalletGuardIntent(intent);
 }
 
+function requestCommitmentProjection(requestSnapshot) {
+  if (requestSnapshot.method !== 'eth_signTypedData_v4'
+      || !Array.isArray(requestSnapshot.params)
+      || requestSnapshot.params.length !== 2
+      || typeof requestSnapshot.params[1] !== 'string') {
+    return requestSnapshot;
+  }
+
+  // Wallet Guard deliberately accepts a bounded JSON-string EIP-712 payload up
+  // to 16 KiB, while the shared proof canonicalizer caps each individual string
+  // at a smaller generic bound. Preserve an exact commitment to the captured
+  // request without weakening Core canonicalizer limits by replacing only that
+  // already-replayed raw JSON string with a domain-separated digest marker.
+  // The original captured request is still passed unchanged to the simulator.
+  const typedDataJsonCommitment = sha256Hex(
+    `${TYPED_DATA_JSON_COMMIT_DOMAIN}${requestSnapshot.params[1]}`,
+  );
+  return Object.freeze({
+    method: requestSnapshot.method,
+    params: Object.freeze([
+      requestSnapshot.params[0],
+      Object.freeze({
+        schema_version: TYPED_DATA_JSON_COMMITMENT_SCHEMA,
+        raw_json_sha256: typedDataJsonCommitment,
+      }),
+    ]),
+  });
+}
+
 function commitRequestSnapshot(requestSnapshot) {
   // The request is already bounded inert plain data and has successfully replayed
   // through Wallet Guard normalization before this point. Any later failure in
   // the shared canonicalizer is therefore a runtime/contract failure, not a new
   // simulation diagnostic. Preserve that exact provenance instead of translating
-  // by exported error class.
-  const canonicalRequest = canonicalizePayload(requestSnapshot);
+  // by exported error class. JSON-string EIP-712 payloads use a domain-separated
+  // digest projection so Wallet Guard's accepted 16 KiB representation does not
+  // require widening the shared canonicalizer's generic per-string limit.
+  const canonicalRequest = canonicalizePayload(
+    requestCommitmentProjection(requestSnapshot),
+  );
   return Object.freeze({
     canonical_request: canonicalRequest,
     request_commitment: sha256Hex(
