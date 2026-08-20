@@ -83,13 +83,15 @@ code. The status publisher has only `actions: read` and `statuses: write`:
 Actions read access is used solely to re-read canonical workflow-run metadata
 before a status write. The publisher never checks out repository code, never
 downloads upstream artifacts or caches, and does not run PR-controlled scripts.
-It accepts only a canonical `CI` run whose workflow path is exactly
-`.github/workflows/ci.yml`, whose event is `push`, whose head branch is `main`,
-and whose head repository is this exact repository. This path check prevents
-another same-name workflow from publishing the assurance context. Values from
-the workflow-run payload are passed through environment variables and validated
-before the GitHub APIs are called; they are not interpolated into executable
-script source.
+It accepts only a canonical `CI` run whose workflow path identifies
+`.github/workflows/ci.yml`: either GitHub's plain path form or its documented
+`.github/workflows/ci.yml@main` run representation is accepted, and no other
+path is. The event must also be `push`, the head branch must be `main`, and the
+head repository must be this exact repository. This narrow path allow-list
+prevents another same-name workflow from publishing the assurance context.
+Values from the workflow-run payload are passed through environment variables
+and validated before the GitHub APIs are called; they are not interpolated into
+executable script source.
 
 ### Stale-run and rerun rule
 
