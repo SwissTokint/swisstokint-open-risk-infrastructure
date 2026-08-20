@@ -59,7 +59,11 @@ function workflowRun({
   };
 }
 
-function runPublisher({ eventRun, listing }) {
+function runPublisher({
+  eventRun,
+  listing,
+  workflowPath = '.github/workflows/ci.yml',
+}) {
   const temp = mkdtempSync(join(tmpdir(), 'pom-rx-exact-main-status-'));
   const ghPath = join(temp, 'gh');
   const postLog = join(temp, 'post.jsonl');
@@ -112,7 +116,7 @@ else:
       PATH: `${temp}:${process.env.PATH ?? ''}`,
       HEAD_SHA: headSha,
       HEAD_REPOSITORY: repository,
-      UPSTREAM_WORKFLOW_PATH: '.github/workflows/ci.yml',
+      UPSTREAM_WORKFLOW_PATH: workflowPath,
       RUN_ID: String(eventRun.id),
       RUN_NUMBER: String(eventRun.run_number),
       RUN_ATTEMPT: String(eventRun.run_attempt),
@@ -188,6 +192,10 @@ test('exact-main CI status is bound to the canonical same-repository main push',
     exactMainStatusWorkflow,
     /github\.event\.workflow_run\.path == '\.github\/workflows\/ci\.yml'/,
   );
+  assert.match(
+    exactMainStatusWorkflow,
+    /github\.event\.workflow_run\.path == '\.github\/workflows\/ci\.yml@main'/,
+  );
   for (const binding of [
     /HEAD_SHA:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
     /RUN_ID:\s*\$\{\{ github\.event\.workflow_run\.id \}\}/,
@@ -235,11 +243,14 @@ test('privileged exact-main status publisher executes no repository or upstream 
     'workflow-run values must reach the script only through validated environment variables',
   );
   assert.match(runBlock, /re\.fullmatch\(r'\[0-9a-f\]\{40\}'/);
-  assert.match(runBlock, /workflow_path != '\.github\/workflows\/ci\.yml'/);
+  assert.match(runBlock, /workflow_path not in/);
+  assert.match(runBlock, /'\.github\/workflows\/ci\.yml'/);
+  assert.match(runBlock, /'\.github\/workflows\/ci\.yml@main'/);
   assert.match(runBlock, /actions\/workflows\/ci\.yml\/runs/);
   assert.match(runBlock, /'head_sha=' \+ sha|'head_sha=\{sha\}'|f'head_sha=\{sha\}'/);
   assert.match(runBlock, /type\(total_count\) is not int/);
   assert.match(runBlock, /type\(value\) is int and value >= 1/);
+  assert.match(runBlock, /duplicate run identity/);
   assert.match(runBlock, /total_count > 100/);
   assert.match(runBlock, /key=lambda entry: \(entry\[0\], entry\[1\]\)/);
   assert.match(runBlock, /stale exact-main workflow_run event ignored/);
@@ -271,6 +282,28 @@ test(
     assert.equal(posts.length, 1);
     assert.equal(posts[0].state, 'success');
     assert.equal(posts[0].target_url, current.html_url);
+  },
+);
+
+test(
+  'canonical @main workflow path form is accepted without broadening to another file',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: 1, workflow_runs: [current] },
+      workflowPath: '.github/workflows/ci.yml@main',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].state, 'success');
   },
 );
 
@@ -412,6 +445,29 @@ test(
     });
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /invalid run identity/);
+    assert.deepEqual(posts, []);
+  },
+);
+
+test(
+  'publisher rejects duplicate run-number and attempt identities as ambiguous',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const duplicate = { ...current, id: 201 };
+    duplicate.html_url = `https://github.com/${repository}/actions/runs/201`;
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: 2, workflow_runs: [current, duplicate] },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate run identity/);
     assert.deepEqual(posts, []);
   },
 );
