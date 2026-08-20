@@ -16,9 +16,9 @@ The Witness Core owns trust decisions around source and Witness identities. It i
 - independent chronology enforcement requiring Witness receipt time not to predate source occurrence time;
 - `authorization_valid_until` bounded by the earliest of acknowledgement validity, source enrollment validity and Witness enrollment validity so a later Gate cannot safely inherit a longer lifetime from the acknowledgement alone;
 - an explicit reference-store ceiling of 32 retained identities, with every administrative mutation staged against an exact prospective map and revision before commit;
-- fail-closed prospective snapshot validation: canonical/node/byte-bound exhaustion is reported as `POMRX_WITNESS_TRUST_E_CAPACITY`, and `records` plus `revision` are committed only after the prospective trust snapshot succeeds. Enrollment, revocation, rotation and recovery therefore cannot report failure after partially changing trust state.
+- fail-closed prospective snapshot validation: `records` plus `revision` are committed only after the prospective trust snapshot canonicalizes and hashes successfully. The stable `POMRX_WITNESS_TRUST_E_CAPACITY` diagnostic is reserved for the explicit 32-identity store ceiling; unexpected canonicalizer or hashing defects propagate as internal failures rather than being relabeled as capacity.
 
-The 32-identity ceiling is intentionally conservative for this reference implementation. It leaves headroom under the shared bounded canonical-payload contract even when retained identities carry transition metadata; it is not a production trust-store sizing claim. Retained-history compaction, durable state and production recovery-at-capacity policy remain outside this reference lot.
+The 32-identity ceiling is intentionally conservative for this reference implementation. Regression coverage proves the supported trust-record shapes remain canonical through that ceiling, including transition-heavy history and revocation headroom. The ceiling is not a production trust-store sizing claim. Retained-history compaction, durable state and production recovery-at-capacity policy remain outside this reference lot.
 
 No private key is stored in the trust lifecycle. Enrollment, revocation, rotation and recovery are operator/bootstrap authority actions in this reference implementation.
 
