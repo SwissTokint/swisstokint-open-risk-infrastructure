@@ -180,24 +180,24 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
   const initialPolicy = normalizePolicyCandidate(options.policy);
   const fixedPolicyId = initialPolicy.policy_id;
   let current = makeSnapshot(initialPolicy, 0);
-  let mutationInProgress = false;
+  let operationInProgress = false;
 
   function readSnapshot() {
     return current;
   }
 
-  function enterMutation() {
-    if (mutationInProgress) {
+  function enterOperation() {
+    if (operationInProgress) {
       fail(
         'POMRX_WG_POLICY_STATE_E_REENTRANT',
-        'policy-state mutation is already in progress in this controller',
+        'policy-state operation is already in progress in this controller',
       );
     }
-    mutationInProgress = true;
+    operationInProgress = true;
   }
 
-  function leaveMutation() {
-    mutationInProgress = false;
+  function leaveOperation() {
+    operationInProgress = false;
   }
 
   function replacePolicy(rawUpdate) {
@@ -211,7 +211,7 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
       fail('POMRX_WG_POLICY_STATE_E_STALE', 'policy replacement revision is stale');
     }
 
-    enterMutation();
+    enterOperation();
     try {
       const candidate = normalizePolicyCandidate(update.policy);
       if (candidate.policy_id !== fixedPolicyId) {
@@ -222,7 +222,7 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
       current = next;
       return next;
     } finally {
-      leaveMutation();
+      leaveOperation();
     }
   }
 
@@ -238,41 +238,52 @@ export function createWalletGuardReferencePolicyController(rawOptions) {
     }
     if (current.policy.kill_switch === true) return current;
 
-    enterMutation();
+    enterOperation();
     try {
       const candidate = normalizePolicyCandidate(policyWithKillSwitch(current.policy));
       const next = makeSnapshot(candidate, nextRevision(current.revision));
       current = next;
       return next;
     } finally {
-      leaveMutation();
+      leaveOperation();
     }
   }
 
   function evaluate(intent, simulation = Object.freeze({ status: 'not_run' })) {
-    const snapshot = current;
-    let result;
+    enterOperation();
     try {
-      result = evaluateWalletGuardPolicy(intent, snapshot.policy, simulation);
-    } catch (error) {
-      if (error instanceof WalletGuardPolicyError) {
-        fail('POMRX_WG_POLICY_STATE_E_EVALUATION', 'Wallet Guard policy evaluation failed');
+      const snapshot = current;
+      let result;
+      try {
+        result = evaluateWalletGuardPolicy(intent, snapshot.policy, simulation);
+      } catch (error) {
+        if (error instanceof WalletGuardPolicyError) {
+          fail('POMRX_WG_POLICY_STATE_E_EVALUATION', 'Wallet Guard policy evaluation failed');
+        }
+        throw error;
       }
-      throw error;
+      if (current !== snapshot) {
+        fail(
+          'POMRX_WG_POLICY_STATE_E_INTERNAL',
+          'policy state changed during a controller evaluation',
+        );
+      }
+      if (result.policy_id !== snapshot.policy_id || result.policy_hash !== snapshot.policy_hash) {
+        fail(
+          'POMRX_WG_POLICY_STATE_E_INTERNAL',
+          'policy evaluation diverged from the captured controller snapshot',
+        );
+      }
+      return Object.freeze({
+        ...result,
+        policy_state_revision: snapshot.revision,
+        policy_state_commitment: snapshot.state_commitment,
+        reference_policy_state: true,
+        provider_gate_state_binding_proved: false,
+      });
+    } finally {
+      leaveOperation();
     }
-    if (result.policy_id !== snapshot.policy_id || result.policy_hash !== snapshot.policy_hash) {
-      fail(
-        'POMRX_WG_POLICY_STATE_E_INTERNAL',
-        'policy evaluation diverged from the captured controller snapshot',
-      );
-    }
-    return Object.freeze({
-      ...result,
-      policy_state_revision: snapshot.revision,
-      policy_state_commitment: snapshot.state_commitment,
-      reference_policy_state: true,
-      provider_gate_state_binding_proved: false,
-    });
   }
 
   return Object.freeze({
