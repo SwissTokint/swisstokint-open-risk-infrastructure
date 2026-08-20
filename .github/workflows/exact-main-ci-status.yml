@@ -17,12 +17,14 @@ jobs:
     if: >-
       ${{ github.event.workflow_run.event == 'push' &&
           github.event.workflow_run.head_branch == 'main' &&
-          github.event.workflow_run.head_repository.full_name == github.repository }}
+          github.event.workflow_run.head_repository.full_name == github.repository &&
+          github.event.workflow_run.path == '.github/workflows/ci.yml' }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
       HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
       HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+      UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
       RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
       RUN_URL: ${{ github.event.workflow_run.html_url }}
       STATUS_CONTEXT: pom-rx/exact-main-ci
@@ -40,6 +42,7 @@ jobs:
 
           repository = os.environ['HEAD_REPOSITORY']
           sha = os.environ['HEAD_SHA']
+          workflow_path = os.environ['UPSTREAM_WORKFLOW_PATH']
           conclusion = os.environ['RUN_CONCLUSION']
           run_url = os.environ['RUN_URL']
           context = os.environ['STATUS_CONTEXT']
@@ -48,6 +51,8 @@ jobs:
               raise SystemExit('invalid repository identity')
           if not re.fullmatch(r'[0-9a-f]{40}', sha):
               raise SystemExit('invalid exact-main head SHA')
+          if workflow_path != '.github/workflows/ci.yml':
+              raise SystemExit('unexpected upstream workflow path')
           expected_run_prefix = f'https://github.com/{repository}/actions/runs/'
           if not run_url.startswith(expected_run_prefix):
               raise SystemExit('workflow-run URL is not bound to this repository')
