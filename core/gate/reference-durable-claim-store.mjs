@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import {
+  link,
   lstat,
   mkdir,
   open,
   readFile,
   realpath,
+  unlink,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { types as utilTypes } from 'node:util';
@@ -225,21 +228,43 @@ async function writeExclusiveDurable(filePath, value) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record exceeds the maximum size');
   }
 
+  const directory = path.dirname(filePath);
+  const tempPath = path.join(
+    directory,
+    `.${path.basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
   let handle;
+  let tempExists = false;
   try {
-    handle = await open(filePath, 'wx', 0o600);
+    // Never expose the final record name until the complete payload has been
+    // written and fsynced. A same-directory hard link installs the immutable
+    // inode atomically without overwriting an existing final record.
+    handle = await open(tempPath, 'wx', 0o600);
+    tempExists = true;
     await handle.writeFile(body, 'utf8');
     await handle.sync();
-  } catch (error) {
-    if (error?.code === 'EEXIST') {
-      fail('POMRX_GATE_E_DURABLE_REPLAY', 'durable terminal/claim record already exists');
+    await handle.close();
+    handle = null;
+
+    try {
+      await link(tempPath, filePath);
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        fail('POMRX_GATE_E_DURABLE_REPLAY', 'durable terminal/claim record already exists');
+      }
+      throw error;
     }
+
+    await unlink(tempPath);
+    tempExists = false;
+    await fsyncDirectory(directory);
+  } catch (error) {
     if (error instanceof PomRxDurableClaimStoreError) throw error;
-    fail('POMRX_GATE_E_DURABLE_IO', 'durable record write failed');
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable record publication failed');
   } finally {
     await handle?.close().catch(() => {});
+    if (tempExists) await unlink(tempPath).catch(() => {});
   }
-  await fsyncDirectory(path.dirname(filePath));
 }
 
 async function readBoundedJson(filePath) {
@@ -390,10 +415,9 @@ export function createReferenceDurableClaimStore(options) {
       fail('POMRX_GATE_E_DURABLE_IO', 'durable capability claim could not be reserved');
     }
 
-    // Persist the directory entry before writing metadata. If the process crashes
-    // after this point, the tombstone intentionally remains fail-closed and a
-    // later claimant cannot re-arm the capability merely because metadata is
-    // incomplete.
+    // mkdir() alone is not a durability claim. Only after this root-directory
+    // fsync succeeds is the new capability-directory entry treated as a durable
+    // fail-closed tombstone by a successful claim() operation.
     await fsyncDirectory(root);
 
     const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
