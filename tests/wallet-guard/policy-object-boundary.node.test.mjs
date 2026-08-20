@@ -269,6 +269,64 @@ test('simulation hidden, symbol and custom-prototype records fail closed', () =>
   );
 });
 
+test('snapshot writes ignore poisoned Object.prototype policy accessors', { concurrency: false }, () => {
+  const rawPolicy = basePolicy({ kill_switch: true });
+  let setterCalls = 0;
+  const previous = Object.getOwnPropertyDescriptor(Object.prototype, 'kill_switch');
+  try {
+    Object.defineProperty(Object.prototype, 'kill_switch', {
+      configurable: true,
+      get() {
+        return false;
+      },
+      set() {
+        setterCalls += 1;
+      },
+    });
+
+    const normalized = normalizeWalletGuardPolicy(rawPolicy);
+    assert.equal(normalized.kill_switch, true);
+    assert.equal(evaluateWalletGuardPolicy(nativeIntent(), rawPolicy).decision, 'DENY');
+    assert.equal(setterCalls, 0);
+  } finally {
+    if (previous) {
+      Object.defineProperty(Object.prototype, 'kill_switch', previous);
+    } else {
+      delete Object.prototype.kill_switch;
+    }
+  }
+});
+
+test('snapshot writes ignore poisoned Object.prototype simulation accessors', { concurrency: false }, () => {
+  const intent = nativeIntent();
+  const policy = basePolicy({ require_simulation_for: ['native_transfer'] });
+  const simulation = { status: 'fail' };
+  let setterCalls = 0;
+  const previous = Object.getOwnPropertyDescriptor(Object.prototype, 'status');
+  try {
+    Object.defineProperty(Object.prototype, 'status', {
+      configurable: true,
+      get() {
+        return 'pass';
+      },
+      set() {
+        setterCalls += 1;
+      },
+    });
+
+    const result = evaluateWalletGuardPolicy(intent, policy, simulation);
+    assert.equal(result.decision, 'DENY');
+    assert.ok(result.reasons.includes('WG_POLICY_DENY_SIMULATION'));
+    assert.equal(setterCalls, 0);
+  } finally {
+    if (previous) {
+      Object.defineProperty(Object.prototype, 'status', previous);
+    } else {
+      delete Object.prototype.status;
+    }
+  }
+});
+
 test('null-prototype plain policy remains accepted after boundary hardening', () => {
   const raw = Object.assign(Object.create(null), basePolicy());
   const normalized = normalizeWalletGuardPolicy(raw);
