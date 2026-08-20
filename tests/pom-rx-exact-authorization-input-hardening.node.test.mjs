@@ -11,6 +11,7 @@ import {
 const hash = (character) => character.repeat(64);
 const CAPABILITY_ID = `cap-${'c'.repeat(32)}`;
 const WITNESS_VALID_UNTIL = '2026-08-20T03:01:00.000Z';
+const EXPECTED_AUTHORIZATION_COMMITMENT = '9b39321ac551fd243e9ef2ed8a1ad804888a1b7229306485680d7a286da97094';
 
 function validInput() {
   return {
@@ -52,10 +53,15 @@ function expectBindingMismatch(error) {
 test('plain exact authorization bindings retain deterministic commitment behavior', () => {
   const first = commitExactAuthorizationBinding(validBinding());
   const second = commitExactAuthorizationBinding(validBinding());
+  const prepared = prepareReferenceExactAuthorizationRecord(validInput(), {
+    capabilityId: CAPABILITY_ID,
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
 
-  assert.equal(first.authorizationCommitment, second.authorizationCommitment);
+  assert.equal(first.authorizationCommitment, EXPECTED_AUTHORIZATION_COMMITMENT);
+  assert.equal(second.authorizationCommitment, EXPECTED_AUTHORIZATION_COMMITMENT);
+  assert.equal(prepared.evidence.authorization_commitment, EXPECTED_AUTHORIZATION_COMMITMENT);
   assert.equal(first.canonicalBinding, second.canonicalBinding);
-  assert.match(first.authorizationCommitment, /^[a-f0-9]{64}$/u);
 });
 
 test('commit boundary rejects accessor-backed binding fields without invoking getters', () => {
@@ -164,5 +170,5 @@ test('null-prototype plain data remains accepted at the boundary', () => {
 
   assert.equal(prepared.binding.run_id, 'run-reference-0001');
   assert.equal(Object.getPrototypeOf(prepared.binding), Object.prototype);
-  assert.match(prepared.evidence.authorization_commitment, /^[a-f0-9]{64}$/u);
+  assert.equal(prepared.evidence.authorization_commitment, EXPECTED_AUTHORIZATION_COMMITMENT);
 });
