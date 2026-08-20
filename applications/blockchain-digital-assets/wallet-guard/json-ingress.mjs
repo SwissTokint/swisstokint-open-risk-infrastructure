@@ -6,10 +6,10 @@ import {
 export const WALLET_GUARD_JSON_INGRESS_SCHEMA_VERSION = 'wallet_guard_json_ingress/0.1';
 
 const MAX_RAW_BYTES = 64 * 1024;
-const MAX_DEPTH = 12;
-const MAX_NODES = 2_000;
-const MAX_STRING_LENGTH = 16_384;
-const MAX_KEY_LENGTH = 128;
+const MAX_DEPTH = 8;
+const MAX_NODES = 1_000;
+const MAX_STRING_LENGTH = 2_048;
+const MAX_KEY_LENGTH = 64;
 const METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const EIP1193_KEYS = Object.freeze(['method', 'params']);
@@ -327,6 +327,19 @@ function validateJsonRpcId(value) {
   fail('POMRX_WG_JSON_E_ID', 'JSON-RPC id must be a non-negative safe integer or bounded string');
 }
 
+function canonicalRequestHash(request) {
+  let canonicalRequest;
+  try {
+    canonicalRequest = canonicalizePayload(request);
+  } catch {
+    fail(
+      'POMRX_WG_JSON_E_CANONICAL',
+      'Wallet Guard JSON request is outside the shared canonical payload contract',
+    );
+  }
+  return sha256Hex(canonicalRequest);
+}
+
 export function parseWalletGuardJsonIngress(raw) {
   if (typeof raw !== 'string') {
     fail('POMRX_WG_JSON_E_INPUT', 'Wallet Guard JSON ingress requires a string');
@@ -368,14 +381,13 @@ export function parseWalletGuardJsonIngress(raw) {
     request = Object.freeze({ method: snapshot.method, params: snapshot.params });
   }
 
-  const canonicalRequest = canonicalizePayload(request);
   return Object.freeze({
     schema_version: WALLET_GUARD_JSON_INGRESS_SCHEMA_VERSION,
     transport,
     jsonrpc_id: jsonrpcId,
     request,
     raw_text_sha256: sha256Hex(raw),
-    canonical_request_sha256: sha256Hex(canonicalRequest),
+    canonical_request_sha256: canonicalRequestHash(request),
     reference_only: true,
     transport_bytes_proved: false,
   });
