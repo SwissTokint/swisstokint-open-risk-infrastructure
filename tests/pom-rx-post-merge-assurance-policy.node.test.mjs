@@ -92,15 +92,9 @@ elif method == 'POST':
     payload = json.load(sys.stdin)
     with open(os.environ['FAKE_GH_POST_LOG'], 'a', encoding='utf-8') as handle:
         handle.write(json.dumps(payload, sort_keys=True) + '\\n')
-    status_id = 424242
     sys.stdout.write(json.dumps({
-        'id': status_id,
-        'url': (
-            'https://api.github.com/repos/'
-            + os.environ['HEAD_REPOSITORY']
-            + '/statuses/'
-            + str(status_id)
-        ),
+        'id': 424242,
+        'url': 'https://api.github.com/' + path,
         'context': payload['context'],
         'state': payload['state'],
         'target_url': payload['target_url'],
@@ -246,10 +240,10 @@ test('privileged exact-main status publisher executes no repository or upstream 
   assert.match(runBlock, /total_count > 100/);
   assert.match(runBlock, /key=lambda entry: \(entry\[0\], entry\[1\]\)/);
   assert.match(runBlock, /stale exact-main workflow_run event ignored/);
+  assert.match(runBlock, /status_url = f'https:\/\/api\.github\.com\/\{status_path\}'/);
   assert.match(runBlock, /status_id = body\.get\('id'\)/);
   assert.match(runBlock, /type\(status_id\) is not int/);
-  assert.match(runBlock, /statuses\/\{status_id\}/);
-  assert.match(runBlock, /body\.get\('url'\) != expected_status_url/);
+  assert.match(runBlock, /body\.get\('url'\) != status_url/);
   assert.match(runBlock, /body\.get\('context'\) != context/);
   assert.match(runBlock, /body\.get\('state'\) != state/);
   assert.match(runBlock, /body\.get\('target_url'\) != run_url/);
