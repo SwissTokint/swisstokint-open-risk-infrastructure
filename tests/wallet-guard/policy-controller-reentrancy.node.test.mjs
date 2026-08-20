@@ -89,6 +89,47 @@ test('reentrant mutation cannot overwrite an in-progress compare-and-swap transi
   assert.strictEqual(controller.readSnapshot(), replacement);
 });
 
+test('reentrant idempotent kill cannot report success inside an in-progress re-enable', { concurrency: false }, () => {
+  const controller = createWalletGuardReferencePolicyController({ policy: policy() });
+  const killed = controller.engageKillSwitch({ expected_revision: 0 });
+  assert.equal(killed.revision, 1);
+  assert.equal(killed.kill_switch, true);
+
+  const originalNormalize = String.prototype.normalize;
+  let nestedError = null;
+  let nestedResult = null;
+  let attempted = false;
+
+  String.prototype.normalize = function normalize(form) {
+    if (!attempted && String(this) === 'wallet_guard_policy_state/0.1' && form === 'NFC') {
+      attempted = true;
+      try {
+        nestedResult = controller.engageKillSwitch({ expected_revision: 1 });
+      } catch (error) {
+        nestedError = error;
+      }
+    }
+    return originalNormalize.call(this, form);
+  };
+
+  let reenabled;
+  try {
+    reenabled = controller.replacePolicy({
+      expected_revision: 1,
+      policy: policy(),
+    });
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+
+  assert.equal(nestedResult, null);
+  assert.ok(nestedError instanceof WalletGuardPolicyStateError);
+  assert.equal(nestedError.code, 'POMRX_WG_POLICY_STATE_E_REENTRANT');
+  assert.equal(reenabled.revision, 2);
+  assert.equal(reenabled.kill_switch, false);
+  assert.strictEqual(controller.readSnapshot(), reenabled);
+});
+
 test('reentrant kill-switch mutation cannot turn a state-stable evaluation into stale ALLOW', { concurrency: false }, () => {
   const controller = createWalletGuardReferencePolicyController({ policy: policy() });
   const intent = nativeIntent();
