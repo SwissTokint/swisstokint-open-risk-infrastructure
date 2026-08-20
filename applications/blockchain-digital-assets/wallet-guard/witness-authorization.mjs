@@ -3,6 +3,9 @@ import { types as utilTypes } from 'node:util';
 import {
   captureReferencePlainData,
 } from '../../../core/reference-data/plain-data-snapshot.mjs';
+import {
+  verifyReferenceWitnessEvidenceResultBinding,
+} from '../../../core/witness/reference-evidence-binding.mjs';
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const KEY_ID_PATTERN = /^ed25519-[a-f0-9]{32}$/u;
@@ -297,16 +300,27 @@ function assertReceiptBinding(receipt, summary, issuedAt) {
 }
 
 function assertVerifiedEvidenceContinuity(evidence, verified) {
-  const { sourceEnvelope, witnessAcknowledgement } = evidence;
-  const result = verified.result;
-  if (sourceEnvelope.receipt_hash !== result.receipt_hash
-      || witnessAcknowledgement.receipt_hash !== result.receipt_hash
-      || sourceEnvelope.receipt.source_key_id !== result.source_key_id
-      || witnessAcknowledgement.source_key_id !== result.source_key_id
-      || witnessAcknowledgement.witness_key_id !== result.witness_key_id) {
+  const binding = verifyReferenceWitnessEvidenceResultBinding(
+    evidence.sourceEnvelope,
+    evidence.witnessAcknowledgement,
+    verified.result,
+  );
+  if (!binding.ok) {
     fail(
       'POMRX_WG_WITNESS_E_BINDING_MISMATCH',
-      'Core verification result does not match the captured signed evidence identities',
+      'Core verification result is not bound to the exact captured signed evidence',
+    );
+  }
+
+  const acknowledgementValidUntil = canonicalUtcInstant(
+    binding.acknowledgement_valid_until,
+    'acknowledgement_valid_until',
+    'POMRX_WG_WITNESS_E_BINDING_MISMATCH',
+  );
+  if (verified.authorizationValidUntil.getTime() > acknowledgementValidUntil.getTime()) {
+    fail(
+      'POMRX_WG_WITNESS_E_BINDING_MISMATCH',
+      'Core authorization validity exceeds the exact signed acknowledgement validity',
     );
   }
 }

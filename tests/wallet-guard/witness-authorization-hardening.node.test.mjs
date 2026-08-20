@@ -371,3 +371,46 @@ test('Proxy verification bindings fail at bootstrap without caller traps', () =>
   );
   assert.equal(trapCalls, 0);
 });
+
+test('stale success for a longer acknowledgement cannot authorize a shorter exact acknowledgement', () => {
+  const summary = requestSummary();
+  const fixture = createTrustFixture();
+  const longEvidence = makeEvidence(fixture, summary, { validForMs: 60_000 });
+  const shortEvidence = makeEvidence(fixture, summary, { validForMs: 10_000 });
+  const staleLongResult = verifiedResultFor(fixture, longEvidence);
+
+  const supplier = createWalletGuardWitnessAuthorizationSupplier({
+    verifyAuthorizationCandidate: () => staleLongResult,
+    evidenceForRequest: () => shortEvidence,
+    verificationBinding: VERIFICATION_BINDING,
+  });
+
+  assert.throws(
+    () => supplier(summary),
+    (error) => expectWitnessCode(error, 'POMRX_WG_WITNESS_E_BINDING_MISMATCH'),
+  );
+});
+
+test('Core authorization validity cannot exceed the exact signed acknowledgement validity', () => {
+  const summary = requestSummary({
+    expires_at: '2026-08-19T17:00:05.000Z',
+  });
+  const fixture = createTrustFixture();
+  const evidence = makeEvidence(fixture, summary, { validForMs: 10_000 });
+  const verified = verifiedResultFor(fixture, evidence);
+  const inflated = {
+    ...verified,
+    authorization_valid_until: '2026-08-19T17:01:00.000Z',
+  };
+
+  const supplier = createWalletGuardWitnessAuthorizationSupplier({
+    verifyAuthorizationCandidate: () => inflated,
+    evidenceForRequest: () => evidence,
+    verificationBinding: VERIFICATION_BINDING,
+  });
+
+  assert.throws(
+    () => supplier(summary),
+    (error) => expectWitnessCode(error, 'POMRX_WG_WITNESS_E_BINDING_MISMATCH'),
+  );
+});
