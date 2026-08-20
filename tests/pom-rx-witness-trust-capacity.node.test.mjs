@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import test from 'node:test';
 
 import {
+  POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES,
   PomRxWitnessTrustError,
   createReferenceWitnessTrustLifecycle,
 } from '../core/witness/reference-trust-lifecycle.mjs';
@@ -50,6 +51,7 @@ test('Witness trust capacity rejection is fail-closed and leaves enrollment stat
   }
 
   assert.equal(capacityReached, true, 'bounded trust state must reject before 128 identities');
+  assert.equal(lastSuccessfulSnapshot.identities.length, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES);
   assert.ok(firstIdentity);
   assert.deepEqual(
     lifecycle.admin.snapshot(),
@@ -81,6 +83,7 @@ test('Witness trust successor capacity rejection is atomic for predecessor and r
   }
 
   assert.equal(capacityReached, true, 'test requires a reached canonical trust-state bound');
+  assert.equal(fullSnapshot.identities.length, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES);
   assert.ok(firstIdentity);
 
   assert.throws(
@@ -97,4 +100,32 @@ test('Witness trust successor capacity rejection is atomic for predecessor and r
     fullSnapshot,
     'a rejected successor transition must not rotate the predecessor or advance revision',
   );
+});
+
+test('the explicit identity ceiling preserves revocation headroom', () => {
+  const lifecycle = makeTrustLifecycle();
+  const identities = [];
+
+  for (let index = 0; index < POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES; index += 1) {
+    const enrollment = lifecycle.admin.enrollIdentity({
+      publicKey: generateEd25519PublicKey(),
+      role: index % 2 === 0 ? 'source' : 'witness',
+      validUntil: VALID_UNTIL,
+    });
+    identities.push(enrollment.identity);
+  }
+
+  let latestSnapshot = lifecycle.admin.snapshot();
+  for (const identity of identities) {
+    const revocation = lifecycle.admin.revokeIdentity({
+      keyId: identity.key_id,
+      reason: 'compromise',
+    });
+    latestSnapshot = revocation.trust;
+  }
+
+  assert.equal(latestSnapshot.identities.length, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES);
+  assert.equal(latestSnapshot.identities.every((identity) => identity.status === 'revoked'), true);
+  assert.equal(latestSnapshot.revision, POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES * 2);
+  assert.deepEqual(lifecycle.admin.snapshot(), latestSnapshot);
 });
