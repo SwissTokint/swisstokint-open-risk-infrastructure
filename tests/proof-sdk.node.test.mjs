@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 import {
+  ProofPayloadValidationError,
   canonicalizePayload,
   buildMerkleBatch,
   commitAnchorRecord,
@@ -51,6 +52,41 @@ test('payload validation rejects credentials, balances and floating-point values
   assert.throws(() => canonicalizePayload({ api_key: 'not-allowed' }), /Sensitive payload key/);
   assert.throws(() => canonicalizePayload({ balance: 100 }), /Sensitive payload key/);
   assert.throws(() => canonicalizePayload({ confidence: 0.75 }), /safe integers/);
+});
+
+test('canonical payload validation errors are positively branded with stable codes', () => {
+  assert.throws(
+    () => canonicalizePayload({ account_id: 'x' }),
+    (error) => error instanceof ProofPayloadValidationError
+      && error instanceof TypeError
+      && error.code === 'PROOF_E_PAYLOAD_SENSITIVE_KEY',
+  );
+  assert.throws(
+    () => canonicalizePayload([]),
+    (error) => error instanceof ProofPayloadValidationError
+      && error.code === 'PROOF_E_PAYLOAD_SHAPE',
+  );
+  assert.throws(
+    () => canonicalizePayload({ note: 'x'.repeat(2_049) }),
+    (error) => error instanceof ProofPayloadValidationError
+      && error.code === 'PROOF_E_PAYLOAD_STRING',
+  );
+});
+
+test('canonicalizer runtime TypeError provenance is not converted by matching message text', () => {
+  const originalNormalize = String.prototype.normalize;
+  const sentinel = new TypeError('Payload exceeds the maximum depth');
+  try {
+    String.prototype.normalize = function poisonedNormalize() {
+      throw sentinel;
+    };
+    assert.throws(
+      () => canonicalizePayload({ note: 'safe' }),
+      (error) => error === sentinel && !(error instanceof ProofPayloadValidationError),
+    );
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
 });
 
 test('transport HMAC is stable for the exact body and timestamp', () => {
