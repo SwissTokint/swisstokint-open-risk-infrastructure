@@ -124,6 +124,12 @@ function expectHostCode(error, code) {
   return true;
 }
 
+function expectPlainDataCode(error, code) {
+  assert.ok(error instanceof PomRxPlainDataError);
+  assert.equal(error.code, code);
+  return true;
+}
+
 test('controlled page graph exposes only the frozen guarded ethereum.request surface', () => {
   const { page, testAuthority } = createHost();
 
@@ -210,6 +216,64 @@ test('caller mutation after entry cannot change the request captured for forward
   const recorded = testAuthority.inspect().sensitive_calls[0];
   assert.equal(recorded.params[0].value, '0x2');
   assert.equal(recorded.params[0].to, RECIPIENT);
+});
+
+test('page request rejects a Proxy without executing any caller trap or forwarding', async () => {
+  const { page, testAuthority } = createHost();
+  let trapCalls = 0;
+  const target = sendTransaction({ value: '0x1' });
+  const request = new Proxy(target, {
+    getPrototypeOf(inner) {
+      trapCalls += 1;
+      return Reflect.getPrototypeOf(inner);
+    },
+    ownKeys(inner) {
+      trapCalls += 1;
+      return Reflect.ownKeys(inner);
+    },
+    getOwnPropertyDescriptor(inner, key) {
+      trapCalls += 1;
+      return Reflect.getOwnPropertyDescriptor(inner, key);
+    },
+    get(inner, key, receiver) {
+      trapCalls += 1;
+      return Reflect.get(inner, key, receiver);
+    },
+  });
+
+  await assert.rejects(
+    Promise.resolve().then(() => page.ethereum.request(request)),
+    (error) => expectPlainDataCode(error, 'POMRX_DATA_E_PROXY'),
+  );
+  assert.equal(trapCalls, 0);
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});
+
+test('page request rejects decorated nested arrays before the historical gateway sees them', async () => {
+  const { page, testAuthority } = createHost();
+  const request = sendTransaction({ value: '0x1' });
+  Object.defineProperty(request.params, 'hidden', {
+    enumerable: false,
+    value: 'not inert request data',
+  });
+
+  await assert.rejects(
+    Promise.resolve().then(() => page.ethereum.request(request)),
+    (error) => expectPlainDataCode(error, 'POMRX_DATA_E_ARRAY'),
+  );
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});
+
+test('page request rejects symbol decoration before any provider interaction', async () => {
+  const { page, testAuthority } = createHost();
+  const request = sendTransaction({ value: '0x1' });
+  request[Symbol('hidden')] = 'not inert request data';
+
+  await assert.rejects(
+    Promise.resolve().then(() => page.ethereum.request(request)),
+    (error) => expectPlainDataCode(error, 'POMRX_DATA_E_SYMBOL'),
+  );
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
 });
 
 test('top-level bootstrap accessors and proxies fail without executing caller traps', () => {
