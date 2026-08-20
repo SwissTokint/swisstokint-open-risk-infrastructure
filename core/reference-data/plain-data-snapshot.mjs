@@ -35,6 +35,19 @@ function rejectProxy(value, label) {
   }
 }
 
+function isOwnDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && Object.hasOwn(descriptor, 'value')
+    && !Object.hasOwn(descriptor, 'get')
+    && !Object.hasOwn(descriptor, 'set');
+}
+
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return isOwnDataDescriptor(descriptor)
+    && Object.hasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true;
+}
+
 function captureArray(value, label, depth, budget) {
   rejectProxy(value, label);
   if (Object.getPrototypeOf(value) !== Array.prototype) {
@@ -45,8 +58,7 @@ function captureArray(value, label, depth, budget) {
   }
 
   const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
-  if (!lengthDescriptor || typeof lengthDescriptor.get === 'function'
-      || typeof lengthDescriptor.set === 'function'
+  if (!isOwnDataDescriptor(lengthDescriptor)
       || !Number.isSafeInteger(lengthDescriptor.value)
       || lengthDescriptor.value < 0
       || lengthDescriptor.value > REFERENCE_PLAIN_DATA_LIMITS.max_array_length) {
@@ -64,18 +76,20 @@ function captureArray(value, label, depth, budget) {
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const output = [];
+  const output = new Array(length);
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
     const descriptor = descriptors[key];
-    if (!descriptor
-        || descriptor.enumerable !== true
-        || typeof descriptor.get === 'function'
-        || typeof descriptor.set === 'function'
-        || !Object.hasOwn(descriptor, 'value')) {
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_DATA_E_ARRAY', `${label} must contain dense data elements only`);
     }
-    output.push(captureValue(descriptor.value, `${label}[${key}]`, depth + 1, budget));
+    const captured = captureValue(descriptor.value, `${label}[${key}]`, depth + 1, budget);
+    Object.defineProperty(output, key, {
+      value: captured,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   return Object.freeze(output);
 }
@@ -104,11 +118,7 @@ function captureObject(value, label, depth, budget) {
       fail('POMRX_DATA_E_KEY', `${label} contains an unsafe key: ${key}`);
     }
     const descriptor = descriptors[key];
-    if (!descriptor
-        || descriptor.enumerable !== true
-        || typeof descriptor.get === 'function'
-        || typeof descriptor.set === 'function'
-        || !Object.hasOwn(descriptor, 'value')) {
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_DATA_E_ACCESSOR', `${label}.${key} must be an enumerable data property`);
     }
     output[key] = captureValue(descriptor.value, `${label}.${key}`, depth + 1, budget);
