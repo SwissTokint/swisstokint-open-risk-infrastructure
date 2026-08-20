@@ -62,8 +62,9 @@ terminal single-use consumption, fail-closed replay behavior and a private
 trusted bootstrap boundary.
 
 A local reference Gate harness now exercises those semantics with Gate-instance-
-local capability state, synchronous reservation, double expiry checks and a
-trusted prepared-execution snapshot so the raw caller-owned attempt is never
+local capability state, synchronous reservation, complete half-open
+`[issued_at, expires_at)` checks, Gate-instance monotonic-clock enforcement and
+a trusted prepared-execution snapshot so the raw caller-owned attempt is never
 forwarded downstream. This remains reference-only and non-production.
 
 Production issuance is still unproved because production-grade source/Witness
@@ -269,7 +270,7 @@ link compatibility.
 | Block | Current state | What is still missing |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding, local reference Gate, bounded plain-data capture and process-local Witness trust lifecycle exist | production exact-authorization issuer, production trust service/Gate lifecycle, native execution evidence, independent observation |
-| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, expiry and prepared-execution isolation | production-grade Witness trust service, production trusted time, production issuer, durable multi-process consumption if needed |
+| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, full temporal-window/rollback checks and prepared-execution isolation | production-grade Witness trust service, production trusted time, production issuer, durable multi-process consumption if needed |
 | Witness | signed source/Witness primitives plus process-local reference enrollment, revocation, monotonic trusted clock, bounded trust snapshots and key rotation/recovery exist | durable trust service, operator authorization, KMS/HSM, distributed revocation, production trusted time/attestation and recovery-at-capacity policy |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
