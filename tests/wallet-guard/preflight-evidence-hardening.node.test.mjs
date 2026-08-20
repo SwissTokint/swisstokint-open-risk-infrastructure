@@ -240,3 +240,57 @@ test('failed foreign-runtime attempt does not consume evidence or run replay ide
   const evidence = evidenceBuilder.build(rawInput);
   assert.equal(evidence.wallet_guard_decision, 'ALLOW');
 });
+
+test('an accepted clock sample remains monotonic even if later evidence construction fails', () => {
+  const times = [
+    '2026-08-20T01:00:02.000Z',
+    '2026-08-20T01:00:01.000Z',
+  ];
+  let timeIndex = 0;
+  const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
+    trustedClock: () => times[Math.min(timeIndex++, times.length - 1)],
+  });
+  const rawInput = input();
+  const originalNormalize = String.prototype.normalize;
+  const sentinel = new TypeError('post-clock construction failure');
+
+  String.prototype.normalize = function normalize(form) {
+    if (String(this) === rawInput.agentRef && form === 'NFC') throw sentinel;
+    return originalNormalize.call(this, form);
+  };
+  try {
+    assert.throws(() => evidenceBuilder.build(rawInput), (error) => error === sentinel);
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+
+  assert.throws(
+    () => evidenceBuilder.build(rawInput),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_TIME_ROLLBACK'),
+  );
+});
+
+test('local replay identity memory is bounded and fails closed at capacity', () => {
+  const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
+    trustedClock: () => FIXED_TIME,
+  });
+  const intentValue = localIntent();
+
+  for (let index = 0; index < 1_000; index += 1) {
+    const suffix = String(index).padStart(4, '0');
+    evidenceBuilder.build({
+      ...input(intentValue),
+      evidenceId: `evidence_wg_preflight_capacity_${suffix}`,
+      runId: `run_wg_preflight_capacity_${suffix}`,
+    });
+  }
+
+  assert.throws(
+    () => evidenceBuilder.build({
+      ...input(intentValue),
+      evidenceId: 'evidence_wg_preflight_capacity_overflow',
+      runId: 'run_wg_preflight_capacity_overflow',
+    }),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_CAPACITY'),
+  );
+});
