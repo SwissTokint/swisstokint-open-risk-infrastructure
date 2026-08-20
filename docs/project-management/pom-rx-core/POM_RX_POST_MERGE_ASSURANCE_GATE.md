@@ -67,33 +67,59 @@ For the exact merged `main` SHA:
 
 ## Exact-main CI observability
 
-The repository publishes a machine-readable commit status for the configured
-`CI` workflow at `.github/workflows/ci.yml` after that workflow completes on a
-`push` to `main`. `.github/workflows/exact-main-ci-status.yml` writes the fixed
-context `pom-rx/exact-main-ci` to the upstream run's exact
-`github.event.workflow_run.head_sha`. `success` is published only when the
-upstream `CI` conclusion is exactly `success`; every other completed conclusion
-is published as `failure`.
+The repository publishes a machine-readable commit status for the canonical
+`CI` workflow at `.github/workflows/ci.yml` when that workflow enters
+`in_progress` or completes on a `push` to `main`.
+`.github/workflows/exact-main-ci-status.yml` writes the fixed context
+`pom-rx/exact-main-ci` to the upstream run's exact
+`github.event.workflow_run.head_sha`. The latest matching run/attempt publishes
+`pending` while it is in progress. On completion, `success` is published only
+when the upstream conclusion is exactly `success`; every other completed
+conclusion is published as `failure`.
 
 The publisher is deliberately privilege-separated from normal CI. The normal
 `CI` workflow remains read-only while it checks out and executes repository
-code. The status publisher has only `statuses: write`, never checks out
-repository code, never downloads upstream artifacts or caches, and does not run
-PR-controlled scripts. It accepts only a completed `CI` run whose workflow path
-is exactly `.github/workflows/ci.yml`, whose event is `push`, whose head branch
-is `main`, and whose head repository is this exact repository. This path check
-prevents another same-name workflow from publishing the assurance context.
-Values from the workflow-run payload are passed through environment variables
-and validated before the GitHub status API is called; they are not interpolated
-into executable script source.
+code. The status publisher has only `actions: read` and `statuses: write`:
+Actions read access is used solely to re-read canonical workflow-run metadata
+before a status write. The publisher never checks out repository code, never
+downloads upstream artifacts or caches, and does not run PR-controlled scripts.
+It accepts only a canonical `CI` run whose workflow path is exactly
+`.github/workflows/ci.yml`, whose event is `push`, whose head branch is `main`,
+and whose head repository is this exact repository. This path check prevents
+another same-name workflow from publishing the assurance context. Values from
+the workflow-run payload are passed through environment variables and validated
+before the GitHub APIs are called; they are not interpolated into executable
+script source.
+
+### Stale-run and rerun rule
+
+A commit status is a latest-state surface, so a delayed publisher must never
+allow an older successful run to overwrite a newer failed run or rerun. Before
+any status write, the publisher queries the canonical `ci.yml` workflow for
+`push` runs on `main` with the exact same head SHA. It requires that the complete
+matching result set fit in one bounded 100-run page and then selects the maximum
+`(run_number, run_attempt)` pair. GitHub defines `run_number` as increasing with
+each new workflow run and `run_attempt` as increasing with each rerun attempt.
+Only an event whose run ID, run number and attempt still match that selected
+latest entry may publish. An older or superseded event exits without writing.
+If the bounded freshness query is empty, malformed, incomplete or exceeds the
+100-run proof budget, publication fails closed.
+
+The publisher also listens for `in_progress`, including rerun attempts, so a
+new latest attempt replaces any earlier success with `pending` once execution
+starts. A delayed `in_progress` event that has already become `completed` is
+ignored because the re-read status no longer matches its event state. This does
+not claim knowledge of a future run before GitHub has created or exposed it.
 
 For post-merge integration evidence, a `pom-rx/exact-main-ci` status is usable
-only when it is attached to the exact merge SHA and reports `success`. The
-status target must remain the corresponding GitHub Actions run. When creator
-metadata is available, it must identify the GitHub Actions automation rather
-than an unrelated publisher. Absence, failure, wrong-SHA binding, wrong context
-or inconsistent target metadata keeps the integration verdict conditional or
-blocked as appropriate.
+only when it is attached to the exact merge SHA and reports `success`. Its target
+must be the corresponding canonical GitHub Actions run, and that target must
+still be the latest canonical `(run_number, run_attempt)` for the exact SHA with
+no newer queued or in-progress canonical run visible at assurance time. When
+creator metadata is available, it must identify the GitHub Actions automation
+rather than an unrelated publisher. Absence, `pending`, failure, wrong-SHA
+binding, stale target, wrong context or inconsistent target metadata keeps the
+integration verdict conditional or blocked as appropriate.
 
 This mechanism is prospective. It does not retroactively turn an older merge
 with unobservable push-CI evidence into a PASS. A later reviewed repair merge
