@@ -6,7 +6,9 @@ Current Core homes include:
 
 - `core/strict-verification/` — activated bounded strict-profile verifier and artifact identity;
 - `core/authorization/` — candidate common exact-authorization contract;
-- `core/gate/` — candidate common single-use Gate contract.
+- `core/gate/` — candidate common single-use Gate contract;
+- `core/reference-data/` — shared bounded plain-data snapshot/capture boundary for hostile caller-owned reference objects;
+- `core/witness/` — shared reference Witness trust lifecycle around the existing Ed25519 source/Witness primitives.
 
 During the compatibility migration, frozen/shared implementations that predate the product-oriented layout remain at their current paths, especially `sdk/typescript/pom-rx.mjs`, `sdk/typescript/internal/` and `sdk/typescript/pom-rx-witness.mjs`.
 
