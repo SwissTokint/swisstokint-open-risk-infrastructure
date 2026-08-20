@@ -289,3 +289,37 @@ test('prepared arrays reject hidden or extra properties instead of normalizing t
   );
   assert.equal(setup.stats().downstreamCalls, 0);
 });
+
+test('prepared execution keeps the historical depth budget rooted at prepared data', async () => {
+  let evidence;
+  let prepared = 'leaf';
+  for (let depth = 0; depth < 8; depth += 1) {
+    prepared = { nested: prepared };
+  }
+  const setup = makeHarness(async () => ({
+    binding_profile: evidence.binding.binding_profile,
+    action_commitment: evidence.binding.action_commitment,
+    context_commitment: evidence.binding.context_commitment,
+    prepared_execution: prepared,
+  }));
+  evidence = setup.getEvidence();
+
+  assert.equal(await setup.harness.gate.consume(setup.issued.capability, { caller: 'raw' }), 'ok');
+  assert.equal(setup.stats().downstreamCalls, 1);
+});
+
+test('prepared execution keeps the historical 1000-node budget for its own subtree', async () => {
+  let evidence;
+  const prepared = Array.from({ length: 999 }, (_, index) => index);
+  const setup = makeHarness(async () => ({
+    binding_profile: evidence.binding.binding_profile,
+    action_commitment: evidence.binding.action_commitment,
+    context_commitment: evidence.binding.context_commitment,
+    prepared_execution: prepared,
+  }));
+  evidence = setup.getEvidence();
+
+  assert.equal(await setup.harness.gate.consume(setup.issued.capability, { caller: 'raw' }), 'ok');
+  assert.equal(setup.stats().downstreamCalls, 1);
+  assert.equal(setup.stats().downstreamArgument.length, 999);
+});
