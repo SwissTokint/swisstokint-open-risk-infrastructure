@@ -11,6 +11,25 @@ export const REFERENCE_PLAIN_DATA_LIMITS = Object.freeze({
 const SAFE_KEY_PATTERN = /^[A-Za-z0-9_.:/-]{1,128}$/u;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+// Validation-error provenance is intentionally private and scoped to one
+// synchronous capture invocation. This lets callers distinguish an expected
+// plain-data rejection from a foreign error that merely uses the exported
+// PomRxPlainDataError class (or even an error minted by a different nested
+// capture). The public throwing API remains unchanged.
+const REFLECT_APPLY = Reflect.apply;
+const WEAK_MAP_SET = WeakMap.prototype.set;
+const WEAK_MAP_GET = WeakMap.prototype.get;
+const validationErrorContext = new WeakMap();
+let activeCaptureContext = null;
+
+function weakMapSet(map, key, value) {
+  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function weakMapGet(map, key) {
+  return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
 export class PomRxPlainDataError extends TypeError {
   constructor(code, message) {
     super(message);
@@ -20,7 +39,11 @@ export class PomRxPlainDataError extends TypeError {
 }
 
 function fail(code, message) {
-  throw new PomRxPlainDataError(code, message);
+  const error = new PomRxPlainDataError(code, message);
+  if (activeCaptureContext !== null) {
+    weakMapSet(validationErrorContext, error, activeCaptureContext);
+  }
+  throw error;
 }
 
 function assertLabel(label) {
@@ -166,7 +189,39 @@ function captureValue(value, label, depth, budget) {
   return captureObject(value, label, depth, budget);
 }
 
-export function captureReferencePlainData(value, label = 'value') {
+function runCapture(value, label, returnOutcome) {
   assertLabel(label);
-  return captureValue(value, label, 0, { remaining: REFERENCE_PLAIN_DATA_LIMITS.max_nodes });
+  const context = {};
+  const parentContext = activeCaptureContext;
+  activeCaptureContext = context;
+  try {
+    const captured = captureValue(
+      value,
+      label,
+      0,
+      { remaining: REFERENCE_PLAIN_DATA_LIMITS.max_nodes },
+    );
+    if (returnOutcome) {
+      return Object.freeze({ ok: true, value: captured, error: null });
+    }
+    return captured;
+  } catch (error) {
+    if (weakMapGet(validationErrorContext, error) !== context) {
+      throw error;
+    }
+    if (returnOutcome) {
+      return Object.freeze({ ok: false, value: null, error });
+    }
+    throw error;
+  } finally {
+    activeCaptureContext = parentContext;
+  }
+}
+
+export function captureReferencePlainDataOutcome(value, label = 'value') {
+  return runCapture(value, label, true);
+}
+
+export function captureReferencePlainData(value, label = 'value') {
+  return runCapture(value, label, false);
 }
