@@ -361,6 +361,9 @@ export function parseWalletGuardJsonIngress(raw) {
     fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
   }
   const snapshot = cloneParsed(parsed);
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    fail('POMRX_WG_JSON_E_SHAPE', 'Wallet Guard JSON ingress root must be an object');
+  }
 
   let transport;
   let jsonrpcId = null;
