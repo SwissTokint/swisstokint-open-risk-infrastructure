@@ -126,6 +126,31 @@ test('prepare options reject accessors without invoking capability or witness ge
   assert.equal(getterCalls, 0);
 });
 
+test('Proxy bindings fail before user-defined Proxy traps can participate in snapshotting', () => {
+  let trapCalls = 0;
+  const proxy = new Proxy(validBinding(), {
+    getPrototypeOf(target) {
+      trapCalls += 1;
+      return Reflect.getPrototypeOf(target);
+    },
+    ownKeys(target) {
+      trapCalls += 1;
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, property) {
+      trapCalls += 1;
+      return Reflect.getOwnPropertyDescriptor(target, property);
+    },
+    get(target, property, receiver) {
+      trapCalls += 1;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+
+  assert.throws(() => commitExactAuthorizationBinding(proxy), expectBindingMismatch);
+  assert.equal(trapCalls, 0);
+});
+
 test('symbol keys, custom prototypes and hidden expected fields fail closed', () => {
   const withSymbol = validBinding();
   withSymbol[Symbol('hidden')] = 'value';
