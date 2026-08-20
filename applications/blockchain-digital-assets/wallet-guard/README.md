@@ -29,6 +29,7 @@ The current repository contains a bounded local reference slice for:
   generic signatures and unsupported RPC methods rather than inventing a known
   downstream effect;
 - deterministic fail-closed local policy;
+- controller-instance reference policy state with compare-and-swap replacement and an idempotent fail-safe kill switch;
 - strict policy/simulation object-boundary capture from exact own enumerable data descriptors, with accessor, Proxy, hidden/symbol/unknown-property and custom-prototype rejection;
 - provider-observed chain/account sampling;
 - bootstrap-captured origin that is not accepted from request fields;
@@ -43,6 +44,10 @@ The ingress receives a JavaScript string, not the original browser/network byte 
 Canonical-request compatibility is delegated to the shared proof canonicalizer rather than duplicated in Wallet Guard. Expected canonical-payload rejection is recognized only through the shared `ProofPayloadValidationError` provenance contract. Generic or intrinsic `TypeError` failures are not classified by message text and propagate unchanged, including when their text happens to match a canonical validation message. This preserves the distinction between expected semantic rejection and an unrelated runtime failure.
 
 The policy normalizer does not treat arbitrary JavaScript object behavior as policy data. Top-level policy and simulation records are snapshotted once from exact own enumerable data properties. Policy allowlists and `require_simulation_for` must be bounded dense standard arrays: accessors, Node Proxy wrappers, holes, symbol keys, hidden/extra properties and non-standard array prototypes fail closed before policy values participate in normalization or hashing. This prevents getter/Proxy/prototype behavior from substituting policy or simulation semantics in the Node reference runtime.
+
+`policy-controller.mjs` adds a separate process-local reference state owner around that same hardened policy boundary. One controller instance fixes `policy_id`, starts at revision 0, applies full policy replacement only under exact compare-and-swap `expected_revision`, and can engage the kill switch idempotently. A re-enable requires an explicit full replacement at the current revision. Each published state is frozen and carries the normalized policy hash plus a domain-separated state commitment. Prospective state construction completes before the controller publishes a new current snapshot, so a failed prospective commitment does not partially advance revision/state.
+
+The policy controller deliberately claims only `controller_instance_synchronous_atomicity=true`. It keeps `process_wide_policy_state_proved=false`, `durable_policy_state_proved=false`, `remote_operator_authorization_proved=false` and `provider_gate_state_binding_proved=false`. It does not authenticate an operator, persist state across restart, coordinate multiple controller instances, or automatically mutate an already-created provider/Gate instance. Those are separate composition and production-trust obligations.
 
 Decoded effect evidence is intentionally about **requested fields under the local
 decoding convention**, not target-contract behavior or external-world state. A
@@ -69,6 +74,7 @@ This is **not** yet the complete Wallet Guard security claim. In particular:
 - the caller-facing gateway does not expose the provider, but this alone does
   not prove that a browser/dApp has no second unguarded provider reference;
 - strict JSON text parsing does not prove upstream transport-byte decoding;
+- policy-state mutation authority is still a trusted in-process reference dependency and is not yet bound into provider/Gate state;
 - simulation evidence, production Witness enrollment/revocation/trusted time,
   external execution truth, independent observation and reconciliation are
   still separate lots;
