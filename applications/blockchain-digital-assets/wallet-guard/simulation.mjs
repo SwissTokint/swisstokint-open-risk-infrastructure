@@ -6,8 +6,7 @@ import {
   sha256Hex,
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
 import {
-  PomRxPlainDataError,
-  captureReferencePlainData,
+  captureReferencePlainDataOutcome,
 } from '../../../core/reference-data/plain-data-snapshot.mjs';
 import {
   WalletGuardIntentError,
@@ -60,17 +59,23 @@ const EVIDENCE_KEYS = Object.freeze([
   'simulator_callback_return_channel_proved',
 ]);
 
-// Provenance and status registries are load-bearing security state. Capture
-// their collection intrinsics once so later same-realm prototype poisoning
-// cannot forge local evidence, substitute its originating intent, or widen the
-// accepted status vocabulary. As elsewhere in the reference runtime, poisoning
-// before module initialization remains outside this scoped guarantee.
+// Provenance, status registries and hash validation are load-bearing security
+// state. Capture their intrinsics once so later same-realm prototype poisoning
+// cannot forge local evidence, substitute its originating intent, widen status
+// vocabulary, or inject failures into the hash-shape decision itself. As
+// elsewhere in the reference runtime, poisoning before module initialization
+// remains outside this scoped guarantee.
 const REFLECT_APPLY = Reflect.apply;
+const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
 const WEAK_SET_ADD = WeakSet.prototype.add;
 const WEAK_SET_HAS = WeakSet.prototype.has;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const WEAK_MAP_GET = WeakMap.prototype.get;
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+}
 
 function setHas(set, value) {
   return REFLECT_APPLY(SET_HAS, set, [value]);
@@ -217,11 +222,8 @@ function replayIntentAgainstRequest(intent, requestSnapshot) {
   return committedIntent.intent_commitment;
 }
 
-function assertHash(value, field) {
-  if (typeof value !== 'string' || !HASH_PATTERN.test(value)) {
-    fail('POMRX_WG_SIM_E_CALLBACK_INVALID', `${field} must be a lowercase SHA-256 hash`);
-  }
-  return value;
+function isLowercaseSha256(value) {
+  return typeof value === 'string' && regexpTest(HASH_PATTERN, value);
 }
 
 function evidencePayload(identity, status, stateCommitment, effectCommitment) {
@@ -279,15 +281,14 @@ function evidenceMatchesIntent(evidence, intent) {
 }
 
 function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence) {
-  let result;
-  try {
-    result = captureReferencePlainData(rawResult, 'simulation callback result');
-  } catch (error) {
-    if (error instanceof PomRxPlainDataError) {
-      return makeLocalEvidence(identity, 'mismatch');
-    }
-    throw error;
+  const capture = captureReferencePlainDataOutcome(
+    rawResult,
+    'simulation callback result',
+  );
+  if (!capture.ok) {
+    return makeLocalEvidence(identity, 'mismatch');
   }
+  const result = capture.value;
 
   if (!result || typeof result !== 'object' || Array.isArray(result)) {
     return makeLocalEvidence(identity, 'mismatch');
@@ -312,19 +313,16 @@ function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence)
     return makeLocalEvidence(identity, 'unavailable');
   }
 
-  let stateCommitment;
-  let effectCommitment;
-  try {
-    stateCommitment = assertHash(result.state_commitment, 'state_commitment');
-    effectCommitment = assertHash(result.effect_commitment, 'effect_commitment');
-  } catch (error) {
-    if (error instanceof WalletGuardSimulationError
-        && error.code === 'POMRX_WG_SIM_E_CALLBACK_INVALID') {
-      return makeLocalEvidence(identity, 'mismatch');
-    }
-    throw error;
+  if (!isLowercaseSha256(result.state_commitment)
+      || !isLowercaseSha256(result.effect_commitment)) {
+    return makeLocalEvidence(identity, 'mismatch');
   }
-  return makeLocalEvidence(identity, result.status, stateCommitment, effectCommitment);
+  return makeLocalEvidence(
+    identity,
+    result.status,
+    result.state_commitment,
+    result.effect_commitment,
+  );
 }
 
 function validateLocalEvidence(evidence) {
@@ -344,14 +342,14 @@ function validateLocalEvidence(evidence) {
       || evidence.external_effect_proved !== false
       || evidence.simulation_to_forwarding_bound !== false
       || evidence.simulator_callback_return_channel_proved !== false
-      || !HASH_PATTERN.test(evidence.request_commitment)
-      || !HASH_PATTERN.test(evidence.intent_commitment)
-      || !HASH_PATTERN.test(evidence.simulation_commitment)) {
+      || !isLowercaseSha256(evidence.request_commitment)
+      || !isLowercaseSha256(evidence.intent_commitment)
+      || !isLowercaseSha256(evidence.simulation_commitment)) {
     fail('POMRX_WG_SIM_E_INVALID', 'local simulation evidence metadata is invalid');
   }
   if (evidence.status === 'pass' || evidence.status === 'fail') {
-    if (!HASH_PATTERN.test(evidence.state_commitment)
-        || !HASH_PATTERN.test(evidence.effect_commitment)) {
+    if (!isLowercaseSha256(evidence.state_commitment)
+        || !isLowercaseSha256(evidence.effect_commitment)) {
       fail('POMRX_WG_SIM_E_INVALID', 'known simulation evidence commitments are invalid');
     }
   } else if (evidence.state_commitment !== null || evidence.effect_commitment !== null) {
@@ -447,18 +445,17 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     const localIntent = runInput.intent;
     requireLocalIntent(localIntent);
 
-    let requestSnapshot;
-    try {
-      requestSnapshot = captureReferencePlainData(
-        runInput.request,
-        'Wallet Guard simulation request',
+    const requestCapture = captureReferencePlainDataOutcome(
+      runInput.request,
+      'Wallet Guard simulation request',
+    );
+    if (!requestCapture.ok) {
+      fail(
+        'POMRX_WG_SIM_E_REQUEST_INVALID',
+        'simulation request is not bounded inert plain data',
       );
-    } catch (error) {
-      if (error instanceof PomRxPlainDataError) {
-        fail('POMRX_WG_SIM_E_REQUEST_INVALID', 'simulation request is not bounded inert plain data');
-      }
-      throw error;
     }
+    const requestSnapshot = requestCapture.value;
 
     const intentCommitment = replayIntentAgainstRequest(localIntent, requestSnapshot);
     const requestCommitment = commitRequestSnapshot(requestSnapshot).request_commitment;
