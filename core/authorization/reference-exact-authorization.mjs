@@ -121,8 +121,12 @@ function snapshotPrepareOptions(value) {
     }
   }
 
-  const witnessDescriptor = descriptors.witnessValidUntil;
-  const capabilityDescriptor = descriptors.capabilityId;
+  const witnessDescriptor = Object.hasOwn(descriptors, 'witnessValidUntil')
+    ? descriptors.witnessValidUntil
+    : undefined;
+  const capabilityDescriptor = Object.hasOwn(descriptors, 'capabilityId')
+    ? descriptors.capabilityId
+    : undefined;
   return Object.freeze({
     witnessValidUntil: witnessDescriptor ? witnessDescriptor.value : undefined,
     capabilityId: capabilityDescriptor ? capabilityDescriptor.value : undefined,
