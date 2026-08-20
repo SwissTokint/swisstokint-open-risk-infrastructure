@@ -27,9 +27,11 @@ The current repository contains a bounded local reference slice for:
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
 - per-request synthetic reference authorization metadata with local reuse rejection;
-- a reference preflight-evidence adapter that binds one locally normalized intent and exact local policy decision to the shared `pom-rx/0.1` receipt format without creating a new Core receipt implementation.
+- a reference preflight-evidence builder that binds one locally normalized intent and exact local policy decision to the shared `pom-rx/0.1` receipt format without creating a new Core receipt implementation.
 
-The preflight-evidence adapter emits a portable POM-RX preflight receipt only for a determinate Wallet Guard `ALLOW` or `DENY`. `INDETERMINATE` remains explicit and does **not** get collapsed into a legacy `deny` receipt merely to fit the binary preflight outcome vocabulary. The adapter also deliberately accepts no caller-supplied simulation `pass`; until the separately reviewed simulation-evidence layer is merged and composed, simulation remains `not_run` at this boundary.
+The preflight-evidence builder emits a portable POM-RX preflight receipt only for a determinate Wallet Guard `ALLOW` or `DENY`. `INDETERMINATE` remains explicit and does **not** get collapsed into a legacy `deny` receipt merely to fit the binary preflight outcome vocabulary. The builder also deliberately accepts no caller-supplied simulation `pass`; until the separately reviewed simulation-evidence layer is merged and composed, simulation remains `not_run` at this boundary.
+
+Preflight chronology is sampled from a bootstrap-installed synchronous reference clock rather than request data. The builder rejects backwards clock movement and local reuse of an evidence id or run id. The standalone decision commitment binds evidence/run identity, agent/subject/source metadata, the sampled occurrence time, exact policy identity and the Wallet Guard intent commitment. This still does not prove a production trusted-time source, so the companion evidence states `production_trusted_time_proved=false`.
 
 Every emitted preflight receipt remains reference evidence only. A valid receipt proves neither Witness trust nor execution authorization, so the companion record sets `authorization_eligible=false` and `authorization_proved=false`.
 
