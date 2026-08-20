@@ -214,11 +214,11 @@ export function prepareReferenceExactAuthorizationRecord(bindingInput, options =
     'witness_valid_until',
   );
 
-  const binding = Object.assign(Object.create(null), {
+  const binding = Object.freeze({
     schema_version: POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION,
     capability_id: optionSnapshot.capabilityId,
-  }, inputSnapshot);
-  Object.freeze(binding);
+    ...inputSnapshot,
+  });
 
   const { expiresAt } = validateBindingSnapshot(binding);
   if (expiresAt.getTime() > witnessExpiry.getTime()) {
