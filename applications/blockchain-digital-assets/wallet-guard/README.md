@@ -31,6 +31,14 @@ The current repository contains a bounded local reference slice for:
 `DENY` and critical `INDETERMINATE` paths are non-forwarding. The reference
 provider integration is exercised only with controlled fake-provider tests.
 
+A separate reference policy-state controller now provides process-local,
+compare-and-swap policy replacement and an idempotent fail-safe kill-switch
+transition. Each state has a monotonic revision plus a domain-separated state
+commitment, while the existing normalized policy hash remains the exact policy
+identity used by evaluation. The controller intentionally does not add a remote
+operator channel, durable cross-process state, production authorization or a
+provider integration by itself.
+
 This is **not** yet the complete Wallet Guard security claim. In particular:
 
 - the reference authorization supplier is synthetic and does not prove a real
@@ -38,6 +46,8 @@ This is **not** yet the complete Wallet Guard security claim. In particular:
 - the bootstrap origin/provider authorities are trusted installation inputs;
 - the caller-facing gateway does not expose the provider, but this alone does
   not prove that a browser/dApp has no second unguarded provider reference;
+- policy-state mutation authority is still a trusted in-process reference
+  dependency; durable state and authenticated remote control are not proved;
 - simulation/effect evidence, production Witness enrollment/revocation/trusted
   time, independent observation and reconciliation are still separate lots;
 - no real wallet, private key, testnet/mainnet transaction, custody path or
@@ -45,6 +55,6 @@ This is **not** yet the complete Wallet Guard security claim. In particular:
 
 The first acceptable simulated demonstration must prove that a dangerous
 approval/signature is denied before forwarding while an explicitly allowed
-control request can be forwarded once and reconciled. A later burner-wallet
+control request is forwarded once and reconciled. A later burner-wallet
 local/testnet E2E requires a separate explicit human gate and must use no
 meaningful funds.
