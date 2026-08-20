@@ -54,7 +54,8 @@ test('durable claim survives a new store instance and remains reserved', async (
     assert.equal(claimed.claim.capability_id, CAPABILITY);
     assert.equal(claimed.claim.authorization_commitment, AUTHORIZATION);
     assert.equal(claimed.claim.reference_only, true);
-    assert.equal(claimed.claim.single_host_local_filesystem_atomic_claim_proved, true);
+    assert.equal(claimed.claim.exclusive_claim_recorded, true);
+    assert.equal(claimed.claim.local_filesystem_atomicity_assumed, true);
     assert.equal(claimed.claim.distributed_consensus_proved, false);
     assert.equal(claimed.claim.network_filesystem_atomicity_proved, false);
     assert.equal(claimed.claim.crash_recovery_proved, false);
@@ -64,7 +65,8 @@ test('durable claim survives a new store instance and remains reserved', async (
     const inspection = await second.inspect(claimInput());
     assert.equal(inspection.state, 'RESERVED');
     assert.equal(inspection.claim_commitment, claimed.claim.claim_commitment);
-    assert.equal(inspection.single_host_local_filesystem_atomic_claim_proved, true);
+    assert.equal(inspection.exclusive_claim_recorded, true);
+    assert.equal(inspection.local_filesystem_atomicity_assumed, true);
   });
 });
 
@@ -167,7 +169,8 @@ test('a crash-style incomplete tombstone stays fail-closed and does not invent a
     assert.equal(inspection.capability_id, CAPABILITY);
     assert.equal(inspection.authorization_commitment, null);
     assert.equal(inspection.claim_commitment, null);
-    assert.equal(inspection.single_host_local_filesystem_atomic_claim_proved, false);
+    assert.equal(inspection.exclusive_claim_recorded, false);
+    assert.equal(inspection.local_filesystem_atomicity_assumed, true);
 
     await assert.rejects(
       durableStore.claim(claimInput()),
