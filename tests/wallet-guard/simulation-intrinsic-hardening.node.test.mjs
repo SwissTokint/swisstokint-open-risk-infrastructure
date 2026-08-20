@@ -97,3 +97,32 @@ test('later WeakSet/WeakMap prototype poisoning cannot forge provenance or inten
   expectCode(wrongIntentResult, 'POMRX_WG_SIM_E_BINDING_MISMATCH');
   assert.deepEqual(runtime.toPolicySimulation(firstIntent, evidence), { status: 'pass' });
 });
+
+test('foreign WalletGuardSimulationError during evidence minting preserves exact provenance', async () => {
+  const request = rawRequest();
+  const intent = normalize(request, 'wg-simulation-intrinsic-0002');
+  const originalNormalize = String.prototype.normalize;
+  const foreignError = new WalletGuardSimulationError(
+    'POMRX_WG_SIM_E_INTERNAL',
+    'foreign canonicalization failure',
+  );
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      String.prototype.normalize = () => {
+        throw foreignError;
+      };
+      return callbackResult(input);
+    },
+  });
+
+  let thrown;
+  try {
+    await runtime.simulate({ intent, request });
+  } catch (error) {
+    thrown = error;
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+
+  assert.equal(thrown, foreignError);
+});
