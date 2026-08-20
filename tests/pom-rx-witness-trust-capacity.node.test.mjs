@@ -1,0 +1,100 @@
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import test from 'node:test';
+
+import {
+  PomRxWitnessTrustError,
+  createReferenceWitnessTrustLifecycle,
+} from '../core/witness/reference-trust-lifecycle.mjs';
+
+const TRUSTED_NOW = '2030-01-01T00:00:00.000Z';
+const VALID_UNTIL = '2030-02-01T00:00:00.000Z';
+const SEARCH_LIMIT = 128;
+
+function makeTrustLifecycle() {
+  return createReferenceWitnessTrustLifecycle({
+    trustedClock: () => TRUSTED_NOW,
+  });
+}
+
+function generateEd25519PublicKey() {
+  return crypto.generateKeyPairSync('ed25519').publicKey;
+}
+
+function assertCapacityError(error) {
+  assert.ok(error instanceof PomRxWitnessTrustError);
+  assert.equal(error.code, 'POMRX_WITNESS_TRUST_E_CAPACITY');
+  return true;
+}
+
+test('Witness trust capacity rejection is fail-closed and leaves enrollment state unchanged', () => {
+  const lifecycle = makeTrustLifecycle();
+  let lastSuccessfulSnapshot = lifecycle.admin.snapshot();
+  let firstIdentity = null;
+  let capacityReached = false;
+
+  for (let index = 0; index < SEARCH_LIMIT; index += 1) {
+    try {
+      const enrollment = lifecycle.admin.enrollIdentity({
+        publicKey: generateEd25519PublicKey(),
+        role: index % 2 === 0 ? 'source' : 'witness',
+        validUntil: VALID_UNTIL,
+      });
+      firstIdentity ??= enrollment.identity;
+      lastSuccessfulSnapshot = enrollment.trust;
+    } catch (error) {
+      assertCapacityError(error);
+      capacityReached = true;
+      break;
+    }
+  }
+
+  assert.equal(capacityReached, true, 'bounded trust state must reject before 128 identities');
+  assert.ok(firstIdentity);
+  assert.deepEqual(
+    lifecycle.admin.snapshot(),
+    lastSuccessfulSnapshot,
+    'a rejected enrollment must not mutate records or revision',
+  );
+});
+
+test('Witness trust successor capacity rejection is atomic for predecessor and revision', () => {
+  const lifecycle = makeTrustLifecycle();
+  let firstIdentity = null;
+  let fullSnapshot = lifecycle.admin.snapshot();
+  let capacityReached = false;
+
+  for (let index = 0; index < SEARCH_LIMIT; index += 1) {
+    try {
+      const enrollment = lifecycle.admin.enrollIdentity({
+        publicKey: generateEd25519PublicKey(),
+        role: index % 2 === 0 ? 'source' : 'witness',
+        validUntil: VALID_UNTIL,
+      });
+      firstIdentity ??= enrollment.identity;
+      fullSnapshot = enrollment.trust;
+    } catch (error) {
+      assertCapacityError(error);
+      capacityReached = true;
+      break;
+    }
+  }
+
+  assert.equal(capacityReached, true, 'test requires a reached canonical trust-state bound');
+  assert.ok(firstIdentity);
+
+  assert.throws(
+    () => lifecycle.admin.rotateIdentity({
+      predecessorKeyId: firstIdentity.key_id,
+      successorPublicKey: generateEd25519PublicKey(),
+      validUntil: VALID_UNTIL,
+    }),
+    assertCapacityError,
+  );
+
+  assert.deepEqual(
+    lifecycle.admin.snapshot(),
+    fullSnapshot,
+    'a rejected successor transition must not rotate the predecessor or advance revision',
+  );
+});
