@@ -22,11 +22,14 @@ The current repository contains a bounded local reference slice for:
 
 - EVM request normalization and exact intent commitments;
 - deterministic fail-closed local policy;
+- strict policy/simulation object-boundary capture from exact own enumerable data descriptors, with accessor, Proxy, hidden-property and custom-prototype rejection;
 - provider-observed chain/account sampling;
 - bootstrap-captured origin that is not accepted from request fields;
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
 - per-request synthetic reference authorization metadata with local reuse rejection.
+
+The policy normalizer does not treat arbitrary JavaScript object behavior as policy data. Top-level policy and simulation records are snapshotted once from exact own enumerable data properties, and policy arrays must be bounded dense arrays with no accessors, symbol keys, hidden/extra properties or Node Proxy wrappers. This prevents a getter/Proxy from substituting policy or simulation values between validation, normalization and policy hashing in the Node reference runtime.
 
 `DENY` and critical `INDETERMINATE` paths are non-forwarding. The reference
 provider integration is exercised only with controlled fake-provider tests.
