@@ -1,3 +1,5 @@
+import { types as utilTypes } from 'node:util';
+
 import {
   canonicalizePayload,
   sha256Hex,
@@ -70,15 +72,80 @@ function fail(code, message) {
   throw new WalletGuardPolicyError(code, message);
 }
 
-function assertExactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an object`);
+function isProxy(value) {
+  return utilTypes.isProxy(value);
+}
+
+function snapshotExactDataRecord(value, expected, label) {
+  if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an exact plain data object`);
   }
-  const actual = Object.keys(value).sort();
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} must use Object.prototype or a null prototype`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} cannot contain symbol keys`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing or unknown fields`);
+    fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing, hidden or unknown fields`);
   }
+  const snapshot = {};
+  for (const key of expected) {
+    const descriptor = descriptors[key];
+    if (!descriptor
+      || descriptor.enumerable !== true
+      || typeof descriptor.get === 'function'
+      || typeof descriptor.set === 'function'
+      || !Object.hasOwn(descriptor, 'value')) {
+      fail('POMRX_WG_POLICY_E_INVALID', `${label} fields must be enumerable data properties`);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
+}
+
+function snapshotDenseArray(values, field) {
+  if (!values || typeof values !== 'object' || isProxy(values) || !Array.isArray(values)) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded plain array`);
+  }
+  if (Object.getPrototypeOf(values) !== Array.prototype) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must use the standard Array prototype`);
+  }
+  if (Object.getOwnPropertySymbols(values).length !== 0) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain symbol keys`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(values);
+  const lengthDescriptor = descriptors.length;
+  if (!lengthDescriptor
+      || typeof lengthDescriptor.get === 'function'
+      || typeof lengthDescriptor.set === 'function'
+      || !Object.hasOwn(lengthDescriptor, 'value')
+      || !Number.isSafeInteger(lengthDescriptor.value)
+      || lengthDescriptor.value < 0
+      || lengthDescriptor.value > 256) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
+  }
+  const length = lengthDescriptor.value;
+  const keys = Object.keys(descriptors).filter((key) => key !== 'length');
+  if (keys.length !== length || keys.some((key, index) => key !== String(index))) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be dense and cannot contain extra or hidden properties`);
+  }
+  const snapshot = keys.map((key) => {
+    const descriptor = descriptors[key];
+    if (!descriptor
+      || descriptor.enumerable !== true
+      || typeof descriptor.get === 'function'
+      || typeof descriptor.set === 'function'
+      || !Object.hasOwn(descriptor, 'value')) {
+      fail('POMRX_WG_POLICY_E_INVALID', `${field} entries must be enumerable data properties`);
+    }
+    return descriptor.value;
+  });
+  return Object.freeze(snapshot);
 }
 
 function normalizeOrigin(value) {
@@ -121,10 +188,8 @@ function normalizePolicyAddress(value, field) {
 }
 
 function normalizeUniqueList(values, field, normalizeItem) {
-  if (!Array.isArray(values) || values.length > 256) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
-  }
-  const normalized = values.map(normalizeItem);
+  const snapshotted = snapshotDenseArray(values, field);
+  const normalized = snapshotted.map(normalizeItem);
   const unique = new Set(normalized);
   if (unique.size !== normalized.length) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
@@ -133,21 +198,21 @@ function normalizeUniqueList(values, field, normalizeItem) {
 }
 
 function normalizePolicy(policy) {
-  assertExactKeys(policy, POLICY_KEYS, 'Wallet Guard policy');
-  if (policy.schema_version !== WALLET_GUARD_POLICY_SCHEMA_VERSION) {
+  const snapshot = snapshotExactDataRecord(policy, POLICY_KEYS, 'Wallet Guard policy');
+  if (snapshot.schema_version !== WALLET_GUARD_POLICY_SCHEMA_VERSION) {
     fail('POMRX_WG_POLICY_E_INVALID', 'unsupported Wallet Guard policy version');
   }
-  if (typeof policy.policy_id !== 'string' || !POLICY_ID_PATTERN.test(policy.policy_id)) {
+  if (typeof snapshot.policy_id !== 'string' || !POLICY_ID_PATTERN.test(snapshot.policy_id)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'policy_id has an invalid format');
   }
   for (const field of ['enabled', 'kill_switch', 'deny_unlimited_allowance', 'deny_operator_approval']) {
-    if (typeof policy[field] !== 'boolean') {
+    if (typeof snapshot[field] !== 'boolean') {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} must be boolean`);
     }
   }
 
   const requireSimulationFor = normalizeUniqueList(
-    policy.require_simulation_for,
+    snapshot.require_simulation_for,
     'require_simulation_for',
     (value) => {
       if (typeof value !== 'string' || !KNOWN_REQUEST_CLASSES.has(value)) {
@@ -159,35 +224,35 @@ function normalizePolicy(policy) {
 
   return Object.freeze({
     schema_version: WALLET_GUARD_POLICY_SCHEMA_VERSION,
-    policy_id: policy.policy_id,
-    enabled: policy.enabled,
-    kill_switch: policy.kill_switch,
-    expected_chain_id: normalizePolicyChainId(policy.expected_chain_id),
-    allowed_origins: normalizeUniqueList(policy.allowed_origins, 'allowed_origins', normalizeOrigin),
+    policy_id: snapshot.policy_id,
+    enabled: snapshot.enabled,
+    kill_switch: snapshot.kill_switch,
+    expected_chain_id: normalizePolicyChainId(snapshot.expected_chain_id),
+    allowed_origins: normalizeUniqueList(snapshot.allowed_origins, 'allowed_origins', normalizeOrigin),
     allowed_targets: normalizeUniqueList(
-      policy.allowed_targets,
+      snapshot.allowed_targets,
       'allowed_targets',
       (value) => normalizePolicyAddress(value, 'allowed target'),
     ),
     allowed_recipients: normalizeUniqueList(
-      policy.allowed_recipients,
+      snapshot.allowed_recipients,
       'allowed_recipients',
       (value) => normalizePolicyAddress(value, 'allowed recipient'),
     ),
     allowed_spenders: normalizeUniqueList(
-      policy.allowed_spenders,
+      snapshot.allowed_spenders,
       'allowed_spenders',
       (value) => normalizePolicyAddress(value, 'allowed spender'),
     ),
     allowed_typed_data_verifying_contracts: normalizeUniqueList(
-      policy.allowed_typed_data_verifying_contracts,
+      snapshot.allowed_typed_data_verifying_contracts,
       'allowed_typed_data_verifying_contracts',
       (value) => normalizePolicyAddress(value, 'allowed typed-data verifying contract'),
     ),
-    max_native_value: normalizeCanonicalDecimal(policy.max_native_value, 'max_native_value'),
-    max_token_amount: normalizeCanonicalDecimal(policy.max_token_amount, 'max_token_amount'),
-    deny_unlimited_allowance: policy.deny_unlimited_allowance,
-    deny_operator_approval: policy.deny_operator_approval,
+    max_native_value: normalizeCanonicalDecimal(snapshot.max_native_value, 'max_native_value'),
+    max_token_amount: normalizeCanonicalDecimal(snapshot.max_token_amount, 'max_token_amount'),
+    deny_unlimited_allowance: snapshot.deny_unlimited_allowance,
+    deny_operator_approval: snapshot.deny_operator_approval,
     require_simulation_for: requireSimulationFor,
   });
 }
@@ -208,12 +273,12 @@ function validateIntent(intent) {
 }
 
 function normalizeSimulation(simulation) {
-  const value = simulation ?? { status: 'not_run' };
-  assertExactKeys(value, ['status'], 'simulation evidence');
-  if (typeof value.status !== 'string' || !SIMULATION_STATUSES.has(value.status)) {
+  const value = simulation ?? Object.freeze({ status: 'not_run' });
+  const snapshot = snapshotExactDataRecord(value, ['status'], 'simulation evidence');
+  if (typeof snapshot.status !== 'string' || !SIMULATION_STATUSES.has(snapshot.status)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'simulation status is invalid');
   }
-  return value.status;
+  return snapshot.status;
 }
 
 function includes(list, value) {
