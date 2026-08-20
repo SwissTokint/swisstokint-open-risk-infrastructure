@@ -72,10 +72,19 @@ test('scanner bounds are aligned with the shared canonical payload string bound'
   );
 });
 
-test('decoded duplicate-key comparison cannot be bypassed with surrogate escapes', () => {
+test('decoded duplicate-key comparison cannot be bypassed with escaped spellings', () => {
   const raw = '{"method":"eth_sign","params":[{"\\u0061":"first","a":"second"}]}';
   assert.throws(
     () => parseWalletGuardJsonIngress(raw),
     (error) => expectCode(error, 'POMRX_WG_JSON_E_DUPLICATE_KEY'),
   );
+});
+
+test('primitive and array roots fail with the stable ingress shape diagnostic', () => {
+  for (const raw of ['null', 'true', '0', '"string"', '[]']) {
+    assert.throws(
+      () => parseWalletGuardJsonIngress(raw),
+      (error) => expectCode(error, 'POMRX_WG_JSON_E_SHAPE'),
+    );
+  }
 });
