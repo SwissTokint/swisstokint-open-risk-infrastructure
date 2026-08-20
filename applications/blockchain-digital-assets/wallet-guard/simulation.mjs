@@ -312,16 +312,19 @@ function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence)
     return makeLocalEvidence(identity, 'unavailable');
   }
 
+  let stateCommitment;
+  let effectCommitment;
   try {
-    const stateCommitment = assertHash(result.state_commitment, 'state_commitment');
-    const effectCommitment = assertHash(result.effect_commitment, 'effect_commitment');
-    return makeLocalEvidence(identity, result.status, stateCommitment, effectCommitment);
+    stateCommitment = assertHash(result.state_commitment, 'state_commitment');
+    effectCommitment = assertHash(result.effect_commitment, 'effect_commitment');
   } catch (error) {
-    if (error instanceof WalletGuardSimulationError) {
+    if (error instanceof WalletGuardSimulationError
+        && error.code === 'POMRX_WG_SIM_E_CALLBACK_INVALID') {
       return makeLocalEvidence(identity, 'mismatch');
     }
     throw error;
   }
+  return makeLocalEvidence(identity, result.status, stateCommitment, effectCommitment);
 }
 
 function validateLocalEvidence(evidence) {
