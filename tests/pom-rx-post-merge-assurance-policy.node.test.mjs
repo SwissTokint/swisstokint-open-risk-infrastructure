@@ -93,7 +93,11 @@ test('privileged exact-main status publisher never executes repository or upstre
     'workflow-run values must reach the script only through validated environment variables',
   );
   assert.match(runBlock, /re\.fullmatch\(r'\[0-9a-f\]\{40\}'/);
-  assert.match(runBlock, /run_url\.startswith\('https:\/\/github\.com\/'\)/);
+  assert.match(
+    runBlock,
+    /expected_run_prefix = f'https:\/\/github\.com\/\{repository\}\/actions\/runs\/'/,
+  );
+  assert.match(runBlock, /run_id\.isascii\(\).*run_id\.isdigit\(\)/s);
   assert.match(runBlock, /body\.get\('url'\) != status_url/);
   assert.match(runBlock, /body\.get\('context'\) != context/);
   assert.match(runBlock, /body\.get\('state'\) != state/);
