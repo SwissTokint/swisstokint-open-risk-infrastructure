@@ -34,11 +34,19 @@ The current repository contains a bounded local reference slice for:
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
 - per-request synthetic reference authorization metadata with local reuse rejection.
 
-Decoded effect evidence is intentionally about **requested semantics**, not
-external-world state. A Permit signature request, for example, can be decoded as
-an allowance authorization request without claiming that an allowance was
-actually changed on-chain. The evidence therefore keeps external-state and
+Decoded effect evidence is intentionally about **requested fields under the local
+decoding convention**, not target-contract behavior or external-world state. A
+recognized selector proves which fields this reference decoder extracted from
+the request; it does not prove that the target bytecode implements the expected
+ERC-20/ERC-721/ERC-1155 semantics. Likewise, `data=0x` does not prove that a
+contract target has no receive/fallback side effects. The evidence therefore
+keeps complete semantic projection, target-code semantics, external-state and
 external-effect proof flags false.
+
+A Permit signature request can still be represented as an allowance
+authorization request without claiming that an allowance was actually changed
+on-chain or that every signed typed-data field was projected into effect
+fields.
 
 `DENY` and critical `INDETERMINATE` paths are non-forwarding. The reference
 provider integration is exercised only with controlled fake-provider tests.
