@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import {
@@ -295,27 +296,35 @@ test('local replay identity memory is bounded and fails closed at capacity', () 
   );
 });
 
-test('replay registry ignores later Set.prototype has/add/size poisoning', { concurrency: false }, () => {
+test('replay rejection ignores later Set.prototype has/size poisoning', { concurrency: false }, () => {
   const originalHas = Object.getOwnPropertyDescriptor(Set.prototype, 'has');
-  const originalAdd = Object.getOwnPropertyDescriptor(Set.prototype, 'add');
   const originalSize = Object.getOwnPropertyDescriptor(Set.prototype, 'size');
   const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
     trustedClock: () => FIXED_TIME,
   });
   const intentValue = localIntent();
+  let firstInput;
+
+  // Populate the private replay registry under the normal runtime. The later
+  // poisoning is intentionally applied only to the rejection paths so this
+  // regression isolates the preflight replay registry rather than changing
+  // unrelated Set users inside the Wallet Guard policy implementation.
+  for (let index = 0; index < 1_000; index += 1) {
+    const suffix = String(index).padStart(4, '0');
+    const rawInput = {
+      ...input(intentValue),
+      evidenceId: `evidence_wg_preflight_set_poison_${suffix}`,
+      runId: `run_wg_preflight_set_poison_${suffix}`,
+    };
+    if (index === 0) firstInput = rawInput;
+    evidenceBuilder.build(rawInput);
+  }
 
   Object.defineProperty(Set.prototype, 'has', {
     configurable: true,
     writable: true,
     value() {
       return false;
-    },
-  });
-  Object.defineProperty(Set.prototype, 'add', {
-    configurable: true,
-    writable: true,
-    value() {
-      return this;
     },
   });
   Object.defineProperty(Set.prototype, 'size', {
@@ -326,21 +335,10 @@ test('replay registry ignores later Set.prototype has/add/size poisoning', { con
   });
 
   try {
-    const first = input(intentValue);
-    evidenceBuilder.build(first);
     assert.throws(
-      () => evidenceBuilder.build(first),
+      () => evidenceBuilder.build(firstInput),
       (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_REPLAY'),
     );
-
-    for (let index = 1; index < 1_000; index += 1) {
-      const suffix = String(index).padStart(4, '0');
-      evidenceBuilder.build({
-        ...input(intentValue),
-        evidenceId: `evidence_wg_preflight_set_poison_${suffix}`,
-        runId: `run_wg_preflight_set_poison_${suffix}`,
-      });
-    }
     assert.throws(
       () => evidenceBuilder.build({
         ...input(intentValue),
@@ -351,7 +349,20 @@ test('replay registry ignores later Set.prototype has/add/size poisoning', { con
     );
   } finally {
     Object.defineProperty(Set.prototype, 'has', originalHas);
-    Object.defineProperty(Set.prototype, 'add', originalAdd);
     Object.defineProperty(Set.prototype, 'size', originalSize);
   }
+});
+
+test('replay registry pins Set.add instead of dispatching through a later mutable prototype', async () => {
+  const source = await readFile(
+    new URL(
+      '../../applications/blockchain-digital-assets/wallet-guard/preflight-evidence.mjs',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  assert.match(source, /const SET_ADD = Set\.prototype\.add;/u);
+  assert.match(source, /REFLECT_APPLY\(SET_ADD, set, \[value\]\)/u);
+  assert.doesNotMatch(source, /usedEvidenceIds\.add\(/u);
+  assert.doesNotMatch(source, /usedRunIds\.add\(/u);
 });
