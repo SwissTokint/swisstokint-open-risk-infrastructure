@@ -14,6 +14,15 @@ const METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const EIP1193_KEYS = Object.freeze(['method', 'params']);
 const JSONRPC_KEYS = Object.freeze(['jsonrpc', 'id', 'method', 'params']);
+const CANONICAL_VALIDATION_MESSAGES = new Set([
+  'Payload must be a JSON object',
+  'Payload exceeds the maximum depth',
+  'Payload exceeds the maximum node count',
+  'Payload string is too long',
+  'Payload numbers must be safe integers',
+  'Payload contains an unsupported value',
+  'Canonical payload exceeds 16 KiB',
+]);
 
 export class WalletGuardJsonIngressError extends Error {
   constructor(code, message) {
@@ -327,12 +336,19 @@ function validateJsonRpcId(value) {
   fail('POMRX_WG_JSON_E_ID', 'JSON-RPC id must be a non-negative safe integer or bounded string');
 }
 
+function isExpectedCanonicalValidationError(error) {
+  if (!(error instanceof TypeError) || typeof error.message !== 'string') return false;
+  return CANONICAL_VALIDATION_MESSAGES.has(error.message)
+    || error.message.startsWith('Unsafe payload key: ')
+    || error.message.startsWith('Sensitive payload key: ');
+}
+
 function canonicalRequestHash(request) {
   let canonicalRequest;
   try {
     canonicalRequest = canonicalizePayload(request);
   } catch (error) {
-    if (!(error instanceof TypeError)) throw error;
+    if (!isExpectedCanonicalValidationError(error)) throw error;
     fail(
       'POMRX_WG_JSON_E_CANONICAL',
       'Wallet Guard JSON request is outside the shared canonical payload contract',
