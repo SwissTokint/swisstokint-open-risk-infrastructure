@@ -53,7 +53,7 @@ const HOST_KEYS = freeze([
 ]);
 const TX_HASH_PATTERN = /^0x[a-f0-9]{64}$/u;
 const MAX_ACCOUNTS = 64;
-const MAX_SENSITIVE_CALLS = 1_000;
+const MAX_SENSITIVE_CALLS = 64;
 
 export class WalletGuardControlledHostError extends Error {
   constructor(code, message) {
@@ -233,6 +233,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     accounts: canonicalAccounts(options.accounts),
     sensitiveCalls: [],
     contextReads: 0,
+    inFlightRequests: 0,
   };
 
   // This fake raw provider never leaves this closure. The only externally
@@ -273,10 +274,23 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
   // capture caller-owned request data through the shared hardened plain-data
   // boundary before invoking gateway code that predates Proxy/decorated-array
   // rejection. Proxy/accessor/hidden/symbol/custom-prototype request behavior
-  // therefore cannot execute inside the controlled page path.
-  function request(untrustedRequest) {
+  // therefore cannot execute inside the controlled page path. Capacity is
+  // reserved synchronously before the first gateway async boundary so a full
+  // log cannot keep issuing authorization/replay state under concurrency.
+  async function request(untrustedRequest) {
     const requestSnapshot = capturePageRequest(untrustedRequest);
-    return gateway.request(requestSnapshot);
+    if (state.sensitiveCalls.length + state.inFlightRequests >= MAX_SENSITIVE_CALLS) {
+      fail(
+        'POMRX_WG_HOST_E_LOG_FULL',
+        'controlled provider request capacity is exhausted',
+      );
+    }
+    state.inFlightRequests += 1;
+    try {
+      return await gateway.request(requestSnapshot);
+    } finally {
+      state.inFlightRequests -= 1;
+    }
   }
 
   const ethereum = freeze({ request });
@@ -297,6 +311,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
         chain_id: state.chainId,
         accounts: copyFrozenArray(state.accounts),
         context_reads: state.contextReads,
+        in_flight_request_count: state.inFlightRequests,
         sensitive_call_count: state.sensitiveCalls.length,
         sensitive_calls: inspectSensitiveCalls(state.sensitiveCalls),
       });
