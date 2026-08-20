@@ -68,9 +68,9 @@ For the exact merged `main` SHA:
 ## Exact-main CI observability
 
 The repository publishes a machine-readable commit status for the configured
-`CI` workflow after that workflow completes on a `push` to `main`.
-`.github/workflows/exact-main-ci-status.yml` writes the fixed context
-`pom-rx/exact-main-ci` to the upstream run's exact
+`CI` workflow at `.github/workflows/ci.yml` after that workflow completes on a
+`push` to `main`. `.github/workflows/exact-main-ci-status.yml` writes the fixed
+context `pom-rx/exact-main-ci` to the upstream run's exact
 `github.event.workflow_run.head_sha`. `success` is published only when the
 upstream `CI` conclusion is exactly `success`; every other completed conclusion
 is published as `failure`.
@@ -79,11 +79,13 @@ The publisher is deliberately privilege-separated from normal CI. The normal
 `CI` workflow remains read-only while it checks out and executes repository
 code. The status publisher has only `statuses: write`, never checks out
 repository code, never downloads upstream artifacts or caches, and does not run
-PR-controlled scripts. It accepts only a completed `CI` run whose event is
-`push`, whose head branch is `main`, and whose head repository is this exact
-repository. Values from the workflow-run payload are passed through environment
-variables and validated before the GitHub status API is called; they are not
-interpolated into executable script source.
+PR-controlled scripts. It accepts only a completed `CI` run whose workflow path
+is exactly `.github/workflows/ci.yml`, whose event is `push`, whose head branch
+is `main`, and whose head repository is this exact repository. This path check
+prevents another same-name workflow from publishing the assurance context.
+Values from the workflow-run payload are passed through environment variables
+and validated before the GitHub status API is called; they are not interpolated
+into executable script source.
 
 For post-merge integration evidence, a `pom-rx/exact-main-ci` status is usable
 only when it is attached to the exact merge SHA and reports `success`. The
