@@ -327,6 +327,57 @@ test('snapshot writes ignore poisoned Object.prototype simulation accessors', { 
   }
 });
 
+test('descriptor inspection ignores poisoned Object.prototype get/set accessors', { concurrency: false }, () => {
+  const rawPolicy = basePolicy({ kill_switch: true });
+  const intent = nativeIntent();
+  const simulationPolicy = basePolicy({ require_simulation_for: ['native_transfer'] });
+  const simulation = { status: 'fail' };
+  const previousGet = Object.getOwnPropertyDescriptor(Object.prototype, 'get');
+  const previousSet = Object.getOwnPropertyDescriptor(Object.prototype, 'set');
+  let inheritedAccessorCalls = 0;
+
+  try {
+    Object.defineProperty(Object.prototype, 'get', {
+      configurable: true,
+      get() {
+        inheritedAccessorCalls += 1;
+        if (Object.hasOwn(this, 'value') && this.value === true) this.value = false;
+        if (Object.hasOwn(this, 'value') && this.value === 'fail') this.value = 'pass';
+        if (Object.hasOwn(this, 'value') && this.value === ORIGIN) this.value = 'https://attacker.invalid';
+        return undefined;
+      },
+    });
+    Object.defineProperty(Object.prototype, 'set', {
+      configurable: true,
+      get() {
+        inheritedAccessorCalls += 1;
+        return undefined;
+      },
+    });
+
+    const normalized = normalizeWalletGuardPolicy(rawPolicy);
+    assert.equal(normalized.kill_switch, true);
+    assert.deepEqual(normalized.allowed_origins, [ORIGIN]);
+    assert.equal(evaluateWalletGuardPolicy(intent, rawPolicy).decision, 'DENY');
+
+    const simulationResult = evaluateWalletGuardPolicy(intent, simulationPolicy, simulation);
+    assert.equal(simulationResult.decision, 'DENY');
+    assert.ok(simulationResult.reasons.includes('WG_POLICY_DENY_SIMULATION'));
+    assert.equal(inheritedAccessorCalls, 0);
+  } finally {
+    if (previousGet) {
+      Object.defineProperty(Object.prototype, 'get', previousGet);
+    } else {
+      delete Object.prototype.get;
+    }
+    if (previousSet) {
+      Object.defineProperty(Object.prototype, 'set', previousSet);
+    } else {
+      delete Object.prototype.set;
+    }
+  }
+});
+
 test('null-prototype plain policy remains accepted after boundary hardening', () => {
   const raw = Object.assign(Object.create(null), basePolicy());
   const normalized = normalizeWalletGuardPolicy(raw);
