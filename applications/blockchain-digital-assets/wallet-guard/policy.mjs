@@ -76,6 +76,22 @@ function isProxy(value) {
   return utilTypes.isProxy(value);
 }
 
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && Object.hasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true
+    && Object.hasOwn(descriptor, 'value')
+    && !Object.hasOwn(descriptor, 'get')
+    && !Object.hasOwn(descriptor, 'set');
+}
+
+function isOwnDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && Object.hasOwn(descriptor, 'value')
+    && !Object.hasOwn(descriptor, 'get')
+    && !Object.hasOwn(descriptor, 'set');
+}
+
 function snapshotExactDataRecord(value, expected, label) {
   if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an exact plain data object`);
@@ -96,11 +112,7 @@ function snapshotExactDataRecord(value, expected, label) {
   const snapshot = Object.create(null);
   for (const key of expected) {
     const descriptor = descriptors[key];
-    if (!descriptor
-      || descriptor.enumerable !== true
-      || typeof descriptor.get === 'function'
-      || typeof descriptor.set === 'function'
-      || !Object.hasOwn(descriptor, 'value')) {
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${label} fields must be enumerable data properties`);
     }
     snapshot[key] = descriptor.value;
@@ -120,10 +132,7 @@ function snapshotDenseArray(values, field) {
   }
   const descriptors = Object.getOwnPropertyDescriptors(values);
   const lengthDescriptor = descriptors.length;
-  if (!lengthDescriptor
-      || typeof lengthDescriptor.get === 'function'
-      || typeof lengthDescriptor.set === 'function'
-      || !Object.hasOwn(lengthDescriptor, 'value')
+  if (!isOwnDataDescriptor(lengthDescriptor)
       || !Number.isSafeInteger(lengthDescriptor.value)
       || lengthDescriptor.value < 0
       || lengthDescriptor.value > 256) {
@@ -136,11 +145,7 @@ function snapshotDenseArray(values, field) {
   }
   const snapshot = keys.map((key) => {
     const descriptor = descriptors[key];
-    if (!descriptor
-      || descriptor.enumerable !== true
-      || typeof descriptor.get === 'function'
-      || typeof descriptor.set === 'function'
-      || !Object.hasOwn(descriptor, 'value')) {
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} entries must be enumerable data properties`);
     }
     return descriptor.value;
