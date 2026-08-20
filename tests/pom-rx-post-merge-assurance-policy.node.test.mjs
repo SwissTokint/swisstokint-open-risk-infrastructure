@@ -69,7 +69,7 @@ test('exact-main CI status is bound to the completed same-repository main push',
     exactMainStatusWorkflow,
     /state = 'success' if conclusion == 'success' else 'failure'/,
   );
-  assert.match(exactMainStatusWorkflow, /\/statuses\/\{sha\}/);
+  assert.match(exactMainStatusWorkflow, /statuses\/\{sha\}/);
 
   assert.match(gate, /pom-rx\/exact-main-ci/);
   assert.match(gate, /exact merge SHA/i);
@@ -94,7 +94,8 @@ test('privileged exact-main status publisher never executes repository or upstre
   );
   assert.match(runBlock, /re\.fullmatch\(r'\[0-9a-f\]\{40\}'/);
   assert.match(runBlock, /run_url\.startswith\('https:\/\/github\.com\/'\)/);
-  assert.match(runBlock, /body\.get\('sha'\) != sha/);
+  assert.match(runBlock, /body\.get\('url'\) != status_url/);
   assert.match(runBlock, /body\.get\('context'\) != context/);
   assert.match(runBlock, /body\.get\('state'\) != state/);
+  assert.match(runBlock, /body\.get\('target_url'\) != run_url/);
 });
