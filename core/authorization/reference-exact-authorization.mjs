@@ -1,3 +1,5 @@
+import { types as utilTypes } from 'node:util';
+
 import {
   canonicalizePayload,
   sha256Hex,
@@ -61,6 +63,9 @@ function fail(code, message) {
 function assertPlainObjectBoundary(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be an object`);
+  }
+  if (utilTypes.isProxy(value)) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} cannot be a Proxy`);
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
