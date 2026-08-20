@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  chmod,
   mkdtemp,
   mkdir,
   rm,
@@ -156,13 +157,16 @@ test('one local handle can complete at most once even under concurrent calls', a
   });
 });
 
-test('a crash-style incomplete tombstone remains fail-closed instead of being reclaimed', async () => {
+test('a crash-style incomplete tombstone stays fail-closed and does not invent an authorization binding', async () => {
   await withTempDir(async (rootDir) => {
     await mkdir(path.join(rootDir, CAPABILITY), { mode: 0o700 });
     const durableStore = store(rootDir);
 
     const inspection = await durableStore.inspect(claimInput());
     assert.equal(inspection.state, 'RESERVED_INCOMPLETE');
+    assert.equal(inspection.capability_id, CAPABILITY);
+    assert.equal(inspection.authorization_commitment, null);
+    assert.equal(inspection.claim_commitment, null);
     assert.equal(inspection.single_host_local_filesystem_atomic_claim_proved, false);
 
     await assert.rejects(
@@ -172,7 +176,7 @@ test('a crash-style incomplete tombstone remains fail-closed instead of being re
   });
 });
 
-test('corrupted persisted claim fails closed and still blocks replay', async () => {
+test('corrupted persisted claim uses the corruption diagnostic family and still blocks replay', async () => {
   await withTempDir(async (rootDir) => {
     const first = store(rootDir);
     await first.claim(claimInput());
@@ -181,12 +185,28 @@ test('corrupted persisted claim fails closed and still blocks replay', async () 
     const second = store(rootDir);
     await assert.rejects(
       second.inspect(claimInput()),
-      (error) => error instanceof PomRxDurableClaimStoreError
-        && ['POMRX_GATE_E_DURABLE_INVALID', 'POMRX_GATE_E_DURABLE_CORRUPT'].includes(error.code),
+      (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_CORRUPT'),
     );
     await assert.rejects(
       second.claim(claimInput()),
       (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_REPLAY'),
+    );
+  });
+});
+
+test('persisted claim corruption discovered during completion burns the local handle fail-closed', async () => {
+  await withTempDir(async (rootDir) => {
+    const durableStore = store(rootDir);
+    const { handle } = await durableStore.claim(claimInput());
+    await writeFile(path.join(rootDir, CAPABILITY, 'claim.json'), '{"broken":true}\n', 'utf8');
+
+    await assert.rejects(
+      durableStore.complete(handle, 'success'),
+      (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_CORRUPT'),
+    );
+    await assert.rejects(
+      durableStore.complete(handle, 'success'),
+      (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_STALE'),
     );
   });
 });
@@ -252,9 +272,24 @@ test('root path must be absolute and direct symlink roots are rejected', async (
   await withTempDir(async (parent) => {
     const actual = path.join(parent, 'actual');
     const linked = path.join(parent, 'linked');
-    await mkdir(actual);
+    await mkdir(actual, { mode: 0o700 });
     await symlink(actual, linked, 'dir');
     const durableStore = store(linked);
+    await assert.rejects(
+      durableStore.claim(claimInput({ capabilityId: OTHER_CAPABILITY })),
+      (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_ROOT_INVALID'),
+    );
+  });
+});
+
+test('group/world writable roots are rejected before any capability claim', async () => {
+  if (process.platform === 'win32') return;
+  await withTempDir(async (parent) => {
+    const unsafeRoot = path.join(parent, 'unsafe');
+    await mkdir(unsafeRoot, { mode: 0o700 });
+    await chmod(unsafeRoot, 0o777);
+
+    const durableStore = store(unsafeRoot);
     await assert.rejects(
       durableStore.claim(claimInput({ capabilityId: OTHER_CAPABILITY })),
       (error) => expectCode(error, 'POMRX_GATE_E_DURABLE_ROOT_INVALID'),
