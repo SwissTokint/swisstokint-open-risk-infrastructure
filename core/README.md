@@ -1,6 +1,6 @@
 # POM-RX Core
 
-Shared POM-RX semantics belong here: preflight/policy, strict verification, exact authorization, Witness, single-use Gate, observation and reconciliation.
+Shared POM-RX semantics belong here: preflight/policy, strict verification, exact authorization, Witness, single-use Gate, execution evidence, observation and reconciliation.
 
 Current Core homes include:
 
@@ -9,11 +9,12 @@ Current Core homes include:
 - `core/gate/` — candidate common single-use Gate contract;
 - `core/reference-data/` — shared bounded plain-data snapshot/capture boundary for hostile caller-owned reference objects;
 - `core/witness/` — shared reference Witness trust lifecycle around the existing Ed25519 source/Witness primitives;
+- `core/execution/` — shared reference execution-evidence commitments and recorder lifecycle;
 - `core/observation/` — shared reference observation/reconciliation against validated exact-authorization bindings.
 
 During the compatibility migration, frozen/shared implementations that predate the product-oriented layout remain at their current paths, especially `sdk/typescript/pom-rx.mjs`, `sdk/typescript/internal/` and `sdk/typescript/pom-rx-witness.mjs`.
 
-Application blocks may normalize their own domain intents/context and own downstream adapters, but they must not duplicate canonicalization, hashing, verifier, Witness or Gate semantics. Exact authorization is also common Core behavior and must not be forked into an application-specific implementation. Observation/reconciliation comparison semantics likewise remain shared Core behavior rather than an application-specific fork.
+Application blocks may normalize their own domain intents/context and own downstream adapters, but they must not duplicate canonicalization, hashing, verifier, Witness or Gate semantics. Exact authorization and execution-evidence commitments are also common Core behavior and must not be forked into an application-specific implementation. Observation/reconciliation comparison semantics likewise remain shared Core behavior rather than an application-specific fork.
 
 The shared canonical payload contract currently remains in `sdk/typescript/swisstokint-proof.mjs`. Validation failures from `canonicalizePayload()` are positively identified by the exported `ProofPayloadValidationError` class and stable `PROOF_E_PAYLOAD_*` codes while remaining `TypeError`-compatible. POM-RX Core/application adapters that deliberately normalize canonical-payload rejection must catch that branded validation class/code rather than broad `TypeError` or message text. Unrelated runtime/intrinsic failures are intentionally unbranded and must propagate with their original provenance.
 
