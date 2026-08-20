@@ -76,10 +76,7 @@ test('commit boundary rejects accessor-backed binding fields without invoking ge
     },
   });
 
-  assert.throws(
-    () => commitExactAuthorizationBinding(hostile),
-    expectBindingMismatch,
-  );
+  assert.throws(() => commitExactAuthorizationBinding(hostile), expectBindingMismatch);
   assert.equal(getterCalls, 0);
 });
 
@@ -107,9 +104,7 @@ test('prepare boundary rejects accessor-backed input fields without invoking get
 
 test('prepare options reject accessors without invoking capability or witness getters', () => {
   let getterCalls = 0;
-  const hostileOptions = {
-    witnessValidUntil: WITNESS_VALID_UNTIL,
-  };
+  const hostileOptions = { witnessValidUntil: WITNESS_VALID_UNTIL };
   Object.defineProperty(hostileOptions, 'capabilityId', {
     enumerable: true,
     configurable: true,
@@ -124,6 +119,41 @@ test('prepare options reject accessors without invoking capability or witness ge
     expectBindingMismatch,
   );
   assert.equal(getterCalls, 0);
+});
+
+test('missing prepare options cannot be synthesized by inherited prototype descriptors', () => {
+  const originalCapability = Object.getOwnPropertyDescriptor(Object.prototype, 'capabilityId');
+  const originalWitness = Object.getOwnPropertyDescriptor(Object.prototype, 'witnessValidUntil');
+  let hostileReads = 0;
+
+  Object.defineProperty(Object.prototype, 'capabilityId', {
+    configurable: true,
+    get() {
+      hostileReads += 1;
+      return { value: CAPABILITY_ID };
+    },
+  });
+  Object.defineProperty(Object.prototype, 'witnessValidUntil', {
+    configurable: true,
+    get() {
+      hostileReads += 1;
+      return { value: WITNESS_VALID_UNTIL };
+    },
+  });
+
+  try {
+    assert.throws(
+      () => prepareReferenceExactAuthorizationRecord(validInput(), {}),
+      expectBindingMismatch,
+    );
+  } finally {
+    if (originalCapability) Object.defineProperty(Object.prototype, 'capabilityId', originalCapability);
+    else delete Object.prototype.capabilityId;
+    if (originalWitness) Object.defineProperty(Object.prototype, 'witnessValidUntil', originalWitness);
+    else delete Object.prototype.witnessValidUntil;
+  }
+
+  assert.equal(hostileReads, 0);
 });
 
 test('Proxy bindings fail before user-defined Proxy traps can participate in snapshotting', () => {
@@ -151,6 +181,22 @@ test('Proxy bindings fail before user-defined Proxy traps can participate in sna
   assert.equal(trapCalls, 0);
 });
 
+test('revoked Proxy bindings and prepare options fail with stable binding diagnostics', () => {
+  const bindingProxy = Proxy.revocable(validBinding(), {});
+  bindingProxy.revoke();
+  assert.throws(() => commitExactAuthorizationBinding(bindingProxy.proxy), expectBindingMismatch);
+
+  const optionsProxy = Proxy.revocable({
+    capabilityId: CAPABILITY_ID,
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  }, {});
+  optionsProxy.revoke();
+  assert.throws(
+    () => prepareReferenceExactAuthorizationRecord(validInput(), optionsProxy.proxy),
+    expectBindingMismatch,
+  );
+});
+
 test('symbol keys, custom prototypes and hidden expected fields fail closed', () => {
   const withSymbol = validBinding();
   withSymbol[Symbol('hidden')] = 'value';
@@ -166,6 +212,49 @@ test('symbol keys, custom prototypes and hidden expected fields fail closed', ()
     configurable: true,
   });
   assert.throws(() => commitExactAuthorizationBinding(hiddenField), expectBindingMismatch);
+});
+
+test('inherited descriptor get/set poison cannot rewrite authorization commitment inputs', () => {
+  const originalGet = Object.getOwnPropertyDescriptor(Object.prototype, 'get');
+  const originalSet = Object.getOwnPropertyDescriptor(Object.prototype, 'set');
+  let inheritedGetReads = 0;
+  let inheritedSetReads = 0;
+
+  Object.defineProperty(Object.prototype, 'get', {
+    configurable: true,
+    get() {
+      inheritedGetReads += 1;
+      this.value = hash('f');
+      return undefined;
+    },
+  });
+  Object.defineProperty(Object.prototype, 'set', {
+    configurable: true,
+    get() {
+      inheritedSetReads += 1;
+      this.value = hash('e');
+      return undefined;
+    },
+  });
+
+  try {
+    const committed = commitExactAuthorizationBinding(validBinding());
+    const prepared = prepareReferenceExactAuthorizationRecord(validInput(), {
+      capabilityId: CAPABILITY_ID,
+      witnessValidUntil: WITNESS_VALID_UNTIL,
+    });
+    assert.equal(committed.authorizationCommitment, EXPECTED_AUTHORIZATION_COMMITMENT);
+    assert.equal(prepared.evidence.authorization_commitment, EXPECTED_AUTHORIZATION_COMMITMENT);
+    assert.equal(prepared.binding.action_commitment, hash('3'));
+  } finally {
+    if (originalGet) Object.defineProperty(Object.prototype, 'get', originalGet);
+    else delete Object.prototype.get;
+    if (originalSet) Object.defineProperty(Object.prototype, 'set', originalSet);
+    else delete Object.prototype.set;
+  }
+
+  assert.equal(inheritedGetReads, 0);
+  assert.equal(inheritedSetReads, 0);
 });
 
 test('prepared binding is a frozen defensive snapshot independent from caller mutation', () => {
