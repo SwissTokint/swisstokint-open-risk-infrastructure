@@ -148,14 +148,11 @@ test('trusted clock rollback across capability consumptions is rejected by one G
   assert.equal(harness.testAuthority.inspectCapabilityStateForTest(second.capability), 'REJECTED');
 });
 
-test('equal trusted-clock samples are allowed and valid capability still forwards once', async () => {
+test('issued_at boundary and equal trusted-clock samples are accepted exactly once', async () => {
   let evidence;
   let downstreamCalls = 0;
   const harness = createReferenceSingleUseGateHarness({
-    trustedClock: sequenceClock(
-      '2026-08-19T17:00:10.000Z',
-      '2026-08-19T17:00:10.000Z',
-    ),
+    trustedClock: sequenceClock(ISSUED_AT, ISSUED_AT),
     observeBinding: async () => observedFrom(evidence),
     executeDownstream: async () => {
       downstreamCalls += 1;
@@ -167,7 +164,7 @@ test('equal trusted-clock samples are allowed and valid capability still forward
   });
   evidence = issued.evidence;
 
-  assert.equal(await harness.gate.consume(issued.capability, { operation: 'same-time' }), 'ok');
+  assert.equal(await harness.gate.consume(issued.capability, { operation: 'at-issued-at' }), 'ok');
   assert.equal(downstreamCalls, 1);
   assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_SUCCESS');
 });
