@@ -48,8 +48,12 @@ jobs:
               raise SystemExit('invalid repository identity')
           if not re.fullmatch(r'[0-9a-f]{40}', sha):
               raise SystemExit('invalid exact-main head SHA')
-          if not run_url.startswith('https://github.com/'):
-              raise SystemExit('invalid workflow-run URL')
+          expected_run_prefix = f'https://github.com/{repository}/actions/runs/'
+          if not run_url.startswith(expected_run_prefix):
+              raise SystemExit('workflow-run URL is not bound to this repository')
+          run_id = run_url.removeprefix(expected_run_prefix)
+          if not run_id.isascii() or not run_id.isdigit():
+              raise SystemExit('workflow-run URL has an invalid run id')
           if context != 'pom-rx/exact-main-ci':
               raise SystemExit('unexpected status context')
 
