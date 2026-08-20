@@ -29,6 +29,18 @@ The untrusted-facing Gate handle exposes consumption only. Reference issuance/st
 
 The local reference Gate uses fake/test downstream adapters only. A production Gate remains blocked by production-grade source/Witness trust, trusted production time, production issuer integration and, outside one process, durable atomic consumption. The temporal hardening proves only local enforcement against the installed synchronous clock; it does not prove wall-clock correctness, tamper resistance, distributed time or production trusted-time service semantics. Durable consumption remains a separately reviewed lot.
 
+## Reference durable claim store
+
+`reference-durable-claim-store.mjs` adds a deliberately narrow filesystem-backed reference primitive for durable **at-most-once capability claiming** across multiple processes that share one trusted local filesystem directory.
+
+The capability identifier itself is the replay key. Claiming attempts exclusive capability-directory creation, so under the configured local-filesystem semantics the same capability cannot be reclaimed with either the same or a substituted authorization commitment. Claim metadata and the optional success/error terminal marker are written exclusively and fsynced. A crash after exclusive directory creation intentionally leaves a tombstone; incomplete or corrupt persisted state remains fail-closed instead of being removed or re-armed automatically. An incomplete tombstone proves only that the capability path is occupied: it does **not** report a caller-supplied authorization commitment as if that binding had been persisted.
+
+The persisted record separates observations from deployment assumptions. `exclusive_claim_recorded=true` means this store completed its exclusive claim-record write. `local_filesystem_atomicity_assumed=true` remains an explicit assumption: this module cannot determine from a pathname alone whether the underlying mount provides the local atomicity semantics it relies on. `network_filesystem_atomicity_proved`, `distributed_consensus_proved` and `crash_recovery_proved` remain false.
+
+The configured root must be an absolute direct directory path without symlink indirection. On Unix-like platforms exposing ownership/mode bits, the reference store rejects group/world-writable roots and requires ownership by the current process user. Public bootstrap and per-call records are captured from exact own enumerable data descriptors: revoked/live Proxies, accessors, hidden/unknown fields, symbols and custom prototypes are rejected before their values are trusted. Descriptor-kind checks use own fields only, so inherited `Object.prototype.get` / `set` poisoning cannot substitute data while the supported Node built-ins remain trusted.
+
+This primitive is **not integrated into the reference Gate yet** and does not claim durable Gate consumption by itself. It does not prove resistance to a hostile same-OS-user process, mount/path substitution after validation, storage corruption, network/distributed filesystem behavior, crash recovery/lease takeover, distributed consensus, production issuer correctness or external execution. Those remain separate reviewed integration/operational concerns.
+
 Design and hardening decisions:
 
 - `docs/decisions/COUNCIL_POM_RX_CORE_EXACT_AUTH_GATE.md`
