@@ -340,7 +340,20 @@ export function isLocallyNormalizedWalletGuardIntent(intent) {
   return weakSetHas(normalizedIntentBrand, intent);
 }
 
-export function normalizeWalletGuardIntent(input) {
+function normalizeWalletGuardAction(request, account) {
+  if (request.method === 'eth_sendTransaction') {
+    return normalizeSendTransaction(request, account);
+  }
+  if (request.method === 'eth_signTypedData_v4') {
+    return normalizeTypedDataRequest(request, account);
+  }
+  if (request.method === 'personal_sign' || request.method === 'eth_sign') {
+    return normalizeGenericSignature(request);
+  }
+  return normalizeUnsupportedRpc(request);
+}
+
+function normalizeWalletGuardIntentInternal(input, translateDecoderErrors) {
   assertExactKeys(input, NORMALIZE_KEYS, 'Wallet Guard normalization input');
   if (typeof input.requestId !== 'string' || !REQUEST_ID_PATTERN.test(input.requestId)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'requestId has an invalid format');
@@ -352,21 +365,22 @@ export function normalizeWalletGuardIntent(input) {
   const request = normalizeRequest(input.request);
 
   let action;
-  try {
-    if (request.method === 'eth_sendTransaction') {
-      action = normalizeSendTransaction(request, account);
-    } else if (request.method === 'eth_signTypedData_v4') {
-      action = normalizeTypedDataRequest(request, account);
-    } else if (request.method === 'personal_sign' || request.method === 'eth_sign') {
-      action = normalizeGenericSignature(request);
-    } else {
-      action = normalizeUnsupportedRpc(request);
+  if (translateDecoderErrors) {
+    try {
+      action = normalizeWalletGuardAction(request, account);
+    } catch (error) {
+      if (error instanceof WalletGuardDecoderError) {
+        fail(error.code, error.message);
+      }
+      throw error;
     }
-  } catch (error) {
-    if (error instanceof WalletGuardDecoderError) {
-      fail(error.code, error.message);
-    }
-    throw error;
+  } else {
+    // Replay is an internal provenance-sensitive validation path. Do not classify
+    // a foreign same-class decoder error as a local WalletGuardIntentError. A
+    // genuine decoder rejection therefore also keeps its exact decoder provenance
+    // here; callers may distinguish semantic mismatch only after a successful
+    // replay produces a different normalized commitment.
+    action = normalizeWalletGuardAction(request, account);
   }
 
   const intent = freezeIntent({
@@ -393,6 +407,14 @@ export function normalizeWalletGuardIntent(input) {
   validateWalletGuardIntent(intent);
   weakSetAdd(normalizedIntentBrand, intent);
   return intent;
+}
+
+export function normalizeWalletGuardIntent(input) {
+  return normalizeWalletGuardIntentInternal(input, true);
+}
+
+export function normalizeWalletGuardIntentForReplay(input) {
+  return normalizeWalletGuardIntentInternal(input, false);
 }
 
 export function commitWalletGuardIntent(intent) {
