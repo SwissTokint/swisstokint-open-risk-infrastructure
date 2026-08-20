@@ -190,17 +190,17 @@ test('hostile nested request accessors and Proxies are rejected before simulator
   assert.equal(calls, 0);
 });
 
-test('malformed/accessor/Proxy simulator output becomes mismatch without executing traps/getters', async () => {
+test('malformed/accessor resolved simulator output becomes mismatch without executing getters', async () => {
   const rawRequest = request();
   const normalizedIntent = intent(rawRequest);
-  let hostileCalls = 0;
+  let getterCalls = 0;
 
   const accessorRuntime = harness(async (input) => {
     const result = callbackResult(input);
     Object.defineProperty(result, 'status', {
       enumerable: true,
       get() {
-        hostileCalls += 1;
+        getterCalls += 1;
         throw new Error('must not execute');
       },
     });
@@ -211,16 +211,7 @@ test('malformed/accessor/Proxy simulator output becomes mismatch without executi
     request: rawRequest,
   });
   assert.equal(accessorEvidence.status, 'mismatch');
-
-  const proxyRuntime = harness(async (input) => new Proxy(callbackResult(input), {
-    ownKeys() { hostileCalls += 1; return []; },
-    get() { hostileCalls += 1; return undefined; },
-  }));
-  const proxyEvidence = await proxyRuntime.simulate({
-    intent: normalizedIntent,
-    request: rawRequest,
-  });
-  assert.equal(proxyEvidence.status, 'mismatch');
+  assert.equal(getterCalls, 0);
 
   const extraRuntime = harness(async (input) => ({
     ...callbackResult(input),
@@ -231,7 +222,38 @@ test('malformed/accessor/Proxy simulator output becomes mismatch without executi
     request: rawRequest,
   });
   assert.equal(extraEvidence.status, 'mismatch');
-  assert.equal(hostileCalls, 0);
+});
+
+test('async Proxy simulator return channel is explicitly outside the side-effect-free claim', async () => {
+  const rawRequest = request();
+  const normalizedIntent = intent(rawRequest);
+  let getCalls = 0;
+  let ownKeyCalls = 0;
+
+  const proxyRuntime = harness(async (input) => new Proxy(callbackResult(input), {
+    get(target, property, receiver) {
+      getCalls += 1;
+      return Reflect.get(target, property, receiver);
+    },
+    ownKeys(target) {
+      ownKeyCalls += 1;
+      return Reflect.ownKeys(target);
+    },
+  }));
+
+  const evidence = await proxyRuntime.simulate({
+    intent: normalizedIntent,
+    request: rawRequest,
+  });
+
+  // Promise resolution reads a returned object's `then` property before the
+  // resolved value reaches our bounded capture sink. This is deliberately
+  // documented as unproved for this reference harness. Once resolved, Proxy
+  // detection itself does not traverse the object and the result is mismatch.
+  assert.equal(evidence.status, 'mismatch');
+  assert.equal(evidence.simulator_callback_return_channel_proved, false);
+  assert.ok(getCalls >= 1);
+  assert.equal(ownKeyCalls, 0);
 });
 
 test('non-local forged evidence is rejected before forged accessors are read', () => {
