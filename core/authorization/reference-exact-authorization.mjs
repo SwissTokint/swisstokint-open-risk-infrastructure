@@ -60,12 +60,21 @@ function fail(code, message) {
   throw new PomRxReferenceCapabilityError(code, message);
 }
 
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && Object.hasOwn(descriptor, 'value')
+    && Object.hasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true
+    && !Object.hasOwn(descriptor, 'get')
+    && !Object.hasOwn(descriptor, 'set');
+}
+
 function assertPlainObjectBoundary(value, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be an object`);
+  if (!value || typeof value !== 'object' || utilTypes.isProxy(value)) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be a non-Proxy object`);
   }
-  if (utilTypes.isProxy(value)) {
-    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} cannot be a Proxy`);
+  if (Array.isArray(value)) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be an object`);
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
@@ -78,20 +87,17 @@ function assertPlainObjectBoundary(value, label) {
 
 function snapshotExactDataObject(value, expectedKeys, label) {
   assertPlainObjectBoundary(value, label);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
+  const actual = Object.getOwnPropertyNames(value).sort();
   const expected = [...expectedKeys].sort();
   if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} has missing or unknown fields`);
   }
 
+  const descriptors = Object.getOwnPropertyDescriptors(value);
   const snapshot = Object.create(null);
   for (const key of expectedKeys) {
     const descriptor = descriptors[key];
-    if (!descriptor
-        || typeof descriptor.get === 'function'
-        || typeof descriptor.set === 'function'
-        || descriptor.enumerable !== true) {
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_GATE_E_BINDING_MISMATCH', `${label}.${key} must be an enumerable data property`);
     }
     snapshot[key] = descriptor.value;
@@ -101,17 +107,13 @@ function snapshotExactDataObject(value, expectedKeys, label) {
 
 function snapshotPrepareOptions(value) {
   assertPlainObjectBoundary(value, 'Reference exact authorization options');
+  const actual = Object.getOwnPropertyNames(value);
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors);
   for (const key of actual) {
     if (!PREPARE_OPTION_KEYS.includes(key)) {
       fail('POMRX_GATE_E_BINDING_MISMATCH', 'Reference exact authorization options have unknown fields');
     }
-    const descriptor = descriptors[key];
-    if (!descriptor
-        || typeof descriptor.get === 'function'
-        || typeof descriptor.set === 'function'
-        || descriptor.enumerable !== true) {
+    if (!isOwnEnumerableDataDescriptor(descriptors[key])) {
       fail(
         'POMRX_GATE_E_BINDING_MISMATCH',
         `Reference exact authorization options.${key} must be an enumerable data property`,
@@ -119,9 +121,15 @@ function snapshotPrepareOptions(value) {
     }
   }
 
+  const witnessDescriptor = Object.hasOwn(descriptors, 'witnessValidUntil')
+    ? descriptors.witnessValidUntil
+    : undefined;
+  const capabilityDescriptor = Object.hasOwn(descriptors, 'capabilityId')
+    ? descriptors.capabilityId
+    : undefined;
   return Object.freeze({
-    witnessValidUntil: descriptors.witnessValidUntil?.value,
-    capabilityId: descriptors.capabilityId?.value,
+    witnessValidUntil: witnessDescriptor ? witnessDescriptor.value : undefined,
+    capabilityId: capabilityDescriptor ? capabilityDescriptor.value : undefined,
   });
 }
 

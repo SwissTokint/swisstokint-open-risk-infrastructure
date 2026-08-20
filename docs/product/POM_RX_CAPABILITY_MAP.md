@@ -51,7 +51,8 @@ prerequisite for later authorization, not permission to execute.
 
 Application blocks may add adapters, profiles and tests. They must not duplicate
 or fork Core canonicalization, hashing, verifier, Witness or Gate semantics.
-Exact authorization is also common Core behavior and must not be forked into
+Exact authorization, execution-evidence commitments and observation/reconciliation
+comparison semantics are also common Core behavior and must not be forked into
 application-specific implementations.
 
 ### Exact authorization and Gate
@@ -61,8 +62,8 @@ defines versioned action/context binding, short-lived capability semantics,
 terminal single-use consumption, fail-closed replay behavior and a private
 trusted bootstrap boundary.
 
-A local reference Gate harness now exercises those semantics with Gate-instance-
-local capability state, synchronous reservation, complete half-open
+A local reference Gate harness exercises those semantics with Gate-instance-local
+capability state, synchronous reservation, complete half-open
 `[issued_at, expires_at)` checks, Gate-instance monotonic-clock enforcement and
 a trusted prepared-execution snapshot so the raw caller-owned attempt is never
 forwarded downstream. This remains reference-only and non-production.
@@ -72,10 +73,16 @@ enrollment, revocation and trusted-time semantics are not complete. The current
 process-local Witness lifecycle proves bounded reference behavior only. Durable
 multi-process consumption is also required if the Gate later leaves one process.
 
+A separate shared durable claim-store reference primitive now provides bounded
+at-most-once capability claiming for multiple processes sharing one trusted local
+filesystem directory. It remains an installation-assumption-backed reference
+primitive rather than proof of network/distributed filesystem atomicity,
+distributed consensus, crash recovery, Gate consumption or external execution.
+
 ### Witness
 
 Source-signed preflight material and signed Witness acknowledgement primitives
-are merged. A process-local reference lifecycle now adds explicit public-key
+are merged. A process-local reference lifecycle adds explicit public-key
 enrollment, bounded validity, revocation, one-successor rotation/recovery,
 injected monotonic trusted time and deterministic public trust-state snapshots.
 Administrative mutations are staged against the exact prospective trust state
@@ -87,12 +94,38 @@ revocation propagation, remote attestation, quorum and trusted-time service
 semantics remain unproved. Witness verification also does not by itself prove
 external execution authorization.
 
+### Execution evidence
+
+A bounded reference execution-evidence recorder owns the common commitment shape
+between exact authorization / Gate work and later observation. It recomputes the
+exact authorization commitment, records recorder-local start/completion chronology,
+permits one local record per authorization commitment and commits bounded
+adapter-reported effect data for known `success` or `error` outcomes. Malformed
+or ambiguous outcome data becomes explicit `unknown` evidence rather than a
+known effect.
+
+Expected shared canonical-payload rejection is identified through the shared
+branded validation contract, not broad `TypeError` or message text. Unrelated
+runtime/intrinsic failures propagate fail-closed rather than being rewritten as
+semantic `unknown` evidence.
+
+This recorder is deliberately **not** an execution path. It has no downstream
+callback and its evidence does not prove Gate consumption, native execution time,
+external execution or external effect truth. Composition with the actual
+single-use Gate forwarding path, durable replay state and production execution
+evidence remain separate work.
+
 ### Observation and reconciliation
 
-Execution evidence and an observer logically distinct from the forwarding
-decision are compared with the exact authorized action. A reconciliation pass
-must not be treated as proof of the external world beyond the evidence actually
-observed.
+A shared reference observation/reconciliation layer compares captured observation
+evidence against a validated exact-authorization binding, including the binding
+profile, action/context commitments, expected status/effect and chronology. Its
+evidence channel uses a one-shot bounded capture callback rather than treating an
+observer-returned value as evidence.
+
+This still does not prove external-world truth. Production observer independence,
+liveness, host/RPC integrity, chain finality, remote attestation and production
+trusted time remain outside the reference claim.
 
 ### Proof transport and anchoring
 
@@ -230,6 +263,8 @@ core/
   gate/
   reference-data/
   witness/
+  execution/
+  observation/
 
 profiles/
   governance-dagr/
@@ -257,9 +292,9 @@ tests/
 ```
 
 Application folders contain only domain adapters, profiles, fixtures and tests.
-Shared verifier, canonicalization, hashing, Witness, authorization and Gate
-rules remain in the common POM-RX implementation and are referenced rather than
-copied.
+Shared verifier, canonicalization, hashing, Witness, authorization, Gate,
+execution-evidence and observation/reconciliation rules remain in the common
+POM-RX implementation and are referenced rather than copied.
 
 Existing frozen fixture paths, historical verifier paths and public source pins
 must not be relocated until a dedicated migration PR proves byte/hash and public
@@ -269,14 +304,16 @@ link compatibility.
 
 | Block | Current state | What is still missing |
 | --- | --- | --- |
-| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding, local reference Gate, bounded plain-data capture and process-local Witness trust lifecycle exist | production exact-authorization issuer, production trust service/Gate lifecycle, native execution evidence, independent observation |
-| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, full temporal-window/rollback checks and prepared-execution isolation | production-grade Witness trust service, production trusted time, production issuer, durable multi-process consumption if needed |
+| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding, local reference Gate, bounded plain-data capture, process-local Witness trust lifecycle, durable local claim primitive, reference execution-evidence recorder and reference observation/reconciliation exist | production exact-authorization issuer, production trust service/Gate lifecycle, Gate-composed native execution evidence, production-independent observation |
+| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, full temporal-window/rollback checks and prepared-execution isolation; separate durable local claim primitive exists | production-grade Witness trust service, production trusted time, production issuer, reviewed composition of durable claim into Gate, distributed semantics if needed |
 | Witness | signed source/Witness primitives plus process-local reference enrollment, revocation, monotonic trusted clock, bounded trust snapshots and key rotation/recovery exist | durable trust service, operator authorization, KMS/HSM, distributed revocation, production trusted time/attestation and recovery-at-capacity policy |
+| Execution evidence | bounded process-local recorder binds exact authorization to recorder chronology and bounded adapter-reported outcome/effect commitments | composition with actual Gate forwarding, native execution timing, durable replay state, independently observed external effects |
+| Observation / reconciliation | shared reference layer validates exact authorization/profile, expected status/effect and chronology against one-shot bounded observer evidence | production observer independence/liveness, durable evidence transport, host/RPC attestation and external-world truth guarantees |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
 | Cybersecurity | application domain and Wallet Guard threat framing | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration and Wallet Guard architecture exist | Wallet Guard implementation, trusted-context normalization, common Gate adapter integration, E2E burner proof |
+| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration, Wallet Guard EVM normalization/policy, decoded requested-effect evidence and reference provider/Gate integration exist | portable preflight/Witness composition, simulation-to-forwarding binding, controlled-host bypass closure, execution/reconciliation integration and later burner E2E |
 | Governance/DAGR | candidate subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
@@ -303,7 +340,9 @@ POM-RX
 │   ├── Strict verification
 │   ├── Exact authorization
 │   ├── Single-use Gate
-│   └── Witness trust lifecycle (reference-only today)
+│   ├── Witness trust lifecycle (reference-only today)
+│   ├── Execution evidence (reference-only today)
+│   └── Observation and reconciliation (reference-only today)
 ├── Cross-cutting profiles
 │   └── Governance / DAGR
 ├── Application blocks

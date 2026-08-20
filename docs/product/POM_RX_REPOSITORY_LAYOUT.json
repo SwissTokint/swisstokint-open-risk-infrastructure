@@ -9,6 +9,7 @@
       "core/gate",
       "core/reference-data",
       "core/witness",
+      "core/execution",
       "core/observation",
       "sdk/typescript/pom-rx.mjs",
       "sdk/typescript/internal",
