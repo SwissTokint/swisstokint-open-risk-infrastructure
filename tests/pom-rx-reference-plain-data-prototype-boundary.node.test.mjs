@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  PomRxPlainDataError,
   captureReferencePlainData,
 } from '../core/reference-data/plain-data-snapshot.mjs';
 
@@ -82,6 +83,41 @@ test('plain-data array snapshot creates own elements without inherited index set
       Object.defineProperty(Array.prototype, index, previous);
     } else {
       delete Array.prototype[index];
+    }
+  }
+});
+
+test('plain-data sparse arrays cannot source forged elements from inherited descriptor entries', { concurrency: false }, () => {
+  const previous = Object.getOwnPropertyDescriptor(Object.prototype, '0');
+  const forgedDescriptor = Object.create(null);
+  forgedDescriptor.value = 'forged-inherited-value';
+  forgedDescriptor.enumerable = true;
+  forgedDescriptor.writable = true;
+  forgedDescriptor.configurable = true;
+
+  try {
+    Object.defineProperty(Object.prototype, '0', {
+      configurable: true,
+      value: forgedDescriptor,
+      writable: true,
+    });
+
+    const sparseDecorated = new Array(1);
+    sparseDecorated.decoration = 'x';
+
+    assert.throws(
+      () => captureReferencePlainData({ effect: { items: sparseDecorated } }),
+      (error) => {
+        assert.ok(error instanceof PomRxPlainDataError);
+        assert.equal(error.code, 'POMRX_DATA_E_ARRAY');
+        return true;
+      },
+    );
+  } finally {
+    if (previous) {
+      Object.defineProperty(Object.prototype, '0', previous);
+    } else {
+      delete Object.prototype[0];
     }
   }
 });
