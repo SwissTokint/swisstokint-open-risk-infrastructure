@@ -2,7 +2,7 @@
 
 Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
-Date: 2026-08-19
+Date: 2026-08-20
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,16 +66,25 @@ local capability state, synchronous reservation, double expiry checks and a
 trusted prepared-execution snapshot so the raw caller-owned attempt is never
 forwarded downstream. This remains reference-only and non-production.
 
-Production issuance is still unproved because source/witness enrollment,
-revocation and production trusted-time semantics are not yet complete. Durable
+Production issuance is still unproved because production-grade source/Witness
+enrollment, revocation and trusted-time semantics are not complete. The current
+process-local Witness lifecycle proves bounded reference behavior only. Durable
 multi-process consumption is also required if the Gate later leaves one process.
 
 ### Witness
 
-Source-signed preflight material and signed witness acknowledgement primitives
-are merged. They establish bounded cryptographic verification only; they do not
-by themselves establish enrollment, revocation, trusted time, durable service
-semantics or execution authorization.
+Source-signed preflight material and signed Witness acknowledgement primitives
+are merged. A process-local reference lifecycle now adds explicit public-key
+enrollment, bounded validity, revocation, one-successor rotation/recovery,
+injected monotonic trusted time and deterministic public trust-state snapshots.
+Administrative mutations are staged against the exact prospective trust state
+before commit and the reference store is explicitly bounded.
+
+These reference controls do not establish production trust: state is non-durable,
+operator authorization is assumed, and production KMS/HSM, distributed
+revocation propagation, remote attestation, quorum and trusted-time service
+semantics remain unproved. Witness verification also does not by itself prove
+external execution authorization.
 
 ### Observation and reconciliation
 
@@ -218,6 +227,8 @@ core/
   strict-verification/
   authorization/
   gate/
+  reference-data/
+  witness/
 
 profiles/
   governance-dagr/
@@ -257,9 +268,9 @@ link compatibility.
 
 | Block | Current state | What is still missing |
 | --- | --- | --- |
-| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding and a local reference Gate exist | production exact-authorization issuer, production Gate trust lifecycle, native execution evidence, independent observation |
-| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, expiry and prepared-execution isolation | witness enrollment/revocation, production trusted time, production issuer, durable multi-process consumption if needed |
-| Witness | signed source/witness primitives merged | enrollment, revocation, trusted clock, durable service boundary, key rotation/recovery |
+| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding, local reference Gate, bounded plain-data capture and process-local Witness trust lifecycle exist | production exact-authorization issuer, production trust service/Gate lifecycle, native execution evidence, independent observation |
+| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, expiry and prepared-execution isolation | production-grade Witness trust service, production trusted time, production issuer, durable multi-process consumption if needed |
+| Witness | signed source/Witness primitives plus process-local reference enrollment, revocation, monotonic trusted clock, bounded trust snapshots and key rotation/recovery exist | durable trust service, operator authorization, KMS/HSM, distributed revocation, production trusted time/attestation and recovery-at-capacity policy |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
@@ -290,7 +301,8 @@ POM-RX
 ├── Core and common evidence lifecycle
 │   ├── Strict verification
 │   ├── Exact authorization
-│   └── Single-use Gate
+│   ├── Single-use Gate
+│   └── Witness trust lifecycle (reference-only today)
 ├── Cross-cutting profiles
 │   └── Governance / DAGR
 ├── Application blocks

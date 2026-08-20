@@ -18,6 +18,7 @@ export const POM_RX_REFERENCE_WITNESS_TRUST_STATE_VERSION =
   'pom-rx-witness-trust-state/0.1';
 export const POM_RX_REFERENCE_WITNESS_TRUST_HASH_DOMAIN =
   'swisstokint:pom-rx-witness-trust-state:v1:';
+export const POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES = 32;
 
 const KEY_ID_PATTERN = /^ed25519-[a-f0-9]{32}$/u;
 const MAX_VALIDITY_MS = 366 * 24 * 60 * 60 * 1_000;
@@ -149,7 +150,7 @@ export function createReferenceWitnessTrustLifecycle(options) {
   }
   const trustedClock = bootstrap.trustedClock;
 
-  const records = new Map();
+  let records = new Map();
   let revision = 0;
   let lastTrustedTimeMs = null;
 
@@ -183,13 +184,13 @@ export function createReferenceWitnessTrustLifecycle(options) {
     return expiry;
   }
 
-  function snapshot() {
-    const identities = [...records.values()]
+  function buildSnapshot(sourceRecords, sourceRevision) {
+    const identities = [...sourceRecords.values()]
       .map((record) => ({ ...record }))
       .sort(lexicalKeyIdCompare);
     const payload = Object.freeze({
       schema_version: POM_RX_REFERENCE_WITNESS_TRUST_STATE_VERSION,
-      revision,
+      revision: sourceRevision,
       identities: Object.freeze(identities.map((record) => Object.freeze(record))),
     });
     const canonical = canonicalizePayload(payload);
@@ -199,6 +200,31 @@ export function createReferenceWitnessTrustLifecycle(options) {
       reference_only: true,
       production_trust_proved: false,
     });
+  }
+
+  function snapshot() {
+    return buildSnapshot(records, revision);
+  }
+
+  function stageMutation(applyMutation) {
+    const prospectiveRecords = new Map(records);
+    applyMutation(prospectiveRecords);
+    if (prospectiveRecords.size > POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES) {
+      fail(
+        'POMRX_WITNESS_TRUST_E_CAPACITY',
+        `reference Witness trust state is limited to ${POM_RX_REFERENCE_WITNESS_TRUST_MAX_IDENTITIES} identities`,
+      );
+    }
+
+    const prospectiveRevision = revision + 1;
+    const trust = buildSnapshot(prospectiveRecords, prospectiveRevision);
+    return { records: prospectiveRecords, revision: prospectiveRevision, trust };
+  }
+
+  function commitMutation(prepared) {
+    records = prepared.records;
+    revision = prepared.revision;
+    return prepared.trust;
   }
 
   function ensureNoSuccessor(predecessorKeyId) {
@@ -234,9 +260,11 @@ export function createReferenceWitnessTrustLifecycle(options) {
       transition_at: null,
       transition_reason: null,
     });
-    records.set(keyId, record);
-    revision += 1;
-    return Object.freeze({ identity: record, trust: snapshot() });
+    const prepared = stageMutation((prospectiveRecords) => {
+      prospectiveRecords.set(keyId, record);
+    });
+    const trust = commitMutation(prepared);
+    return Object.freeze({ identity: record, trust });
   }
 
   function revokeIdentity(input) {
@@ -257,9 +285,11 @@ export function createReferenceWitnessTrustLifecycle(options) {
       transition_at: now.toISOString(),
       transition_reason: captured.reason,
     });
-    records.set(keyId, updated);
-    revision += 1;
-    return Object.freeze({ identity: updated, trust: snapshot() });
+    const prepared = stageMutation((prospectiveRecords) => {
+      prospectiveRecords.set(keyId, updated);
+    });
+    const trust = commitMutation(prepared);
+    return Object.freeze({ identity: updated, trust });
   }
 
   function replaceIdentity(predecessor, successorPublicKey, validUntil, transitionStatus, reason) {
@@ -296,13 +326,15 @@ export function createReferenceWitnessTrustLifecycle(options) {
       transition_at: null,
       transition_reason: null,
     });
-    records.set(predecessorKeyId, predecessorUpdated);
-    records.set(successorKeyId, successorRecord);
-    revision += 1;
+    const prepared = stageMutation((prospectiveRecords) => {
+      prospectiveRecords.set(predecessorKeyId, predecessorUpdated);
+      prospectiveRecords.set(successorKeyId, successorRecord);
+    });
+    const trust = commitMutation(prepared);
     return Object.freeze({
       predecessor: predecessorUpdated,
       successor: successorRecord,
-      trust: snapshot(),
+      trust,
     });
   }
 
