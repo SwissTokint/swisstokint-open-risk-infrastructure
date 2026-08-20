@@ -190,7 +190,7 @@ test('rejects custom prototypes, symbols, hidden fields and unsafe keys', () => 
   );
 });
 
-test('enforces bounded values without coercion', () => {
+test('enforces bounded values and container width without coercion', () => {
   assert.throws(
     () => captureReferencePlainData({ value: 1.5 }),
     expectCode('POMRX_DATA_E_NUMBER'),
@@ -202,6 +202,24 @@ test('enforces bounded values without coercion', () => {
   assert.throws(
     () => captureReferencePlainData({ value: 'x'.repeat(REFERENCE_PLAIN_DATA_LIMITS.max_string_length + 1) }),
     expectCode('POMRX_DATA_E_STRING'),
+  );
+
+  const tooWide = Object.create(null);
+  for (let index = 0; index < REFERENCE_PLAIN_DATA_LIMITS.max_nodes; index += 1) {
+    tooWide[`k${index}`] = index;
+  }
+  assert.throws(
+    () => captureReferencePlainData(tooWide),
+    expectCode('POMRX_DATA_E_NODES'),
+  );
+
+  const tooManyArrayNodes = Array.from(
+    { length: REFERENCE_PLAIN_DATA_LIMITS.max_array_length },
+    (_, index) => index,
+  );
+  assert.throws(
+    () => captureReferencePlainData(tooManyArrayNodes),
+    expectCode('POMRX_DATA_E_NODES'),
   );
 
   let deep = 'leaf';
