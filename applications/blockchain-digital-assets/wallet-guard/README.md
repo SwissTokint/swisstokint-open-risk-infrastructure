@@ -28,11 +28,14 @@ The current repository contains a bounded local reference slice for:
   generic signatures and unsupported RPC methods rather than inventing a known
   downstream effect;
 - deterministic fail-closed local policy;
+- strict policy/simulation object-boundary capture from exact own enumerable data descriptors, with accessor, Proxy, hidden/symbol/unknown-property and custom-prototype rejection;
 - provider-observed chain/account sampling;
 - bootstrap-captured origin that is not accepted from request fields;
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
 - per-request synthetic reference authorization metadata with local reuse rejection.
+
+The policy normalizer does not treat arbitrary JavaScript object behavior as policy data. Top-level policy and simulation records are snapshotted once from exact own enumerable data properties. Policy allowlists and `require_simulation_for` must be bounded dense standard arrays: accessors, Node Proxy wrappers, holes, symbol keys, hidden/extra properties and non-standard array prototypes fail closed before policy values participate in normalization or hashing. This prevents getter/Proxy/prototype behavior from substituting policy or simulation semantics in the Node reference runtime.
 
 Decoded effect evidence is intentionally about **requested fields under the local
 decoding convention**, not target-contract behavior or external-world state. A
