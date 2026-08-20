@@ -32,6 +32,7 @@ const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const CALLBACK_STATUSES = new Set(['pass', 'fail', 'unavailable']);
 const EVIDENCE_STATUSES = new Set(['pass', 'fail', 'unavailable', 'mismatch']);
 const RUN_KEYS = Object.freeze(['intent', 'request']);
+const REQUEST_KEYS = Object.freeze(['method', 'params']);
 const BOOTSTRAP_KEYS = Object.freeze(['simulateRequest']);
 const CALLBACK_RESULT_KEYS = Object.freeze([
   'status',
@@ -183,6 +184,117 @@ function captureExactDataRecord(value, expectedKeys, label, code) {
     snapshot[key] = descriptor.value;
   }
   return freezeValue(snapshot);
+}
+
+function hasOwnEnumerableTypedDataMethod(value) {
+  if (!value
+      || typeof value !== 'object'
+      || utilTypes.isProxy(value)
+      || Array.isArray(value)) {
+    return false;
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, 'method');
+  return isOwnEnumerableDataDescriptor(descriptor)
+    && descriptor.value === 'eth_signTypedData_v4';
+}
+
+function captureExactDenseArray(value, expectedLength, label, code) {
+  if (!value
+      || typeof value !== 'object'
+      || utilTypes.isProxy(value)
+      || !Array.isArray(value)) {
+    fail(code, `${label} must be a non-Proxy array`);
+  }
+  if (Object.getPrototypeOf(value) !== Array.prototype) {
+    fail(code, `${label} must use Array.prototype`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(code, `${label} cannot contain symbol keys`);
+  }
+
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+  if (!lengthDescriptor
+      || !Object.hasOwn(lengthDescriptor, 'value')
+      || lengthDescriptor.value !== expectedLength
+      || Object.hasOwn(lengthDescriptor, 'get')
+      || Object.hasOwn(lengthDescriptor, 'set')) {
+    fail(code, `${label} must contain exactly ${expectedLength} elements`);
+  }
+
+  const expectedNames = ['length'];
+  for (let index = 0; index < expectedLength; index += 1) {
+    expectedNames.push(String(index));
+  }
+  const actualNames = Object.getOwnPropertyNames(value).sort(asciiCompare);
+  expectedNames.sort(asciiCompare);
+  if (actualNames.length !== expectedNames.length
+      || actualNames.some((key, index) => key !== expectedNames[index])) {
+    fail(code, `${label} must be dense and undecorated`);
+  }
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const snapshot = new Array(expectedLength);
+  for (let index = 0; index < expectedLength; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail(code, `${label}[${index}] must be an enumerable data property`);
+    }
+    snapshot[index] = descriptor.value;
+  }
+  return freezeValue(snapshot);
+}
+
+function captureSimulationRequestSnapshot(rawRequest) {
+  const label = 'Wallet Guard simulation request';
+  const code = 'POMRX_WG_SIM_E_REQUEST_INVALID';
+
+  // Preserve the historical generic shared capture path for every RPC method
+  // except an exact own enumerable eth_signTypedData_v4 method. Typed data is
+  // special because Wallet Guard's decoder budgets the typed-data payload itself,
+  // not the surrounding EIP-1193 method/account/params wrapper.
+  if (!hasOwnEnumerableTypedDataMethod(rawRequest)) {
+    const capture = captureReferencePlainDataOutcome(rawRequest, label);
+    if (!capture.ok) {
+      fail(code, 'simulation request is not bounded inert plain data');
+    }
+    return capture.value;
+  }
+
+  const requestRecord = captureExactDataRecord(
+    rawRequest,
+    REQUEST_KEYS,
+    label,
+    code,
+  );
+  const params = captureExactDenseArray(
+    requestRecord.params,
+    2,
+    `${label}.params`,
+    code,
+  );
+  const accountCapture = captureReferencePlainDataOutcome(
+    params[0],
+    `${label} account`,
+  );
+  const typedDataCapture = captureReferencePlainDataOutcome(
+    params[1],
+    `${label} typed data`,
+  );
+  if (!accountCapture.ok || !typedDataCapture.ok) {
+    fail(code, 'simulation request is not bounded inert plain data');
+  }
+
+  // Wrapper structure is bounded independently while the typed-data payload gets
+  // the same full node/depth/string budget it receives during Wallet Guard
+  // decoding. The reconstructed snapshot remains the exact captured account and
+  // typed-data values and is what replay and the simulator callback receive.
+  const requestSnapshot = Object.create(null);
+  requestSnapshot.method = requestRecord.method;
+  requestSnapshot.params = freezeValue([
+    accountCapture.value,
+    typedDataCapture.value,
+  ]);
+  return freezeValue(requestSnapshot);
 }
 
 function requireLocalIntent(intent) {
@@ -516,17 +628,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     const localIntent = runInput.intent;
     requireLocalIntent(localIntent);
 
-    const requestCapture = captureReferencePlainDataOutcome(
-      runInput.request,
-      'Wallet Guard simulation request',
-    );
-    if (!requestCapture.ok) {
-      fail(
-        'POMRX_WG_SIM_E_REQUEST_INVALID',
-        'simulation request is not bounded inert plain data',
-      );
-    }
-    const requestSnapshot = requestCapture.value;
+    const requestSnapshot = captureSimulationRequestSnapshot(runInput.request);
 
     const intentCommitment = replayIntentAgainstRequest(localIntent, requestSnapshot);
     const requestCommitment = commitRequestSnapshot(requestSnapshot).request_commitment;
