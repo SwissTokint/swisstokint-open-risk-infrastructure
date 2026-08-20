@@ -11,13 +11,15 @@ import {
   isLocallyNormalizedWalletGuardIntent,
 } from './intent.mjs';
 import {
+  commitWalletGuardMethod,
+} from './method-commitment.mjs';
+import {
   evaluateWalletGuardPolicy,
 } from './policy.mjs';
 
 export const WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION = 'wallet_guard_preflight_evidence/0.1';
 
 const INPUT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-input:v1:';
-const METHOD_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-method:v1:';
 const DECISION_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-decision:v1:';
 const RULE_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-rule:v1:';
 const RULE_EVIDENCE_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-rule-evidence:v1:';
@@ -301,7 +303,7 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
       `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
     );
     const actionCommitment = committedIntent.intent_commitment;
-    const methodHash = sha256Hex(`${METHOD_COMMIT_DOMAIN}${input.intent.rpc_method}`);
+    const methodHash = commitWalletGuardMethod(input.intent.rpc_method);
     const committedDecision = commitDecision({
       input,
       intent: input.intent,
@@ -326,6 +328,8 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
       action_commitment: actionCommitment,
       policy_hash: policyResult.policy_hash,
       policy_id: policyResult.policy_id,
+      normalized_input_only: true,
+      raw_request_proved: false,
       trusted_clock_sampled: true,
       production_trusted_time_proved: false,
       simulation_evidence_proved: false,
