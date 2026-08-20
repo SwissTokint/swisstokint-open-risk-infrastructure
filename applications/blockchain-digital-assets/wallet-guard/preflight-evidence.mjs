@@ -42,6 +42,28 @@ const BUILD_KEYS = Object.freeze([
 ]);
 const BOOTSTRAP_KEYS = Object.freeze(['trustedClock']);
 
+// Replay state must not dispatch through caller-mutable Set.prototype methods
+// after module initialization. Capture the exact runtime intrinsics once and
+// invoke them through the captured Reflect.apply. This protects the private
+// replay registry against later same-realm Set prototype poisoning while still
+// keeping the module's broader trusted-runtime assumption explicit.
+const REFLECT_APPLY = Reflect.apply;
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const SET_SIZE_GETTER = Object.getOwnPropertyDescriptor(Set.prototype, 'size').get;
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function setAdd(set, value) {
+  REFLECT_APPLY(SET_ADD, set, [value]);
+}
+
+function setSize(set) {
+  return REFLECT_APPLY(SET_SIZE_GETTER, set, []);
+}
+
 export class WalletGuardPreflightEvidenceError extends Error {
   constructor(code, message) {
     super(message);
@@ -233,14 +255,14 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
       const input = captureExactDataRecord(rawInput, BUILD_KEYS, 'preflight evidence input');
       validateMetadata(input);
 
-      if (usedEvidenceIds.has(input.evidenceId)) {
+      if (setHas(usedEvidenceIds, input.evidenceId)) {
         fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'evidenceId was already used by this builder');
       }
-      if (usedRunIds.has(input.runId)) {
+      if (setHas(usedRunIds, input.runId)) {
         fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'runId was already used by this builder');
       }
-      if (usedEvidenceIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES
-          || usedRunIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES) {
+      if (setSize(usedEvidenceIds) >= MAX_LOCAL_EVIDENCE_IDENTITIES
+          || setSize(usedRunIds) >= MAX_LOCAL_EVIDENCE_IDENTITIES) {
         fail(
           'POMRX_WG_PREFLIGHT_E_CAPACITY',
           'preflight evidence builder reached its fail-closed local identity ceiling',
@@ -369,8 +391,8 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
         });
       }
 
-      usedEvidenceIds.add(input.evidenceId);
-      usedRunIds.add(input.runId);
+      setAdd(usedEvidenceIds, input.evidenceId);
+      setAdd(usedRunIds, input.runId);
       return result;
     } finally {
       buildInProgress = false;
