@@ -8,10 +8,11 @@ Current Core homes include:
 - `core/authorization/` — candidate common exact-authorization contract;
 - `core/gate/` — candidate common single-use Gate contract;
 - `core/reference-data/` — shared bounded plain-data snapshot/capture boundary for hostile caller-owned reference objects;
-- `core/witness/` — shared reference Witness trust lifecycle around the existing Ed25519 source/Witness primitives.
+- `core/witness/` — shared reference Witness trust lifecycle around the existing Ed25519 source/Witness primitives;
+- `core/observation/` — shared reference observation/reconciliation against validated exact-authorization bindings.
 
 During the compatibility migration, frozen/shared implementations that predate the product-oriented layout remain at their current paths, especially `sdk/typescript/pom-rx.mjs`, `sdk/typescript/internal/` and `sdk/typescript/pom-rx-witness.mjs`.
 
-Application blocks may normalize their own domain intents/context and own downstream adapters, but they must not duplicate canonicalization, hashing, verifier, Witness or Gate semantics. Exact authorization is also common Core behavior and must not be forked into an application-specific implementation.
+Application blocks may normalize their own domain intents/context and own downstream adapters, but they must not duplicate canonicalization, hashing, verifier, Witness or Gate semantics. Exact authorization is also common Core behavior and must not be forked into an application-specific implementation. Observation/reconciliation comparison semantics likewise remain shared Core behavior rather than an application-specific fork.
 
 Historical v0.1 paths are moved only through dedicated compatibility-preserving PRs that prove the required byte/hash/import/link invariants.
