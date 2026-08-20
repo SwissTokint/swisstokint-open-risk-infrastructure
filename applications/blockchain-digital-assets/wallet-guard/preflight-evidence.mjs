@@ -30,6 +30,7 @@ const RULE_EVIDENCE_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-rule-evi
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$/u;
 const SOURCE_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
+const MAX_LOCAL_EVIDENCE_IDENTITIES = 1_000;
 const BUILD_KEYS = Object.freeze([
   'intent',
   'policy',
@@ -229,6 +230,13 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
     if (usedRunIds.has(input.runId)) {
       fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'runId was already used by this builder');
     }
+    if (usedEvidenceIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES
+        || usedRunIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES) {
+      fail(
+        'POMRX_WG_PREFLIGHT_E_CAPACITY',
+        'preflight evidence builder reached its fail-closed local identity ceiling',
+      );
+    }
 
     if (!isLocallyNormalizedWalletGuardIntent(input.intent)) {
       fail(
@@ -259,6 +267,10 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
     }
 
     const clockSample = sampleTrustedClock(options.trustedClock, lastClockSampleMs);
+    // A successfully accepted trusted-clock sample becomes part of this
+    // builder's temporal history immediately. Later construction failures must
+    // not allow a subsequent call to move behind an already observed instant.
+    lastClockSampleMs = clockSample.getTime();
     const occurredAt = clockSample.toISOString();
     const inputCommitment = sha256Hex(
       `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
@@ -350,7 +362,6 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
 
     usedEvidenceIds.add(input.evidenceId);
     usedRunIds.add(input.runId);
-    lastClockSampleMs = clockSample.getTime();
     return result;
   }
 
