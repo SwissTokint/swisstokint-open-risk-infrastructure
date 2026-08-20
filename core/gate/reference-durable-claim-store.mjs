@@ -28,7 +28,8 @@ const CLAIM_RECORD_KEYS = Object.freeze([
   'authorization_commitment',
   'claim_commitment',
   'reference_only',
-  'single_host_local_filesystem_atomic_claim_proved',
+  'exclusive_claim_recorded',
+  'local_filesystem_atomicity_assumed',
   'distributed_consensus_proved',
   'network_filesystem_atomicity_proved',
   'crash_recovery_proved',
@@ -118,7 +119,8 @@ function makeClaimRecord(capabilityId, authorizationCommitment) {
     ...payload,
     claim_commitment: claimCommitment,
     reference_only: true,
-    single_host_local_filesystem_atomic_claim_proved: true,
+    exclusive_claim_recorded: true,
+    local_filesystem_atomicity_assumed: true,
     distributed_consensus_proved: false,
     network_filesystem_atomicity_proved: false,
     crash_recovery_proved: false,
@@ -146,7 +148,8 @@ function validateClaimRecord(value) {
     const record = exactOwnData(value, CLAIM_RECORD_KEYS, 'durable claim record');
     if (record.schema_version !== POM_RX_DURABLE_CLAIM_SCHEMA_VERSION
         || record.reference_only !== true
-        || record.single_host_local_filesystem_atomic_claim_proved !== true
+        || record.exclusive_claim_recorded !== true
+        || record.local_filesystem_atomicity_assumed !== true
         || record.distributed_consensus_proved !== false
         || record.network_filesystem_atomicity_proved !== false
         || record.crash_recovery_proved !== false) {
@@ -256,7 +259,8 @@ function makeInspection(state, claimRecord = null, terminalRecord = null) {
     claim_commitment: claimRecord?.claim_commitment ?? null,
     terminal_commitment: terminalRecord?.terminal_commitment ?? null,
     reference_only: true,
-    single_host_local_filesystem_atomic_claim_proved: claimRecord !== null,
+    exclusive_claim_recorded: claimRecord !== null,
+    local_filesystem_atomicity_assumed: true,
     distributed_consensus_proved: false,
     network_filesystem_atomicity_proved: false,
     crash_recovery_proved: false,
