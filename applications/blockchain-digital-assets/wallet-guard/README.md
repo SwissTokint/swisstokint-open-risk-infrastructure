@@ -36,7 +36,8 @@ The current repository contains a bounded local reference slice for:
 - bootstrap-captured origin that is not accepted from request fields;
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
-- per-request synthetic reference authorization metadata with local reuse rejection.
+- per-request synthetic reference authorization metadata with local reuse rejection;
+- a controlled in-memory provider host whose returned `page` object graph exposes only the guarded `ethereum.request` path while the fake raw provider remains closure-owned.
 
 `json-ingress.mjs` closes one narrow parser-equivalence gap before raw JSON text from a controlled fixture is reduced to Wallet Guard request semantics. It lexically scans the supplied JavaScript string before `JSON.parse`, rejects duplicate decoded object keys (including escaped aliases such as `m\u0065thod` versus `method`), prototype-pollution keys, unpaired Unicode surrogates, non-canonical JSON number spellings, excessive bytes/depth/nodes/string/key sizes and ambiguous top-level envelopes. It then emits a frozen `{method, params}` request together with a raw-text SHA-256 and a shared-canonical-request SHA-256.
 
@@ -71,13 +72,26 @@ fields.
 `DENY` and critical `INDETERMINATE` paths are non-forwarding. The reference
 provider integration is exercised only with controlled fake-provider tests.
 
+`controlled-host.mjs` narrows one demo-installation bypass property. Within the
+exact object graph returned as `page`, there is no raw-provider, Core Gate,
+capability-issuer or test-authority handle: the fake raw provider is owned by a
+private closure and the separate `testAuthority` exists only for deterministic
+fixture mutation and inspection. The authority is returned beside the page for
+tests and is not reachable from `page` or `page.ethereum`.
+
+That guarantee is **not** browser or JavaScript-realm integrity. It does not
+prevent another provider installed elsewhere, a hostile extension or host that
+already retained an independent provider reference, or compromise of trusted
+runtime/bootstrap dependencies. The controlled host performs no network I/O,
+holds no wallet keys and does not upgrade the synthetic reference authorization
+supplier into a real Witness.
+
 This is **not** yet the complete Wallet Guard security claim. In particular:
 
 - the reference authorization supplier is synthetic and does not prove a real
   signed Witness acknowledgement;
 - the bootstrap origin/provider authorities are trusted installation inputs;
-- the caller-facing gateway does not expose the provider, but this alone does
-  not prove that a browser/dApp has no second unguarded provider reference;
+- the controlled-host returned page graph removes a second raw-provider reference only inside that fixture; arbitrary browser/extension/host integrity and independently installed providers remain unproved;
 - strict JSON text parsing does not prove upstream transport-byte decoding;
 - policy-state mutation authority is still a trusted in-process reference dependency and is not yet bound into provider/Gate state;
 - portable reference preflight evidence does not prove a production Witness,
