@@ -1,7 +1,6 @@
 import { types as utilTypes } from 'node:util';
 
 import {
-  ProofPayloadValidationError,
   canonicalizePayload,
   sha256Hex,
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
@@ -9,7 +8,6 @@ import {
   captureReferencePlainDataOutcome,
 } from '../../../core/reference-data/plain-data-snapshot.mjs';
 import {
-  WalletGuardIntentError,
   commitWalletGuardIntent,
   isLocallyNormalizedWalletGuardIntent,
   normalizeWalletGuardIntent,
@@ -171,18 +169,12 @@ function requireLocalIntent(intent) {
 }
 
 function commitRequestSnapshot(requestSnapshot) {
-  let canonicalRequest;
-  try {
-    canonicalRequest = canonicalizePayload(requestSnapshot);
-  } catch (error) {
-    if (error instanceof ProofPayloadValidationError) {
-      fail(
-        'POMRX_WG_SIM_E_REQUEST_INVALID',
-        'simulation request is outside the shared canonical commitment contract',
-      );
-    }
-    throw error;
-  }
+  // The request is already bounded inert plain data and has successfully replayed
+  // through Wallet Guard normalization before this point. Any later failure in
+  // the shared canonicalizer is therefore a runtime/contract failure, not a new
+  // simulation diagnostic. Preserve that exact provenance instead of translating
+  // by exported error class.
+  const canonicalRequest = canonicalizePayload(requestSnapshot);
   return Object.freeze({
     canonical_request: canonicalRequest,
     request_commitment: sha256Hex(
@@ -193,24 +185,16 @@ function commitRequestSnapshot(requestSnapshot) {
 
 function replayIntentAgainstRequest(intent, requestSnapshot) {
   const committedIntent = requireLocalIntent(intent);
-  let replayed;
-  try {
-    replayed = normalizeWalletGuardIntent({
-      requestId: intent.request_id,
-      trustedOrigin: intent.origin,
-      trustedChainId: intent.chain_id,
-      trustedAccount: intent.account,
-      request: requestSnapshot,
-    });
-  } catch (error) {
-    if (error instanceof WalletGuardIntentError) {
-      fail(
-        'POMRX_WG_SIM_E_BINDING_MISMATCH',
-        'simulation request does not normalize under the committed intent context',
-      );
-    }
-    throw error;
-  }
+  // Preserve the exact Wallet Guard normalization failure. A successful replay
+  // that normalizes to different semantics is the only case translated into the
+  // local binding-mismatch diagnostic below.
+  const replayed = normalizeWalletGuardIntent({
+    requestId: intent.request_id,
+    trustedOrigin: intent.origin,
+    trustedChainId: intent.chain_id,
+    trustedAccount: intent.account,
+    request: requestSnapshot,
+  });
 
   const replayedCommitment = commitWalletGuardIntent(replayed).intent_commitment;
   if (replayedCommitment !== committedIntent.intent_commitment) {
