@@ -88,6 +88,9 @@ function captureArray(value, label, depth, budget) {
   const output = new Array(length);
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
+    if (!Object.hasOwn(descriptors, key)) {
+      fail('POMRX_DATA_E_ARRAY', `${label} must contain every array index as an own property`);
+    }
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_DATA_E_ARRAY', `${label} must contain dense data elements only`);
