@@ -219,150 +219,162 @@ export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
   const usedEvidenceIds = new Set();
   const usedRunIds = new Set();
   let lastClockSampleMs = null;
+  let buildInProgress = false;
 
   function build(rawInput) {
-    const input = captureExactDataRecord(rawInput, BUILD_KEYS, 'preflight evidence input');
-    validateMetadata(input);
-
-    if (usedEvidenceIds.has(input.evidenceId)) {
-      fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'evidenceId was already used by this builder');
-    }
-    if (usedRunIds.has(input.runId)) {
-      fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'runId was already used by this builder');
-    }
-    if (usedEvidenceIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES
-        || usedRunIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES) {
+    if (buildInProgress) {
       fail(
-        'POMRX_WG_PREFLIGHT_E_CAPACITY',
-        'preflight evidence builder reached its fail-closed local identity ceiling',
+        'POMRX_WG_PREFLIGHT_E_REENTRANT',
+        'preflight evidence build is already in progress in this builder',
       );
     }
-
-    if (!isLocallyNormalizedWalletGuardIntent(input.intent)) {
-      fail(
-        'POMRX_WG_PREFLIGHT_E_INTENT',
-        'preflight evidence requires the exact locally normalized intent object',
-      );
-    }
-
-    // This call validates and commits a locally branded intent. Do not broadly
-    // translate failures here: an unrelated runtime/intrinsic failure is not an
-    // intent-validation result and must preserve its original provenance.
-    const committedIntent = commitWalletGuardIntent(input.intent);
-
-    let policyResult;
+    buildInProgress = true;
     try {
-      // Simulation evidence is deliberately not accepted at this boundary yet.
-      // The current reference preflight evaluates the exact policy with not_run.
-      policyResult = evaluateWalletGuardPolicy(
-        input.intent,
-        input.policy,
-        Object.freeze({ status: 'not_run' }),
-      );
-    } catch (error) {
-      if (error instanceof WalletGuardPolicyError) {
-        fail('POMRX_WG_PREFLIGHT_E_POLICY', 'Wallet Guard policy evaluation failed');
+      const input = captureExactDataRecord(rawInput, BUILD_KEYS, 'preflight evidence input');
+      validateMetadata(input);
+
+      if (usedEvidenceIds.has(input.evidenceId)) {
+        fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'evidenceId was already used by this builder');
       }
-      throw error;
-    }
+      if (usedRunIds.has(input.runId)) {
+        fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'runId was already used by this builder');
+      }
+      if (usedEvidenceIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES
+          || usedRunIds.size >= MAX_LOCAL_EVIDENCE_IDENTITIES) {
+        fail(
+          'POMRX_WG_PREFLIGHT_E_CAPACITY',
+          'preflight evidence builder reached its fail-closed local identity ceiling',
+        );
+      }
 
-    const clockSample = sampleTrustedClock(options.trustedClock, lastClockSampleMs);
-    // A successfully accepted trusted-clock sample becomes part of this
-    // builder's temporal history immediately. Later construction failures must
-    // not allow a subsequent call to move behind an already observed instant.
-    lastClockSampleMs = clockSample.getTime();
-    const occurredAt = clockSample.toISOString();
-    const inputCommitment = sha256Hex(
-      `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
-    );
-    const actionCommitment = committedIntent.intent_commitment;
-    const methodHash = commitWalletGuardMethod(input.intent.rpc_method);
-    const committedDecision = commitDecision({
-      input,
-      intent: input.intent,
-      policyResult,
-      intentCommitment: actionCommitment,
-      occurredAt,
-    });
+      if (!isLocallyNormalizedWalletGuardIntent(input.intent)) {
+        fail(
+          'POMRX_WG_PREFLIGHT_E_INTENT',
+          'preflight evidence requires the exact locally normalized intent object',
+        );
+      }
 
-    const common = Object.freeze({
-      schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
-      evidence_id: input.evidenceId,
-      run_id: input.runId,
-      request_id: input.intent.request_id,
-      agent_ref: input.agentRef.normalize('NFC'),
-      subject_ref: input.subjectRef.normalize('NFC'),
-      source_key_id: input.sourceKeyId,
-      occurred_at: occurredAt,
-      wallet_guard_decision: policyResult.decision,
-      wallet_guard_reasons: committedDecision.reasons,
-      decision_commitment: committedDecision.decision_commitment,
-      input_commitment: inputCommitment,
-      action_commitment: actionCommitment,
-      policy_hash: policyResult.policy_hash,
-      policy_id: policyResult.policy_id,
-      normalized_input_only: true,
-      raw_request_proved: false,
-      trusted_clock_sampled: true,
-      production_trusted_time_proved: false,
-      simulation_evidence_proved: false,
-      authorization_eligible: false,
-      authorization_proved: false,
-      reference_only: true,
-    });
+      // This call validates and commits a locally branded intent. Do not broadly
+      // translate failures here: an unrelated runtime/intrinsic failure is not an
+      // intent-validation result and must preserve its original provenance.
+      const committedIntent = commitWalletGuardIntent(input.intent);
 
-    let result;
-    if (policyResult.decision === 'INDETERMINATE') {
-      result = Object.freeze({
-        ...common,
-        portable_preflight_produced: false,
-        pom_rx_receipt: null,
-        pom_rx_receipt_hash: null,
+      let policyResult;
+      try {
+        // Simulation evidence is deliberately not accepted at this boundary yet.
+        // The current reference preflight evaluates the exact policy with not_run.
+        policyResult = evaluateWalletGuardPolicy(
+          input.intent,
+          input.policy,
+          Object.freeze({ status: 'not_run' }),
+        );
+      } catch (error) {
+        if (error instanceof WalletGuardPolicyError) {
+          fail('POMRX_WG_PREFLIGHT_E_POLICY', 'Wallet Guard policy evaluation failed');
+        }
+        throw error;
+      }
+
+      const clockSample = sampleTrustedClock(options.trustedClock, lastClockSampleMs);
+      // A successfully accepted trusted-clock sample becomes part of this
+      // builder's temporal history immediately. Later construction failures must
+      // not allow a subsequent call to move behind an already observed instant.
+      lastClockSampleMs = clockSample.getTime();
+      const occurredAt = clockSample.toISOString();
+      const inputCommitment = sha256Hex(
+        `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
+      );
+      const actionCommitment = committedIntent.intent_commitment;
+      const methodHash = commitWalletGuardMethod(input.intent.rpc_method);
+      const committedDecision = commitDecision({
+        input,
+        intent: input.intent,
+        policyResult,
+        intentCommitment: actionCommitment,
+        occurredAt,
       });
-    } else {
-      const forwardableResult = policyResult.decision === 'ALLOW' ? 'pass' : 'fail';
-      const assertions = Object.freeze([
-        makeAssertion('wallet-guard-determinate', 'pass', committedDecision.decision_commitment),
-        makeAssertion(
-          'wallet-guard-forwardable',
-          forwardableResult,
-          committedDecision.decision_commitment,
-        ),
-      ]);
 
-      const receipt = Object.freeze({
-        schema_version: POM_RX_SCHEMA_VERSION,
-        receipt_id: input.evidenceId,
+      const common = Object.freeze({
+        schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
+        evidence_id: input.evidenceId,
         run_id: input.runId,
-        phase: 'preflight',
-        outcome: policyResult.decision === 'ALLOW' ? 'allow' : 'deny',
-        agent_ref: common.agent_ref,
-        subject_ref: common.subject_ref,
-        method_hash: methodHash,
-        policy_hash: policyResult.policy_hash,
+        request_id: input.intent.request_id,
+        agent_ref: input.agentRef.normalize('NFC'),
+        subject_ref: input.subjectRef.normalize('NFC'),
+        source_key_id: input.sourceKeyId,
+        occurred_at: occurredAt,
+        wallet_guard_decision: policyResult.decision,
+        wallet_guard_reasons: committedDecision.reasons,
+        decision_commitment: committedDecision.decision_commitment,
         input_commitment: inputCommitment,
         action_commitment: actionCommitment,
-        assertions,
-        previous_receipt_hash: null,
-        occurred_at: occurredAt,
-        source_key_id: input.sourceKeyId,
+        policy_hash: policyResult.policy_hash,
+        policy_id: policyResult.policy_id,
+        normalized_input_only: true,
+        raw_request_proved: false,
+        trusted_clock_sampled: true,
+        production_trusted_time_proved: false,
+        simulation_evidence_proved: false,
+        authorization_eligible: false,
+        authorization_proved: false,
+        reference_only: true,
       });
 
-      // The receipt is entirely constructed by this module. Do not catch all
-      // TypeErrors from the shared receipt path: a programming/runtime failure
-      // must not be mislabeled as expected preflight rejection.
-      const committedReceipt = commitPomRxReceipt(receipt);
-      result = Object.freeze({
-        ...common,
-        portable_preflight_produced: true,
-        pom_rx_receipt: deepFreeze(committedReceipt.receipt),
-        pom_rx_receipt_hash: committedReceipt.receiptHash,
-      });
+      let result;
+      if (policyResult.decision === 'INDETERMINATE') {
+        result = Object.freeze({
+          ...common,
+          portable_preflight_produced: false,
+          pom_rx_receipt: null,
+          pom_rx_receipt_hash: null,
+        });
+      } else {
+        const forwardableResult = policyResult.decision === 'ALLOW' ? 'pass' : 'fail';
+        const assertions = Object.freeze([
+          makeAssertion('wallet-guard-determinate', 'pass', committedDecision.decision_commitment),
+          makeAssertion(
+            'wallet-guard-forwardable',
+            forwardableResult,
+            committedDecision.decision_commitment,
+          ),
+        ]);
+
+        const receipt = Object.freeze({
+          schema_version: POM_RX_SCHEMA_VERSION,
+          receipt_id: input.evidenceId,
+          run_id: input.runId,
+          phase: 'preflight',
+          outcome: policyResult.decision === 'ALLOW' ? 'allow' : 'deny',
+          agent_ref: common.agent_ref,
+          subject_ref: common.subject_ref,
+          method_hash: methodHash,
+          policy_hash: policyResult.policy_hash,
+          input_commitment: inputCommitment,
+          action_commitment: actionCommitment,
+          assertions,
+          previous_receipt_hash: null,
+          occurred_at: occurredAt,
+          source_key_id: input.sourceKeyId,
+        });
+
+        // The receipt is entirely constructed by this module. Do not catch all
+        // TypeErrors from the shared receipt path: a programming/runtime failure
+        // must not be mislabeled as expected preflight rejection.
+        const committedReceipt = commitPomRxReceipt(receipt);
+        result = Object.freeze({
+          ...common,
+          portable_preflight_produced: true,
+          pom_rx_receipt: deepFreeze(committedReceipt.receipt),
+          pom_rx_receipt_hash: committedReceipt.receiptHash,
+        });
+      }
+
+      usedEvidenceIds.add(input.evidenceId);
+      usedRunIds.add(input.runId);
+      return result;
+    } finally {
+      buildInProgress = false;
     }
-
-    usedEvidenceIds.add(input.evidenceId);
-    usedRunIds.add(input.runId);
-    return result;
   }
 
   return Object.freeze({ build });
