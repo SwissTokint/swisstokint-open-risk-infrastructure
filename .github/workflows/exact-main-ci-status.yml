@@ -177,6 +177,7 @@ jobs:
               'context': context,
           })
           status_path = f'repos/{repository}/statuses/{sha}'
+          status_url = f'https://api.github.com/{status_path}'
 
           result = subprocess.run(
               ['gh', 'api', '--method', 'POST', status_path, '--input', '-'],
@@ -190,17 +191,14 @@ jobs:
               raise SystemExit('commit-status publication failed')
 
           body = json.loads(result.stdout)
-          # The request path binds the write to the exact SHA. GitHub's response
-          # identifies the created status by a numeric status resource ID, not by
-          # repeating the SHA in `url` or in a separate response field.
+          # GitHub binds the write to the exact SHA in the request path. The
+          # documented 201 response repeats that SHA-addressed URL and also
+          # carries a separate numeric status id; it does not expose `sha`.
           status_id = body.get('id')
           if type(status_id) is not int or status_id < 1:
               raise SystemExit('commit-status API response returned an invalid status id')
-          expected_status_url = (
-              f'https://api.github.com/repos/{repository}/statuses/{status_id}'
-          )
-          if body.get('url') != expected_status_url:
-              raise SystemExit('commit-status API response changed the status resource')
+          if body.get('url') != status_url:
+              raise SystemExit('commit-status API response was not bound to exact head resource')
           if body.get('context') != context:
               raise SystemExit('commit-status API response changed the status context')
           if body.get('state') != state:
