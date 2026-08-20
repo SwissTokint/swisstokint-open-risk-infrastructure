@@ -124,14 +124,18 @@ function snapshotPlainData(value, depth = 0, budget = { remaining: MAX_SNAPSHOT_
 }
 
 function normalizeCandidate(policy) {
-  let normalized;
   try {
-    normalized = normalizeWalletGuardPolicy(snapshotPlainData(policy));
+    return normalizeWalletGuardPolicy(snapshotPlainData(policy));
   } catch (error) {
     if (error instanceof WalletGuardPolicyStateError) throw error;
     fail('POMRX_WG_POLICY_STATE_E_INVALID', 'Wallet Guard policy candidate is invalid');
   }
-  return normalized;
+}
+
+function normalizeSimulationInput(simulation) {
+  if (simulation === undefined) return Object.freeze({ status: 'not_run' });
+  const captured = captureExactDataObject(simulation, ['status'], 'simulation evidence');
+  return Object.freeze({ status: captured.status });
 }
 
 function commitPolicy(policy) {
@@ -157,7 +161,15 @@ function assertRevision(value, label) {
   }
 }
 
+function nextRevision(currentRevision) {
+  if (currentRevision >= Number.MAX_SAFE_INTEGER) {
+    fail('POMRX_WG_POLICY_STATE_E_REVISION_EXHAUSTED', 'policy-state revision space is exhausted');
+  }
+  return currentRevision + 1;
+}
+
 function makeSnapshot(policy, revision) {
+  assertRevision(revision, 'revision');
   const policyHash = commitPolicy(policy);
   return Object.freeze({
     schema_version: WALLET_GUARD_POLICY_STATE_SCHEMA_VERSION,
@@ -173,7 +185,8 @@ function makeSnapshot(policy, revision) {
     kill_switch: policy.kill_switch,
     policy,
     reference_only: true,
-    process_local_atomicity: true,
+    controller_instance_synchronous_atomicity: true,
+    process_wide_policy_state_proved: false,
     durable_policy_state_proved: false,
     remote_operator_authorization_proved: false,
   });
@@ -201,7 +214,7 @@ export function createWalletGuardReferencePolicyController(options) {
       fail('POMRX_WG_POLICY_STATE_E_IDENTITY', 'policy_id cannot change inside one controller');
     }
 
-    current = makeSnapshot(nextPolicy, current.revision + 1);
+    current = makeSnapshot(nextPolicy, nextRevision(current.revision));
     return current;
   }
 
@@ -217,13 +230,14 @@ export function createWalletGuardReferencePolicyController(options) {
       ...current.policy,
       kill_switch: true,
     });
-    current = makeSnapshot(nextPolicy, current.revision + 1);
+    current = makeSnapshot(nextPolicy, nextRevision(current.revision));
     return current;
   }
 
-  function evaluate(intent, simulation = { status: 'not_run' }) {
+  function evaluate(intent, simulation) {
     const snapshot = current;
-    const result = evaluateWalletGuardPolicy(intent, snapshot.policy, simulation);
+    const simulationSnapshot = normalizeSimulationInput(simulation);
+    const result = evaluateWalletGuardPolicy(intent, snapshot.policy, simulationSnapshot);
     if (result.policy_hash !== snapshot.policy_hash) {
       fail('POMRX_WG_POLICY_STATE_E_INTERNAL', 'policy evaluation hash diverged from controller snapshot');
     }
