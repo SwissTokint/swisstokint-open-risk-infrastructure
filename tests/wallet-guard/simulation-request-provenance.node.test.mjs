@@ -172,16 +172,24 @@ test('JSON-string typed-data request commitment binds exact captured text', asyn
   const typedData = {
     types: {
       EIP712Domain: [],
-      CustomMessage: [{ name: 'partA', type: 'string' }],
+      CustomMessage: [
+        { name: 'partA', type: 'string' },
+        { name: 'partB', type: 'string' },
+      ],
     },
     primaryType: 'CustomMessage',
     domain: {},
-    message: { partA: 'a'.repeat(2_200) },
+    message: {
+      partA: 'a'.repeat(1_200),
+      partB: 'b'.repeat(1_200),
+    },
   };
   const compactJson = JSON.stringify(typedData);
   const spacedJson = JSON.stringify(typedData, null, 1);
   assert.ok(compactJson.length > 2_048);
   assert.ok(spacedJson.length > 2_048);
+  assert.ok(compactJson.length < 16 * 1_024);
+  assert.ok(spacedJson.length < 16 * 1_024);
   assert.notEqual(compactJson, spacedJson);
 
   const commitments = [];
@@ -193,6 +201,7 @@ test('JSON-string typed-data request commitment binds exact captured text', asyn
     const intent = normalize(request, requestId);
     const runtime = createWalletGuardReferenceSimulationHarness({
       simulateRequest: async (simulatorInput) => {
+        assert.equal(simulatorInput.request.params[1], rawJson);
         commitments.push(simulatorInput.request_commitment);
         return unavailableResult(simulatorInput);
       },
