@@ -144,7 +144,7 @@ function expectEffectCode(error, code) {
   return true;
 }
 
-test('native transfer emits known request semantics bound to the exact local intent', () => {
+test('native transfer emits known request fields bound to the exact local intent without target-code overclaim', () => {
   const intent = normalize(sendTransaction('0x', { to: RECIPIENT, value: '0x64' }));
   const evidence = deriveWalletGuardDecodedEffectEvidence(intent);
 
@@ -156,7 +156,8 @@ test('native transfer emits known request semantics bound to the exact local int
   assert.equal(evidence.recipient, RECIPIENT);
   assert.equal(evidence.native_value, '100');
   assert.equal(evidence.recognized_effect_fields_proved, true);
-  assert.equal(evidence.complete_semantic_projection_proved, true);
+  assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
   assert.equal(evidence.normalized_intent_bound, true);
   assert.equal(evidence.external_state_proved, false);
   assert.equal(evidence.external_effect_proved, false);
@@ -165,7 +166,7 @@ test('native transfer emits known request semantics bound to the exact local int
   assert.equal(Object.isFrozen(evidence), true);
 });
 
-test('ERC-20 transfer preserves both decoded token amount and independent native value', () => {
+test('ERC-20 transfer preserves decoded fields and independent native value without proving target bytecode semantics', () => {
   const data = `0xa9059cbb${addressWord(RECIPIENT)}${uintWord(250)}`;
   const intent = normalize(sendTransaction(data, { value: '0x7' }));
   const evidence = deriveWalletGuardDecodedEffectEvidence(intent);
@@ -175,7 +176,8 @@ test('ERC-20 transfer preserves both decoded token amount and independent native
   assert.equal(evidence.recipient, RECIPIENT);
   assert.equal(evidence.token_amount, '250');
   assert.equal(evidence.native_value, '7');
-  assert.equal(evidence.complete_semantic_projection_proved, true);
+  assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
   assert.equal(evidence.simulation_required, true);
 });
 
@@ -188,11 +190,12 @@ test('ERC-20 approval evidence preserves exact spender and max allowance without
   assert.equal(evidence.spender, SPENDER);
   assert.equal(evidence.requested_allowance, MAX_UINT256_DECIMAL);
   assert.equal(evidence.recognized_effect_fields_proved, true);
-  assert.equal(evidence.complete_semantic_projection_proved, true);
+  assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
   assert.equal(evidence.external_effect_proved, false);
 });
 
-test('operator approval true and false remain exact requested semantics', () => {
+test('operator approval true and false remain exact requested field projections', () => {
   const enabledData = `0xa22cb465${addressWord(OPERATOR)}${boolWord(true)}`;
   const disabledData = `0xa22cb465${addressWord(OPERATOR)}${boolWord(false)}`;
   const enabled = deriveWalletGuardDecodedEffectEvidence(normalize(sendTransaction(enabledData), 'wg-effect-request-0002'));
@@ -200,10 +203,12 @@ test('operator approval true and false remain exact requested semantics', () => 
 
   assert.equal(enabled.semantic_class, 'operator_approval_request');
   assert.equal(enabled.requested_operator_approval, true);
-  assert.equal(enabled.complete_semantic_projection_proved, true);
+  assert.equal(enabled.complete_semantic_projection_proved, false);
+  assert.equal(enabled.target_code_semantics_proved, false);
   assert.equal(disabled.semantic_class, 'operator_approval_request');
   assert.equal(disabled.requested_operator_approval, false);
-  assert.equal(disabled.complete_semantic_projection_proved, true);
+  assert.equal(disabled.complete_semantic_projection_proved, false);
+  assert.equal(disabled.target_code_semantics_proved, false);
   assert.notEqual(enabled.effect_commitment, disabled.effect_commitment);
 });
 
@@ -220,6 +225,7 @@ test('EIP-2612 Permit is represented as requested signature authorization, not e
   assert.equal(evidence.requested_allowance, '50');
   assert.equal(evidence.recognized_effect_fields_proved, true);
   assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
   assert.equal(evidence.external_effect_proved, false);
 });
 
@@ -235,6 +241,7 @@ test('Permit2 preserves token target separately from Permit2 verifying contract'
   assert.equal(evidence.requested_allowance, '100');
   assert.equal(evidence.recognized_effect_fields_proved, true);
   assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
 });
 
 test('unknown calldata remains explicit unknown semantics and retains opaque calldata identity', () => {
@@ -246,6 +253,7 @@ test('unknown calldata remains explicit unknown semantics and retains opaque cal
   assert.equal(evidence.semantic_class, 'unknown_request_semantics');
   assert.equal(evidence.recognized_effect_fields_proved, false);
   assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
   assert.match(evidence.calldata_sha256, /^[a-f0-9]{64}$/u);
   assert.equal(evidence.external_effect_proved, false);
 });
@@ -278,6 +286,7 @@ test('unknown typed data cannot inherit Permit semantics merely from a verifying
   assert.equal(evidence.requested_allowance, null);
   assert.equal(evidence.recognized_effect_fields_proved, false);
   assert.equal(evidence.complete_semantic_projection_proved, false);
+  assert.equal(evidence.target_code_semantics_proved, false);
 });
 
 test('generic signatures and unsupported RPC calls stay unknown and non-effect-proving', () => {
@@ -293,9 +302,11 @@ test('generic signatures and unsupported RPC calls stay unknown and non-effect-p
   assert.equal(signature.request_class, 'generic_signature');
   assert.equal(signature.semantic_status, 'unknown');
   assert.equal(signature.recognized_effect_fields_proved, false);
+  assert.equal(signature.target_code_semantics_proved, false);
   assert.equal(unsupported.request_class, 'unsupported_rpc');
   assert.equal(unsupported.semantic_status, 'unknown');
   assert.equal(unsupported.recognized_effect_fields_proved, false);
+  assert.equal(unsupported.target_code_semantics_proved, false);
   assert.equal(signature.external_effect_proved, false);
   assert.equal(unsupported.external_effect_proved, false);
 });
