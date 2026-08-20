@@ -150,7 +150,7 @@ test('prepared binding is a frozen defensive snapshot independent from caller mu
 
   assert.equal(prepared.binding.run_id, originalRunId);
   assert.equal(prepared.binding.action_commitment, hash('3'));
-  assert.equal(Object.getPrototypeOf(prepared.binding), null);
+  assert.equal(Object.getPrototypeOf(prepared.binding), Object.prototype);
   assert.equal(Object.isFrozen(prepared.binding), true);
   assert.equal(Object.isFrozen(prepared.evidence), true);
 });
@@ -163,5 +163,6 @@ test('null-prototype plain data remains accepted at the boundary', () => {
   });
 
   assert.equal(prepared.binding.run_id, 'run-reference-0001');
+  assert.equal(Object.getPrototypeOf(prepared.binding), Object.prototype);
   assert.match(prepared.evidence.authorization_commitment, /^[a-f0-9]{64}$/u);
 });
