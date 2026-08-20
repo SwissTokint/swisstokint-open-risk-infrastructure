@@ -24,16 +24,16 @@ const RULE_EVIDENCE_DOMAIN = 'swisstokint:pom-rx-wallet-guard-preflight-rule-evi
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{15,127}$/u;
 const SOURCE_KEY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
-const INPUT_KEYS = Object.freeze([
+const BUILD_KEYS = Object.freeze([
   'intent',
   'policy',
-  'receiptId',
+  'evidenceId',
   'runId',
   'agentRef',
   'subjectRef',
-  'occurredAt',
   'sourceKeyId',
 ]);
+const BOOTSTRAP_KEYS = Object.freeze(['trustedClock']);
 const MAX_DEPTH = 8;
 const MAX_NODES = 1_000;
 const MAX_STRING = 16_384;
@@ -58,30 +58,30 @@ function asciiCompare(left, right) {
   return 0;
 }
 
-function captureExactInput(value) {
+function captureExactObject(value, expectedKeys, label, code = 'POMRX_WG_PREFLIGHT_E_INVALID') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'preflight evidence input must be an object');
+    fail(code, `${label} must be an object`);
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'preflight evidence input must be a plain object');
+    fail(code, `${label} must be a plain object`);
   }
   if (Object.getOwnPropertySymbols(value).length !== 0) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'preflight evidence input cannot contain symbol keys');
+    fail(code, `${label} cannot contain symbol keys`);
   }
 
   const keys = Object.keys(value).sort(asciiCompare);
-  const expected = [...INPUT_KEYS].sort(asciiCompare);
+  const expected = [...expectedKeys].sort(asciiCompare);
   if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'preflight evidence input has missing or unknown fields');
+    fail(code, `${label} has missing or unknown fields`);
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const captured = Object.create(null);
-  for (const key of INPUT_KEYS) {
+  for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
-      fail('POMRX_WG_PREFLIGHT_E_INVALID', `preflight evidence input ${key} cannot be an accessor`);
+      fail(code, `${label} ${key} cannot be an accessor`);
     }
     captured[key] = descriptor.value;
   }
@@ -148,18 +148,35 @@ function clonePlainData(value, depth = 0, budget = { remaining: MAX_NODES }) {
 
 function canonicalUtcInstant(value) {
   if (typeof value !== 'string' || !value.endsWith('Z')) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'occurredAt must be a canonical UTC instant');
+    fail('POMRX_WG_PREFLIGHT_E_TIME_INVALID', 'trusted clock must return a canonical UTC instant');
   }
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
-    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'occurredAt must be a canonical UTC instant');
+    fail('POMRX_WG_PREFLIGHT_E_TIME_INVALID', 'trusted clock must return a canonical UTC instant');
   }
-  return value;
+  return parsed;
+}
+
+function sampleTrustedClock(trustedClock, lastSampleMs) {
+  let value;
+  try {
+    value = trustedClock();
+  } catch {
+    fail('POMRX_WG_PREFLIGHT_E_TIME_INVALID', 'trusted clock failed');
+  }
+  if (value && typeof value === 'object' && typeof value.then === 'function') {
+    fail('POMRX_WG_PREFLIGHT_E_TIME_INVALID', 'trusted clock must be synchronous');
+  }
+  const parsed = canonicalUtcInstant(value);
+  if (lastSampleMs !== null && parsed.getTime() < lastSampleMs) {
+    fail('POMRX_WG_PREFLIGHT_E_TIME_ROLLBACK', 'trusted clock moved backwards');
+  }
+  return parsed;
 }
 
 function validateMetadata(input) {
   for (const [field, value] of [
-    ['receiptId', input.receiptId],
+    ['evidenceId', input.evidenceId],
     ['runId', input.runId],
   ]) {
     if (typeof value !== 'string' || !ID_PATTERN.test(value)) {
@@ -180,7 +197,6 @@ function validateMetadata(input) {
   if (typeof input.sourceKeyId !== 'string' || !SOURCE_KEY_ID_PATTERN.test(input.sourceKeyId)) {
     fail('POMRX_WG_PREFLIGHT_E_INVALID', 'sourceKeyId has an invalid format');
   }
-  canonicalUtcInstant(input.occurredAt);
 }
 
 function deepFreeze(value) {
@@ -208,11 +224,17 @@ function makeAssertion(ruleId, result, decisionCommitment) {
   });
 }
 
-function commitDecision(intent, policyResult, intentCommitment) {
+function commitDecision({ input, intent, policyResult, intentCommitment, occurredAt }) {
   const reasons = Object.freeze([...policyResult.reasons].sort(asciiCompare));
   const payload = Object.freeze({
     schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
+    evidence_id: input.evidenceId,
+    run_id: input.runId,
     request_id: intent.request_id,
+    agent_ref: input.agentRef.normalize('NFC'),
+    subject_ref: input.subjectRef.normalize('NFC'),
+    source_key_id: input.sourceKeyId,
+    occurred_at: occurredAt,
     decision: policyResult.decision,
     reasons,
     policy_id: policyResult.policy_id,
@@ -226,98 +248,145 @@ function commitDecision(intent, policyResult, intentCommitment) {
   });
 }
 
-export function buildWalletGuardPreflightEvidence(rawInput) {
-  const input = captureExactInput(rawInput);
-  validateMetadata(input);
-
-  if (!isLocallyNormalizedWalletGuardIntent(input.intent)) {
-    fail('POMRX_WG_PREFLIGHT_E_INTENT', 'preflight evidence requires the exact locally normalized intent object');
-  }
-
-  let committedIntent;
-  try {
-    committedIntent = commitWalletGuardIntent(input.intent);
-  } catch {
-    fail('POMRX_WG_PREFLIGHT_E_INTENT', 'Wallet Guard intent commitment failed');
-  }
-
-  const policy = clonePlainData(input.policy);
-  let policyResult;
-  try {
-    // Simulation evidence is deliberately not accepted at this boundary yet.
-    // Until the separately reviewed simulation-evidence layer is merged and
-    // composed here, preflight always evaluates simulation as not_run.
-    policyResult = evaluateWalletGuardPolicy(input.intent, policy, { status: 'not_run' });
-  } catch {
-    fail('POMRX_WG_PREFLIGHT_E_POLICY', 'Wallet Guard policy evaluation failed');
-  }
-
-  const inputCommitment = sha256Hex(
-    `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
+export function createWalletGuardPreflightEvidenceBuilder(rawOptions) {
+  const options = captureExactObject(
+    rawOptions,
+    BOOTSTRAP_KEYS,
+    'preflight evidence bootstrap',
   );
-  const actionCommitment = committedIntent.intent_commitment;
-  const methodHash = sha256Hex(`${METHOD_COMMIT_DOMAIN}${input.intent.rpc_method}`);
-  const committedDecision = commitDecision(input.intent, policyResult, actionCommitment);
+  if (typeof options.trustedClock !== 'function') {
+    fail('POMRX_WG_PREFLIGHT_E_INVALID', 'trustedClock must be a function');
+  }
 
-  const common = {
-    schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
-    wallet_guard_decision: policyResult.decision,
-    wallet_guard_reasons: committedDecision.reasons,
-    decision_commitment: committedDecision.decision_commitment,
-    input_commitment: inputCommitment,
-    action_commitment: actionCommitment,
-    policy_hash: policyResult.policy_hash,
-    policy_id: policyResult.policy_id,
-    simulation_evidence_proved: false,
-    authorization_eligible: false,
-    authorization_proved: false,
-    reference_only: true,
-  };
+  const usedEvidenceIds = new Set();
+  const usedRunIds = new Set();
+  let lastClockSampleMs = null;
 
-  if (policyResult.decision === 'INDETERMINATE') {
-    return Object.freeze({
-      ...common,
-      portable_preflight_produced: false,
-      pom_rx_receipt: null,
-      pom_rx_receipt_hash: null,
+  function build(rawInput) {
+    const input = captureExactObject(rawInput, BUILD_KEYS, 'preflight evidence input');
+    validateMetadata(input);
+
+    if (usedEvidenceIds.has(input.evidenceId)) {
+      fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'evidenceId was already used by this builder');
+    }
+    if (usedRunIds.has(input.runId)) {
+      fail('POMRX_WG_PREFLIGHT_E_REPLAY', 'runId was already used by this builder');
+    }
+
+    if (!isLocallyNormalizedWalletGuardIntent(input.intent)) {
+      fail('POMRX_WG_PREFLIGHT_E_INTENT', 'preflight evidence requires the exact locally normalized intent object');
+    }
+
+    let committedIntent;
+    try {
+      committedIntent = commitWalletGuardIntent(input.intent);
+    } catch {
+      fail('POMRX_WG_PREFLIGHT_E_INTENT', 'Wallet Guard intent commitment failed');
+    }
+
+    const policy = clonePlainData(input.policy);
+    let policyResult;
+    try {
+      // Simulation evidence is deliberately not accepted at this boundary yet.
+      // Until the separately reviewed simulation-evidence layer is merged and
+      // composed here, preflight always evaluates simulation as not_run.
+      policyResult = evaluateWalletGuardPolicy(input.intent, policy, { status: 'not_run' });
+    } catch {
+      fail('POMRX_WG_PREFLIGHT_E_POLICY', 'Wallet Guard policy evaluation failed');
+    }
+
+    const clockSample = sampleTrustedClock(options.trustedClock, lastClockSampleMs);
+    const occurredAt = clockSample.toISOString();
+    const inputCommitment = sha256Hex(
+      `${INPUT_COMMIT_DOMAIN}${committedIntent.canonical_intent}`,
+    );
+    const actionCommitment = committedIntent.intent_commitment;
+    const methodHash = sha256Hex(`${METHOD_COMMIT_DOMAIN}${input.intent.rpc_method}`);
+    const committedDecision = commitDecision({
+      input,
+      intent: input.intent,
+      policyResult,
+      intentCommitment: actionCommitment,
+      occurredAt,
     });
+
+    const common = {
+      schema_version: WALLET_GUARD_PREFLIGHT_EVIDENCE_SCHEMA_VERSION,
+      evidence_id: input.evidenceId,
+      run_id: input.runId,
+      request_id: input.intent.request_id,
+      agent_ref: input.agentRef.normalize('NFC'),
+      subject_ref: input.subjectRef.normalize('NFC'),
+      source_key_id: input.sourceKeyId,
+      occurred_at: occurredAt,
+      wallet_guard_decision: policyResult.decision,
+      wallet_guard_reasons: committedDecision.reasons,
+      decision_commitment: committedDecision.decision_commitment,
+      input_commitment: inputCommitment,
+      action_commitment: actionCommitment,
+      policy_hash: policyResult.policy_hash,
+      policy_id: policyResult.policy_id,
+      trusted_clock_sampled: true,
+      production_trusted_time_proved: false,
+      simulation_evidence_proved: false,
+      authorization_eligible: false,
+      authorization_proved: false,
+      reference_only: true,
+    };
+
+    let result;
+    if (policyResult.decision === 'INDETERMINATE') {
+      result = Object.freeze({
+        ...common,
+        portable_preflight_produced: false,
+        pom_rx_receipt: null,
+        pom_rx_receipt_hash: null,
+      });
+    } else {
+      const forwardableResult = policyResult.decision === 'ALLOW' ? 'pass' : 'fail';
+      const assertions = Object.freeze([
+        makeAssertion('wallet-guard-determinate', 'pass', committedDecision.decision_commitment),
+        makeAssertion('wallet-guard-forwardable', forwardableResult, committedDecision.decision_commitment),
+      ]);
+
+      const receipt = {
+        schema_version: POM_RX_SCHEMA_VERSION,
+        receipt_id: input.evidenceId,
+        run_id: input.runId,
+        phase: 'preflight',
+        outcome: policyResult.decision === 'ALLOW' ? 'allow' : 'deny',
+        agent_ref: common.agent_ref,
+        subject_ref: common.subject_ref,
+        method_hash: methodHash,
+        policy_hash: policyResult.policy_hash,
+        input_commitment: inputCommitment,
+        action_commitment: actionCommitment,
+        assertions,
+        previous_receipt_hash: null,
+        occurred_at: occurredAt,
+        source_key_id: input.sourceKeyId,
+      };
+
+      let committedReceipt;
+      try {
+        committedReceipt = commitPomRxReceipt(receipt);
+      } catch {
+        fail('POMRX_WG_PREFLIGHT_E_RECEIPT', 'portable POM-RX preflight receipt construction failed');
+      }
+
+      result = Object.freeze({
+        ...common,
+        portable_preflight_produced: true,
+        pom_rx_receipt: deepFreeze(committedReceipt.receipt),
+        pom_rx_receipt_hash: committedReceipt.receiptHash,
+      });
+    }
+
+    usedEvidenceIds.add(input.evidenceId);
+    usedRunIds.add(input.runId);
+    lastClockSampleMs = clockSample.getTime();
+    return result;
   }
 
-  const forwardableResult = policyResult.decision === 'ALLOW' ? 'pass' : 'fail';
-  const assertions = Object.freeze([
-    makeAssertion('wallet-guard-determinate', 'pass', committedDecision.decision_commitment),
-    makeAssertion('wallet-guard-forwardable', forwardableResult, committedDecision.decision_commitment),
-  ]);
-
-  const receipt = {
-    schema_version: POM_RX_SCHEMA_VERSION,
-    receipt_id: input.receiptId,
-    run_id: input.runId,
-    phase: 'preflight',
-    outcome: policyResult.decision === 'ALLOW' ? 'allow' : 'deny',
-    agent_ref: input.agentRef.normalize('NFC'),
-    subject_ref: input.subjectRef.normalize('NFC'),
-    method_hash: methodHash,
-    policy_hash: policyResult.policy_hash,
-    input_commitment: inputCommitment,
-    action_commitment: actionCommitment,
-    assertions,
-    previous_receipt_hash: null,
-    occurred_at: input.occurredAt,
-    source_key_id: input.sourceKeyId,
-  };
-
-  let committedReceipt;
-  try {
-    committedReceipt = commitPomRxReceipt(receipt);
-  } catch {
-    fail('POMRX_WG_PREFLIGHT_E_RECEIPT', 'portable POM-RX preflight receipt construction failed');
-  }
-
-  return Object.freeze({
-    ...common,
-    portable_preflight_produced: true,
-    pom_rx_receipt: deepFreeze(committedReceipt.receipt),
-    pom_rx_receipt_hash: committedReceipt.receiptHash,
-  });
+  return Object.freeze({ build });
 }
