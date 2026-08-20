@@ -56,6 +56,30 @@ test('shared canonicalizer rejections are normalized to the ingress diagnostic f
   }
 });
 
+test('unrelated canonicalizer TypeErrors preserve their runtime provenance', () => {
+  const originalNormalize = String.prototype.normalize;
+  String.prototype.normalize = function normalize(form) {
+    if (String(this) === 'method' && form === 'NFKC') {
+      throw new TypeError('canonical-runtime-sentinel');
+    }
+    return originalNormalize.call(this, form);
+  };
+
+  try {
+    assert.throws(
+      () => parseWalletGuardJsonIngress('{"method":"eth_chainId","params":[]}'),
+      (error) => {
+        assert.ok(error instanceof TypeError);
+        assert.equal(error instanceof WalletGuardJsonIngressError, false);
+        assert.equal(error.message, 'canonical-runtime-sentinel');
+        return true;
+      },
+    );
+  } finally {
+    String.prototype.normalize = originalNormalize;
+  }
+});
+
 test('scanner bounds are aligned with the shared canonical payload string bound', () => {
   const acceptedText = 'a'.repeat(2_048);
   const accepted = parseWalletGuardJsonIngress(
