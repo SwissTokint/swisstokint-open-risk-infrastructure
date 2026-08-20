@@ -209,6 +209,9 @@ test('exact-main CI status is bound to the canonical same-repository main push',
   assert.match(gate, /pom-rx\/exact-main-ci/);
   assert.match(gate, /exact merge SHA/i);
   assert.match(gate, /does not retroactively/i);
+  assert.match(gate, /observation\/write interval/i);
+  assert.match(gate, /decision-time revalidation/i);
+  assert.match(gate, /no newer queued or in-progress canonical run visible/i);
 });
 
 test('privileged exact-main status publisher executes no repository or upstream workflow data', () => {
