@@ -30,6 +30,27 @@ const NORMALIZE_KEYS = Object.freeze([
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
 const normalizedIntentBrand = new WeakSet();
 
+// Intent provenance and the transaction-field allowlist are security-critical
+// application-profile state. Capture their collection intrinsics once so later
+// same-realm prototype mutation cannot forge local intent provenance, prevent
+// new intents from being branded, or widen the accepted transaction envelope.
+const REFLECT_APPLY = Reflect.apply;
+const SET_HAS = Set.prototype.has;
+const WEAK_SET_ADD = WeakSet.prototype.add;
+const WEAK_SET_HAS = WeakSet.prototype.has;
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function weakSetAdd(set, value) {
+  REFLECT_APPLY(WEAK_SET_ADD, set, [value]);
+}
+
+function weakSetHas(set, value) {
+  return REFLECT_APPLY(WEAK_SET_HAS, set, [value]);
+}
+
 export const WALLET_GUARD_INTENT_KEYS = Object.freeze([
   'schema_version',
   'request_id',
@@ -112,7 +133,7 @@ function normalizeSendTransaction(request, trustedAccount) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'transaction must be an object');
   }
   for (const key of Object.keys(tx)) {
-    if (!SEND_TX_KEYS.has(key)) {
+    if (!setHas(SEND_TX_KEYS, key)) {
       fail('POMRX_WG_E_REQUEST_INVALID', `unsupported transaction field: ${key}`);
     }
   }
@@ -316,7 +337,7 @@ export function validateWalletGuardIntent(intent) {
 }
 
 export function isLocallyNormalizedWalletGuardIntent(intent) {
-  return normalizedIntentBrand.has(intent);
+  return weakSetHas(normalizedIntentBrand, intent);
 }
 
 export function normalizeWalletGuardIntent(input) {
@@ -370,7 +391,7 @@ export function normalizeWalletGuardIntent(input) {
     simulation_required: action.simulation_required,
   });
   validateWalletGuardIntent(intent);
-  normalizedIntentBrand.add(intent);
+  weakSetAdd(normalizedIntentBrand, intent);
   return intent;
 }
 
