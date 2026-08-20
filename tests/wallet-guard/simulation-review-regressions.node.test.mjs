@@ -54,6 +54,17 @@ function simpleTypedData(value = 'ok') {
   };
 }
 
+function boundaryTypedData(booleanCount) {
+  return {
+    types: {},
+    primaryType: 'CustomMessage',
+    domain: {},
+    message: {
+      flags: Array.from({ length: booleanCount }, () => false),
+    },
+  };
+}
+
 function typedDataJsonWithLiteralCodeUnit(codeUnit) {
   const marker = '__CODE_UNIT__';
   const serialized = JSON.stringify(simpleTypedData(marker));
@@ -163,6 +174,140 @@ test('object-form typed data near the Core byte limit commits without wrapper he
   const evidence = await runtime.simulate({ intent, request });
   assert.equal(callbackCalls, 1);
   assert.equal(evidence.status, 'unavailable');
+});
+
+test('typed-data payload keeps its full 1000-node budget independent of the RPC wrapper', async () => {
+  const typedData = boundaryTypedData(992);
+  const request = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, typedData],
+  };
+  const intent = normalize(request, 'wg-simulation-review-node-headroom-0001');
+  let callbackCalls = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      callbackCalls += 1;
+      assert.equal(input.request.method, 'eth_signTypedData_v4');
+      assert.equal(input.request.params[0], ACCOUNT);
+      assert.equal(input.request.params[1].message.flags.length, 992);
+      assert.equal(Object.isFrozen(input.request), true);
+      assert.equal(Object.isFrozen(input.request.params), true);
+      assert.equal(Object.isFrozen(input.request.params[1]), true);
+      return unavailableResult(input);
+    },
+  });
+
+  const evidence = await runtime.simulate({ intent, request });
+  assert.equal(callbackCalls, 1);
+  assert.equal(evidence.status, 'unavailable');
+
+  const overBudgetRequest = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, boundaryTypedData(995)],
+  };
+  assert.throws(
+    () => normalize(overBudgetRequest, 'wg-simulation-review-node-headroom-0002'),
+    (error) => error?.code === 'POMRX_WG_E_TYPED_DATA_INVALID',
+  );
+});
+
+test('typed-data wrapper capture rejects hostile params without traps, getters or callback execution', async () => {
+  const typedData = simpleTypedData('wrapper-hardening');
+  const cleanRequest = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, typedData],
+  };
+  const intent = normalize(cleanRequest, 'wg-simulation-review-wrapper-hardening-0001');
+  let callbackCalls = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      callbackCalls += 1;
+      return unavailableResult(input);
+    },
+  });
+
+  let proxyTraps = 0;
+  const hostileParamsProxy = new Proxy([ACCOUNT, typedData], {
+    getPrototypeOf() {
+      proxyTraps += 1;
+      return Array.prototype;
+    },
+    ownKeys() {
+      proxyTraps += 1;
+      return ['0', '1', 'length'];
+    },
+    getOwnPropertyDescriptor(target, key) {
+      proxyTraps += 1;
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+    get(target, key, receiver) {
+      proxyTraps += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  await assert.rejects(
+    runtime.simulate({
+      intent,
+      request: {
+        method: 'eth_signTypedData_v4',
+        params: hostileParamsProxy,
+      },
+    }),
+    (error) => error?.code === 'POMRX_WG_SIM_E_REQUEST_INVALID',
+  );
+  assert.equal(proxyTraps, 0);
+  assert.equal(callbackCalls, 0);
+
+  let getterCalls = 0;
+  const accessorParams = [ACCOUNT, typedData];
+  Object.defineProperty(accessorParams, '1', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      getterCalls += 1;
+      return typedData;
+    },
+  });
+  await assert.rejects(
+    runtime.simulate({
+      intent,
+      request: {
+        method: 'eth_signTypedData_v4',
+        params: accessorParams,
+      },
+    }),
+    (error) => error?.code === 'POMRX_WG_SIM_E_REQUEST_INVALID',
+  );
+  assert.equal(getterCalls, 0);
+  assert.equal(callbackCalls, 0);
+
+  const decoratedParams = [ACCOUNT, typedData];
+  decoratedParams[Symbol('hidden')] = true;
+  await assert.rejects(
+    runtime.simulate({
+      intent,
+      request: {
+        method: 'eth_signTypedData_v4',
+        params: decoratedParams,
+      },
+    }),
+    (error) => error?.code === 'POMRX_WG_SIM_E_REQUEST_INVALID',
+  );
+  assert.equal(callbackCalls, 0);
+
+  const hiddenRequest = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, typedData],
+  };
+  Object.defineProperty(hiddenRequest, 'shadow', {
+    enumerable: false,
+    value: true,
+  });
+  await assert.rejects(
+    runtime.simulate({ intent, request: hiddenRequest }),
+    (error) => error?.code === 'POMRX_WG_SIM_E_REQUEST_INVALID',
+  );
+  assert.equal(callbackCalls, 0);
 });
 
 test('foreign same-class decoder failure during replay preserves exact provenance', async () => {
