@@ -177,14 +177,14 @@ test('the explicit identity ceiling preserves revocation headroom', () => {
   assert.deepEqual(lifecycle.admin.snapshot(), latestSnapshot);
 });
 
-test('non-capacity canonical TypeErrors are not mislabeled and leave trust state unchanged', { concurrency: false }, () => {
+test('canonical TypeErrors are never inferred as capacity from their message', { concurrency: false }, () => {
   const lifecycle = makeTrustLifecycle();
   const before = lifecycle.admin.snapshot();
   const originalNormalize = String.prototype.normalize;
 
   try {
     String.prototype.normalize = function injectedCanonicalFailure() {
-      throw new TypeError('injected canonical semantic failure');
+      throw new TypeError('Payload string is too long');
     };
 
     assert.throws(
@@ -196,7 +196,7 @@ test('non-capacity canonical TypeErrors are not mislabeled and leave trust state
       (error) => {
         assert.ok(error instanceof TypeError);
         assert.equal(error instanceof PomRxWitnessTrustError, false);
-        assert.equal(error.message, 'injected canonical semantic failure');
+        assert.equal(error.message, 'Payload string is too long');
         return true;
       },
     );
@@ -207,6 +207,6 @@ test('non-capacity canonical TypeErrors are not mislabeled and leave trust state
   assert.deepEqual(
     lifecycle.admin.snapshot(),
     before,
-    'non-capacity canonical failure must not mutate trust records or revision',
+    'canonical failure must not mutate trust records or revision',
   );
 });
