@@ -1,7 +1,6 @@
 import { types as utilTypes } from 'node:util';
 
 import {
-  PomRxPlainDataError,
   captureReferencePlainData,
 } from '../../../core/reference-data/plain-data-snapshot.mjs';
 
@@ -72,47 +71,45 @@ function isOwnEnumerableDataDescriptor(descriptor) {
     && !Object.hasOwn(descriptor, 'set');
 }
 
-function captureBootstrap(value) {
+function captureExactEnvelope(value, expectedKeys, label, code) {
   if (!value
       || typeof value !== 'object'
       || utilTypes.isProxy(value)
       || Array.isArray(value)) {
-    fail('POMRX_WG_WITNESS_E_INVALID', 'Witness authorization bootstrap must be a non-Proxy plain object');
+    fail(code, `${label} must be a non-Proxy plain object`);
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    fail('POMRX_WG_WITNESS_E_INVALID', 'Witness authorization bootstrap must be a plain object');
+    fail(code, `${label} must be a plain object`);
   }
   if (Object.getOwnPropertySymbols(value).length !== 0) {
-    fail('POMRX_WG_WITNESS_E_INVALID', 'Witness authorization bootstrap cannot contain symbol keys');
+    fail(code, `${label} cannot contain symbol keys`);
   }
   const actual = Object.getOwnPropertyNames(value).sort();
-  const expected = [...BOOTSTRAP_KEYS].sort();
+  const expected = [...expectedKeys].sort();
   if (actual.length !== expected.length
       || actual.some((key, index) => key !== expected[index])) {
-    fail('POMRX_WG_WITNESS_E_INVALID', 'Witness authorization bootstrap has missing, hidden or unknown fields');
+    fail(code, `${label} has missing, hidden or unknown fields`);
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
-  for (const key of BOOTSTRAP_KEYS) {
+  for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
-      fail('POMRX_WG_WITNESS_E_INVALID', `Witness authorization bootstrap.${key} must be an enumerable data property`);
+      fail(code, `${label}.${key} must be an enumerable data property`);
     }
     output[key] = descriptor.value;
   }
   return Object.freeze(output);
 }
 
-function capturePlain(value, label, code) {
-  try {
-    return captureReferencePlainData(value, label);
-  } catch (error) {
-    if (error instanceof PomRxPlainDataError) {
-      fail(code, `${label} must be inert bounded plain data`);
-    }
-    throw error;
-  }
+function captureBootstrap(value) {
+  return captureExactEnvelope(
+    value,
+    BOOTSTRAP_KEYS,
+    'Witness authorization bootstrap',
+    'POMRX_WG_WITNESS_E_INVALID',
+  );
 }
 
 function exactKeys(value, expectedKeys, label, code = 'POMRX_WG_WITNESS_E_INVALID') {
@@ -142,10 +139,9 @@ function canonicalUtcInstant(value, field, code = 'POMRX_WG_WITNESS_E_TIME_INVAL
 }
 
 function normalizeVerificationBinding(value) {
-  const captured = capturePlain(
+  const captured = captureReferencePlainData(
     value,
     'Wallet Guard Witness verification binding',
-    'POMRX_WG_WITNESS_E_INVALID',
   );
   exactKeys(captured, VERIFICATION_BINDING_KEYS, 'Wallet Guard Witness verification binding');
   assertPattern(captured.verification_profile, PROFILE_PATTERN, 'verification_profile');
@@ -164,10 +160,9 @@ function normalizeVerificationBinding(value) {
 }
 
 function normalizeRequestSummary(value) {
-  const captured = capturePlain(
+  const captured = captureReferencePlainData(
     value,
     'Wallet Guard Witness authorization request',
-    'POMRX_WG_WITNESS_E_INVALID',
   );
   exactKeys(captured, REQUEST_SUMMARY_KEYS, 'Wallet Guard Witness authorization request');
   assertPattern(captured.request_id, ID_PATTERN, 'request_id');
@@ -192,25 +187,32 @@ function normalizeRequestSummary(value) {
 }
 
 function captureEvidence(value) {
-  const captured = capturePlain(
+  const envelope = captureExactEnvelope(
     value,
-    'Wallet Guard Witness evidence bundle',
-    'POMRX_WG_WITNESS_E_EVIDENCE',
-  );
-  exactKeys(
-    captured,
     EVIDENCE_KEYS,
     'Wallet Guard Witness evidence bundle',
     'POMRX_WG_WITNESS_E_EVIDENCE',
   );
-  return captured;
+
+  // Preserve the shared Core envelope/acknowledgement budgets exactly. The
+  // fixed two-field Wallet Guard wrapper must not consume either child's depth
+  // or node headroom before Core performs the same bounded capture again.
+  return Object.freeze({
+    sourceEnvelope: captureReferencePlainData(
+      envelope.sourceEnvelope,
+      'Wallet Guard source envelope',
+    ),
+    witnessAcknowledgement: captureReferencePlainData(
+      envelope.witnessAcknowledgement,
+      'Wallet Guard Witness acknowledgement',
+    ),
+  });
 }
 
 function captureVerificationResult(value) {
-  const captured = capturePlain(
+  const captured = captureReferencePlainData(
     value,
     'POM-RX Witness verification result',
-    'POMRX_WG_WITNESS_E_VERIFY',
   );
   if (captured.ok === false) {
     exactKeys(
@@ -244,7 +246,11 @@ function captureVerificationResult(value) {
   for (const field of ['receipt_hash', 'acknowledgement_hash', 'trust_state_hash']) {
     assertPattern(captured[field], HASH_PATTERN, field, 'POMRX_WG_WITNESS_E_VERIFY');
   }
-  canonicalUtcInstant(captured.current_time, 'current_time', 'POMRX_WG_WITNESS_E_VERIFY');
+  const currentTime = canonicalUtcInstant(
+    captured.current_time,
+    'current_time',
+    'POMRX_WG_WITNESS_E_VERIFY',
+  );
   const authorizationValidUntil = canonicalUtcInstant(
     captured.authorization_valid_until,
     'authorization_valid_until',
@@ -256,7 +262,7 @@ function captureVerificationResult(value) {
   if (captured.reference_only !== true || captured.production_trust_proved !== false) {
     fail('POMRX_WG_WITNESS_E_VERIFY', 'POM-RX Witness verification result overclaims trust');
   }
-  return Object.freeze({ result: captured, authorizationValidUntil });
+  return Object.freeze({ result: captured, currentTime, authorizationValidUntil });
 }
 
 function assertReceiptBinding(receipt, summary, issuedAt) {
@@ -290,6 +296,21 @@ function assertReceiptBinding(receipt, summary, issuedAt) {
   assertPattern(receipt.subject_ref, ID_PATTERN, 'subject_ref', 'POMRX_WG_WITNESS_E_BINDING_MISMATCH');
 }
 
+function assertVerifiedEvidenceContinuity(evidence, verified) {
+  const { sourceEnvelope, witnessAcknowledgement } = evidence;
+  const result = verified.result;
+  if (sourceEnvelope.receipt_hash !== result.receipt_hash
+      || witnessAcknowledgement.receipt_hash !== result.receipt_hash
+      || sourceEnvelope.receipt.source_key_id !== result.source_key_id
+      || witnessAcknowledgement.source_key_id !== result.source_key_id
+      || witnessAcknowledgement.witness_key_id !== result.witness_key_id) {
+    fail(
+      'POMRX_WG_WITNESS_E_BINDING_MISMATCH',
+      'Core verification result does not match the captured signed evidence identities',
+    );
+  }
+}
+
 export function createWalletGuardWitnessAuthorizationSupplier(rawOptions) {
   const options = captureBootstrap(rawOptions);
   if (typeof options.verifyAuthorizationCandidate !== 'function'
@@ -312,12 +333,14 @@ export function createWalletGuardWitnessAuthorizationSupplier(rawOptions) {
     );
     const verified = captureVerificationResult(rawVerification);
 
+    assertVerifiedEvidenceContinuity(evidence, verified);
     const receipt = evidence.sourceEnvelope.receipt;
     assertReceiptBinding(receipt, normalized.summary, normalized.issuedAt);
-    if (receipt.source_key_id !== verified.result.source_key_id) {
+    if (verified.currentTime.getTime() < normalized.issuedAt.getTime()
+        || verified.currentTime.getTime() >= normalized.expiresAt.getTime()) {
       fail(
-        'POMRX_WG_WITNESS_E_BINDING_MISMATCH',
-        'verified source identity does not match the signed preflight receipt',
+        'POMRX_WG_WITNESS_E_TIME_INVALID',
+        'Core Witness verification time must be inside the requested capability window',
       );
     }
     if (verified.authorizationValidUntil.getTime() < normalized.expiresAt.getTime()) {
