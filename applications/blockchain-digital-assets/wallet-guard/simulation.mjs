@@ -60,6 +60,38 @@ const EVIDENCE_KEYS = Object.freeze([
   'simulator_callback_return_channel_proved',
 ]);
 
+// Provenance and status registries are load-bearing security state. Capture
+// their collection intrinsics once so later same-realm prototype poisoning
+// cannot forge local evidence, substitute its originating intent, or widen the
+// accepted status vocabulary. As elsewhere in the reference runtime, poisoning
+// before module initialization remains outside this scoped guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const SET_HAS = Set.prototype.has;
+const WEAK_SET_ADD = WeakSet.prototype.add;
+const WEAK_SET_HAS = WeakSet.prototype.has;
+const WEAK_MAP_SET = WeakMap.prototype.set;
+const WEAK_MAP_GET = WeakMap.prototype.get;
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function weakSetAdd(set, value) {
+  REFLECT_APPLY(WEAK_SET_ADD, set, [value]);
+}
+
+function weakSetHas(set, value) {
+  return REFLECT_APPLY(WEAK_SET_HAS, set, [value]);
+}
+
+function weakMapSet(map, key, value) {
+  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function weakMapGet(map, key) {
+  return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
 export class WalletGuardSimulationError extends Error {
   constructor(code, message) {
     super(message);
@@ -208,7 +240,7 @@ function evidencePayload(identity, status, stateCommitment, effectCommitment) {
 }
 
 function makeEvidence(identity, status, stateCommitment = null, effectCommitment = null) {
-  if (!EVIDENCE_STATUSES.has(status)) {
+  if (!setHas(EVIDENCE_STATUSES, status)) {
     fail('POMRX_WG_SIM_E_INTERNAL', 'internal simulation status is invalid');
   }
   const payload = evidencePayload(identity, status, stateCommitment, effectCommitment);
@@ -266,7 +298,7 @@ function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence)
       || actual.some((key, index) => key !== expected[index])) {
     return makeLocalEvidence(identity, 'mismatch');
   }
-  if (typeof result.status !== 'string' || !CALLBACK_STATUSES.has(result.status)) {
+  if (typeof result.status !== 'string' || !setHas(CALLBACK_STATUSES, result.status)) {
     return makeLocalEvidence(identity, 'mismatch');
   }
   if (!identityMatches(result, identity)) {
@@ -301,7 +333,7 @@ function validateLocalEvidence(evidence) {
   }
   if (evidence.schema_version !== WALLET_GUARD_SIMULATION_SCHEMA_VERSION
       || typeof evidence.status !== 'string'
-      || !EVIDENCE_STATUSES.has(evidence.status)
+      || !setHas(EVIDENCE_STATUSES, evidence.status)
       || evidence.reference_only !== true
       || evidence.simulator_callback_trusted_bootstrap_assumed !== true
       || evidence.simulator_truth_proved !== false
@@ -364,13 +396,17 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     effectCommitment = null,
   ) {
     const evidence = makeEvidence(identity, status, stateCommitment, effectCommitment);
-    localEvidenceBrand.add(evidence);
-    localEvidenceIntent.set(evidence, sourceIntent);
+    weakSetAdd(localEvidenceBrand, evidence);
+    weakMapSet(localEvidenceIntent, evidence, sourceIntent);
     return evidence;
   }
 
   function isLocalEvidence(evidence) {
-    return Boolean(evidence && typeof evidence === 'object' && localEvidenceBrand.has(evidence));
+    return Boolean(
+      evidence
+      && typeof evidence === 'object'
+      && weakSetHas(localEvidenceBrand, evidence),
+    );
   }
 
   function toPolicySimulation(intent, evidence) {
@@ -383,7 +419,7 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     }
     requireLocalIntent(intent);
     validateLocalEvidence(evidence);
-    if (localEvidenceIntent.get(evidence) !== intent) {
+    if (weakMapGet(localEvidenceIntent, evidence) !== intent) {
       fail(
         'POMRX_WG_SIM_E_BINDING_MISMATCH',
         'simulation evidence was not produced for this exact normalized intent object',
