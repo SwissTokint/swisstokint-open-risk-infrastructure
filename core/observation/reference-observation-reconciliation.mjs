@@ -31,7 +31,6 @@ const EXPECTED_KEYS = Object.freeze([
   'expected_execution_status',
   'expected_effect_commitment',
 ]);
-
 const OBSERVED_KEYS = Object.freeze([
   'binding_profile',
   'run_id',
@@ -42,7 +41,6 @@ const OBSERVED_KEYS = Object.freeze([
   'executed_at',
   'observed_at',
 ]);
-
 const CAPTURE_KEYS = Object.freeze(['expected', 'observationRef']);
 
 export class PomRxObservationError extends Error {
@@ -55,17 +53,6 @@ export class PomRxObservationError extends Error {
 
 function fail(code, message) {
   throw new PomRxObservationError(code, message);
-}
-
-function exactKeys(value, expected, label, code = 'POMRX_OBS_E_INVALID') {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail(code, `${label} must be an object`);
-  }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    fail(code, `${label} has missing or unknown fields`);
-  }
 }
 
 function snapshotExactReferences(value, expected, label) {
@@ -82,12 +69,15 @@ function snapshotExactReferences(value, expected, label) {
   if (Object.getOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_OBS_E_INVALID', `${label} cannot contain symbol keys`);
   }
+
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const actual = Object.keys(descriptors).sort();
   const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  if (actual.length !== wanted.length
+      || actual.some((key, index) => key !== wanted[index])) {
     fail('POMRX_OBS_E_INVALID', `${label} has missing or unknown fields`);
   }
+
   const snapshot = Object.create(null);
   for (const key of expected) {
     const descriptor = descriptors[key];
@@ -108,6 +98,18 @@ function snapshotPlainData(value, label, errorCode) {
     return captureReferencePlainData(value, label);
   } catch {
     fail(errorCode, `${label} must be inert bounded plain data`);
+  }
+}
+
+function exactKeys(value, expected, label, code = 'POMRX_OBS_E_INVALID') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail(code, `${label} must be an object`);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length
+      || actual.some((key, index) => key !== wanted[index])) {
+    fail(code, `${label} has missing or unknown fields`);
   }
 }
 
@@ -155,10 +157,9 @@ function normalizeExpected(value) {
     );
   }
 
-  let authorizationBinding;
+  const authorizationBinding = value.authorization_binding;
   let committedAuthorization;
   try {
-    authorizationBinding = value.authorization_binding;
     committedAuthorization = commitExactAuthorizationBinding(authorizationBinding);
   } catch {
     fail(
@@ -191,9 +192,11 @@ function normalizeObserved(value, trustedNow) {
     'independent observation',
     'POMRX_OBS_E_OBSERVER_INVALID',
   );
-  if (typeof value.execution_status !== 'string' || !EXECUTION_STATUSES.has(value.execution_status)) {
+  if (typeof value.execution_status !== 'string'
+      || !EXECUTION_STATUSES.has(value.execution_status)) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'execution_status is invalid');
   }
+
   const executedAt = canonicalUtcInstant(
     value.executed_at,
     'executed_at',
@@ -210,6 +213,7 @@ function normalizeObserved(value, trustedNow) {
   if (observedAt.getTime() > trustedNow.getTime()) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'observer reported a future observation');
   }
+
   const effectCommitment = assertHash(
     value.effect_commitment,
     'effect_commitment',
@@ -218,6 +222,7 @@ function normalizeObserved(value, trustedNow) {
   if (value.execution_status !== 'unknown' && effectCommitment === null) {
     fail('POMRX_OBS_E_OBSERVER_INVALID', 'known execution status requires an effect commitment');
   }
+
   return Object.freeze({
     schema_version: POM_RX_REFERENCE_OBSERVATION_VERSION,
     binding_profile: assertProfile(
@@ -247,7 +252,9 @@ function commitObservation(observation) {
   const canonical = canonicalizePayload(observation);
   return Object.freeze({
     canonical_observation: canonical,
-    observation_hash: sha256Hex(`${POM_RX_REFERENCE_OBSERVATION_HASH_DOMAIN}${canonical}`),
+    observation_hash: sha256Hex(
+      `${POM_RX_REFERENCE_OBSERVATION_HASH_DOMAIN}${canonical}`,
+    ),
   });
 }
 
@@ -256,7 +263,9 @@ function classify(expected, observation) {
   if (observation.binding_profile !== expected.binding_profile) {
     reasons.push('POMRX_RECON_MISMATCH_BINDING_PROFILE');
   }
-  if (observation.run_id !== expected.run_id) reasons.push('POMRX_RECON_MISMATCH_RUN');
+  if (observation.run_id !== expected.run_id) {
+    reasons.push('POMRX_RECON_MISMATCH_RUN');
+  }
   if (observation.action_commitment !== expected.action_commitment) {
     reasons.push('POMRX_RECON_MISMATCH_ACTION');
   }
@@ -276,7 +285,6 @@ function classify(expected, observation) {
       && observation.execution_status !== expected.expected_execution_status) {
     reasons.push('POMRX_RECON_MISMATCH_STATUS');
   }
-
   if (expected.expected_effect_commitment !== null
       && observation.execution_status !== 'unknown'
       && observation.effect_commitment !== expected.expected_effect_commitment) {
@@ -320,18 +328,26 @@ function commitReconciliation(expected, observationHash, classification) {
   });
 }
 
+function observerProtocolError(message) {
+  return new PomRxObservationError('POMRX_OBS_E_OBSERVER_INVALID', message);
+}
+
+function observerFailureError(message = 'independent observer failed') {
+  return new PomRxObservationError('POMRX_OBS_E_OBSERVER_FAILED', message);
+}
+
 export function createReferenceObservationReconciliation(options) {
   const bootstrap = snapshotExactReferences(
     options,
     ['trustedClock', 'observeExecution'],
     'observation/reconciliation bootstrap',
   );
-  if (typeof bootstrap.trustedClock !== 'function' || typeof bootstrap.observeExecution !== 'function') {
+  if (typeof bootstrap.trustedClock !== 'function'
+      || typeof bootstrap.observeExecution !== 'function') {
     fail('POMRX_OBS_E_INVALID', 'trustedClock and observeExecution must be functions');
   }
   const trustedClock = bootstrap.trustedClock;
   const observeExecution = bootstrap.observeExecution;
-
   let lastTrustedTimeMs = null;
 
   function sampleTrustedClock() {
@@ -352,67 +368,57 @@ export function createReferenceObservationReconciliation(options) {
   function captureObserverOutput(observationRef) {
     return new Promise((resolve, reject) => {
       let invocationReturned = false;
-      let state = 'pending';
-      let capturedObservation;
-      let terminalError;
+      let settled = false;
+      let terminal = null;
 
       function settleIfReady() {
-        if (!invocationReturned) return;
-        if (state === 'delivered') {
-          resolve(capturedObservation);
-        } else if (state !== 'pending') {
-          reject(terminalError);
+        if (!invocationReturned || settled || terminal === null) return;
+        settled = true;
+        if (terminal.kind === 'delivered') {
+          resolve(terminal.value);
+        } else {
+          reject(terminal.error);
         }
       }
 
-      const deliverObservation = Object.freeze((value) => {
-        if (state !== 'pending') {
-          if (!invocationReturned && state === 'delivered') {
-            state = 'invalid';
-            terminalError = new PomRxObservationError(
-              'POMRX_OBS_E_OBSERVER_INVALID',
-              'independent observer attempted multiple synchronous deliveries',
-            );
+      function setTerminal(next) {
+        if (settled) return false;
+        if (terminal !== null) {
+          if (!invocationReturned) {
+            terminal = {
+              kind: 'error',
+              error: observerProtocolError(
+                'independent observer reported conflicting synchronous terminal outcomes',
+              ),
+            };
           }
           settleIfReady();
           return false;
         }
+        terminal = next;
+        settleIfReady();
+        return true;
+      }
 
+      const deliverObservation = Object.freeze((value) => {
+        let captured;
         try {
-          capturedObservation = snapshotPlainData(
+          captured = snapshotPlainData(
             value,
             'independent observation',
             'POMRX_OBS_E_OBSERVER_INVALID',
           );
-          state = 'delivered';
         } catch (error) {
-          state = 'invalid';
-          terminalError = error;
-        }
-        settleIfReady();
-        return state === 'delivered';
-      });
-
-      const reportObserverFailure = Object.freeze(() => {
-        if (state !== 'pending') {
-          if (!invocationReturned) {
-            state = 'failed';
-            terminalError = new PomRxObservationError(
-              'POMRX_OBS_E_OBSERVER_FAILED',
-              'independent observer failed after attempting delivery',
-            );
-          }
-          settleIfReady();
+          setTerminal({ kind: 'error', error });
           return false;
         }
-        state = 'failed';
-        terminalError = new PomRxObservationError(
-          'POMRX_OBS_E_OBSERVER_FAILED',
-          'independent observer failed',
-        );
-        settleIfReady();
-        return true;
+        return setTerminal({ kind: 'delivered', value: captured });
       });
+
+      const reportObserverFailure = Object.freeze(() => setTerminal({
+        kind: 'error',
+        error: observerFailureError(),
+      }));
 
       let returned;
       try {
@@ -422,23 +428,24 @@ export function createReferenceObservationReconciliation(options) {
           reportObserverFailure,
         );
       } catch {
-        state = 'failed';
-        terminalError = new PomRxObservationError(
-          'POMRX_OBS_E_OBSERVER_FAILED',
-          'independent observer failed',
-        );
+        terminal = {
+          kind: 'error',
+          error: observerFailureError(),
+        };
       }
 
       invocationReturned = true;
       if (returned !== undefined) {
-        if (utilTypes.isPromise(returned)) {
-          Promise.prototype.catch.call(returned, () => {});
-        }
-        state = 'invalid';
-        terminalError = new PomRxObservationError(
-          'POMRX_OBS_E_OBSERVER_INVALID',
-          'independent observer must deliver through the one-shot capture callback and return undefined',
-        );
+        // Deliberately do not inspect returned objects, promises or thenables at all.
+        // Even attaching a rejection handler can consult user-controlled Promise
+        // properties (for example an own `then` getter). Returned values are never
+        // an evidence channel; only the capture callbacks above are.
+        terminal = {
+          kind: 'error',
+          error: observerProtocolError(
+            'independent observer must deliver through the one-shot capture callback and return undefined',
+          ),
+        };
       }
       settleIfReady();
     });
