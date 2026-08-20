@@ -19,7 +19,8 @@ jobs:
       ${{ github.event.workflow_run.event == 'push' &&
           github.event.workflow_run.head_branch == 'main' &&
           github.event.workflow_run.head_repository.full_name == github.repository &&
-          github.event.workflow_run.path == '.github/workflows/ci.yml' }}
+          (github.event.workflow_run.path == '.github/workflows/ci.yml' ||
+           github.event.workflow_run.path == '.github/workflows/ci.yml@main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     env:
@@ -60,7 +61,10 @@ jobs:
               raise SystemExit('invalid repository identity')
           if not re.fullmatch(r'[0-9a-f]{40}', sha):
               raise SystemExit('invalid exact-main head SHA')
-          if workflow_path != '.github/workflows/ci.yml':
+          if workflow_path not in {
+              '.github/workflows/ci.yml',
+              '.github/workflows/ci.yml@main',
+          }:
               raise SystemExit('unexpected upstream workflow path')
           if context != 'pom-rx/exact-main-ci':
               raise SystemExit('unexpected status context')
@@ -90,8 +94,7 @@ jobs:
           # exact SHA and accept this event only if its monotonically increasing
           # (run_number, run_attempt) pair is still the latest. This prevents a
           # delayed publisher for an older successful attempt from overwriting a
-          # newer failure (and clears an old success to pending when a rerun is
-          # actually in progress).
+          # newer result that is already observable at this freshness check.
           list_path = f'repos/{repository}/actions/workflows/ci.yml/runs'
           list_result = subprocess.run(
               [
@@ -120,6 +123,7 @@ jobs:
               raise SystemExit('canonical workflow-run freshness lookup was incomplete')
 
           candidates = []
+          identities = set()
           for item in runs:
               if not isinstance(item, dict):
                   raise SystemExit('malformed canonical workflow-run entry')
@@ -136,6 +140,10 @@ jobs:
               item_attempt = item.get('run_attempt')
               if not all(type(value) is int and value >= 1 for value in (item_id, item_number, item_attempt)):
                   raise SystemExit('freshness lookup returned invalid run identity')
+              identity = (item_number, item_attempt)
+              if identity in identities:
+                  raise SystemExit('freshness lookup returned duplicate run identity')
+              identities.add(identity)
               candidates.append((item_number, item_attempt, item_id, item))
 
           latest_number, latest_attempt, latest_id, latest = max(
