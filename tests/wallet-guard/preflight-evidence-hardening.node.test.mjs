@@ -294,3 +294,64 @@ test('local replay identity memory is bounded and fails closed at capacity', () 
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_CAPACITY'),
   );
 });
+
+test('replay registry ignores later Set.prototype has/add/size poisoning', { concurrency: false }, () => {
+  const originalHas = Object.getOwnPropertyDescriptor(Set.prototype, 'has');
+  const originalAdd = Object.getOwnPropertyDescriptor(Set.prototype, 'add');
+  const originalSize = Object.getOwnPropertyDescriptor(Set.prototype, 'size');
+  const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
+    trustedClock: () => FIXED_TIME,
+  });
+  const intentValue = localIntent();
+
+  Object.defineProperty(Set.prototype, 'has', {
+    configurable: true,
+    writable: true,
+    value() {
+      return false;
+    },
+  });
+  Object.defineProperty(Set.prototype, 'add', {
+    configurable: true,
+    writable: true,
+    value() {
+      return this;
+    },
+  });
+  Object.defineProperty(Set.prototype, 'size', {
+    configurable: true,
+    get() {
+      return 0;
+    },
+  });
+
+  try {
+    const first = input(intentValue);
+    evidenceBuilder.build(first);
+    assert.throws(
+      () => evidenceBuilder.build(first),
+      (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_REPLAY'),
+    );
+
+    for (let index = 1; index < 1_000; index += 1) {
+      const suffix = String(index).padStart(4, '0');
+      evidenceBuilder.build({
+        ...input(intentValue),
+        evidenceId: `evidence_wg_preflight_set_poison_${suffix}`,
+        runId: `run_wg_preflight_set_poison_${suffix}`,
+      });
+    }
+    assert.throws(
+      () => evidenceBuilder.build({
+        ...input(intentValue),
+        evidenceId: 'evidence_wg_preflight_set_poison_overflow',
+        runId: 'run_wg_preflight_set_poison_overflow',
+      }),
+      (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_CAPACITY'),
+    );
+  } finally {
+    Object.defineProperty(Set.prototype, 'has', originalHas);
+    Object.defineProperty(Set.prototype, 'add', originalAdd);
+    Object.defineProperty(Set.prototype, 'size', originalSize);
+  }
+});
