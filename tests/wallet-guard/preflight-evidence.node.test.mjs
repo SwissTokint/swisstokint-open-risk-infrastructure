@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  buildWalletGuardPreflightEvidence,
+  createWalletGuardPreflightEvidenceBuilder,
   WalletGuardPreflightEvidenceError,
 } from '../../applications/blockchain-digital-assets/wallet-guard/preflight-evidence.mjs';
 import {
@@ -18,6 +18,7 @@ const RECIPIENT = `0x${'3'.repeat(40)}`;
 const OTHER = `0x${'8'.repeat(40)}`;
 const ORIGIN = 'https://fixture.wallet-guard.local';
 const CHAIN_ID = '0x1';
+const FIXED_TIME = '2026-08-20T01:00:00.000Z';
 
 function addressWord(address) {
   return `${'0'.repeat(24)}${address.slice(2).toLowerCase()}`;
@@ -84,14 +85,17 @@ function buildInput({
   return {
     intent: intentValue,
     policy: policyValue,
-    receiptId: 'receipt_wg_preflight_0001',
+    evidenceId: 'evidence_wg_preflight_0001',
     runId: 'run_wg_preflight_0001',
     agentRef: 'wallet-guard-reference-agent',
     subjectRef: 'wallet:fixture-account-01',
-    occurredAt: '2026-08-20T01:00:00.000Z',
     sourceKeyId: 'wallet-guard-source-01',
     ...overrides,
   };
+}
+
+function builder(trustedClock = () => FIXED_TIME) {
+  return createWalletGuardPreflightEvidenceBuilder({ trustedClock });
 }
 
 function expectCode(error, code) {
@@ -100,12 +104,20 @@ function expectCode(error, code) {
   return true;
 }
 
-test('ALLOW creates one portable POM-RX preflight receipt bound to the exact intent and policy', () => {
-  const evidence = buildWalletGuardPreflightEvidence(buildInput());
+test('ALLOW creates one portable POM-RX preflight receipt bound to exact intent, policy, run and sampled time', () => {
+  const evidence = builder().build(buildInput());
 
   assert.equal(evidence.wallet_guard_decision, 'ALLOW');
   assert.deepEqual(evidence.wallet_guard_reasons, ['WG_POLICY_ALLOW_EXACT']);
   assert.equal(evidence.portable_preflight_produced, true);
+  assert.equal(evidence.evidence_id, 'evidence_wg_preflight_0001');
+  assert.equal(evidence.run_id, 'run_wg_preflight_0001');
+  assert.equal(evidence.occurred_at, FIXED_TIME);
+  assert.equal(evidence.trusted_clock_sampled, true);
+  assert.equal(evidence.production_trusted_time_proved, false);
+  assert.equal(evidence.pom_rx_receipt.receipt_id, evidence.evidence_id);
+  assert.equal(evidence.pom_rx_receipt.run_id, evidence.run_id);
+  assert.equal(evidence.pom_rx_receipt.occurred_at, FIXED_TIME);
   assert.equal(evidence.pom_rx_receipt.phase, 'preflight');
   assert.equal(evidence.pom_rx_receipt.outcome, 'allow');
   assert.equal(evidence.pom_rx_receipt.action_commitment, evidence.action_commitment);
@@ -123,7 +135,7 @@ test('ALLOW creates one portable POM-RX preflight receipt bound to the exact int
 
 test('deterministic DENY creates a deny receipt with a failed forwardable assertion', () => {
   const deniedIntent = intent(sendTransaction({ to: OTHER, value: '0x1' }));
-  const evidence = buildWalletGuardPreflightEvidence(buildInput({ intentValue: deniedIntent }));
+  const evidence = builder().build(buildInput({ intentValue: deniedIntent }));
 
   assert.equal(evidence.wallet_guard_decision, 'DENY');
   assert.ok(evidence.wallet_guard_reasons.includes('WG_POLICY_DENY_RECIPIENT'));
@@ -139,25 +151,37 @@ test('deterministic DENY creates a deny receipt with a failed forwardable assert
   assert.equal(verified.ok, true, verified.error);
 });
 
-test('INDETERMINATE is never collapsed into a legacy POM-RX deny receipt', () => {
+test('INDETERMINATE stays standalone evidence and is bound to run identity and sampled chronology', () => {
   const transfer = `0xa9059cbb${addressWord(RECIPIENT)}${uintWord(25)}`;
   const transferIntent = intent(sendTransaction({ to: TOKEN, data: transfer }));
-  const evidence = buildWalletGuardPreflightEvidence(buildInput({ intentValue: transferIntent }));
+  const evidence = builder().build(buildInput({ intentValue: transferIntent }));
 
   assert.equal(evidence.wallet_guard_decision, 'INDETERMINATE');
   assert.ok(evidence.wallet_guard_reasons.includes('WG_POLICY_INDETERMINATE_SIMULATION'));
   assert.equal(evidence.portable_preflight_produced, false);
   assert.equal(evidence.pom_rx_receipt, null);
   assert.equal(evidence.pom_rx_receipt_hash, null);
+  assert.equal(evidence.evidence_id, 'evidence_wg_preflight_0001');
+  assert.equal(evidence.run_id, 'run_wg_preflight_0001');
+  assert.equal(evidence.occurred_at, FIXED_TIME);
   assert.equal(evidence.authorization_eligible, false);
   assert.match(evidence.decision_commitment, /^[a-f0-9]{64}$/u);
+
+  const sameDecisionDifferentRun = builder().build(buildInput({
+    intentValue: transferIntent,
+    overrides: {
+      evidenceId: 'evidence_wg_preflight_0002',
+      runId: 'run_wg_preflight_0002',
+    },
+  }));
+  assert.notEqual(evidence.decision_commitment, sameDecisionDifferentRun.decision_commitment);
 });
 
 test('the adapter deliberately cannot accept caller-supplied simulation pass evidence', () => {
   const raw = buildInput();
   raw.simulation = { status: 'pass' };
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(raw),
+    () => builder().build(raw),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INVALID'),
   );
 });
@@ -167,27 +191,41 @@ test('structural intent clones cannot inherit local normalization provenance', (
   const clone = { ...localIntent };
 
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(buildInput({ intentValue: clone })),
+    () => builder().build(buildInput({ intentValue: clone })),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INTENT'),
   );
 });
 
-test('top-level accessors are rejected without executing getter bodies', () => {
-  let reads = 0;
+test('top-level input and bootstrap accessors are rejected without executing getter bodies', () => {
+  let inputReads = 0;
   const raw = buildInput();
   Object.defineProperty(raw, 'policy', {
     enumerable: true,
     get() {
-      reads += 1;
+      inputReads += 1;
       return policy();
     },
   });
-
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(raw),
+    () => builder().build(raw),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INVALID'),
   );
-  assert.equal(reads, 0);
+  assert.equal(inputReads, 0);
+
+  let clockReads = 0;
+  const options = {};
+  Object.defineProperty(options, 'trustedClock', {
+    enumerable: true,
+    get() {
+      clockReads += 1;
+      return () => FIXED_TIME;
+    },
+  });
+  assert.throws(
+    () => createWalletGuardPreflightEvidenceBuilder(options),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INVALID'),
+  );
+  assert.equal(clockReads, 0);
 });
 
 test('nested policy accessors are rejected without executing getter bodies', () => {
@@ -202,17 +240,79 @@ test('nested policy accessors are rejected without executing getter bodies', () 
   });
 
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(buildInput({ policyValue })),
+    () => builder().build(buildInput({ policyValue })),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_POLICY'),
   );
   assert.equal(reads, 0);
 });
 
-test('same exact inputs produce deterministic decision and receipt commitments', () => {
+test('one builder rejects local evidence-id and run-id replay for determinate and indeterminate records', () => {
+  const evidenceBuilder = builder();
+  evidenceBuilder.build(buildInput());
+
+  assert.throws(
+    () => evidenceBuilder.build(buildInput({
+      overrides: { runId: 'run_wg_preflight_0002' },
+    })),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_REPLAY'),
+  );
+  assert.throws(
+    () => evidenceBuilder.build(buildInput({
+      overrides: { evidenceId: 'evidence_wg_preflight_0002' },
+    })),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_REPLAY'),
+  );
+
+  const transfer = `0xa9059cbb${addressWord(RECIPIENT)}${uintWord(25)}`;
+  const secondBuilder = builder();
+  secondBuilder.build(buildInput({ intentValue: intent(sendTransaction({ to: TOKEN, data: transfer })) }));
+  assert.throws(
+    () => secondBuilder.build(buildInput({
+      intentValue: intent(sendTransaction({ value: '0x2' }), 'wg-preflight-request-0002'),
+      overrides: {
+        evidenceId: 'evidence_wg_preflight_0002',
+        runId: 'run_wg_preflight_0001',
+      },
+    })),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_REPLAY'),
+  );
+});
+
+test('trusted clock is synchronous, canonical and non-decreasing per builder', () => {
+  const values = [
+    '2026-08-20T01:00:01.000Z',
+    '2026-08-20T01:00:00.000Z',
+  ];
+  let index = 0;
+  const evidenceBuilder = builder(() => values[Math.min(index++, values.length - 1)]);
+  evidenceBuilder.build(buildInput());
+
+  assert.throws(
+    () => evidenceBuilder.build(buildInput({
+      intentValue: intent(sendTransaction({ value: '0x2' }), 'wg-preflight-request-0002'),
+      overrides: {
+        evidenceId: 'evidence_wg_preflight_0002',
+        runId: 'run_wg_preflight_0002',
+      },
+    })),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_TIME_ROLLBACK'),
+  );
+
+  assert.throws(
+    () => builder(() => Promise.resolve(FIXED_TIME)).build(buildInput()),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_TIME_INVALID'),
+  );
+  assert.throws(
+    () => builder(() => '2026-08-20T01:00:00+00:00').build(buildInput()),
+    (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_TIME_INVALID'),
+  );
+});
+
+test('same exact inputs and trusted time produce deterministic decision and receipt commitments across builders', () => {
   const intentValue = intent(sendTransaction({ value: '0x7' }));
   const input = buildInput({ intentValue });
-  const first = buildWalletGuardPreflightEvidence(input);
-  const second = buildWalletGuardPreflightEvidence(input);
+  const first = builder().build(input);
+  const second = builder().build(input);
 
   assert.equal(first.decision_commitment, second.decision_commitment);
   assert.equal(first.input_commitment, second.input_commitment);
@@ -221,7 +321,7 @@ test('same exact inputs produce deterministic decision and receipt commitments',
 });
 
 test('portable receipt metadata is normalized and frozen', () => {
-  const evidence = buildWalletGuardPreflightEvidence(buildInput({
+  const evidence = builder().build(buildInput({
     overrides: {
       agentRef: 'wallet-guard-ag\u0065nt',
       subjectRef: 'wallet:fixture-subj\u0065ct',
@@ -236,13 +336,13 @@ test('portable receipt metadata is normalized and frozen', () => {
 
 test('malformed metadata fails in the preflight diagnostic family', () => {
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(buildInput({
-      overrides: { occurredAt: '2026-08-20T01:00:00+00:00' },
+    () => builder().build(buildInput({
+      overrides: { evidenceId: 'short' },
     })),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INVALID'),
   );
   assert.throws(
-    () => buildWalletGuardPreflightEvidence(buildInput({
+    () => builder().build(buildInput({
       overrides: { sourceKeyId: 'bad key id' },
     })),
     (error) => expectCode(error, 'POMRX_WG_PREFLIGHT_E_INVALID'),
