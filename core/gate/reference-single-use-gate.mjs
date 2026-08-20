@@ -70,6 +70,44 @@ function snapshotExactReferences(value, expectedKeys, label) {
   return Object.freeze(snapshot);
 }
 
+function snapshotObservedRecord(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || utilTypes.isProxy(value)) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer record must be plain data');
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer record cannot contain symbol keys');
+  }
+
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Object.keys(descriptors).sort();
+  const expected = [...OBSERVED_KEYS].sort();
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
+  }
+
+  const snapshot = Object.create(null);
+  for (const key of OBSERVED_KEYS) {
+    const descriptor = descriptors[key];
+    if (!descriptor
+      || descriptor.enumerable !== true
+      || typeof descriptor.get === 'function'
+      || typeof descriptor.set === 'function'
+      || !Object.hasOwn(descriptor, 'value')) {
+      throw gateError(
+        'POMRX_GATE_E_OBSERVER_FAILED',
+        'Trusted binding observer fields must be enumerable data properties',
+      );
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
+}
+
 function canonicalClockInstant(value) {
   if (typeof value !== 'string' || !value.endsWith('Z')) {
     throw gateError('POMRX_GATE_E_TIME_INVALID', 'Trusted clock returned an invalid instant');
@@ -95,24 +133,7 @@ function sampleTrustedClock(trustedClock) {
 }
 
 function validateObservedBinding(value) {
-  let snapshot;
-  try {
-    snapshot = captureReferencePlainData(value, 'trusted Gate observer result');
-  } catch {
-    throw gateError(
-      'POMRX_GATE_E_OBSERVER_FAILED',
-      'Trusted binding observer returned non-inert or out-of-bounds data',
-    );
-  }
-
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
-  }
-  const actual = Object.keys(snapshot).sort();
-  const expected = [...OBSERVED_KEYS].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
-    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
-  }
+  const snapshot = snapshotObservedRecord(value);
   if (typeof snapshot.binding_profile !== 'string'
     || !PROFILE_PATTERN.test(snapshot.binding_profile)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid profile');
@@ -122,11 +143,28 @@ function validateObservedBinding(value) {
       throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
     }
   }
+
+  let preparedExecution;
+  try {
+    // Preserve the historical Gate budget exactly: prepared_execution is the
+    // root of the bounded data contract. The fixed observer envelope must not
+    // consume prepared depth or node budget.
+    preparedExecution = captureReferencePlainData(
+      snapshot.prepared_execution,
+      'trusted Gate prepared execution',
+    );
+  } catch {
+    throw gateError(
+      'POMRX_GATE_E_OBSERVER_FAILED',
+      'Trusted binding observer returned non-inert or out-of-bounds prepared data',
+    );
+  }
+
   return Object.freeze({
     binding_profile: snapshot.binding_profile,
     action_commitment: snapshot.action_commitment,
     context_commitment: snapshot.context_commitment,
-    prepared_execution: snapshot.prepared_execution,
+    prepared_execution: preparedExecution,
   });
 }
 
@@ -247,8 +285,8 @@ export function createReferenceSingleUseGateHarness(options) {
     try {
       // The observer is a trusted async bootstrap dependency. JavaScript resolves
       // its return channel before this boundary. Once a value is resolved, Core
-      // immediately captures it as detached bounded inert data before any binding
-      // field is read or any prepared value can reach downstream.
+      // captures the fixed record through data descriptors, then captures
+      // prepared_execution as its own bounded root before semantic forwarding.
       observed = validateObservedBinding(await observeBinding(executionAttempt));
     } catch (error) {
       rejectCapability(capability);
