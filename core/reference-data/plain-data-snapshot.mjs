@@ -44,8 +44,7 @@ function captureArray(value, label, depth, budget) {
     fail('POMRX_DATA_E_SYMBOL', `${label} cannot contain symbol keys`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const lengthDescriptor = descriptors.length;
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
   if (!lengthDescriptor || typeof lengthDescriptor.get === 'function'
       || typeof lengthDescriptor.set === 'function'
       || !Number.isSafeInteger(lengthDescriptor.value)
@@ -55,11 +54,16 @@ function captureArray(value, label, depth, budget) {
   }
 
   const length = lengthDescriptor.value;
+  if (length > budget.remaining) {
+    fail('POMRX_DATA_E_NODES', `${label} exceeds the remaining node budget`);
+  }
+
   const ownNames = Object.getOwnPropertyNames(value);
   if (ownNames.length !== length + 1 || !ownNames.includes('length')) {
     fail('POMRX_DATA_E_ARRAY', `${label} must be a dense undecorated array`);
   }
 
+  const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = [];
   for (let index = 0; index < length; index += 1) {
     const key = String(index);
@@ -86,9 +90,14 @@ function captureObject(value, label, depth, budget) {
     fail('POMRX_DATA_E_SYMBOL', `${label} cannot contain symbol keys`);
   }
 
+  const ownNames = Object.getOwnPropertyNames(value);
+  if (ownNames.length > budget.remaining) {
+    fail('POMRX_DATA_E_NODES', `${label} exceeds the remaining node budget`);
+  }
+
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
-  for (const key of Object.getOwnPropertyNames(value)) {
+  for (const key of ownNames) {
     if (key.length > REFERENCE_PLAIN_DATA_LIMITS.max_key_length
         || !SAFE_KEY_PATTERN.test(key)
         || FORBIDDEN_KEYS.has(key)) {
