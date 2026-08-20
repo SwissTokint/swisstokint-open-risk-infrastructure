@@ -1,5 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const gatePath =
@@ -12,6 +22,119 @@ const exactMainStatusWorkflowPath =
 const gate = readFileSync(gatePath, 'utf8');
 const policy = readFileSync(policyPath, 'utf8');
 const exactMainStatusWorkflow = readFileSync(exactMainStatusWorkflowPath, 'utf8');
+
+function extractPublisherPython() {
+  const match = exactMainStatusWorkflow.match(
+    /python3 - <<'PY'\n([\s\S]*?)\n          PY/,
+  );
+  assert.ok(match, 'publisher Python block must remain extractable for behavioral tests');
+  return match[1]
+    .split('\n')
+    .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+    .join('\n');
+}
+
+const publisherPython = extractPublisherPython();
+const repository = 'SwissTokint/swisstokint-open-risk-infrastructure';
+const headSha = '0123456789abcdef0123456789abcdef01234567';
+
+function workflowRun({
+  id,
+  runNumber,
+  runAttempt,
+  status,
+  conclusion,
+}) {
+  return {
+    id,
+    run_number: runNumber,
+    run_attempt: runAttempt,
+    status,
+    conclusion,
+    event: 'push',
+    head_branch: 'main',
+    head_sha: headSha,
+    head_repository: { full_name: repository },
+    html_url: `https://github.com/${repository}/actions/runs/${id}`,
+  };
+}
+
+function runPublisher({ eventRun, listing }) {
+  const temp = mkdtempSync(join(tmpdir(), 'pom-rx-exact-main-status-'));
+  const ghPath = join(temp, 'gh');
+  const postLog = join(temp, 'post.jsonl');
+  const fakeGh = `#!/usr/bin/env python3
+import json
+import os
+import sys
+
+args = sys.argv[1:]
+if len(args) < 4 or args[0] != 'api' or args[1] != '--method':
+    raise SystemExit(90)
+method = args[2]
+path = args[3]
+if method == 'GET':
+    expected = {
+        'branch=main',
+        'event=push',
+        'head_sha=' + os.environ['HEAD_SHA'],
+        'per_page=100',
+    }
+    if not expected.issubset(set(args)):
+        raise SystemExit(91)
+    if path != 'repos/' + os.environ['HEAD_REPOSITORY'] + '/actions/workflows/ci.yml/runs':
+        raise SystemExit(92)
+    sys.stdout.write(os.environ['FAKE_GH_LISTING'])
+elif method == 'POST':
+    expected_path = 'repos/' + os.environ['HEAD_REPOSITORY'] + '/statuses/' + os.environ['HEAD_SHA']
+    if path != expected_path:
+        raise SystemExit(93)
+    payload = json.load(sys.stdin)
+    with open(os.environ['FAKE_GH_POST_LOG'], 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps(payload, sort_keys=True) + '\\n')
+    sys.stdout.write(json.dumps({
+        'url': 'https://api.github.com/' + path,
+        'context': payload['context'],
+        'state': payload['state'],
+        'target_url': payload['target_url'],
+    }))
+else:
+    raise SystemExit(94)
+`;
+  writeFileSync(ghPath, fakeGh, 'utf8');
+  chmodSync(ghPath, 0o755);
+
+  const result = spawnSync('python3', ['-c', publisherPython], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      PATH: `${temp}:${process.env.PATH ?? ''}`,
+      HEAD_SHA: headSha,
+      HEAD_REPOSITORY: repository,
+      UPSTREAM_WORKFLOW_PATH: '.github/workflows/ci.yml',
+      RUN_ID: String(eventRun.id),
+      RUN_NUMBER: String(eventRun.run_number),
+      RUN_ATTEMPT: String(eventRun.run_attempt),
+      RUN_STATUS: eventRun.status,
+      RUN_CONCLUSION: eventRun.conclusion ?? '',
+      RUN_URL: eventRun.html_url,
+      STATUS_CONTEXT: 'pom-rx/exact-main-ci',
+      GH_TOKEN: 'synthetic-test-token',
+      FAKE_GH_LISTING: JSON.stringify(listing),
+      FAKE_GH_POST_LOG: postLog,
+    },
+  });
+
+  const posts = existsSync(postLog)
+    ? readFileSync(postLog, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+    : [];
+  rmSync(temp, { recursive: true, force: true });
+  return { result, posts };
+}
 
 test('post-merge assurance includes all mandatory control families', () => {
   for (const required of [
@@ -44,10 +167,10 @@ test('Prime automation policy requires post-merge assurance after every non-triv
   assert.match(policy, /must not be used as trusted\s+evidence/i);
 });
 
-test('exact-main CI status is bound to the completed canonical same-repository main push', () => {
+test('exact-main CI status is bound to the canonical same-repository main push', () => {
   assert.match(exactMainStatusWorkflow, /workflow_run:/);
   assert.match(exactMainStatusWorkflow, /workflows:\s*\["CI"\]/);
-  assert.match(exactMainStatusWorkflow, /types:\s*\[completed\]/);
+  assert.match(exactMainStatusWorkflow, /types:\s*\[in_progress, completed\]/);
   assert.match(
     exactMainStatusWorkflow,
     /github\.event\.workflow_run\.event == 'push'/,
@@ -64,15 +187,18 @@ test('exact-main CI status is bound to the completed canonical same-repository m
     exactMainStatusWorkflow,
     /github\.event\.workflow_run\.path == '\.github\/workflows\/ci\.yml'/,
   );
-  assert.match(
-    exactMainStatusWorkflow,
+  for (const binding of [
     /HEAD_SHA:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
-  );
-  assert.match(
-    exactMainStatusWorkflow,
+    /RUN_ID:\s*\$\{\{ github\.event\.workflow_run\.id \}\}/,
+    /RUN_NUMBER:\s*\$\{\{ github\.event\.workflow_run\.run_number \}\}/,
+    /RUN_ATTEMPT:\s*\$\{\{ github\.event\.workflow_run\.run_attempt \}\}/,
+    /RUN_STATUS:\s*\$\{\{ github\.event\.workflow_run\.status \}\}/,
     /UPSTREAM_WORKFLOW_PATH:\s*\$\{\{ github\.event\.workflow_run\.path \}\}/,
-  );
+  ]) {
+    assert.match(exactMainStatusWorkflow, binding);
+  }
   assert.match(exactMainStatusWorkflow, /STATUS_CONTEXT:\s*pom-rx\/exact-main-ci/);
+  assert.match(exactMainStatusWorkflow, /state = 'pending'/);
   assert.match(
     exactMainStatusWorkflow,
     /state = 'success' if conclusion == 'success' else 'failure'/,
@@ -84,8 +210,12 @@ test('exact-main CI status is bound to the completed canonical same-repository m
   assert.match(gate, /does not retroactively/i);
 });
 
-test('privileged exact-main status publisher never executes repository or upstream workflow data', () => {
-  assert.match(exactMainStatusWorkflow, /permissions:\n  statuses: write\n/);
+test('privileged exact-main status publisher executes no repository or upstream workflow data', () => {
+  assert.match(
+    exactMainStatusWorkflow,
+    /permissions:\n  actions: read\n  statuses: write\n/,
+  );
+  assert.doesNotMatch(exactMainStatusWorkflow, /actions:\s*write/);
   assert.doesNotMatch(exactMainStatusWorkflow, /contents:\s*write/);
   assert.doesNotMatch(exactMainStatusWorkflow, /pull_request_target/);
   assert.doesNotMatch(exactMainStatusWorkflow, /^\s*uses:/m);
@@ -102,13 +232,134 @@ test('privileged exact-main status publisher never executes repository or upstre
   );
   assert.match(runBlock, /re\.fullmatch\(r'\[0-9a-f\]\{40\}'/);
   assert.match(runBlock, /workflow_path != '\.github\/workflows\/ci\.yml'/);
-  assert.match(
-    runBlock,
-    /expected_run_prefix = f'https:\/\/github\.com\/\{repository\}\/actions\/runs\/'/,
-  );
-  assert.match(runBlock, /run_id\.isascii\(\).*run_id\.isdigit\(\)/s);
+  assert.match(runBlock, /actions\/workflows\/ci\.yml\/runs/);
+  assert.match(runBlock, /'head_sha=' \+ sha|'head_sha=\{sha\}'|f'head_sha=\{sha\}'/);
+  assert.match(runBlock, /total_count > 100/);
+  assert.match(runBlock, /key=lambda entry: \(entry\[0\], entry\[1\]\)/);
+  assert.match(runBlock, /stale exact-main workflow_run event ignored/);
   assert.match(runBlock, /body\.get\('url'\) != status_url/);
   assert.match(runBlock, /body\.get\('context'\) != context/);
   assert.match(runBlock, /body\.get\('state'\) != state/);
   assert.match(runBlock, /body\.get\('target_url'\) != run_url/);
 });
+
+test(
+  'latest exact-main completion publishes its exact successful status',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: 1, workflow_runs: [current] },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].state, 'success');
+    assert.equal(posts[0].target_url, current.html_url);
+  },
+);
+
+test(
+  'older successful run cannot overwrite a newer failed run on the same SHA',
+  { skip: process.platform === 'win32' },
+  () => {
+    const older = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const newer = workflowRun({
+      id: 201,
+      runNumber: 41,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'failure',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: older,
+      listing: { total_count: 2, workflow_runs: [older, newer] },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /stale exact-main workflow_run event ignored/);
+    assert.deepEqual(posts, []);
+  },
+);
+
+test(
+  'older successful attempt cannot overwrite a newer failed rerun attempt',
+  { skip: process.platform === 'win32' },
+  () => {
+    const olderAttempt = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const latestAttempt = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 2,
+      status: 'completed',
+      conclusion: 'failure',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: olderAttempt,
+      listing: { total_count: 1, workflow_runs: [latestAttempt] },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /stale exact-main workflow_run event ignored/);
+    assert.deepEqual(posts, []);
+  },
+);
+
+test(
+  'latest rerun in progress clears any prior success to pending',
+  { skip: process.platform === 'win32' },
+  () => {
+    const latestAttempt = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 2,
+      status: 'in_progress',
+      conclusion: null,
+    });
+    const { result, posts } = runPublisher({
+      eventRun: latestAttempt,
+      listing: { total_count: 1, workflow_runs: [latestAttempt] },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0].state, 'pending');
+    assert.equal(posts[0].target_url, latestAttempt.html_url);
+  },
+);
+
+test(
+  'publisher fails closed when exact-SHA run multiplicity exceeds one bounded page',
+  { skip: process.platform === 'win32' },
+  () => {
+    const current = workflowRun({
+      id: 200,
+      runNumber: 40,
+      runAttempt: 1,
+      status: 'completed',
+      conclusion: 'success',
+    });
+    const { result, posts } = runPublisher({
+      eventRun: current,
+      listing: { total_count: 101, workflow_runs: [current] },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /too many exact-SHA workflow runs/);
+    assert.deepEqual(posts, []);
+  },
+);
