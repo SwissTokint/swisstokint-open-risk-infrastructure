@@ -19,13 +19,6 @@ const KNOWN_CLASSES = new Map([
   ['permit2_single', 'permit_authorization_request'],
 ]);
 
-const COMPLETE_PROJECTION_CLASSES = new Set([
-  'native_transfer',
-  'erc20_transfer',
-  'erc20_approve',
-  'set_approval_for_all',
-]);
-
 export class WalletGuardDecodedEffectError extends Error {
   constructor(code, message) {
     super(message);
@@ -167,7 +160,8 @@ export function deriveWalletGuardDecodedEffectEvidence(intent) {
     typed_data_sha256: intent.typed_data_sha256,
     simulation_required: intent.simulation_required,
     recognized_effect_fields_proved: semanticStatus === 'known',
-    complete_semantic_projection_proved: COMPLETE_PROJECTION_CLASSES.has(intent.request_class),
+    complete_semantic_projection_proved: false,
+    target_code_semantics_proved: false,
     normalized_intent_bound: true,
     external_state_proved: false,
     external_effect_proved: false,
