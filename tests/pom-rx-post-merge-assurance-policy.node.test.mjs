@@ -44,7 +44,7 @@ test('Prime automation policy requires post-merge assurance after every non-triv
   assert.match(policy, /must not be used as trusted\s+evidence/i);
 });
 
-test('exact-main CI status is bound to the completed same-repository main push', () => {
+test('exact-main CI status is bound to the completed canonical same-repository main push', () => {
   assert.match(exactMainStatusWorkflow, /workflow_run:/);
   assert.match(exactMainStatusWorkflow, /workflows:\s*\["CI"\]/);
   assert.match(exactMainStatusWorkflow, /types:\s*\[completed\]/);
@@ -62,7 +62,15 @@ test('exact-main CI status is bound to the completed same-repository main push',
   );
   assert.match(
     exactMainStatusWorkflow,
+    /github\.event\.workflow_run\.path == '\.github\/workflows\/ci\.yml'/,
+  );
+  assert.match(
+    exactMainStatusWorkflow,
     /HEAD_SHA:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
+  );
+  assert.match(
+    exactMainStatusWorkflow,
+    /UPSTREAM_WORKFLOW_PATH:\s*\$\{\{ github\.event\.workflow_run\.path \}\}/,
   );
   assert.match(exactMainStatusWorkflow, /STATUS_CONTEXT:\s*pom-rx\/exact-main-ci/);
   assert.match(
@@ -93,6 +101,7 @@ test('privileged exact-main status publisher never executes repository or upstre
     'workflow-run values must reach the script only through validated environment variables',
   );
   assert.match(runBlock, /re\.fullmatch\(r'\[0-9a-f\]\{40\}'/);
+  assert.match(runBlock, /workflow_path != '\.github\/workflows\/ci\.yml'/);
   assert.match(
     runBlock,
     /expected_run_prefix = f'https:\/\/github\.com\/\{repository\}\/actions\/runs\/'/,
