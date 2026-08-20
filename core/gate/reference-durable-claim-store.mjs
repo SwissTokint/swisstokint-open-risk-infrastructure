@@ -298,17 +298,18 @@ export function createReferenceDurableClaimStore(options) {
   async function trustedRoot() {
     if (!trustedRootPromise) {
       trustedRootPromise = (async () => {
-        try {
-          await mkdir(configuredRoot, { recursive: true, mode: 0o700 });
-        } catch {
-          fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be created');
-        }
         let stat;
         let resolved;
         try {
           stat = await lstat(configuredRoot);
           resolved = await realpath(configuredRoot);
-        } catch {
+        } catch (error) {
+          if (error?.code === 'ENOENT') {
+            fail(
+              'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+              'durable claim root must be pre-existing and durably provisioned',
+            );
+          }
           fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be inspected');
         }
         const currentUid = typeof process.getuid === 'function' ? process.getuid() : null;
@@ -324,6 +325,12 @@ export function createReferenceDurableClaimStore(options) {
             'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
           );
         }
+
+        // The store never creates its own root. The deployment must provision it
+        // durably before bootstrap. Synchronizing the direct parent here also
+        // persists the already-present root directory entry under the supported
+        // local-filesystem model before any capability claim can report success.
+        await fsyncDirectory(path.dirname(configuredRoot));
         return resolved;
       })();
     }
