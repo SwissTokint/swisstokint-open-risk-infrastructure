@@ -27,6 +27,14 @@ The untrusted-facing Gate handle exposes consumption only. Reference issuance/st
 
 The local reference Gate uses fake/test downstream adapters only. A production Gate remains blocked by source/witness enrollment and revocation, trusted production time, production issuer integration and, outside one process, durable atomic consumption.
 
+## Reference durable claim store
+
+`reference-durable-claim-store.mjs` adds a deliberately narrow filesystem-backed reference primitive for the first part of that last requirement: durable **at-most-once capability claiming** across multiple processes that share one trusted local filesystem directory.
+
+The capability identifier itself is the atomic replay key. Claiming uses an exclusive capability directory creation, so the same capability cannot be reclaimed with either the same or a substituted authorization commitment. Claim metadata and the optional success/error terminal marker are written exclusively and fsynced. A crash after the atomic directory claim intentionally leaves a tombstone; incomplete or corrupt persisted state remains fail-closed instead of being removed or re-armed automatically.
+
+This primitive is **not integrated into the reference Gate yet** and does not claim durable Gate consumption by itself. It proves only the local-filesystem claim/terminal state that it persists. In particular it does not prove distributed consensus, network-filesystem atomicity, crash recovery/lease takeover, hostile same-OS-user resistance, production issuer correctness or external execution. Those properties require separate reviewed integration and operational storage semantics before a production Gate claim.
+
 Design and hardening decisions:
 
 - `docs/decisions/COUNCIL_POM_RX_CORE_EXACT_AUTH_GATE.md`
