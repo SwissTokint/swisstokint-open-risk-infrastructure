@@ -70,7 +70,7 @@ function isOwnEnumerableDataDescriptor(descriptor) {
 }
 
 function captureExactDataRecord(value, expectedKeys, label, code) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || utilTypes.isProxy(value)) {
+  if (!value || typeof value !== 'object' || utilTypes.isProxy(value) || Array.isArray(value)) {
     fail(code, `${label} must be a non-Proxy plain object`);
   }
   const prototype = Object.getPrototypeOf(value);
