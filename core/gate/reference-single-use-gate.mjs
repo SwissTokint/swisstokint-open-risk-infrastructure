@@ -143,9 +143,17 @@ function validateObservedBinding(value) {
   });
 }
 
-function assertNotExpired(binding, now) {
-  const expiresAt = new Date(binding.expires_at);
-  if (now.getTime() >= expiresAt.getTime()) {
+function assertCapabilityActive(binding, now) {
+  const nowMs = now.getTime();
+  const issuedAtMs = new Date(binding.issued_at).getTime();
+  const expiresAtMs = new Date(binding.expires_at).getTime();
+  if (nowMs < issuedAtMs) {
+    throw gateError(
+      'POMRX_GATE_E_CAPABILITY_NOT_YET_VALID',
+      'Reference capability is not yet valid',
+    );
+  }
+  if (nowMs >= expiresAtMs) {
     throw gateError('POMRX_GATE_E_CAPABILITY_EXPIRED', 'Reference capability is expired');
   }
 }
@@ -188,6 +196,17 @@ export function createReferenceSingleUseGateHarness(options) {
   // Capability lifecycle is private and bound to this Gate instance. A capability
   // created by another reference Gate cannot be consumed here.
   const capabilityState = new WeakMap();
+  let lastTrustedTimeMs = null;
+
+  function sampleGateClock() {
+    const now = sampleTrustedClock(trustedClock);
+    const nowMs = now.getTime();
+    if (lastTrustedTimeMs !== null && nowMs < lastTrustedTimeMs) {
+      throw gateError('POMRX_GATE_E_TIME_ROLLBACK', 'Trusted clock moved backwards');
+    }
+    lastTrustedTimeMs = nowMs;
+    return now;
+  }
 
   function issueReferenceAuthorizationForTest(bindingInput, { witnessValidUntil } = {}) {
     const capabilityId = `cap-${crypto.randomBytes(16).toString('hex')}`;
@@ -253,8 +272,8 @@ export function createReferenceSingleUseGateHarness(options) {
     }
 
     try {
-      const firstNow = sampleTrustedClock(trustedClock);
-      assertNotExpired(binding, firstNow);
+      const firstNow = sampleGateClock();
+      assertCapabilityActive(binding, firstNow);
     } catch (error) {
       rejectCapability(capability);
       throw normalizeCapabilityError(error);
@@ -275,8 +294,8 @@ export function createReferenceSingleUseGateHarness(options) {
     }
 
     try {
-      const preForwardNow = sampleTrustedClock(trustedClock);
-      assertNotExpired(binding, preForwardNow);
+      const preForwardNow = sampleGateClock();
+      assertCapabilityActive(binding, preForwardNow);
     } catch (error) {
       rejectCapability(capability);
       throw normalizeCapabilityError(error);
