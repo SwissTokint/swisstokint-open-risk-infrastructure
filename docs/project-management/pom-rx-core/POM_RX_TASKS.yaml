@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T11:52:00+02:00",
+  "updated_at": "2026-08-21T11:55:00+02:00",
   "current_main": "6a6ff5c2621e63e007a31b2c55eb2bfde2082d16",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -98,11 +98,12 @@
       "priority": "P0",
       "complexity": "LOW",
       "tier_b": false,
-      "status": "IN_PROGRESS_PRE_PR",
+      "status": "OPEN_AWAITING_EXACT_HEAD_GATES",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
       "branch": "docs/pom-rx-checkpoint-after-99-20260821",
+      "pr": 100,
       "base": "6a6ff5c2621e63e007a31b2c55eb2bfde2082d16",
-      "self_head_policy": "Do not embed this branch's own current commit SHA as authoritative state because updating these files necessarily moves that SHA. Read the live PR head/CI/reviews before every release decision.",
+      "self_head_policy": "Do not embed this branch's own current commit SHA as authoritative state because updating these files necessarily moves that SHA. Read PR #100 live head/CI/reviews before every release decision.",
       "files_owned": [
         "docs/product/POM_RX_CAPABILITY_MAP.md",
         "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -115,7 +116,7 @@
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
       ],
-      "next_gate": "open the scoped docs PR, freeze candidate, obtain exact-head CI, release-owner review and applicable distinct exact-head independent review before merge"
+      "next_gate": "freeze PR #100 candidate, obtain exact-head CI, release-owner review and applicable distinct exact-head independent review before merge"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
