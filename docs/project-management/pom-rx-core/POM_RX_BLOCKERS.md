@@ -117,8 +117,8 @@ PR #93 remains open and untrusted.
   head `c4e40ceb...`;
 - unresolved current/non-outdated P1/P2 review threads remain, including exact
   negative-zero identity, typed-data wrapper normalization, generic-signature
-  exact-value commitments and nested payload capture with saved reflection
-  intrinsics.
+  exact-value commitments, shared proof canonicalization/hash classes and nested
+  payload capture with saved reflection intrinsics.
 
 Moved-head fixes are not current release evidence. PR #93 overlaps shared
 regression/package surfaces with PR #97. Keep it ordered after trusted #97
