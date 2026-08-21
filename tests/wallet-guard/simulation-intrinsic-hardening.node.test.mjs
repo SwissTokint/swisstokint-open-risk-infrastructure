@@ -28,6 +28,32 @@ function rawRequest(value = '0x0') {
   };
 }
 
+function typedDataRequest(value = 'stable') {
+  return {
+    method: 'eth_signTypedData_v4',
+    params: [
+      ACCOUNT,
+      {
+        types: {
+          EIP712Domain: [
+            { name: 'name', type: 'string' },
+            { name: 'version', type: 'string' },
+          ],
+          CustomMessage: [
+            { name: 'value', type: 'string' },
+          ],
+        },
+        primaryType: 'CustomMessage',
+        domain: {
+          name: 'Freeze Test',
+          version: '1',
+        },
+        message: { value },
+      },
+    ],
+  };
+}
+
 function normalize(request, requestId) {
   return normalizeWalletGuardIntent({
     requestId,
@@ -125,4 +151,43 @@ test('foreign WalletGuardSimulationError during evidence minting preserves exact
   }
 
   assert.equal(thrown, foreignError);
+});
+
+test('later Object.freeze replacement cannot leave a mutable typed-data callback request', async () => {
+  const request = typedDataRequest();
+  const intent = normalize(request, 'wg-simulation-intrinsic-0003');
+  let callbackCount = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      callbackCount += 1;
+      assert.equal(Object.isFrozen(input.request), true);
+      assert.equal(Object.isFrozen(input.request.params), true);
+      assert.equal(Object.isFrozen(input.request.params[1]), true);
+      assert.equal(Object.isFrozen(input.request.params[1].message), true);
+      await Promise.resolve();
+      assert.throws(() => {
+        input.request.params[1].message.value = 'mutated';
+      }, TypeError);
+      assert.equal(input.request.params[1].message.value, 'stable');
+      return callbackResult(input);
+    },
+  });
+
+  const originalFreeze = Object.freeze;
+  const retained = [];
+  Object.freeze = (value) => {
+    retained.push(value);
+    return value;
+  };
+
+  let evidence;
+  try {
+    evidence = await runtime.simulate({ intent, request });
+  } finally {
+    Object.freeze = originalFreeze;
+  }
+
+  assert.ok(retained.length > 0);
+  assert.equal(callbackCount, 1);
+  assert.equal(evidence.status, 'pass');
 });
