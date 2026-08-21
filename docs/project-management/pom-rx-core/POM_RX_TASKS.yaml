@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T11:06:20+02:00",
+  "updated_at": "2026-08-21T11:20:00+02:00",
   "current_main": "818718955c9e4136e9e55754a31be2f1c7b610f8",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -85,13 +85,13 @@
       "priority": "P0",
       "complexity": "MEDIUM",
       "tier_b": false,
-      "status": "IN_PROGRESS_REPAIRING_INDEPENDENT_REVIEW_FINDINGS",
+      "status": "AWAITING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
       "branch": "docs/pom-rx-continuity-reconcile-20260821",
       "pr": 98,
       "base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
+      "self_head_policy": "Do not embed this branch's own current commit SHA in this file because updating the file necessarily moves that SHA. Read PR #98 head and exact-head CI/review state from live GitHub before every release decision.",
       "files_owned": [
-        "README.md",
         "core/README.md",
         "docs/product/POM_RX_CAPABILITY_MAP.md",
         "docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md",
@@ -104,11 +104,12 @@
         "Scheduled runner never relies on associated task-chat history as the only project memory.",
         "Current main/open PR/head/CI/blocker state is represented without reviving superseded August 14 blockers.",
         "Active roster uses evidenced responsibility lanes and does not claim unverified Claude/other model approvals.",
-        "Capability and README wording matches capabilities actually merged on trusted main.",
+        "Capability and Core README wording matches capabilities actually merged on trusted main.",
+        "The root public README identity remains unchanged by this control-plane lot.",
         "No protocol/runtime/security semantic is changed."
       ],
-      "known_review_state": "Independent Codex review of earlier exact head 0a9c56a8 found four contract-breaking P1s and one stale-register P2. The current repair keeps contract-checked ownership wording contiguous, restores the explicit full five-stage and post-merge review-family policy text, and removes the already-resolved task-register blocker. A moved head requires new CI and a fresh exact-head independent review before merge.",
-      "next_gate": "finish scoped review repairs, obtain green exact-head CI and a fresh distinct exact-head independent review with no unresolved P0/P1/P2, then merge under standing authorization and run exact-merge post-merge assurance"
+      "known_review_state": "The first independent Codex review on moved head 0a9c56a8 found four contract-breaking P1s and one stale-register P2; those were repaired. A second independent review on moved head a5d5ad found a P2 because this task still described repair work as in progress; this register now records the correct exact-head gate state. Canonical CI on a5d5ad also exposed an unrelated public-identity contract regression caused by the branch's root README rewrite; the README rewrite was reverted byte-for-byte rather than weakening the test. All prior reviews are moved-head historical input only.",
+      "next_gate": "obtain green CI and a fresh distinct independent review on the actual current PR #98 head with no unresolved P0/P1/P2; then complete the exact-head release-owner/five-stage gate, merge under standing authorization, and run exact-merge post-merge assurance"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
