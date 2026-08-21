@@ -8,6 +8,9 @@ import {
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
 import {
+  normalizeWalletGuardPolicy,
+} from './policy.mjs';
+import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
 
@@ -175,7 +178,11 @@ function canonicalAccounts(value) {
 }
 
 function capturePolicy(value) {
-  return captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  // Policy owns a stricter application schema than the generic Core inert-data
+  // snapshot. Normalize at that application boundary instead of converting its
+  // arrays into Core's deliberately detached snapshot representation and then
+  // asking the policy parser to treat those arrays as fresh caller input.
+  return normalizeWalletGuardPolicy(value);
 }
 
 function capturePageRequest(value) {
