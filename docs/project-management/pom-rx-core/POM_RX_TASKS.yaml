@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T23:26:16+02:00",
+  "updated_at": "2026-08-21T23:33:10+02:00",
   "current_main": "5b40135d660366e463f532d4398f179fbff8c006",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -36,9 +36,10 @@
   },
   "active_task": {
     "id": "CONTROL-PLANE-POST-109-CHECKPOINT-20260821",
+    "pr": 110,
     "title": "Reconcile canonical control plane after trusted PR 109",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "IN_PROGRESS_BRANCH_CREATED_PR_NOT_YET_RECORDED",
+    "status": "IN_PROGRESS_EXACT_HEAD_GATING",
     "base_sha": "5b40135d660366e463f532d4398f179fbff8c006",
     "branch": "docs/pom-rx-checkpoint-after-109-20260821",
     "owned_files": [
@@ -82,7 +83,7 @@
         "current exact-head and historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to trusted main 5b40135d660366e463f532d4398f179fbff8c006"
       ],
-      "next_safe_action": "After the current control-plane checkpoint is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR 110 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
