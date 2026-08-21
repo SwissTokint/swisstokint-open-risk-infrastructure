@@ -1,3 +1,5 @@
+import { types as utilTypes } from 'node:util';
+
 import {
   canonicalizePayload,
   sha256Hex,
@@ -40,6 +42,7 @@ const MAX_ACCOUNTS = 64;
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_MAP = Array.prototype.map;
+const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
@@ -290,12 +293,51 @@ function normalizeAccounts(value) {
   return normalized;
 }
 
-async function providerRead(provider, method) {
+function captureProviderReadResult(value, method) {
+  if (!value || typeof value !== 'object') return value;
   try {
-    return await provider.request(Object.freeze({ method, params: Object.freeze([]) }));
+    return captureReferencePlainData(value, `provider ${method} result`);
+  } catch (error) {
+    if (error instanceof PomRxPlainDataError) {
+      fail(
+        'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
+        `provider ${method} returned unsafe context data`,
+      );
+    }
+    throw error;
+  }
+}
+
+function isNativePromise(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROMISE, utilTypes, [value]);
+}
+
+async function providerRead(provider, method) {
+  let directResult;
+  try {
+    directResult = provider.request(Object.freeze({ method, params: Object.freeze([]) }));
   } catch {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', `provider ${method} read failed`);
   }
+
+  // A synchronous provider result must cross the shared inert-data boundary
+  // before this async function can perform Promise/thenable assimilation on it.
+  // util.types.isPromise performs native Promise classification without reading
+  // a result-owned `then` property, so an Array/Object Proxy is rejected by the
+  // shared capture boundary with zero caller trap/getter dispatch. Genuine
+  // Promise transport remains supported; its fulfilled value is captured before
+  // it is returned to the rest of the Wallet Guard pipeline.
+  if (!isNativePromise(directResult)) {
+    return captureProviderReadResult(directResult, method);
+  }
+
+  let resolved;
+  try {
+    resolved = await directResult;
+  } catch {
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', `provider ${method} read failed`);
+  }
+  return captureProviderReadResult(resolved, method);
 }
 
 async function readProviderSnapshot(provider, assertRuntimeIntegrity) {
