@@ -74,19 +74,16 @@ test('canonical payload validation errors are positively branded with stable cod
 });
 
 test('canonicalizer runtime TypeError provenance is not converted by matching message text', () => {
-  const originalNormalize = String.prototype.normalize;
   const sentinel = new TypeError('Payload exceeds the maximum depth');
-  try {
-    String.prototype.normalize = function poisonedNormalize() {
+  const payload = new Proxy({ note: 'safe' }, {
+    ownKeys() {
       throw sentinel;
-    };
-    assert.throws(
-      () => canonicalizePayload({ note: 'safe' }),
-      (error) => error === sentinel && !(error instanceof ProofPayloadValidationError),
-    );
-  } finally {
-    String.prototype.normalize = originalNormalize;
-  }
+    },
+  });
+  assert.throws(
+    () => canonicalizePayload(payload),
+    (error) => error === sentinel && !(error instanceof ProofPayloadValidationError),
+  );
 });
 
 test('transport HMAC is stable for the exact body and timestamp', () => {
