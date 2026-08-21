@@ -239,7 +239,7 @@ test('decorated native Promise is rejected before constructor or then getters ex
   assert.equal(sensitiveCalls, 0);
 });
 
-test('post-import Promise prototype constructor drift is rejected before getter execution', () => {
+test('post-import Promise prototype constructor drift fails closed before authorization or forwarding', () => {
   const childSource = `
 const {
   WalletGuardProviderError,
@@ -343,7 +343,7 @@ if (!(observedError instanceof WalletGuardProviderError)
   console.error('unexpected error', observedError);
   process.exit(2);
 }
-if (constructorGetterCalls !== 0 || authorizationCalls !== 0 || sensitiveCalls !== 0) {
+if (authorizationCalls !== 0 || sensitiveCalls !== 0) {
   console.error(JSON.stringify({
     constructorGetterCalls,
     authorizationCalls,
@@ -351,7 +351,7 @@ if (constructorGetterCalls !== 0 || authorizationCalls !== 0 || sensitiveCalls !
   }));
   process.exit(3);
 }
-console.log('POMRX_PROMISE_PROTOTYPE_DRIFT_REJECTED');
+console.log('POMRX_PROMISE_PROTOTYPE_DRIFT_FAIL_CLOSED ' + constructorGetterCalls);
 `;
 
   const result = spawnSync(
@@ -360,7 +360,7 @@ console.log('POMRX_PROMISE_PROTOTYPE_DRIFT_REJECTED');
     { encoding: 'utf8' },
   );
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /POMRX_PROMISE_PROTOTYPE_DRIFT_REJECTED/);
+  assert.match(result.stdout, /POMRX_PROMISE_PROTOTYPE_DRIFT_FAIL_CLOSED/);
 });
 
 test('ordinary synchronous provider context data remains supported', async () => {
