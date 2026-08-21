@@ -36,6 +36,7 @@
   },
   "active_task": {
     "id": "CONTROL-PLANE-POST-108-CHECKPOINT-20260821",
+    "pr": 109,
     "title": "Reconcile canonical control plane after trusted PR 108",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "IN_PROGRESS_EXACT_HEAD_GATING",
