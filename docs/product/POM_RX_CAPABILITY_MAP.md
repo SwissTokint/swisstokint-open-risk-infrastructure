@@ -81,29 +81,41 @@ atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
-at exact head `37b8e6998f0867f97ef1efcf3dacab50f4097748`, reconciled to exact
+at exact head `639b96e7a64fa101432b3afcc3c08aebfcc838cf`, reconciled to exact
 trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Its canonical exact-head
-CI run `32485543302` / CI run 584 is `failure`, so no earlier green CI or
+CI run `32486243945` / CI run 586 is `failure`, so no earlier green CI or
 release-owner review can be used as current release evidence.
 
-The current exact-head independent finding is P1 `Permit runtime bookkeeping
-symbols on native promises`. The candidate retains the prior direct-result
-hardening: direct non-Promise objects/functions are captured before async
-thenable assimilation; decorated native Promise `constructor`/`then` attacks and
-post-import Promise-prototype drift are intended to fail closed. However the
-current native-Promise transport validator rejects every own symbol on a genuine
-Promise. Under Node's test runner/promise hooks, ordinary native Promises carry
-runtime bookkeeping symbols such as async/trigger IDs, so valid provider reads
-are rejected and canonical CI is red. Those bookkeeping symbols are not the
-result-owned `constructor`/`then` surface consulted by Promise assimilation.
+The previous exact-head independent finding on `37b8e699...`, P1 `Permit runtime
+bookkeeping symbols on native promises`, is historical after the head move. The
+current candidate now keeps ordinary native-Promise transport compatible under
+Node/AsyncHooks bookkeeping symbols in the relevant regression. The current
+exact-head independent finding is instead P1 `Reject Promise drift before
+entering async layers`.
+
+The candidate retains prior direct-result hardening: direct non-Promise
+objects/functions cross the shared inert capture boundary before result-owned
+thenable assimilation, and own native-Promise `constructor`/`then` decoration is
+rejected. It also validates the captured Promise prototype/constructor surface in
+the inner provider transport. However the surrounding provider/context functions
+are themselves async. On exact head `639b96e7...`, the hostile
+post-import-Promise-prototype regression records inherited constructor getter
+execution before the inner rejection reaches its caller; canonical CI is red.
+The fresh independent reviewer further reproduced simultaneous inherited
+`constructor`/`then` poisoning being consulted by outer awaits in
+`readProviderSnapshot`, `sampleStableProviderContext`, `sampleTrustedContext` and
+`request`, producing stable attacker-controlled context, reference authorization
+and sensitive forwarding. This is a current security blocker, not only a
+compatibility/test-shape issue.
 
 PR #97 therefore remains **untrusted and blocked for release** until the
-native-Promise symbol compatibility boundary is repaired narrowly without
-weakening the decorated-Promise, raw Proxy/thenable or Promise-prototype
-hardening; exact-head CI is green; a fresh release-owner review and a fresh
-distinct independent skeptical/security review cover the same final head; and no
-P0/P1/P2 remains unresolved. No capability-map text may treat durable Gate
-composition as merged before exact-merge post-merge assurance PASS.
+Promise-prototype drift boundary is closed before outer async assimilation while
+preserving ordinary native-Promise compatibility, direct Proxy/function capture,
+own `constructor`/`then` decoration rejection and zero authorization/forwarding on
+hostile rejected transports; exact-head CI is green; a fresh release-owner review
+and a fresh distinct independent skeptical/security review cover the same final
+head; and no P0/P1/P2 remains unresolved. No capability-map text may treat
+durable Gate composition as merged before exact-merge post-merge assurance PASS.
 
 Production issuance remains unproved because production-grade source/Witness
 trust, operator authorization and trusted-time infrastructure are incomplete.
@@ -342,7 +354,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `37b8e699...` has exact-head CI failure and independent P1 native-Promise bookkeeping-symbol compatibility blocker; requires narrow repair plus fresh exact-head CI/owner/independent gates and unresolved P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 candidate `639b96e7...` has exact-head CI failure and fresh independent P1 on Promise-prototype drift being consulted by outer async layers before inner transport rejection, with an independent sensitive-forwarding reproducer; requires repair preserving ordinary native-Promise compatibility plus fresh exact-head CI/owner/independent gates and unresolved P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
