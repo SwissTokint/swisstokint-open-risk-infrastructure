@@ -22,8 +22,6 @@ const MAX_CANONICAL_BYTES = 16 * 1024;
 // commitment. Public canonical form, validation limits and normal-environment
 // digest values remain unchanged. Poisoning before module initialization remains
 // outside this reference-runtime guarantee.
-const REFLECT_APPLY = Reflect.apply;
-const REFLECT_GET = Reflect.get;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort.call.bind(Array.prototype.sort);
 const BUFFER_BYTE_LENGTH = Buffer.byteLength;
@@ -36,6 +34,7 @@ const SET_HAS = Set.prototype.has.call.bind(Set.prototype.has);
 const STRING_PROTOTYPE = String.prototype;
 const STRING_CHAR_CODE_AT = STRING_PROTOTYPE.charCodeAt.call.bind(STRING_PROTOTYPE.charCodeAt);
 const STRING_NORMALIZE_INTRINSIC = STRING_PROTOTYPE.normalize;
+const CALL = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC.call);
 const STRING_NORMALIZE = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC);
 const STRING_TO_LOWER_CASE = STRING_PROTOTYPE.toLowerCase.call.bind(STRING_PROTOTYPE.toLowerCase);
 const HASH_PROBE = CRYPTO_CREATE_HASH('sha256');
@@ -55,17 +54,17 @@ function objectEntries(value) {
 }
 
 function normalizeString(value, form) {
-  // Reflect.get against the initialization-time String.prototype with the
-  // original string as receiver is the exact property-lookup shape of
-  // `value.normalize`: an accessor replacement observes the same receiver, and
-  // the property is resolved exactly once. If a post-initialization replacement
-  // is present, invoke that same resolved value for its established side effects
-  // / thrown-error provenance, but discard its return so it cannot rewrite the
-  // canonical commitment. The canonical output always comes from the saved
-  // initialization-time intrinsic below.
-  const liveNormalize = REFLECT_GET(STRING_PROTOTYPE, 'normalize', value);
+  // Resolve the live property exactly as `value.normalize` would: this preserves
+  // the established getter receiver, lookup count and thrown-error provenance.
+  // If a post-initialization replacement is present, invoke that exact value once
+  // with the original primitive receiver for its established side effects, but
+  // discard its return so it cannot rewrite the commitment. The canonical output
+  // always comes from the saved initialization-time intrinsic below. This direct
+  // property lookup intentionally avoids Reflect/Function globals forbidden by
+  // the strict verifier artifact closure.
+  const liveNormalize = value.normalize;
   if (liveNormalize !== STRING_NORMALIZE_INTRINSIC) {
-    REFLECT_APPLY(liveNormalize, value, [form]);
+    CALL(liveNormalize, value, form);
   }
   return STRING_NORMALIZE(value, form);
 }
