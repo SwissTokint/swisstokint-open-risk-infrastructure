@@ -28,6 +28,10 @@ const TYPED_DATA_OBJECT_COMMIT_DOMAIN =
   'swisstokint:pom-rx-wallet-guard-simulation-typed-data-object-exact:v2:';
 const TYPED_DATA_OBJECT_COMMITMENT_SCHEMA =
   'wallet_guard_typed_data_object_commitment/0.2';
+const GENERIC_REQUEST_EXACT_COMMIT_DOMAIN =
+  'swisstokint:pom-rx-wallet-guard-simulation-request-exact:v1:';
+const GENERIC_REQUEST_EXACT_COMMITMENT_SCHEMA =
+  'wallet_guard_simulation_request_exact/0.1';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const CALLBACK_STATUSES = new Set(['pass', 'fail', 'unavailable']);
 const EVIDENCE_STATUSES = new Set(['pass', 'fail', 'unavailable', 'mismatch']);
@@ -67,13 +71,13 @@ const EVIDENCE_KEYS = Object.freeze([
 ]);
 const HEX_NIBBLES = '0123456789abcdef';
 
-// Provenance, status registries, object freezing, exact-text hashing, exact
+// Provenance, status registries, object freezing, exact-value hashing, exact
 // request-wrapper reflection and hash validation are load-bearing security
 // state. Capture their intrinsics once so later same-realm prototype/global
 // mutation cannot forge local evidence, substitute its originating intent,
 // widen status vocabulary, make minted evidence mutable, collapse distinct
-// UTF-16 request text through UTF-8 replacement, collapse exact -0 request
-// identity, alter exact typed-data array classification/key ordering, bypass the
+// UTF-16 request text through UTF-8/NFC replacement, collapse exact -0 request
+// identity, alter exact array classification/key ordering, bypass the
 // non-Proxy/plain/dense wrapper boundary, or inject failures into the hash-shape
 // decision itself. As elsewhere in the reference runtime, poisoning before
 // module initialization remains outside this scoped guarantee.
@@ -151,12 +155,10 @@ function isProxy(value) {
 function deepFreezeCapturedPlainData(value) {
   if (!value || typeof value !== 'object') return value;
 
-  // Values reaching this helper have already crossed the bounded shared plain-
-  // data capture boundary, so the graph is acyclic, data-only and limited to at
-  // most 1,000 nodes/depth 8. The shared helper currently freezes with the live
-  // global intrinsic; re-walk the captured copy and apply our module-saved
-  // intrinsic to every nested object before any asynchronous simulator callback
-  // can observe it.
+  // The shared Core capture now freezes through its own initialization-time
+  // intrinsic too. Re-walk its already bounded copy with this module's saved
+  // intrinsic as defense in depth before any asynchronous simulator callback can
+  // observe the request graph.
   const descriptors = objectGetOwnPropertyDescriptors(value);
   for (const key of objectGetOwnPropertyNames(value)) {
     const descriptor = descriptors[key];
@@ -220,10 +222,9 @@ function exactPlainDataTranscript(value) {
     return `${transcript}];`;
   }
 
-  // This helper is reached only after the typed-data value has crossed the
-  // shared inert plain-data capture boundary and the proof canonicalizer has
-  // validated the same object. Sorting object names removes irrelevant property
-  // insertion order while string values retain their exact UTF-16 code units.
+  // Values reaching this helper have crossed the bounded inert Core capture (or
+  // the equally strict typed-data bridge). Sorting object names removes irrelevant
+  // insertion order while string values retain exact UTF-16 code units.
   const keys = objectGetOwnPropertyNames(value);
   sortArray(keys, asciiCompare);
   let transcript = `object:${keys.length}:{`;
@@ -315,18 +316,6 @@ function captureExactDataRecord(value, expectedKeys, label, code) {
   return freezeValue(snapshot);
 }
 
-function hasOwnEnumerableTypedDataMethod(value) {
-  if (!value
-      || typeof value !== 'object'
-      || isProxy(value)
-      || arrayIsArray(value)) {
-    return false;
-  }
-  const descriptor = objectGetOwnPropertyDescriptor(value, 'method');
-  return isOwnEnumerableDataDescriptor(descriptor)
-    && descriptor.value === 'eth_signTypedData_v4';
-}
-
 function captureExactDenseArray(value, expectedLength, label, code) {
   if (!value
       || typeof value !== 'object'
@@ -371,67 +360,87 @@ function captureExactDenseArray(value, expectedLength, label, code) {
   return freezeValue(snapshot);
 }
 
+function buildCapturedRequest(method, params) {
+  const requestSnapshot = createObject(null);
+  requestSnapshot.method = method;
+  requestSnapshot.params = params;
+  return freezeValue(requestSnapshot);
+}
+
 function captureSimulationRequestSnapshot(rawRequest) {
   const label = 'Wallet Guard simulation request';
   const code = 'POMRX_WG_SIM_E_REQUEST_INVALID';
 
-  // Dispatch must not be able to demote a Proxy into the generic shared capture
-  // path if a later same-realm mutation poisons that helper's live reflection.
-  // Use this module's saved isProxy intrinsic before any method inspection so a
-  // top-level request Proxy is rejected without executing its traps.
-  if (rawRequest && typeof rawRequest === 'object' && isProxy(rawRequest)) {
-    fail(code, `${label} must be a non-Proxy plain object`);
-  }
-
-  // Preserve the historical generic shared capture path for every RPC method
-  // except an exact own enumerable eth_signTypedData_v4 method. Typed data is
-  // special because Wallet Guard's decoder budgets the typed-data payload itself,
-  // not the surrounding EIP-1193 method/account/params wrapper.
-  if (!hasOwnEnumerableTypedDataMethod(rawRequest)) {
-    const capture = captureReferencePlainDataOutcome(rawRequest, label);
-    if (!capture.ok) {
-      fail(code, 'simulation request is not bounded inert plain data');
-    }
-    return deepFreezeCapturedPlainData(capture.value);
-  }
-
+  // Every method now crosses the exact request wrapper boundary before dispatch.
+  // This keeps normalization and simulation aligned for hidden/symbol/accessor/
+  // Proxy/custom-prototype request decorations without charging wrapper nodes to
+  // the method-specific payload budget.
   const requestRecord = captureExactDataRecord(
     rawRequest,
     REQUEST_KEYS,
     label,
     code,
   );
-  const params = captureExactDenseArray(
-    requestRecord.params,
-    2,
-    `${label}.params`,
-    code,
-  );
-  const accountCapture = captureReferencePlainDataOutcome(
-    params[0],
-    `${label} account`,
-  );
-  const typedDataCapture = captureReferencePlainDataOutcome(
-    params[1],
-    `${label} typed data`,
-  );
-  if (!accountCapture.ok || !typedDataCapture.ok) {
-    fail(code, 'simulation request is not bounded inert plain data');
+
+  if (requestRecord.method === 'eth_signTypedData_v4') {
+    const params = captureExactDenseArray(
+      requestRecord.params,
+      2,
+      `${label}.params`,
+      code,
+    );
+    const accountCapture = captureReferencePlainDataOutcome(
+      params[0],
+      `${label} account`,
+    );
+    const typedDataCapture = captureReferencePlainDataOutcome(
+      params[1],
+      `${label} typed data`,
+    );
+    if (!accountCapture.ok || !typedDataCapture.ok) {
+      fail(code, 'simulation request is not bounded inert plain data');
+    }
+
+    // Wrapper structure is bounded independently while the typed-data payload gets
+    // the same full node/depth/string budget it receives during normalization and
+    // decoding.
+    return buildCapturedRequest(
+      requestRecord.method,
+      freezeValue([
+        deepFreezeCapturedPlainData(accountCapture.value),
+        deepFreezeCapturedPlainData(typedDataCapture.value),
+      ]),
+    );
   }
 
-  // Wrapper structure is bounded independently while the typed-data payload gets
-  // the same full node/depth/string budget it receives during Wallet Guard
-  // decoding. Re-apply the module-saved freeze recursively to shared-capture
-  // outputs before any asynchronous simulator callback can retain or mutate them.
-  const capturedAccount = deepFreezeCapturedPlainData(accountCapture.value);
-  const capturedTypedData = deepFreezeCapturedPlainData(typedDataCapture.value);
-  const requestSnapshot = createObject(null);
-  requestSnapshot.method = requestRecord.method;
-  requestSnapshot.params = freezeValue([
-    capturedAccount,
-    capturedTypedData,
-  ]);
-  return freezeValue(requestSnapshot);
+  if (requestRecord.method === 'personal_sign' || requestRecord.method === 'eth_sign') {
+    // Match generic-signature normalization exactly: its historical bounded
+    // projection is `{ params }`, so the method/request wrapper receives headroom
+    // instead of consuming payload nodes. A 997-boolean nested parameter therefore
+    // remains the same 1,000-node accepted boundary in both phases.
+    const payloadCapture = captureReferencePlainDataOutcome(
+      { params: requestRecord.params },
+      `${label} generic signature payload`,
+    );
+    if (!payloadCapture.ok) {
+      fail(code, 'simulation request is not bounded inert plain data');
+    }
+    const capturedPayload = deepFreezeCapturedPlainData(payloadCapture.value);
+    return buildCapturedRequest(requestRecord.method, capturedPayload.params);
+  }
+
+  // Unsupported RPC normalization historically canonicalizes `{ method, params }`.
+  // Capturing that same projection keeps its budget aligned. The send-transaction
+  // path is tiny and semantically decoded during normalization; it also benefits
+  // from exact wrapper validation and the hardened nested Core capture here.
+  const requestCapture = captureReferencePlainDataOutcome(
+    { method: requestRecord.method, params: requestRecord.params },
+    label,
+  );
+  if (!requestCapture.ok) {
+    fail(code, 'simulation request is not bounded inert plain data');
+  }
+  return deepFreezeCapturedPlainData(requestCapture.value);
 }
 
 function requireLocalIntent(intent) {
@@ -448,10 +457,6 @@ function requireLocalIntent(intent) {
 
 function typedDataRequestCommitmentMarker(typedData) {
   if (typeof typedData === 'string') {
-    // sha256Hex consumes UTF-8. Hashing an arbitrary JavaScript string directly
-    // would therefore collapse distinct unpaired UTF-16 surrogates to the same
-    // replacement byte sequence. Commit an ASCII transcript of exact UTF-16 code
-    // units instead. The request snapshot already bounds this string to 16 KiB.
     const exactTextCommitment = sha256Hex(
       `${TYPED_DATA_JSON_COMMIT_DOMAIN}${utf16CodeUnitTranscript(typedData)}`,
     );
@@ -462,15 +467,9 @@ function typedDataRequestCommitmentMarker(typedData) {
   }
 
   if (typedData && typeof typedData === 'object' && !arrayIsArray(typedData)) {
-    // Replay has already accepted this independently captured typed-data object.
-    // Keep the existing proof-canonicalizer call as the bounded shape/byte
-    // validation contract, but do not hash its NFC-normalized text: EIP-712
-    // strings are byte-sensitive and canonically equivalent Unicode spellings
-    // must remain distinct request identities. Hash an unambiguous ASCII
-    // transcript of the captured inert value tree instead. Object keys are
-    // sorted so insertion order remains semantically irrelevant; string values
-    // preserve exact UTF-16 code units. The digest marker still keeps the outer
-    // RPC request below the generic 16 KiB canonicalization limit.
+    // Retain the existing generic canonicalizer as typed-data bounded-shape/byte
+    // validation only. Exact EIP-712 identity is committed by the separate UTF-16
+    // transcript so NFC-equivalent values and -0/0 remain distinguishable.
     canonicalizePayload(typedData);
     const exactTypedDataCommitment = sha256Hex(
       `${TYPED_DATA_OBJECT_COMMIT_DOMAIN}${exactPlainDataTranscript(typedData)}`,
@@ -484,36 +483,46 @@ function typedDataRequestCommitmentMarker(typedData) {
   return null;
 }
 
-function requestCommitmentProjection(requestSnapshot) {
-  if (requestSnapshot.method !== 'eth_signTypedData_v4'
-      || !arrayIsArray(requestSnapshot.params)
-      || requestSnapshot.params.length !== 2) {
-    return requestSnapshot;
-  }
-
-  const marker = typedDataRequestCommitmentMarker(requestSnapshot.params[1]);
-  if (marker === null) return requestSnapshot;
-
-  // Only the request-commitment projection is compacted. The exact captured and
-  // replayed request remains the simulator input and is never replaced by this
-  // marker object.
+function genericRequestCommitmentMarker(requestSnapshot) {
+  // Generic signature/unsupported/send-transaction request snapshots have already
+  // crossed their bounded inert capture and successfully replayed. Hash the exact
+  // type-framed value tree before the shared canonicalizer can normalize Unicode
+  // or collapse -0. The small marker, not the potentially boundary-sized request,
+  // is then fed to the outer canonical commitment.
   return freezeValue({
-    method: requestSnapshot.method,
-    params: freezeValue([
-      requestSnapshot.params[0],
-      marker,
-    ]),
+    schema_version: GENERIC_REQUEST_EXACT_COMMITMENT_SCHEMA,
+    exact_request_sha256: sha256Hex(
+      `${GENERIC_REQUEST_EXACT_COMMIT_DOMAIN}${exactPlainDataTranscript(requestSnapshot)}`,
+    ),
   });
 }
 
+function requestCommitmentProjection(requestSnapshot) {
+  if (requestSnapshot.method === 'eth_signTypedData_v4'
+      && arrayIsArray(requestSnapshot.params)
+      && requestSnapshot.params.length === 2) {
+    const marker = typedDataRequestCommitmentMarker(requestSnapshot.params[1]);
+    if (marker !== null) {
+      // Only the request-commitment projection is compacted. The exact captured
+      // request remains the simulator input and is never replaced by this marker.
+      return freezeValue({
+        method: requestSnapshot.method,
+        params: freezeValue([
+          requestSnapshot.params[0],
+          marker,
+        ]),
+      });
+    }
+  }
+
+  return genericRequestCommitmentMarker(requestSnapshot);
+}
+
 function commitRequestSnapshot(requestSnapshot) {
-  // The request is already bounded inert plain data and has successfully replayed
-  // through Wallet Guard normalization before this point. Any later failure in
-  // the shared canonicalizer is therefore a runtime/contract failure, not a new
-  // simulation diagnostic. Preserve that exact provenance instead of translating
-  // by exported error class. Typed-data requests use a domain-separated digest
-  // projection so Wallet Guard's accepted representation does not require
-  // widening the shared canonicalizer's generic string or 16 KiB total limits.
+  // Replay has already validated the request semantically. The projection is
+  // deliberately compact and exact-value aware, so the shared canonicalizer is
+  // used only to frame that marker/wrapper deterministically; it no longer decides
+  // whether generic request Unicode or negative zero are the same identity.
   const canonicalRequest = canonicalizePayload(
     requestCommitmentProjection(requestSnapshot),
   );
@@ -616,13 +625,10 @@ function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence)
   }
   const result = capture.value;
 
-  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+  if (!result || typeof result !== 'object' || arrayIsArray(result)) {
     return makeLocalEvidence(identity, 'mismatch');
   }
-  const actual = Object.getOwnPropertyNames(result).sort(asciiCompare);
-  const expected = [...CALLBACK_RESULT_KEYS].sort(asciiCompare);
-  if (actual.length !== expected.length
-      || actual.some((key, index) => key !== expected[index])) {
+  if (!sortedExactNamesMatch(objectGetOwnPropertyNames(result), CALLBACK_RESULT_KEYS)) {
     return makeLocalEvidence(identity, 'mismatch');
   }
   if (typeof result.status !== 'string' || !setHas(CALLBACK_STATUSES, result.status)) {
@@ -652,10 +658,7 @@ function normalizeResolvedCallbackResult(rawResult, identity, makeLocalEvidence)
 }
 
 function validateLocalEvidence(evidence) {
-  const actual = Object.getOwnPropertyNames(evidence).sort(asciiCompare);
-  const expected = [...EVIDENCE_KEYS].sort(asciiCompare);
-  if (actual.length !== expected.length
-      || actual.some((key, index) => key !== expected[index])) {
+  if (!sortedExactNamesMatch(objectGetOwnPropertyNames(evidence), EVIDENCE_KEYS)) {
     fail('POMRX_WG_SIM_E_INVALID', 'local simulation evidence has an invalid shape');
   }
   if (evidence.schema_version !== WALLET_GUARD_SIMULATION_SCHEMA_VERSION
