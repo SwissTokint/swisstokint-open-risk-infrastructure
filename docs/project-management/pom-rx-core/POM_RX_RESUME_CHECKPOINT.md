@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T23:26:16+02:00`
+Updated: `2026-08-21T23:33:10+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in a task conversation separate from any interactive chat, so every run must
@@ -72,18 +72,17 @@ are not proved.
 - multiple earlier P1 threads remain intentionally unresolved until a final repaired exact head receives fresh independent validation.
 
 Required next repair: do **not** merge, rebase or revive the stale #97 branch
-wholesale. After the current control-plane checkpoint is trusted, create the
-smallest runtime repair from then-current trusted main. Prevent inherited
-Promise-prototype drift before outer async assimilation; restore or replace the
-CI-wired independent sensitive-forwarding exploit regression; require the durable
-capability claim to succeed before any observer or downstream work so losing
-contenders cannot enter security-sensitive paths; preserve fail-closed replay and
-durable one-winner semantics; preserve ordinary native-Promise Node/AsyncHooks
-bookkeeping-symbol compatibility, direct non-Promise object/function hardened
-capture, own decorated native-Promise rejection and zero authorization/forwarding
-for hostile rejected transports. Then require exact-head CI, release-owner
-six-lane PASS, fresh distinct exact-head independent review and zero unresolved
-P0/P1/P2 before merge.
+wholesale. After PR #110 is trusted, create the smallest runtime repair from
+then-current trusted main. Prevent inherited Promise-prototype drift before outer
+async assimilation; restore or replace the CI-wired independent
+sensitive-forwarding exploit regression; require the durable capability claim to
+succeed before any observer or downstream work so losing contenders cannot enter
+security-sensitive paths; preserve fail-closed replay and durable one-winner
+semantics; preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
+compatibility, direct non-Promise object/function hardened capture, own decorated
+native-Promise rejection and zero authorization/forwarding for hostile rejected
+transports. Then require exact-head CI, release-owner six-lane PASS, fresh distinct
+exact-head independent review and zero unresolved P0/P1/P2 before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -105,11 +104,11 @@ obtain a fresh distinct exact-head independent skeptical/security review, and
 leave no unresolved P0/P1/P2. Simulation remains reference evidence only and does
 not authorize forwarding or prove external state/effect truth.
 
-### Current control-plane reconciliation lot — post-PR #109
+### Current control-plane reconciliation lot — PR #110, post-PR #109
 
 Live GitHub is now at trusted main `5b40135d...`, while the canonical state merged
-by PR #109 necessarily described its pre-merge main. This cycle therefore uses one
-bounded non-Tier-B documentation/control-plane branch:
+by PR #109 necessarily described its pre-merge main. PR #110 is therefore the
+bounded non-Tier-B documentation/control-plane reconciliation on branch
 `docs/pom-rx-checkpoint-after-109-20260821`, created from exact trusted main
 `5b40135d...`.
 
@@ -127,10 +126,10 @@ repair contract; preserve the mandatory five-stage merge rule; preserve shared
 Core versus Wallet Guard ownership; and preserve all production/real-wallet
 non-claims. It changes no runtime/security implementation.
 
-This branch's own future PR/head/CI/review state is deliberately not self-embedded
-as authoritative because a commit cannot truthfully contain its own future SHA.
-Re-read live GitHub for the reconciliation PR before any release decision; any
-head move invalidates prior exact-head CI/review evidence.
+PR #110's own moving head/CI/review state is deliberately not self-embedded as
+authoritative because a commit cannot truthfully contain its own future SHA.
+Re-read live GitHub for PR #110's exact current head before any release decision;
+any head move invalidates prior exact-head CI/review evidence.
 
 ## recent_merge_and_post_merge
 
@@ -165,7 +164,7 @@ has a recorded `POST_MERGE_ASSURANCE_PASS`.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR109_RECONCILIATION_REQUIRED` — live trusted main is `5b40135d...`; canonical state must be reconciled through the current bounded non-Tier-B docs PR before stale entries are used as readiness/dependency evidence.
+1. `CONTROL_PLANE_POST_PR109_RECONCILIATION_REQUIRED` — live trusted main is `5b40135d...`; canonical state must be reconciled through PR #110 before stale entries are used as readiness/dependency evidence.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact-head distinct review on `0efb462...` confirms the sensitive-forwarding exploit class remains reachable.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517` — CI 592 is green but current head is test-only and runtime remains unchanged.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462` — owner gate remains `BLOCK / NON-INDEPENDENT`.
@@ -199,9 +198,9 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Gate the bounded post-PR #109 control-plane reconciliation as a non-Tier-B docs lot; do not use its future state as trusted until exact-merge post-merge PASS.
+1. Gate PR #110 as the bounded post-PR #109 non-Tier-B docs lot. Do not use it as trusted coordination evidence until its exact merge receives post-merge PASS.
 2. Keep PR #97 blocked; do not merge exact head `0efb462...` or treat CI 592 as a security repair.
-3. After the control-plane checkpoint is trusted, create the smallest fresh #97 runtime repair from then-current trusted main for Promise-prototype drift before outer async assimilation while preserving durable claim-before-observer/downstream ordering; do not merge the stale historical branch wholesale.
+3. After PR #110 is trusted, create the smallest fresh #97 runtime repair from then-current trusted main for Promise-prototype drift before outer async assimilation while preserving durable claim-before-observer/downstream ordering; do not merge the stale historical branch wholesale.
 4. Restore/replace the exact exploit regression, rerun exact-head CI, owner six-lane review and fresh distinct independent skeptical/security review, and resolve only findings validated on that exact head.
 5. If repaired #97 passes every gate, merge under standing authorization and immediately run exact-merge-SHA post-merge assurance.
 6. Reconcile #93 only after #97 dependency ordering is trusted, then repeat all exact-head gates.
