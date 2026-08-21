@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T12:27:00+02:00`
+Updated: `2026-08-21T13:10:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in an associated task conversation separate from an interactive chat, so no
@@ -40,24 +40,25 @@ real-wallet safety.
 
 ### PR #100 — post-PR #99 durable checkpoint reconciliation
 
-- state: `OPEN / NOT_MERGED`;
+- state: `OPEN / NOT_MERGED / MERGEABLE` at the last live revalidation;
 - branch: `docs/pom-rx-checkpoint-after-99-20260821`;
 - base: trusted main `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`;
 - tier: non-Tier-B documentation/control-plane only;
-- scope: the same four canonical checkpoint/task/blocker/capability surfaces;
-- a prior candidate `c7e216430b3b7dd2ab10c69d0e36beb9917947aa`
-  passed exact-head CI run `32471317883` and release-owner review after repairing
-  the capability-map contract phrase, but this checkpoint update necessarily
-  moves the branch again and invalidates those exact-head gates;
+- scope: the same canonical checkpoint/task/blocker/capability surfaces; this
+  update changes only the durable project-state record, not runtime semantics;
+- immediately before this update, exact head
+  `460abc2369a0796cb9bc10b0573f0a38c3716f7c` had canonical CI run
+  `32472828209` (`CI`, run 565) completed `success`;
+- this new checkpoint commit necessarily moves the branch again, so all prior
+  exact-head CI and review evidence is stale for the final candidate;
 - self-head rule: always obtain the current head, CI and reviews from live GitHub
-  because recording the branch's own head here would itself move that head;
-- release state at this versioned checkpoint: `AWAITING_FRESH_EXACT_HEAD_GATES`.
+  because recording this branch's own head here would itself move that head;
+- release state: `AWAITING_FRESH_EXACT_HEAD_GATES`.
 
-Next safe action: freeze the final PR #100 candidate after this durable-state
-update, then obtain fresh exact-head CI, release-owner review and a distinct
-exact-head independent review. Do not merge from `c7e21643...` evidence. If PR
-#100 later merges, exact-merge-SHA post-merge assurance remains mandatory before
-treating that merge as trusted.
+Next safe action: freeze the final PR #100 candidate after this live-state
+reconciliation, then obtain fresh exact-head CI, release-owner review and a
+distinct exact-head independent review. If PR #100 later merges, exact-merge-SHA
+post-merge assurance remains mandatory before treating that merge as trusted.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -65,41 +66,45 @@ treating that merge as trusted.
 - current checkpoint head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - exact-head CI: run `32465835858`, `success`;
 - release state: `BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW`;
-- the latest distinct Codex review available for release evidence covers a moved
-  earlier head, not `c4e40ceb...`; the current branch includes later shared
-  plain-data/reflection hardening and regressions but still needs a fresh
-  independent review on its actual current head;
+- the latest distinct Codex review available for release evidence covers moved
+  head `03e0201c9fef5ed10a615996d68052613bdd94d6`, where it found a nested
+  typed-data reflection P1. The branch moved afterward and includes shared
+  plain-data/reflection hardening, but no distinct independent review covers the
+  actual current head `c4e40ceb...`;
 - prior release-owner/self reviews are NON-INDEPENDENT and moved-head reviews
   cannot release this head.
 
-Next safe action: obtain a fresh distinct independent skeptical/security review
-on the actual PR #93 head after reconciling any material base/overlap drift to
-trusted main. Any head move invalidates exact-head CI/review evidence.
+Next safe action: reconcile material base/overlap drift to trusted main, then
+obtain fresh exact-head CI, release-owner review and distinct independent
+skeptical/security review on the resulting current head. Any head move invalidates
+exact-head evidence.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
 - state: `OPEN / NOT_MERGED / MERGEABLE` at the last live revalidation;
-- current checkpoint head: `871cd980cf6c1343336e5d63da78a82a28a8dda3`;
+- exact head: `871cd980cf6c1343336e5d63da78a82a28a8dda3`;
 - reconciled base: trusted main `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`;
-  compare reports `behind_by: 0` and merge base equal to trusted main;
 - exact-head CI: run `32472232474`, `CI` run 563, `success`;
 - release-owner exact-head verdict: all six scoped lanes `PASS`, 0 new P0/P1/P2,
   explicitly `NON-INDEPENDENT`;
-- release state: `BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW`;
-- the prior distinct Codex review on moved head `1f228dab...` found P1 in active
-  provider-account normalization. That attack class is repaired on the current
-  head by sending provider-controlled `eth_accounts` through the shared hardened
-  inert plain-data capture before application normalization;
-- CI-wired regressions reject an Array Proxy and an own/decorated `map` before
-  hostile data-boundary dispatch, reference authorization or sensitive forwarding;
-- the old P1 thread is deliberately left unresolved until a fresh distinct Codex
-  review validates the exact current head `871cd980...`; `@codex review` has been
-  requested on that exact SHA.
+- fresh distinct Codex review **does cover this exact head** and opened a new P1:
+  `Reject account Proxies before thenable assimilation`;
+- attack: `providerRead()` awaits the raw provider result before the hardened
+  inert-data capture. A synchronously returned Array Proxy can therefore execute
+  a `get('then')` trap during Promise/thenable assimilation, resolve to an
+  attacker-controlled plain account array, remain stable across all account
+  samples, reach reference authorization and reach sensitive forwarding;
+- this is a fresh blocker beyond the previously repaired `map`/decorated-array
+  attack. Green CI and the NON-INDEPENDENT owner PASS do not close it;
+- release state: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1_THENABLE_ASSIMILATION`.
 
-Next safe action: wait only for the fresh exact-head independent review on
-`871cd980...`; if it reports no P0/P1/P2, resolve the repaired P1 thread and merge
-under standing authorization without moving the head. If it finds a new blocker,
-repair it in this PR and repeat every invalidated exact-head gate.
+Required repair: reject/capture the raw provider result before any result-owned
+thenable/Proxy dispatch, or use an async transport contract that cannot execute
+result-owned thenable behavior. Add a CI-wired regression proving the reviewed
+`get('then')` attack cannot substitute the active account and cannot reach
+reference authorization or sensitive forwarding. Then rerun exact-head CI,
+release-owner review and a fresh distinct independent skeptical/security review;
+leave no unresolved P0/P1/P2 before merge.
 
 ## recent_merge_and_post_merge
 
@@ -135,18 +140,15 @@ dependent Tier-B merge that assumes either open PR is already trusted.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_99_CHECKPOINT_RECONCILIATION_PENDING` — PR #100, fresh
-   exact-head gates required after this material checkpoint update.
-2. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED`.
-3. `PR97_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED` — the prior P1 is repaired
-   and exact-head CI/owner gates pass on `871cd980...`, but the distinct exact-head
-   validation is still pending and the old P1 thread remains unresolved.
+1. `CONTROL_PLANE_POST_99_CHECKPOINT_RECONCILIATION_PENDING` — PR #100 needs fresh
+   exact-head gates after this material live-state update.
+2. `PR97_UNRESOLVED_EXACT_HEAD_P1_THENABLE_ASSIMILATION` — exact head
+   `871cd980...` has a fresh independent P1 in provider-result Promise/thenable
+   assimilation before the inert capture boundary.
+3. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED` plus reconciliation to
+   trusted main.
 4. `DAGR_SOURCE_DOCUMENT_MISSING`.
 5. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
-
-The prior post-PR #98 checkpoint blocker is resolved by merged PR #99 with exact
-post-merge PASS. PR #100 exists only to persist the current trusted-main/open-lot
-facts and is not a runtime/security dependency.
 
 ## merge_authorization_and_review_rules
 
@@ -173,13 +175,12 @@ is repaired through a new PR, never direct `main`.
 ## next_safe_actions
 
 1. Freeze PR #100 after this checkpoint update and repeat its fresh exact-head CI,
-   release-owner and distinct independent documentation gates; do not reuse the
-   now-stale `c7e21643...` gates.
-2. Obtain the fresh distinct independent skeptical/security review already
-   requested on PR #97 exact head `871cd980...`; merge only if it validates the
-   repair with no unresolved P0/P1/P2, then immediately run exact-merge assurance.
-3. Revalidate PR #93 through a fresh distinct independent exact-head review after
-   required main reconciliation.
+   release-owner and distinct independent documentation gates.
+2. Repair PR #97's exact-head thenable-assimilation P1 without weakening the
+   shared Core/application boundary; add the adversarial regression and repeat
+   every invalidated exact-head gate.
+3. Reconcile PR #93 to trusted main as needed and obtain a fresh distinct
+   independent exact-head review.
 4. Start no dependent Wallet Guard end-to-end lot until the relevant Tier-B
    dependencies have trusted exact-merge post-merge PASS evidence.
 5. Do not begin burner/local-testnet execution without a separate explicit human
