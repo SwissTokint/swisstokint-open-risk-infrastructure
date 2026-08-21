@@ -48,37 +48,44 @@ are not proved.
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
 - state: `OPEN / NOT_MERGED / MERGEABLE / BLOCKED_EXACT_HEAD_P1_AND_RED_CI`;
-- current exact head: `37b8e6998f0867f97ef1efcf3dacab50f4097748`;
+- current exact head: `639b96e7a64fa101432b3afcc3c08aebfcc838cf`;
 - exact base/trusted main: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current canonical exact-head CI: run `32485543302`, `CI` run 584, completed
+- current canonical exact-head CI: run `32486243945`, `CI` run 586, completed
   `failure` on this exact head;
-- deterministic failing regression is in the Wallet Guard provider path: ordinary
-  native Promise provider context transport is rejected as
-  `POMRX_WG_PROVIDER_E_CONTEXT_INVALID` under Node's test-runner promise hooks;
-- a fresh distinct `chatgpt-codex-connector` review covers exact head
-  `37b8e699...` and reports P1 `Permit runtime bookkeeping symbols on native
-  promises`;
-- current implementation rejects every own symbol on a genuine native Promise.
-  Under `node --test`, ordinary native Promises receive runtime bookkeeping
-  symbols such as async/trigger IDs, so legitimate provider transport is rejected;
-- this is a false-rejection compatibility blocker, not evidence that those
-  bookkeeping symbols participate in Promise assimilation. The repair must remain
-  narrow: preserve rejection of result-owned string decoration such as
-  `constructor`/`then`, preserve the captured Promise-prototype integrity check,
-  and permit inert runtime-owned symbol bookkeeping that the await path does not
-  consult;
-- the last release-owner PASS covered moved head `f91079676aa8a21c0501bee3951bcd0d40c27083`,
-  not `37b8e699...`; it is stale after the head move;
-- prior exact-head CI/review evidence on `8195c559...`, `f910796...` and earlier is
-  historical only. Historical P1 threads remain unresolved.
+- the previous exact-head P1 on `37b8e699...` (`Permit runtime bookkeeping
+  symbols on native promises`) is historical after the head move. The new head
+  permits Node/AsyncHooks own-symbol bookkeeping strongly enough that the
+  ordinary native-Promise compatibility regression now passes;
+- a fresh distinct `chatgpt-codex-connector` review covers exact current head
+  `639b96e7...` and reports P1 `Reject Promise drift before entering async
+  layers`;
+- the exact failing regression is `post-import Promise prototype constructor
+  drift is rejected before getter execution`: the hostile constructor getter is
+  observed four times, with `authorizationCalls: 0` and `sensitiveCalls: 0` in
+  the canonical failure;
+- the independent reproducer is more severe than that isolated assertion: when
+  inherited `Promise.prototype.constructor` and `then` are poisoned together,
+  internal async-layer awaits in `readProviderSnapshot`,
+  `sampleStableProviderContext`, `sampleTrustedContext` and `request` can run the
+  hostile inherited Promise surface before the transport validator's rejection
+  reaches its caller; the reviewer reproduced stable attacker-controlled context,
+  subsequent reference authorization and sensitive forwarding;
+- direct non-Promise object/function capture and own native-Promise
+  `constructor`/`then` decoration hardening remain prior security requirements and
+  must not be weakened;
+- no release-owner six-lane review covers current head `639b96e7...`; the latest
+  owner PASS is on moved head `f91079676aa8a21c0501bee3951bcd0d40c27083` and is
+  stale. Historical P1 threads remain unresolved.
 
-Required next repair: on PR #97, make the smallest native-Promise transport
-compatibility correction so Node/runtime bookkeeping symbols do not cause a
-false reject while `constructor`/`then` decoration and post-import Promise
-prototype drift remain fail-closed. Add/retain CI-wired compatibility and attack
-regressions, then rerun exact-head CI, release-owner six-lane review and a fresh
-distinct independent exact-head review. No unresolved P0/P1/P2 may remain before
-merge.
+Required next repair: on PR #97, close the Promise-prototype drift boundary before
+entering any async layer that can itself perform Promise assimilation. Preserve
+ordinary native-Promise compatibility (including inert runtime bookkeeping
+symbols), direct Proxy/function capture before assimilation, own
+`constructor`/`then` decoration rejection, zero authorization/forwarding on
+rejected hostile transports and the documented same-realm threat boundary. Add
+or retain CI-wired attack and compatibility regressions, then rerun exact-head CI,
+release-owner six-lane review and a fresh distinct independent exact-head review.
+No unresolved P0/P1/P2 may remain before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -144,11 +151,13 @@ dependent Tier-B lot on the assumption that an open PR is already trusted.
 
 ## current_blockers
 
-1. `PR97_EXACT_HEAD_P1_NATIVE_PROMISE_BOOKKEEPING_SYMBOLS` — exact head
-   `37b8e699...` has a fresh independent P1: rejecting all own Promise symbols
-   breaks legitimate instrumented/native Promise provider transport.
-2. `PR97_EXACT_HEAD_CI_FAILURE_32485543302` — CI run 584 failed on exact head
-   `37b8e699...`; all older green CI and owner reviews are stale for release.
+1. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact head
+   `639b96e7...` has a fresh independent P1: post-import Promise prototype drift
+   can be consulted by outer async-layer awaits before the inner transport
+   rejection reaches its caller; the independent reproducer reaches reference
+   authorization and sensitive forwarding with attacker-controlled context.
+2. `PR97_EXACT_HEAD_CI_FAILURE_32486243945` — CI run 586 failed on exact head
+   `639b96e7...`; all older green CI and owner reviews are stale for release.
 3. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION` — do not resolve
    historical P1 threads until a final repaired exact head is independently
    validated.
@@ -178,9 +187,10 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Repair PR #97 exact head `37b8e699...` narrowly so runtime bookkeeping symbols
-   on a genuine native Promise remain compatible without weakening the guarded
-   `constructor`/`then` transport boundary; add/retain exact regression coverage.
+1. Repair PR #97 exact head `639b96e7...` at the outer async-layer boundary so
+   post-import Promise-prototype constructor/then drift is rejected before any
+   attacker-owned inherited Promise dispatch, while preserving ordinary native
+   Promise compatibility and the already hardened direct-result boundary.
 2. Rerun exact-head CI and release-owner six-lane review after that repair, then
    obtain a fresh distinct independent exact-head skeptical/security review with
    no unresolved P0/P1/P2.
