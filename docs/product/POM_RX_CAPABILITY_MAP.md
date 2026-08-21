@@ -2,7 +2,9 @@
 
 Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
-Date: 2026-08-20
+Date: 2026-08-21
+
+Trusted-main checkpoint: `818718955c9e4136e9e55754a31be2f1c7b610f8`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -45,7 +47,7 @@ diagnostics and policy/artifact binding. Historical `pom-rx/0.1` compatibility
 remains frozen; stronger behavior is additive through separately reviewed
 profiles.
 
-The bounded `pom-rx-v0.1/strict-errata-1` profiled verifier is now activated in
+The bounded `pom-rx-v0.1/strict-errata-1` profiled verifier is activated in
 Core. Its verdicts remain structurally non-authorizing: strict conformance is a
 prerequisite for later authorization, not permission to execute.
 
@@ -55,6 +57,12 @@ Exact authorization, execution-evidence commitments and observation/reconciliati
 comparison semantics are also common Core behavior and must not be forked into
 application-specific implementations.
 
+Shared bounded hostile-object/plain-data capture exists under
+`core/reference-data/` and is reused by Core/application reference boundaries.
+Expected proof-payload validation rejection is positively branded; unrelated
+runtime/intrinsic failures must not be converted by broad `TypeError` or message
+matching.
+
 ### Exact authorization and Gate
 
 The common exact-authorization/single-use-Gate contract is ratified in Core. It
@@ -62,22 +70,24 @@ defines versioned action/context binding, short-lived capability semantics,
 terminal single-use consumption, fail-closed replay behavior and a private
 trusted bootstrap boundary.
 
-A local reference Gate harness exercises those semantics with Gate-instance-local
-capability state, synchronous reservation, complete half-open
-`[issued_at, expires_at)` checks, Gate-instance monotonic-clock enforcement and
-a trusted prepared-execution snapshot so the raw caller-owned attempt is never
-forwarded downstream. This remains reference-only and non-production.
+A process-local reference Gate harness exercises those semantics with
+Gate-instance-local capability state, synchronous reservation, complete
+half-open `[issued_at, expires_at)` checks, Gate-instance monotonic-clock
+enforcement and a trusted prepared-execution snapshot so raw caller-owned data
+is not forwarded downstream. This remains reference-only and non-production.
 
-Production issuance is still unproved because production-grade source/Witness
-enrollment, revocation and trusted-time semantics are not complete. The current
-process-local Witness lifecycle proves bounded reference behavior only. Durable
-multi-process consumption is also required if the Gate later leaves one process.
+A separate shared durable claim-store reference primitive provides bounded
+at-most-once capability claiming for multiple processes sharing one trusted
+local filesystem directory. It is not proof of network/distributed filesystem
+atomicity, consensus, crash recovery, Gate consumption or external execution.
 
-A separate shared durable claim-store reference primitive now provides bounded
-at-most-once capability claiming for multiple processes sharing one trusted local
-filesystem directory. It remains an installation-assumption-backed reference
-primitive rather than proof of network/distributed filesystem atomicity,
-distributed consensus, crash recovery, Gate consumption or external execution.
+A reviewed composition of that durable claim primitive into the common Gate is
+**not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
+and must pass its current exact-head CI/release-owner/independent gate before any
+capability map text treats the composition as merged.
+
+Production issuance remains unproved because production-grade source/Witness
+trust, operator authorization and trusted-time infrastructure are not complete.
 
 ### Witness
 
@@ -88,21 +98,28 @@ injected monotonic trusted time and deterministic public trust-state snapshots.
 Administrative mutations are staged against the exact prospective trust state
 before commit and the reference store is explicitly bounded.
 
-These reference controls do not establish production trust: state is non-durable,
-operator authorization is assumed, and production KMS/HSM, distributed
-revocation propagation, remote attestation, quorum and trusted-time service
-semantics remain unproved. Witness verification also does not by itself prove
-external execution authorization.
+Wallet Guard also has a merged application-profile adapter that reduces one
+cryptographically verified Core source-envelope/Witness-acknowledgement candidate
+into the provider's reference authorization-supplier contract while checking the
+exact Wallet Guard method/policy/action binding. This does not create a second
+Witness implementation and does not establish production issuer/trusted-time or
+strict-verifier-artifact attestation.
+
+These reference controls do not establish production trust: state is
+non-durable, operator authorization is assumed, and production KMS/HSM,
+distributed revocation propagation, remote attestation, quorum and trusted-time
+service semantics remain unproved. Witness verification also does not by itself
+prove external execution authorization.
 
 ### Execution evidence
 
 A bounded reference execution-evidence recorder owns the common commitment shape
 between exact authorization / Gate work and later observation. It recomputes the
-exact authorization commitment, records recorder-local start/completion chronology,
-permits one local record per authorization commitment and commits bounded
-adapter-reported effect data for known `success` or `error` outcomes. Malformed
-or ambiguous outcome data becomes explicit `unknown` evidence rather than a
-known effect.
+exact authorization commitment, records recorder-local start/completion
+chronology, permits one local record per authorization commitment and commits
+bounded adapter-reported effect data for known `success` or `error` outcomes.
+Malformed or ambiguous outcome data becomes explicit `unknown` evidence rather
+than a known effect.
 
 Expected shared canonical-payload rejection is identified through the shared
 branded validation contract, not broad `TypeError` or message text. Unrelated
@@ -111,14 +128,13 @@ semantic `unknown` evidence.
 
 This recorder is deliberately **not** an execution path. It has no downstream
 callback and its evidence does not prove Gate consumption, native execution time,
-external execution or external effect truth. Composition with the actual
-single-use Gate forwarding path, durable replay state and production execution
-evidence remain separate work.
+external execution or external effect truth. Composition with actual Gate
+forwarding and production execution evidence remains separate work.
 
 ### Observation and reconciliation
 
 A shared reference observation/reconciliation layer compares captured observation
-evidence against a validated exact-authorization binding, including the binding
+evidence against a validated exact-authorization binding, including binding
 profile, action/context commitments, expected status/effect and chronology. Its
 evidence channel uses a one-shot bounded capture callback rather than treating an
 observer-returned value as evidence.
@@ -126,6 +142,13 @@ observer-returned value as evidence.
 This still does not prove external-world truth. Production observer independence,
 liveness, host/RPC integrity, chain finality, remote attestation and production
 trusted time remain outside the reference claim.
+
+### Exact-main CI assurance surface
+
+Trusted main includes the prospective exact-main CI status publisher introduced
+by PR #96. It publishes `pom-rx/exact-main-ci` for the canonical push CI on the
+exact main SHA. The post-merge assurance gate still requires decision-time
+freshness revalidation; the status alone does not establish a PASS.
 
 ### Proof transport and anchoring
 
@@ -137,6 +160,8 @@ become the authorization boundary merely because they are on-chain.
 
 `POM-RX Governance Profile — DAGR` is a cross-cutting profile under POM-RX. It is
 not a second product, audit firm, certification system or global security score.
+Normative DAGR work remains source-gated; no profile content is invented while
+`DAGR_SOURCE_DOCUMENT_MISSING` is active.
 
 ## 3. Application blocks
 
@@ -157,9 +182,6 @@ The current market-risk engine is supporting research, not a complete POM-RX
 authorization engine.
 
 ### Block B — AI agents
-
-This block includes autonomous-agent use cases while retaining the site's public
-label `AI agents`.
 
 Examples:
 
@@ -205,9 +227,7 @@ Examples:
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate,
-observation or reconciliation semantics. Its primary product home is
-Blockchain and digital assets, while its defensive control model also overlaps
-the Cybersecurity block.
+observation or reconciliation semantics. Its primary product home is Blockchain and digital assets, while its defensive control model also overlaps the Cybersecurity block.
 
 ## 4. Wallet Guard position
 
@@ -219,14 +239,30 @@ controlled dApp
   -> normalized EVM intent
   -> decoder/effects evidence
   -> local policy
-  -> POM-RX preflight + Witness
+  -> portable POM-RX preflight
+  -> Core-verified Witness candidate
   -> single-use exact Gate
-  -> test wallet/provider
+  -> controlled fake provider
   -> independent observation
   -> reconciliation
 ```
 
-Its first success criterion is a deterministic controlled fixture in which a
+Trusted main currently contains strict JSON-text ingress, EVM intent
+normalization/decoding, deterministic fail-closed policy, a process-local policy
+controller, portable determinate preflight evidence, a Core-verified Witness
+authorization adapter, provider/Gate integration and a controlled in-memory host
+whose page-facing graph exposes only guarded `ethereum.request`.
+
+The controlled host's stronger Witness adapter is not yet claimed as universally
+composed into every fixture. The generic/synthetic reference authorization
+supplier remains available for older controlled tests and must not be confused
+with production authorization.
+
+Reference simulation evidence is the active PR #93 workstream and is **not on
+trusted main at this checkpoint**. Even after it merges, simulation-to-forwarding
+atomic binding remains a separate reviewed composition requirement.
+
+The first success criterion is a deterministic controlled fixture in which a
 dangerous approval/signature is denied before forwarding, while an explicitly
 allowed control request is forwarded once and reconciled.
 
@@ -252,9 +288,9 @@ product solely because it uses a blockchain.
 ## 6. Target information architecture
 
 Do not mass-move frozen protocol or fixture files merely for cosmetic organization.
-The product-oriented repository layout is now established incrementally. New
-Core work goes into the common Core blocks; application-specific code stays in
-its application owner and references Core instead of copying it.
+The product-oriented repository layout is established incrementally. New Core
+work goes into the common Core blocks; application-specific code stays in its
+application owner and references Core instead of copying it.
 
 ```text
 core/
@@ -302,19 +338,19 @@ link compatibility.
 
 ## 7. Current maturity by block
 
-| Block | Current state | What is still missing |
+| Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
-| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding, local reference Gate, bounded plain-data capture, process-local Witness trust lifecycle, durable local claim primitive, reference execution-evidence recorder and reference observation/reconciliation exist | production exact-authorization issuer, production trust service/Gate lifecycle, Gate-composed native execution evidence, production-independent observation |
-| Exact authorization / Gate | ratified Core contract; Gate-local reference harness exercises single-use, replay/concurrency, full temporal-window/rollback checks and prepared-execution isolation; separate durable local claim primitive exists | production-grade Witness trust service, production trusted time, production issuer, reviewed composition of durable claim into Gate, distributed semantics if needed |
-| Witness | signed source/Witness primitives plus process-local reference enrollment, revocation, monotonic trusted clock, bounded trust snapshots and key rotation/recovery exist | durable trust service, operator authorization, KMS/HSM, distributed revocation, production trusted time/attestation and recovery-at-capacity policy |
-| Execution evidence | bounded process-local recorder binds exact authorization to recorder chronology and bounded adapter-reported outcome/effect commitments | composition with actual Gate forwarding, native execution timing, durable replay state, independently observed external effects |
-| Observation / reconciliation | shared reference layer validates exact authorization/profile, expected status/effect and chronology against one-shot bounded observer evidence | production observer independence/liveness, durable evidence transport, host/RPC attestation and external-world truth guarantees |
+| Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 reviewed composition of durable claim into Gate; production issuer/trusted time; distributed/crash semantics where required |
+| Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
+| Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
+| Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
 | Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
-| APIs and enterprise systems | application domain only | exact target adapter and controlled demo |
-| Cybersecurity | application domain and Wallet Guard threat framing | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar evidence registry, Filecoin integration, Wallet Guard EVM normalization/policy, decoded requested-effect evidence and reference provider/Gate integration exist | portable preflight/Witness composition, simulation-to-forwarding binding, controlled-host bypass closure, execution/reconciliation integration and later burner E2E |
-| Governance/DAGR | candidate subordinate profile framing exists | authorized source-backed normative profile work |
+| APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
+| Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 simulation evidence; simulation-to-forwarding binding; stronger Witness/preflight/provider composition; complete execution/reconciliation demo; later separately authorized burner E2E |
+| Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
 
