@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T19:10:00+02:00`
+Updated: `2026-08-21T20:18:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in a task conversation separate from any interactive chat, so every run must
@@ -10,28 +10,28 @@ checkpoint.
 
 ## trusted_main
 
-`03554ee3191c1ca28e50159a67f822543d619ca3`
+`fac194134dfe70767964e5816bcfb68f3b490099`
 
-Latest trusted merge: PR #105 — bounded post-PR #104 control-plane
+Latest trusted merge: PR #106 — bounded post-PR #105 control-plane
 reconciliation.
 
-PR #105 source head `08af7792241d17f43cbdcf7823c8517aee46cbf9`
-merged as exact main SHA `03554ee3191c1ca28e50159a67f822543d619ca3`.
+PR #106 source head `f654ee8f7becdc0916e7d94e053d7d5b56910083`
+merged as exact main SHA `fac194134dfe70767964e5816bcfb68f3b490099`.
 The reviewed source-head tree and merge tree are identical:
-`5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33`. Exact-head candidate CI run
-`32503975756`, `CI` run 630, completed `success` before merge. Canonical
-exact-main push CI run `32504323490`, `CI` run 631 attempt 1, completed `success`
+`31fee2a35bff60dc5854d518874a8ed2bac3076e`. Exact-head candidate CI run
+`32507298764`, `CI` run 636, completed `success` before merge. Canonical
+exact-main push CI run `32512231029`, `CI` run 637 attempt 1, completed `success`
 on the exact merge SHA, and decision-time `pom-rx/exact-main-ci` was `success`
 targeting that same run.
 
-PR #105 had a release-owner `PASS / NON-INDEPENDENT` with 0 P0/P1/P2, no review
+PR #106 had a release-owner `PASS / NON-INDEPENDENT` with 0 P0/P1/P2, no review
 threads, and a fresh distinct `chatgpt-codex-connector` exact-head review on
-`08af779...` stating no major issues. PR #105 records
+`f654ee8...` stating no major issues. PR #106 records
 `POST_MERGE_ASSURANCE_PASS`: SpecKit reconciliation, skeptical/falsification,
 security, code quality, optimization and integration/regression all PASS for the
 bounded documentation/control-plane scope.
 
-PR #105 changed no runtime, protocol, Gate, Witness, verifier, Wallet Guard,
+PR #106 changed no runtime, protocol, Gate, Witness, verifier, Wallet Guard,
 provider, wallet, network, public-site/Vercel or financial-execution semantics. It
 is trusted coordination evidence only.
 
@@ -60,11 +60,11 @@ are not proved.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
-- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_TRUE_SIGNAL_ONLY / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE_SIGNAL_ONLY / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - PR base SHA: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`;
-- latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability metadata only and does not by itself identify reconciliation status, security correctness or release readiness;
+- current trusted main: `fac194134dfe70767964e5816bcfb68f3b490099`;
+- latest live GitHub reports `mergeable=false`; this is volatile conflict/mergeability metadata only and does not by itself identify reconciliation status, security correctness or release readiness;
 - exact-head canonical CI: run `32487036517`, `CI` run 592, `success`;
 - exact-head release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - exact-head distinct Codex finding: P1 `Reject Promise drift before entering async layers`;
@@ -73,7 +73,7 @@ are not proved.
 - review threads remain unresolved. The current non-outdated exact-head P1 thread on `tests/wallet-guard/provider-result-thenable-boundary.node.test.mjs` remains active. Historical non-outdated P1 threads also remain intentionally unresolved until final repaired exact-head independent validation.
 
 Required next repair: create the repaired candidate from current trusted main
-`03554ee...` rather than merging the stale historical branch wholesale. Repair
+`fac1941...` rather than merging the stale historical branch wholesale. Repair
 Promise-prototype drift before entering outer async layers; restore or replace
 CI-wired coverage for the independent sensitive-forwarding exploit and preserve
 zero hostile Promise-prototype dispatch. Preserve ordinary native-Promise
@@ -86,11 +86,11 @@ merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_TRUE_SIGNAL_ONLY / UNTRUSTED / RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE_SIGNAL_ONLY / UNTRUSTED / RECONCILIATION_REQUIRED`;
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`;
-- latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability metadata only and is not trusted-main reconciliation, security review or release evidence;
+- current trusted main: `fac194134dfe70767964e5816bcfb68f3b490099`;
+- latest live GitHub reports `mergeable=false`; this is volatile conflict/mergeability metadata only and is not trusted-main reconciliation, security review or release evidence;
 - last exact-head canonical CI: run `32465835858`, `CI` run 541, `success`;
 - latest distinct Codex release evidence covers a moved head, not current `c4e40ceb...`;
 - unresolved current/non-outdated P1/P2 review threads remain, including exact-value generic signature commitment, typed-data wrapper normalization, shared proof canonicalization/hash/reflection classes and nested payload capture concerns. Moved-head fixes are not exact-head release evidence;
@@ -103,10 +103,10 @@ fresh distinct exact-head independent skeptical/security review, and leave no
 unresolved P0/P1/P2. Simulation remains reference evidence only and does not
 authorize forwarding or prove external state/effect truth.
 
-### Current control-plane reconciliation lot — post-PR #105
+### Current control-plane reconciliation lot — post-PR #106
 
 The mandatory post-merge continuation update is being persisted on branch
-`docs/pom-rx-checkpoint-after-105-20260821`, based on trusted main `03554ee...`.
+`docs/pom-rx-checkpoint-after-106-20260821`, based on trusted main `fac1941...`.
 Its owned surfaces are exactly `POM_RX_RESUME_CHECKPOINT.md`, `POM_RX_TASKS.yaml`,
 `POM_RX_BLOCKERS.md` and `POM_RX_CAPABILITY_MAP.md`. It changes no runtime
 semantics. Its own moving head/CI/review state is deliberately not embedded as
@@ -115,13 +115,13 @@ exact-head CI/review evidence.
 
 ## recent_merge_and_post_merge
 
-### PR #105 — trusted control-plane checkpoint
+### PR #106 — trusted control-plane checkpoint
 
-- source head: `08af7792241d17f43cbdcf7823c8517aee46cbf9`;
-- merge SHA: `03554ee3191c1ca28e50159a67f822543d619ca3`;
-- source-head tree and merge tree: identical, `5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33`;
-- exact-head candidate CI: run `32503975756`, CI run 630, `success`;
-- exact-main canonical push CI: run `32504323490`, CI run 631 attempt 1, `success`;
+- source head: `f654ee8f7becdc0916e7d94e053d7d5b56910083`;
+- merge SHA: `fac194134dfe70767964e5816bcfb68f3b490099`;
+- source-head tree and merge tree: identical, `31fee2a35bff60dc5854d518874a8ed2bac3076e`;
+- exact-head candidate CI: run `32507298764`, CI run 636, `success`;
+- exact-main canonical push CI: run `32512231029`, CI run 637 attempt 1, `success`;
 - decision-time `pom-rx/exact-main-ci`: `success`, same run;
 - SpecKit reconciliation: PASS;
 - skeptical/falsification: PASS;
@@ -131,7 +131,7 @@ exact-head CI/review evidence.
 - integration/regression: PASS;
 - post-merge verdict: `POST_MERGE_ASSURANCE_PASS`.
 
-PR #105 is therefore trusted coordination-only evidence. It does not make PR #97
+PR #106 is therefore trusted coordination-only evidence. It does not make PR #97
 or PR #93 trusted and does not establish production or real-wallet readiness.
 
 ## overlap_and_dependency_rule
@@ -150,9 +150,9 @@ dependent Tier-B lot on the assumption that an open PR is already trusted.
 1. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact-head distinct review on `0efb462...` confirms the sensitive-forwarding exploit class remains reachable.
 2. `PR97_FALSE_PASS_GREEN_CI_32487036517` — CI 592 is green but current head is test-only and runtime remains unchanged.
 3. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462` — owner gate remains BLOCK / NON-INDEPENDENT.
-4. `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR105` — base `0564aecd...` trails trusted main `03554ee...`; current live `mergeable=true` remains volatile conflict metadata and is not security/reconciliation evidence.
+4. `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR106` — base `0564aecd...` trails trusted main `fac1941...`; current live `mergeable=false` remains volatile conflict metadata and is not security/reconciliation evidence.
 5. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
-6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — stale base, current live `mergeable=true` signal only, moved-head review evidence and unresolved P1/P2 history.
+6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — stale base, current live `mergeable=false` signal only, moved-head review evidence and unresolved P1/P2 history.
 7. `DAGR_SOURCE_DOCUMENT_MISSING`.
 8. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
@@ -178,7 +178,7 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Finish and gate the bounded post-PR #105 control-plane reconciliation as a non-Tier-B docs lot.
+1. Finish and gate the bounded post-PR #106 control-plane reconciliation as a non-Tier-B docs lot.
 2. Keep PR #97 blocked; do not merge exact head `0efb462...` or treat CI 592 as a security repair.
 3. After the control-plane checkpoint is trusted, create the smallest PR #97 repair from then-current trusted main, fixing Promise-prototype drift before outer async assimilation and restoring the exact exploit regression without weakening native-Promise compatibility.
 4. Rerun exact-head CI, owner six-lane review and fresh distinct independent skeptical/security review on the actual repaired head; resolve only findings validated by that exact-head evidence.
