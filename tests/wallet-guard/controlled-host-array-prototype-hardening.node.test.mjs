@@ -79,6 +79,7 @@ function assertIntrinsicMutation(error) {
 
 function installNumericSetter() {
   const original = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+  const originalLength = Object.getOwnPropertyDescriptor(Array.prototype, 'length');
   let calls = 0;
   Object.defineProperty(Array.prototype, '0', {
     configurable: true,
@@ -100,6 +101,11 @@ function installNumericSetter() {
     restore() {
       if (original) Object.defineProperty(Array.prototype, '0', original);
       else delete Array.prototype[0];
+      // Array.prototype is itself an Array. Defining numeric key "0" grows its
+      // own length even when the key is later deleted, so restore that descriptor
+      // as part of the adversarial-test cleanup. Otherwise a successful fail-closed
+      // check would leave the shared intrinsic observably mutated for later tests.
+      Object.defineProperty(Array.prototype, 'length', originalLength);
     },
   };
 }
