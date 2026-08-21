@@ -262,9 +262,15 @@ async function providerRead(provider, method) {
   }
 }
 
-async function readProviderSnapshot(provider) {
+async function readProviderSnapshot(provider, assertRuntimeIntegrity) {
   const chainRaw = await providerRead(provider, 'eth_chainId');
+  assertRuntimeIntegrity();
   const accountsRaw = await providerRead(provider, 'eth_accounts');
+  // The provider result itself is still untrusted ambient data. Recheck the
+  // controlled-host intrinsic surface immediately after the await and before
+  // normalizeAccounts() can dispatch through Array.prototype methods. Keeping
+  // this outside providerRead() also preserves the exact guard error provenance.
+  assertRuntimeIntegrity();
   return Object.freeze({
     chain_id: normalizeProviderChain(chainRaw),
     accounts: normalizeAccounts(accountsRaw),
@@ -275,9 +281,9 @@ function sameAccounts(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-async function sampleStableProviderContext(provider) {
-  const first = await readProviderSnapshot(provider);
-  const second = await readProviderSnapshot(provider);
+async function sampleStableProviderContext(provider, assertRuntimeIntegrity) {
+  const first = await readProviderSnapshot(provider, assertRuntimeIntegrity);
+  const second = await readProviderSnapshot(provider, assertRuntimeIntegrity);
   if (first.chain_id !== second.chain_id || !sameAccounts(first.accounts, second.accounts)) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'provider chain/account context changed during sampling');
   }
@@ -287,9 +293,9 @@ async function sampleStableProviderContext(provider) {
   });
 }
 
-async function sampleTrustedContext(captureTrustedOrigin, provider) {
+async function sampleTrustedContext(captureTrustedOrigin, provider, assertRuntimeIntegrity) {
   const originBefore = sampleTrustedOrigin(captureTrustedOrigin);
-  const providerContext = await sampleStableProviderContext(provider);
+  const providerContext = await sampleStableProviderContext(provider, assertRuntimeIntegrity);
   const originAfter = sampleTrustedOrigin(captureTrustedOrigin);
   if (originBefore !== originAfter) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted origin changed during provider sampling');
@@ -434,7 +440,11 @@ export function createWalletGuardReferenceProviderGateway(options) {
     trustedClock,
     observeBinding: async (attempt) => {
       exactKeys(attempt, ['request_id', 'request'], 'Wallet Guard execution attempt');
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = await sampleTrustedContext(
+        captureTrustedOrigin,
+        provider,
+        assertRuntimeIntegrityNow,
+      );
       // The controlled host can supply a synchronous same-realm integrity guard.
       // Run it immediately after every async context sample, before request cloning,
       // intent normalization or policy evaluation can dispatch through mutable
@@ -473,7 +483,11 @@ export function createWalletGuardReferenceProviderGateway(options) {
     },
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = await sampleTrustedContext(
+        captureTrustedOrigin,
+        provider,
+        assertRuntimeIntegrityNow,
+      );
       assertRuntimeIntegrityNow();
       if (!exactContextMatches(prepared, context)) {
         fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
@@ -509,7 +523,11 @@ export function createWalletGuardReferenceProviderGateway(options) {
     requestCounter += 1;
     const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
 
-    const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+    const context = await sampleTrustedContext(
+      captureTrustedOrigin,
+      provider,
+      assertRuntimeIntegrityNow,
+    );
     assertRuntimeIntegrityNow();
     const intent = normalizeWalletGuardIntent({
       requestId,
