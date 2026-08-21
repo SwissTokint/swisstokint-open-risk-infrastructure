@@ -72,10 +72,13 @@ const HEX_NIBBLES = '0123456789abcdef';
 // later same-realm prototype/global mutation cannot forge local evidence,
 // substitute its originating intent, widen status vocabulary, make minted
 // evidence mutable, collapse distinct UTF-16 request text through UTF-8
-// replacement, collapse exact -0 request identity, or inject failures into the
-// hash-shape decision itself. As elsewhere in the reference runtime, poisoning
-// before module initialization remains outside this scoped guarantee.
+// replacement, collapse exact -0 request identity, alter exact typed-data array
+// classification/key ordering, or inject failures into the hash-shape decision
+// itself. As elsewhere in the reference runtime, poisoning before module
+// initialization remains outside this scoped guarantee.
 const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_IS = Object.is;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -88,6 +91,14 @@ const WEAK_SET_ADD = WeakSet.prototype.add;
 const WEAK_SET_HAS = WeakSet.prototype.has;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const WEAK_MAP_GET = WeakMap.prototype.get;
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function sortArray(array, compare) {
+  return REFLECT_APPLY(ARRAY_SORT, array, [compare]);
+}
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
@@ -173,7 +184,7 @@ function exactPlainDataTranscript(value) {
   if (typeof value === 'string') {
     return `str:${utf16CodeUnitTranscript(value)};`;
   }
-  if (Array.isArray(value)) {
+  if (arrayIsArray(value)) {
     let transcript = `array:${value.length}:[`;
     for (let index = 0; index < value.length; index += 1) {
       transcript += exactPlainDataTranscript(value[index]);
@@ -185,7 +196,8 @@ function exactPlainDataTranscript(value) {
   // shared inert plain-data capture boundary and the proof canonicalizer has
   // validated the same object. Sorting object names removes irrelevant property
   // insertion order while string values retain their exact UTF-16 code units.
-  const keys = objectGetOwnPropertyNames(value).sort(asciiCompare);
+  const keys = objectGetOwnPropertyNames(value);
+  sortArray(keys, asciiCompare);
   let transcript = `object:${keys.length}:{`;
   for (const key of keys) {
     transcript += `key:${utf16CodeUnitTranscript(key)};`;
@@ -395,7 +407,7 @@ function typedDataRequestCommitmentMarker(typedData) {
     });
   }
 
-  if (typedData && typeof typedData === 'object' && !Array.isArray(typedData)) {
+  if (typedData && typeof typedData === 'object' && !arrayIsArray(typedData)) {
     // Replay has already accepted this independently captured typed-data object.
     // Keep the existing proof-canonicalizer call as the bounded shape/byte
     // validation contract, but do not hash its NFC-normalized text: EIP-712
@@ -420,7 +432,7 @@ function typedDataRequestCommitmentMarker(typedData) {
 
 function requestCommitmentProjection(requestSnapshot) {
   if (requestSnapshot.method !== 'eth_signTypedData_v4'
-      || !Array.isArray(requestSnapshot.params)
+      || !arrayIsArray(requestSnapshot.params)
       || requestSnapshot.params.length !== 2) {
     return requestSnapshot;
   }
