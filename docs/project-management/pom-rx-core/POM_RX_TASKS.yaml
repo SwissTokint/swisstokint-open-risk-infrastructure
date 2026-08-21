@@ -37,71 +37,19 @@
     "post_merge_gate": "docs/project-management/pom-rx-core/POM_RX_POST_MERGE_ASSURANCE_GATE.md"
   },
   "merged_foundation": [
-    {
-      "capability": "strict_profile_activation",
-      "state": "MERGED_TRUSTED_REFERENCE",
-      "notes": "pom-rx-v0.1/strict-errata-1 activated additively while historical verifier remains preserved"
-    },
-    {
-      "capability": "core_exact_authorization_and_process_local_gate",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "core_reference_plain_data_boundary",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "witness_primitives_and_process_local_trust_lifecycle",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "durable_local_claim_primitive",
-      "state": "MERGED_SEPARATE_PRIMITIVE",
-      "notes": "composition into the common Gate remains open PR #97"
-    },
-    {
-      "capability": "reference_execution_evidence",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "reference_observation_reconciliation",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "wallet_guard_json_intent_effect_policy_controller_preflight_witness_adapter_provider_controlled_host",
-      "state": "MERGED_TRUSTED_REFERENCE"
-    },
-    {
-      "capability": "exact_main_ci_status_surface",
-      "state": "MERGED_PR_96_POST_MERGE_PASS",
-      "merge_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8"
-    },
-    {
-      "capability": "github_backed_cross_chat_control_plane",
-      "state": "MERGED_PR_98_POST_MERGE_PASS",
-      "merge_sha": "1abe57f8baea8dd6844cc8ea9e321c05ec01538f",
-      "exact_main_ci_run": 32467712934
-    },
-    {
-      "capability": "post_pr98_durable_checkpoint_reconciliation",
-      "state": "MERGED_PR_99_POST_MERGE_PASS",
-      "merge_sha": "6a6ff5c2621e63e007a31b2c55eb2bfde2082d16",
-      "exact_main_ci_run": 32469503160
-    },
-    {
-      "capability": "post_pr99_durable_checkpoint_reconciliation",
-      "state": "MERGED_PR_100_POST_MERGE_PASS",
-      "source_head": "8924c5357b4299daa74d7e52cb8d20102641d929",
-      "merge_sha": "33986b33b9e8bc40030d940618e5c9df6f8b3fe6",
-      "exact_main_ci_run": 32480810161
-    },
-    {
-      "capability": "post_pr100_durable_checkpoint_reconciliation",
-      "state": "MERGED_PR_101_POST_MERGE_PASS",
-      "source_head": "009064788008abe8ac1c08532f3d55ef1c19508f",
-      "merge_sha": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "exact_main_ci_run": 32482258034
-    }
+    {"capability":"strict_profile_activation","state":"MERGED_TRUSTED_REFERENCE","notes":"pom-rx-v0.1/strict-errata-1 activated additively while historical verifier remains preserved"},
+    {"capability":"core_exact_authorization_and_process_local_gate","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"core_reference_plain_data_boundary","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"witness_primitives_and_process_local_trust_lifecycle","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"durable_local_claim_primitive","state":"MERGED_SEPARATE_PRIMITIVE","notes":"composition into the common Gate remains open PR #97"},
+    {"capability":"reference_execution_evidence","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"reference_observation_reconciliation","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"wallet_guard_json_intent_effect_policy_controller_preflight_witness_adapter_provider_controlled_host","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"exact_main_ci_status_surface","state":"MERGED_PR_96_POST_MERGE_PASS","merge_sha":"818718955c9e4136e9e55754a31be2f1c7b610f8"},
+    {"capability":"github_backed_cross_chat_control_plane","state":"MERGED_PR_98_POST_MERGE_PASS","merge_sha":"1abe57f8baea8dd6844cc8ea9e321c05ec01538f","exact_main_ci_run":32467712934},
+    {"capability":"post_pr98_durable_checkpoint_reconciliation","state":"MERGED_PR_99_POST_MERGE_PASS","merge_sha":"6a6ff5c2621e63e007a31b2c55eb2bfde2082d16","exact_main_ci_run":32469503160},
+    {"capability":"post_pr99_durable_checkpoint_reconciliation","state":"MERGED_PR_100_POST_MERGE_PASS","source_head":"8924c5357b4299daa74d7e52cb8d20102641d929","merge_sha":"33986b33b9e8bc40030d940618e5c9df6f8b3fe6","exact_main_ci_run":32480810161},
+    {"capability":"post_pr100_durable_checkpoint_reconciliation","state":"MERGED_PR_101_POST_MERGE_PASS","source_head":"009064788008abe8ac1c08532f3d55ef1c19508f","merge_sha":"0564aecd42cf0794894c12842980969ff59c9f73","exact_main_ci_run":32482258034}
   ],
   "tasks": [
     {
@@ -123,7 +71,7 @@
       ],
       "acceptance": [
         "Persist exact trusted main 0564aecd42cf0794894c12842980969ff59c9f73 and PR #101 POST_MERGE_ASSURANCE_PASS.",
-        "Represent PR #97 exact head 639b96e7a64fa101432b3afcc3c08aebfcc838cf with exact-head CI failure 32486243945 and the fresh exact-head independent P1 Reject Promise drift before entering async layers; do not promote stale green or moved-head owner evidence.",
+        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as a test-only move from independently blocked 639b96e7, with unresolved Promise-drift security P1, exact-head owner BLOCK, current CI 32487036517 pending and fresh exact-head independent review pending.",
         "Represent PR #93 exact live head c4e40ceb286f4e59657767661daed15d2b68e9a7 as currently mergeable but open/untrusted and still requiring trusted-main reconciliation plus fresh exact-head gates.",
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
@@ -136,39 +84,37 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS_AND_RED_CI",
+      "status": "BLOCKED_UNRESOLVED_PROMISE_DRIFT_P1_TEST_ONLY_HEAD",
       "pr": 97,
-      "checkpoint_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
+      "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "reconciled_main": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "checkpoint_ci": {
-        "run": 32486243945,
-        "run_number": 586,
-        "status": "failure"
-      },
+      "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"in_progress"},
       "release_owner": {
-        "status": "STALE_AFTER_HEAD_MOVE",
-        "last_reviewed_head": "f91079676aa8a21c0501bee3951bcd0d40c27083"
+        "status": "BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462",
+        "reviewed_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
+        "finding": "Current head only relaxes the failing security regression and does not modify provider/runtime implementation; parent sensitive-forwarding P1 therefore remains unresolved."
       },
       "independent_review": {
-        "status": "BLOCK_P1_EXACT_HEAD_639B96E7",
-        "reviewed_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
+        "status": "PENDING_EXACT_HEAD_0EFB462_PARENT_P1_STILL_APPLICABLE",
+        "last_blocking_reviewed_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
         "finding": "P1 Reject Promise drift before entering async layers",
-        "repair_state": "UNRESOLVED"
+        "repair_state": "UNRESOLVED_IMPLEMENTATION_UNCHANGED"
       },
-      "known_state": "The prior 37b8 bookkeeping-symbol compatibility P1 is historical after the head move: ordinary native Promise transport now passes under Node test-runner instrumentation. Current head still fails the hostile post-import Promise-prototype drift regression because outer async-layer awaits can consult poisoned inherited Promise constructor/then state before providerRead's transport rejection reaches its caller. Canonical CI observes constructor getter execution with zero authorization/forwarding in the isolated failure; the fresh independent reviewer additionally reproduced inherited constructor+then poisoning yielding stable attacker-controlled context, reference authorization and sensitive forwarding through the outer async layers. The repair must close this boundary before async assimilation while preserving native-Promise compatibility, direct non-Promise capture and own constructor/then decoration rejection.",
+      "known_state": "Current head is one commit after independently blocked 639b96e7 and changes only the prototype-drift test (4 additions/4 deletions), relaxing the assertion from zero hostile constructor-getter execution to zero authorization/forwarding in the isolated case. Provider/runtime implementation is unchanged. The parent independent reviewer reproduced inherited Promise.prototype.constructor + then poisoning through outer async awaits yielding stable attacker-controlled context, reference authorization and sensitive forwarding. Therefore a green CI on the relaxed test would be insufficient and risks a false PASS. The earlier bookkeeping-symbol compatibility issue is historical and ordinary native Promise compatibility must remain preserved.",
       "acceptance": [
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
         "Provider-controlled direct non-Promise object/function results cross shared hardened inert capture before async/thenable assimilation.",
-        "Decorated native Promise constructor/then attacks remain rejected before attacker-owned dispatch.",
-        "Post-import Promise.prototype constructor/then drift is rejected before any outer async-layer Promise assimilation can execute attacker-owned inherited behavior.",
+        "Own decorated native Promise constructor/then attacks remain rejected before attacker-owned dispatch.",
+        "Post-import Promise.prototype constructor/then drift cannot be consulted by outer async layers before fail-closed rejection.",
         "Ordinary genuine native Promise provider context transport remains compatible under repository Node test-runner bookkeeping symbols.",
         "Rejected hostile Promise transport cannot reach reference authorization or sensitive forwarding.",
+        "The independent sensitive-forwarding exploit class has a CI-wired regression; security is not established merely by weakening an assertion.",
         "Current final repaired exact-head CI succeeds.",
         "Release-owner review passes on that exact head and a fresh distinct independent skeptical/security review covers that same head.",
         "No unresolved P0/P1/P2 remains before merge.",
         "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "next_action": "repair the Promise-prototype drift boundary before entering outer async layers on PR #97; preserve ordinary native-Promise compatibility plus direct/decorated-result hardening; add/retain exact attack and compatibility regressions; rerun exact-head CI, release-owner review and fresh distinct independent review"
+      "next_action": "repair runtime Promise-prototype drift handling before outer async assimilation, restore/replace the regression to cover the independent exploit, preserve native-Promise compatibility and prior direct/decorated-result hardening, then rerun exact-head CI, release-owner review and fresh distinct independent review"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
@@ -179,11 +125,7 @@
       "status": "BLOCKED_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW",
       "pr": 93,
       "checkpoint_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "checkpoint_ci": {
-        "run": 32465835858,
-        "run_number": 541,
-        "status": "success"
-      },
+      "checkpoint_ci": {"run":32465835858,"run_number":541,"status":"success"},
       "mergeable_at_checkpoint": true,
       "known_state": "Live GitHub currently reports the PR mergeable, but its branch base still predates trusted main 0564aecd and the latest distinct Codex release evidence covers a moved head. Mergeability is not release evidence. PR #93 overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
       "acceptance": [
@@ -204,10 +146,7 @@
       "complexity": "CRITICAL",
       "tier_b": true,
       "status": "BLOCKED_BY_CURRENT_COMPOSITION_LOTS",
-      "dependencies": [
-        "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
-        "CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97"
-      ],
+      "dependencies": ["WALLET-GUARD-SIMULATION-EVIDENCE-PR93","CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97"],
       "acceptance": [
         "Dangerous approval/signature is denied before sensitive forwarding.",
         "Explicitly allowed control request reaches the controlled fake downstream at most once.",
@@ -223,10 +162,7 @@
       "complexity": "HIGH",
       "tier_b": true,
       "status": "BLOCKED_DAGR_SOURCE_DOCUMENT_MISSING",
-      "acceptance": [
-        "Locate and validate an authorized source before any normative DAGR content is authored.",
-        "Do not reconstruct normative content from chat memory or model inference."
-      ]
+      "acceptance": ["Locate and validate an authorized source before any normative DAGR content is authored.","Do not reconstruct normative content from chat memory or model inference."]
     },
     {
       "id": "WALLET-GUARD-BURNER-LOCAL-TESTNET-E2E",
@@ -235,11 +171,7 @@
       "complexity": "CRITICAL",
       "tier_b": true,
       "status": "HUMAN_EXECUTION_GATE_REQUIRED",
-      "acceptance": [
-        "Separate explicit human authorization for this execution phase.",
-        "Burner/local-testnet only, no meaningful funds, no mainnet/funded wallet.",
-        "All prerequisite bounded reference gates have exact post-merge PASS evidence."
-      ]
+      "acceptance": ["Separate explicit human authorization for this execution phase.","Burner/local-testnet only, no meaningful funds, no mainnet/funded wallet.","All prerequisite bounded reference gates have exact post-merge PASS evidence."]
     }
   ],
   "absolute_boundaries": [
