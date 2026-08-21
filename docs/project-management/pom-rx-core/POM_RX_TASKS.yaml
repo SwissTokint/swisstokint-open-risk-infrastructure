@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T17:40:00+02:00",
-  "current_main": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
+  "updated_at": "2026-08-21T18:31:00+02:00",
+  "current_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -16,7 +16,7 @@
     ]
   },
   "history": {
-    "previous_register_main_checkpoint": "62edca5dc665642d95f3e115fd60463fffd68947",
+    "previous_register_main_checkpoint": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
     "preservation": "Superseded task detail remains immutable in Git history. This active register tracks current live work only and must not revive stale READY/BLOCKED labels."
   },
   "limits": {
@@ -33,39 +33,34 @@
     "moved_head_invalidates_exact_head_evidence": true,
     "independent_reviewer_rule": "Only a genuinely distinct review recorded on the exact current candidate SHA counts. A fresh chatgpt-codex-connector review may satisfy the independent lane when it covers that exact SHA and leaves no unresolved P0/P1/P2.",
     "independent_review_waiver": "PR #60 only unless explicitly broadened by the user",
-    "standing_merge_authorization": "The user authorizes future POM-RX PR merges without per-PR approval only after the full five-stage gate plus every applicable technical/security gate and exact-head CI pass; required independent review is never waived by this standing authorization.",
+    "standing_merge_authorization": "Future POM-RX PRs may merge without per-PR confirmation only after the full five-stage gate, every applicable technical/security gate, exact-head CI and required exact-head independent review pass.",
     "post_merge_gate": "docs/project-management/pom-rx-core/POM_RX_POST_MERGE_ASSURANCE_GATE.md"
   },
   "merged_foundation": [
-    {"capability":"strict_profile_activation","state":"MERGED_TRUSTED_REFERENCE","notes":"pom-rx-v0.1/strict-errata-1 activated additively while historical verifier remains preserved"},
+    {"capability":"strict_profile_activation","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"core_exact_authorization_and_process_local_gate","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"core_reference_plain_data_boundary","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"witness_primitives_and_process_local_trust_lifecycle","state":"MERGED_TRUSTED_REFERENCE"},
-    {"capability":"durable_local_claim_primitive","state":"MERGED_SEPARATE_PRIMITIVE","notes":"composition into the common Gate remains open PR #97"},
+    {"capability":"durable_local_claim_primitive","state":"MERGED_SEPARATE_PRIMITIVE","notes":"composition into the common Gate remains blocked PR #97"},
     {"capability":"reference_execution_evidence","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"reference_observation_reconciliation","state":"MERGED_TRUSTED_REFERENCE"},
-    {"capability":"wallet_guard_json_intent_effect_policy_controller_preflight_witness_adapter_provider_controlled_host","state":"MERGED_TRUSTED_REFERENCE"},
+    {"capability":"wallet_guard_reference_foundation","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"exact_main_ci_status_surface","state":"MERGED_PR_96_POST_MERGE_PASS","merge_sha":"818718955c9e4136e9e55754a31be2f1c7b610f8"},
-    {"capability":"github_backed_cross_chat_control_plane","state":"MERGED_PR_98_POST_MERGE_PASS","merge_sha":"1abe57f8baea8dd6844cc8ea9e321c05ec01538f","exact_main_ci_run":32467712934},
-    {"capability":"post_pr98_durable_checkpoint_reconciliation","state":"MERGED_PR_99_POST_MERGE_PASS","merge_sha":"6a6ff5c2621e63e007a31b2c55eb2bfde2082d16","exact_main_ci_run":32469503160},
-    {"capability":"post_pr99_durable_checkpoint_reconciliation","state":"MERGED_PR_100_POST_MERGE_PASS","source_head":"8924c5357b4299daa74d7e52cb8d20102641d929","merge_sha":"33986b33b9e8bc40030d940618e5c9df6f8b3fe6","exact_main_ci_run":32480810161},
-    {"capability":"post_pr100_durable_checkpoint_reconciliation","state":"MERGED_PR_101_POST_MERGE_PASS","source_head":"009064788008abe8ac1c08532f3d55ef1c19508f","merge_sha":"0564aecd42cf0794894c12842980969ff59c9f73","exact_main_ci_run":32482258034},
-    {"capability":"post_pr101_durable_checkpoint_reconciliation","state":"MERGED_PR_102_POST_MERGE_PASS","source_head":"dc52051b5691913f34d57c3924a01642b7af10e7","merge_sha":"62edca5dc665642d95f3e115fd60463fffd68947","exact_main_ci_run":32489395041},
-    {"capability":"post_pr102_durable_checkpoint_reconciliation","state":"MERGED_PR_103_POST_MERGE_PASS","source_head":"f422d57fd6bfe6824ac3fc86a761d8d474df62f3","merge_sha":"2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9","exact_main_ci_run":32496183065}
+    {"capability":"github_backed_cross_chat_control_plane","state":"MERGED_PR_98_POST_MERGE_PASS","merge_sha":"1abe57f8baea8dd6844cc8ea9e321c05ec01538f"},
+    {"capability":"post_pr103_durable_checkpoint_reconciliation","state":"MERGED_PR_104_POST_MERGE_PASS","source_head":"ff28d200949ae53250ff3beb4268732bf130ec22","merge_sha":"bfb3e4b7a062427d5ee53f7b76a280da657f6152","source_merge_tree":"11a1dec83c380f0515a1eaedbe5685c69e2b6edb","exact_main_ci_run":32501713512,"ci_run_number":625}
   ],
   "tasks": [
     {
-      "id": "CONTROL-PLANE-POST-103-CHECKPOINT-20260821",
+      "id": "CONTROL-PLANE-POST-104-CHECKPOINT-20260821",
       "phase": "COORDINATION",
       "priority": "P0",
       "complexity": "LOW",
       "tier_b": false,
       "status": "OPEN_AWAITING_EXACT_HEAD_GATES",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
-      "pr": 104,
-      "branch": "docs/pom-rx-checkpoint-after-103-20260821",
-      "base": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
-      "self_head_policy": "Do not embed this branch's own moving commit SHA as authoritative state. Read its live PR head, CI, reviews and threads before release.",
+      "branch": "docs/pom-rx-checkpoint-after-104-20260821",
+      "base": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
+      "self_head_policy": "Do not embed this branch's own moving SHA as authoritative. Re-read live head, CI, reviews and threads before release.",
       "files_owned": [
         "docs/product/POM_RX_CAPABILITY_MAP.md",
         "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -73,13 +68,13 @@
         "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml"
       ],
       "acceptance": [
-        "Persist exact trusted main 2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9 and PR #103 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32496183065 SUCCESS.",
-        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, requiring reconciliation from base 0564aecd to current trusted main 2c537090 after PR #103; final live mergeability is true/clean but is conflict metadata only and not release evidence.",
-        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base and requiring later trusted-main reconciliation plus fresh exact-head gates; final live mergeability is true/clean but is not release evidence.",
-        "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
-        "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network, public-site/Vercel or financial-execution semantics."
+        "Persist trusted main bfb3e4b7a062427d5ee53f7b76a280da657f6152 and PR #104 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32501713512 / CI 625 SUCCESS.",
+        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, with trusted-main reconciliation required and current live mergeable=true treated only as volatile mergeability/conflict metadata.",
+        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base with current live mergeable=true treated only as volatile metadata, unresolved P1/P2 history and later trusted-main reconciliation plus fresh exact-head gates required.",
+        "Preserve the five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
+        "Change no protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network, public-site/Vercel or financial-execution semantics."
       ],
-      "next_gate": "freeze final documentation candidate; obtain exact-head CI, release-owner review and distinct exact-head independent review before merge"
+      "next_gate": "freeze exact documentation head; run canonical CI, release-owner scoped review and distinct exact-head independent review before merge"
     },
     {
       "id": "CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97",
@@ -91,38 +86,23 @@
       "pr": 97,
       "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "branch_base_sha": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "current_trusted_main": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
+      "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
       "mergeable_at_checkpoint": true,
-      "mergeable_state_at_checkpoint": "clean",
-      "mergeability_interpretation": "CONFLICT_SIGNAL_ONLY_NOT_RECONCILIATION_OR_RELEASE_EVIDENCE",
+      "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
       "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"success"},
-      "release_owner": {
-        "status": "BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462",
-        "reviewed_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-        "finding": "Current head only relaxes the failing security regression and does not modify provider/runtime implementation; the sensitive-forwarding exploit remains unresolved despite green CI."
-      },
-      "independent_review": {
-        "status": "BLOCK_P1_EXACT_HEAD_0EFB462",
-        "reviewed_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-        "finding": "P1 Reject Promise drift before entering async layers",
-        "repair_state": "UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"
-      },
-      "known_state": "Exact head 0efb462 changes only the prototype-drift regression, relaxing the isolated assertion while provider/runtime implementation remains unchanged. Exact-head CI run 32487036517 is green, but a fresh distinct exact-head Codex review confirms simultaneous inherited Promise.prototype.constructor + then poisoning can be consulted by outer awaits before the inner rejection reaches its caller, producing attacker-controlled stable context, reference authorization and sensitive forwarding. Current trusted main is 2c537090 after coordination-only PR #103 while the PR base remains 0564aecd. Final live revalidation reports mergeable=true and mergeable_state=clean, but this is only conflict metadata and does not satisfy trusted-main reconciliation. Multiple historical P1 threads remain unresolved pending final repaired exact-head independent validation.",
+      "release_owner": {"status":"BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462","reviewed_head":"0efb462f0b4b8cff62d664a51d13ad71306b6bbb"},
+      "independent_review": {"status":"BLOCK_P1_EXACT_HEAD_0EFB462","reviewed_head":"0efb462f0b4b8cff62d664a51d13ad71306b6bbb","finding":"P1 Reject Promise drift before entering async layers","repair_state":"UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"},
+      "threads": "Current exact-head Promise-drift P1 is unresolved; historical P1 threads remain unresolved until a final repaired exact head is independently validated.",
       "acceptance": [
-        "Reconcile the final repaired candidate to the then-current trusted main before release.",
-        "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
-        "Provider-controlled direct non-Promise object/function results cross shared hardened inert capture before async/thenable assimilation.",
-        "Own decorated native Promise constructor/then attacks remain rejected before attacker-owned dispatch.",
-        "Post-import Promise.prototype constructor/then drift cannot be consulted by outer async layers before fail-closed rejection.",
-        "Ordinary genuine native Promise provider context transport remains compatible under repository Node test-runner bookkeeping symbols.",
-        "Rejected hostile Promise transport cannot reach reference authorization or sensitive forwarding.",
-        "The exact independent sensitive-forwarding exploit class has CI-wired regression coverage preserving zero hostile Promise-prototype dispatch; security is not established merely by weakening an assertion.",
-        "Current final repaired exact-head CI succeeds.",
-        "Release-owner review passes on that exact head and a fresh distinct independent skeptical/security review covers that same head.",
-        "No unresolved P0/P1/P2 remains before merge.",
-        "Reference-only filesystem/install assumptions and production non-claims remain explicit."
+        "Reconcile/start the repaired candidate from then-current trusted main.",
+        "Prevent inherited Promise.prototype constructor/then drift from being consulted before fail-closed rejection in outer async layers.",
+        "Preserve direct non-Promise hardened capture, own decorated-Promise rejection and ordinary native-Promise Node bookkeeping-symbol compatibility.",
+        "Maintain durable claim before observer/downstream and fail-closed single-use replay behavior.",
+        "Require zero authorization and zero sensitive forwarding for hostile rejected transports.",
+        "Restore/replace CI-wired regression for the independent sensitive-forwarding exploit rather than weakening it.",
+        "Exact repaired-head CI, release-owner PASS and fresh distinct independent review all pass with no unresolved P0/P1/P2."
       ],
-      "next_action": "repair runtime Promise-prototype drift handling on top of current trusted main, restore/preserve exact exploit regression coverage and native-Promise compatibility, then rerun exact-head CI, release-owner review and fresh distinct independent review"
+      "next_action": "after the control-plane checkpoint is trusted, create the smallest runtime repair from current trusted main for Promise-prototype drift before outer async assimilation"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
@@ -134,22 +114,20 @@
       "pr": 93,
       "checkpoint_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "branch_base_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "current_trusted_main": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
+      "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
       "checkpoint_ci": {"run":32465835858,"run_number":541,"status":"success"},
       "mergeable_at_checkpoint": true,
-      "mergeable_state_at_checkpoint": "clean",
-      "mergeability_interpretation": "CONFLICT_SIGNAL_ONLY_NOT_RECONCILIATION_OR_RELEASE_EVIDENCE",
-      "known_state": "Final live revalidation reports mergeable=true and mergeable_state=clean, but its branch base is historical and the latest distinct Codex release evidence covers a moved head. Mergeability is not release evidence. PR #93 has unresolved moved-head P1/P2 review history, overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
+      "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
+      "threads": "Unresolved current/non-outdated P1/P2 review threads remain; moved-head repairs and reviews do not release current head.",
       "acceptance": [
-        "Reconcile to then-current trusted main after dependency ordering is safe.",
+        "Order after trusted PR #97 dependency state.",
+        "Reconcile to then-current trusted main.",
         "Exact current head CI succeeds after reconciliation.",
-        "Release-owner scoped review passes on the exact current head.",
-        "Fresh distinct independent skeptical/security review covers that exact head.",
+        "Release-owner scoped review and fresh distinct exact-head skeptical/security review pass.",
         "No unresolved P0/P1/P2 remains.",
-        "Simulation remains reference-only and does not claim external state/effect truth or authorization.",
-        "No shared Core payload/security limit is widened merely to make Wallet Guard pass."
+        "Simulation remains reference-only and does not claim authorization or external state/effect truth."
       ],
-      "next_action": "after PR #97 ordering is trusted, reconcile to trusted main and obtain fresh exact-head CI, release-owner review and distinct independent review"
+      "next_action": "after PR #97 ordering is trusted, reconcile to trusted main and rerun all exact-head gates"
     },
     {
       "id": "WALLET-GUARD-CONTROLLED-END-TO-END-DEMO",
@@ -159,13 +137,7 @@
       "tier_b": true,
       "status": "BLOCKED_BY_CURRENT_COMPOSITION_LOTS",
       "dependencies": ["WALLET-GUARD-SIMULATION-EVIDENCE-PR93","CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97"],
-      "acceptance": [
-        "Dangerous approval/signature is denied before sensitive forwarding.",
-        "Explicitly allowed control request reaches the controlled fake downstream at most once.",
-        "Exact authorization, Gate, bounded execution evidence, independent observation and reconciliation remain bound to the same intent/context.",
-        "Synthetic/reference proof is not upgraded into production or real-wallet safety."
-      ],
-      "next_action": "start only after dependencies are trusted by exact-merge post-merge PASS and select the smallest composition lot"
+      "next_action": "start only after dependencies have trusted exact-merge POST_MERGE_ASSURANCE_PASS evidence"
     },
     {
       "id": "DAGR-SOURCE-RECOVERY",
@@ -174,7 +146,7 @@
       "complexity": "HIGH",
       "tier_b": true,
       "status": "BLOCKED_DAGR_SOURCE_DOCUMENT_MISSING",
-      "acceptance": ["Locate and validate an authorized source before any normative DAGR content is authored.","Do not reconstruct normative content from chat memory or model inference."]
+      "next_action": "locate and validate an authorized source; never reconstruct normative DAGR content from chat memory or model inference"
     },
     {
       "id": "WALLET-GUARD-BURNER-LOCAL-TESTNET-E2E",
@@ -183,15 +155,7 @@
       "complexity": "CRITICAL",
       "tier_b": true,
       "status": "HUMAN_EXECUTION_GATE_REQUIRED",
-      "acceptance": ["Separate explicit human authorization for this execution phase.","Burner/local-testnet only, no meaningful funds, no mainnet/funded wallet.","All prerequisite bounded reference gates have exact post-merge PASS evidence."]
+      "next_action": "do not execute without separate explicit human authorization; no private keys, funded wallets, meaningful funds or mainnet"
     }
-  ],
-  "absolute_boundaries": [
-    "No private keys, seeds, secrets or funded-wallet credentials.",
-    "No real/funded wallet, mainnet transaction or meaningful funds without a separately authorized future scope.",
-    "No website/Vercel/funding-directory write from the POM-RX control plane.",
-    "No stale PR or moved-head review is treated as current release evidence.",
-    "No independent reviewer identity is fabricated.",
-    "No simulation, blockchain anchor or structural verifier verdict substitutes for the execution-side Gate."
   ]
 }
