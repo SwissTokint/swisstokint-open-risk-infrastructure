@@ -105,8 +105,10 @@ function captureIntrinsicSurface(value) {
 // unchanged Symbol.iterator method can still return an iterator whose shared
 // %ArrayIteratorPrototype%.next was mutated. Policy capture below is synchronous
 // and receives only already-inert Core data, so there is no callback/await point
-// between the final guard and parser dispatch. This remains application-local;
-// Core keeps its detached captured-array representation.
+// between the final guard and parser dispatch. The same guard is injected into the
+// provider gateway so every post-await policy dispatch is rechecked immediately
+// after trusted context sampling. This remains application-local; Core keeps its
+// detached captured-array representation.
 const ARRAY_PROTOTYPE_BASELINE = captureIntrinsicSurface(ARRAY_PROTOTYPE);
 const ARRAY_ITERATOR_PROTOTYPE_BASELINE = captureIntrinsicSurface(ARRAY_ITERATOR_PROTOTYPE);
 const SET_PROTOTYPE_BASELINE = captureIntrinsicSurface(SET_PROTOTYPE);
@@ -437,6 +439,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     trustedClock: options.trustedClock,
     referenceAuthorizationForRequest: options.referenceAuthorizationForRequest,
     capabilityLifetimeMs: options.capabilityLifetimeMs,
+    assertRuntimeIntegrity: assertArrayPrototypeStable,
   });
 
   // The page-facing boundary is stricter than the historical provider gateway:
