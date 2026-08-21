@@ -14,6 +14,75 @@ const MAX_DEPTH = 8;
 const MAX_STRING_LENGTH = 2_048;
 const MAX_CANONICAL_BYTES = 16 * 1024;
 
+// Canonicalization and SHA-256 commitments are shared trust primitives. Capture
+// the intrinsics they dispatch through once at module initialization so a later
+// same-realm mutation of Array.isArray, Array.prototype.sort or the mutable
+// default node:crypto export cannot change an already-defined commitment
+// function. This preserves the public canonical form and hash values in the
+// normal environment; poisoning before module initialization remains out of
+// scope for this reference runtime.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
+const BUFFER_BYTE_LENGTH = Buffer.byteLength;
+const CRYPTO_CREATE_HASH = crypto.createHash;
+const JSON_STRINGIFY = JSON.stringify;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const OBJECT_ENTRIES = Object.entries;
+const REGEXP_TEST = RegExp.prototype.test;
+const SET_HAS = Set.prototype.has;
+const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
+const STRING_NORMALIZE = String.prototype.normalize;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const HASH_PROBE = REFLECT_APPLY(CRYPTO_CREATE_HASH, crypto, ['sha256']);
+const HASH_PROTOTYPE = Object.getPrototypeOf(HASH_PROBE);
+const HASH_UPDATE = HASH_PROTOTYPE.update;
+const HASH_DIGEST = HASH_PROTOTYPE.digest;
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function sortArray(value, compare) {
+  return REFLECT_APPLY(ARRAY_SORT, value, [compare]);
+}
+
+function objectEntries(value) {
+  return REFLECT_APPLY(OBJECT_ENTRIES, Object, [value]);
+}
+
+function normalizeString(value, form) {
+  return REFLECT_APPLY(STRING_NORMALIZE, value, [form]);
+}
+
+function lowercaseString(value) {
+  return REFLECT_APPLY(STRING_TO_LOWER_CASE, value, []);
+}
+
+function charCodeAt(value, index) {
+  return REFLECT_APPLY(STRING_CHAR_CODE_AT, value, [index]);
+}
+
+function jsonStringify(value) {
+  return REFLECT_APPLY(JSON_STRINGIFY, JSON, [value]);
+}
+
+function numberIsSafeInteger(value) {
+  return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
+}
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+}
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function bufferByteLength(value, encoding) {
+  return REFLECT_APPLY(BUFFER_BYTE_LENGTH, Buffer, [value, encoding]);
+}
+
 const sensitivePayloadKeys = new Set([
   'apikey',
   'apisecret',
@@ -54,7 +123,15 @@ function payloadAssert(condition, code, message) {
 }
 
 function normalizedSensitiveKey(key) {
-  return key.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normalized = lowercaseString(normalizeString(key, 'NFKC'));
+  let safe = '';
+  for (let index = 0; index < normalized.length; index += 1) {
+    const codeUnit = charCodeAt(normalized, index);
+    if ((codeUnit >= 48 && codeUnit <= 57) || (codeUnit >= 97 && codeUnit <= 122)) {
+      safe += normalized[index];
+    }
+  }
+  return safe;
 }
 
 function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
@@ -78,14 +155,14 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
 
   if (typeof value === 'number') {
     payloadAssert(
-      Number.isSafeInteger(value),
+      numberIsSafeInteger(value),
       'PROOF_E_PAYLOAD_NUMBER',
       'Payload numbers must be safe integers',
     );
     return;
   }
 
-  if (Array.isArray(value)) {
+  if (arrayIsArray(value)) {
     for (const item of value) validateSafeValue(item, depth + 1, budget);
     return;
   }
@@ -95,14 +172,14 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
     'PROOF_E_PAYLOAD_TYPE',
     'Payload contains an unsupported value',
   );
-  for (const [key, nestedValue] of Object.entries(value)) {
+  for (const [key, nestedValue] of objectEntries(value)) {
     payloadAssert(
-      PAYLOAD_KEY_PATTERN.test(key),
+      regexpTest(PAYLOAD_KEY_PATTERN, key),
       'PROOF_E_PAYLOAD_KEY',
       `Unsafe payload key: ${key}`,
     );
     payloadAssert(
-      !sensitivePayloadKeys.has(normalizedSensitiveKey(key)),
+      !setHas(sensitivePayloadKeys, normalizedSensitiveKey(key)),
       'PROOF_E_PAYLOAD_SENSITIVE_KEY',
       `Sensitive payload key: ${key}`,
     );
@@ -114,29 +191,43 @@ function canonicalizeValue(value) {
   if (value === null) return 'null';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return JSON.stringify(value.normalize('NFC'));
-  if (Array.isArray(value)) return `[${value.map(canonicalizeValue).join(',')}]`;
+  if (typeof value === 'string') return jsonStringify(normalizeString(value, 'NFC'));
+  if (arrayIsArray(value)) {
+    let canonical = '[';
+    for (let index = 0; index < value.length; index += 1) {
+      if (index !== 0) canonical += ',';
+      canonical += canonicalizeValue(value[index]);
+    }
+    return `${canonical}]`;
+  }
 
-  return `{${Object.entries(value)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, nestedValue]) => `${JSON.stringify(key)}:${canonicalizeValue(nestedValue)}`)
-    .join(',')}}`;
+  const entries = objectEntries(value);
+  sortArray(entries, ([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  let canonical = '{';
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index !== 0) canonical += ',';
+    const [key, nestedValue] = entries[index];
+    canonical += `${jsonStringify(key)}:${canonicalizeValue(nestedValue)}`;
+  }
+  return `${canonical}}`;
 }
 
 export function sha256Hex(value) {
-  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+  const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, crypto, ['sha256']);
+  REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
+  return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
 }
 
 export function canonicalizePayload(payload) {
   payloadAssert(
-    payload && typeof payload === 'object' && !Array.isArray(payload),
+    payload && typeof payload === 'object' && !arrayIsArray(payload),
     'PROOF_E_PAYLOAD_SHAPE',
     'Payload must be a JSON object',
   );
   validateSafeValue(payload);
   const canonical = canonicalizeValue(payload);
   payloadAssert(
-    Buffer.byteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES,
+    bufferByteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES,
     'PROOF_E_PAYLOAD_CANONICAL_BYTES',
     'Canonical payload exceeds 16 KiB',
   );
