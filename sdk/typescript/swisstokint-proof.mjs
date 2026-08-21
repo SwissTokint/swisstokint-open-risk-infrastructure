@@ -22,6 +22,7 @@ const MAX_CANONICAL_BYTES = 16 * 1024;
 // Public canonical form, validation limits and normal-environment digest values
 // remain unchanged. Poisoning before module initialization remains outside this
 // reference-runtime guarantee.
+const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort.call.bind(Array.prototype.sort);
 const BUFFER_BYTE_LENGTH = Buffer.byteLength;
@@ -52,12 +53,13 @@ function objectEntries(value) {
 }
 
 function normalizeString(value, form) {
-  if (String.prototype.normalize !== STRING_NORMALIZE_INTRINSIC) {
+  const liveNormalize = String.prototype.normalize;
+  if (liveNormalize !== STRING_NORMALIZE_INTRINSIC) {
     // Preserve the established side effects and exact thrown-error provenance
-    // of a post-initialization replacement, but never consume its return value
-    // into a commitment. A replacement that returns normally therefore cannot
-    // rewrite or collapse the canonical text computed below.
-    value.normalize(form);
+    // of one post-initialization replacement lookup/invocation, but never consume
+    // its return value into a commitment. A replacement that returns normally
+    // therefore cannot rewrite or collapse the canonical text computed below.
+    REFLECT_APPLY(liveNormalize, value, [form]);
   }
   return STRING_NORMALIZE(value, form);
 }
