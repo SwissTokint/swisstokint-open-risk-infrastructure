@@ -116,11 +116,18 @@ test('foreign ProofPayloadValidationError during request commitment preserves ex
   }
 });
 
-test('foreign WalletGuardIntentError during replay normalization preserves exact provenance', async () => {
+test('post-init Object.keys poisoning cannot synthesize a replay WalletGuardIntentError', async () => {
   const request = rawRequest();
   const intent = normalize(request, 'wg-simulation-request-provenance-0002');
-  const runtime = neverCalledHarness();
+  let callbackCalls = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (simulatorInput) => {
+      callbackCalls += 1;
+      return unavailableResult(simulatorInput);
+    },
+  });
   const originalKeys = Object.keys;
+  let targetedPoisonCalls = 0;
   const foreign = new WalletGuardIntentError(
     'POMRX_WG_E_REQUEST_INVALID',
     'foreign replay-path failure',
@@ -132,16 +139,16 @@ test('foreign WalletGuardIntentError during replay normalization preserves exact
         && Object.hasOwn(value, 'requestId')
         && Object.hasOwn(value, 'trustedOrigin')
         && Object.hasOwn(value, 'request')) {
-      Object.keys = originalKeys;
+      targetedPoisonCalls += 1;
       throw foreign;
     }
     return originalKeys(value);
   };
   try {
-    await assert.rejects(
-      runtime.simulate({ intent, request }),
-      (error) => error === foreign,
-    );
+    const evidence = await runtime.simulate({ intent, request });
+    assert.equal(evidence.status, 'unavailable');
+    assert.equal(callbackCalls, 1);
+    assert.equal(targetedPoisonCalls, 0);
   } finally {
     Object.keys = originalKeys;
   }
