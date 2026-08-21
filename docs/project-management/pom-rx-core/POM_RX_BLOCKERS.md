@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T18:45:00+02:00`
+Updated: `2026-08-21T19:10:00+02:00`
 
 Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`
 
@@ -53,10 +53,9 @@ Status: `BLOCKED_EXACT_HEAD_PROMISE_DRIFT_P1 / TEST_ONLY_FALSE_PASS_RISK / TRUST
 Current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`.
 PR base: `0564aecd42cf0794894c12842980969ff59c9f73`.
 Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`.
-Latest live GitHub reports `mergeable=false`; the signal changed after trusted
-main advanced. This is volatile mergeability/conflict metadata only. It neither
-establishes the cause of conflict nor satisfies reconciliation, security review or
-a release gate.
+Latest live GitHub reports `mergeable=true`; this is volatile mergeability/conflict
+metadata only. It neither establishes reconciliation nor satisfies security review
+or a release gate.
 
 Canonical exact-head CI run `32487036517`, `CI` run 592, completed `success`.
 Green CI does not clear the current technical/security blocker.
@@ -115,9 +114,9 @@ Status: `BLOCKED_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW`
 Current exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
 Historical PR base: `818718955c9e4136e9e55754a31be2f1c7b610f8`.
 Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`.
-Latest live GitHub reports `mergeable=false`; the signal changed after trusted
-main advanced. This is volatile conflict/mergeability metadata only and not
-trusted-main reconciliation, security review or release evidence.
+Latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability
+metadata only and not trusted-main reconciliation, security review or release
+evidence.
 
 Last exact-head canonical CI on `c4e40ceb...`: run `32465835858`, `CI` run 541,
 `success`. The latest distinct Codex release evidence covers a moved head, not
