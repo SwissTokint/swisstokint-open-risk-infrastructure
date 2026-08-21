@@ -137,17 +137,24 @@ test('controlled host fails closed before policy materialization on post-import 
 test('controlled host also fails closed if Array.prototype drifts after host construction', async () => {
   const { page, testAuthority } = createWalletGuardControlledReferenceHost(options());
   const attack = installNumericSetter();
+  let pending;
   let rejected;
   let setterCalls;
   try {
-    try {
-      await page.ethereum.request(nativeTransfer(ATTACKER));
-    } catch (error) {
-      rejected = error;
-    }
+    // The guarded async function executes its pre-await intrinsic check synchronously.
+    // Restore the global prototype before this test harness itself awaits the rejected
+    // Promise: Node's Promise/test internals also allocate arrays and must not be part
+    // of the adversarial window being attributed to Wallet Guard production code.
+    pending = page.ethereum.request(nativeTransfer(ATTACKER));
     setterCalls = attack.calls();
   } finally {
     attack.restore();
+  }
+
+  try {
+    await pending;
+  } catch (error) {
+    rejected = error;
   }
 
   assertIntrinsicMutation(rejected);
