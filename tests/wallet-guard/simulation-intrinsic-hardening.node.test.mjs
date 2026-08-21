@@ -374,13 +374,13 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
   const originalIterator = Array.prototype[Symbol.iterator];
   let vulnerableShapeCalls = 0;
   Array.prototype[Symbol.iterator] = function poisonedIterator() {
-    // Replay/normalization legitimately traverses this one-key shape four times.
-    // The vulnerable exact-transcript loop was the fifth dispatch. Preserve the
+    // Replay/normalization legitimately traverses this one-key shape three times.
+    // The vulnerable exact-transcript loop was the fourth dispatch. Preserve the
     // earlier traversals so this regression attacks the reviewed sink precisely;
-    // the repaired index-based transcript must never issue that fifth dispatch.
+    // the repaired index-based transcript must never issue that fourth dispatch.
     if (this.length === 1 && this[0] === 'value') {
       vulnerableShapeCalls += 1;
-      if (vulnerableShapeCalls === 5) return originalIterator.call([]);
+      if (vulnerableShapeCalls === 4) return originalIterator.call([]);
     }
     return originalIterator.call(this);
   };
@@ -394,6 +394,6 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
 
   assert.equal(firstEvidence.status, 'pass');
   assert.equal(distinctEvidence.status, 'mismatch');
-  assert.equal(vulnerableShapeCalls, 4);
+  assert.equal(vulnerableShapeCalls, 3);
   assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
 });
