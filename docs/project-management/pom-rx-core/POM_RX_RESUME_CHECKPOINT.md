@@ -47,45 +47,44 @@ are not proved.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
-- state: `OPEN / NOT_MERGED / MERGEABLE / BLOCKED_EXACT_HEAD_P1_AND_RED_CI`;
-- current exact head: `639b96e7a64fa101432b3afcc3c08aebfcc838cf`;
+- state: `OPEN / NOT_MERGED / MERGEABLE / BLOCKED_UNRESOLVED_SECURITY_P1`;
+- current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - exact base/trusted main: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current canonical exact-head CI: run `32486243945`, `CI` run 586, completed
-  `failure` on this exact head;
-- the previous exact-head P1 on `37b8e699...` (`Permit runtime bookkeeping
-  symbols on native promises`) is historical after the head move. The new head
-  permits Node/AsyncHooks own-symbol bookkeeping strongly enough that the
-  ordinary native-Promise compatibility regression now passes;
-- a fresh distinct `chatgpt-codex-connector` review covers exact current head
-  `639b96e7...` and reports P1 `Reject Promise drift before entering async
-  layers`;
-- the exact failing regression is `post-import Promise prototype constructor
-  drift is rejected before getter execution`: the hostile constructor getter is
-  observed four times, with `authorizationCalls: 0` and `sensitiveCalls: 0` in
-  the canonical failure;
-- the independent reproducer is more severe than that isolated assertion: when
-  inherited `Promise.prototype.constructor` and `then` are poisoned together,
-  internal async-layer awaits in `readProviderSnapshot`,
-  `sampleStableProviderContext`, `sampleTrustedContext` and `request` can run the
-  hostile inherited Promise surface before the transport validator's rejection
-  reaches its caller; the reviewer reproduced stable attacker-controlled context,
-  subsequent reference authorization and sensitive forwarding;
-- direct non-Promise object/function capture and own native-Promise
-  `constructor`/`then` decoration hardening remain prior security requirements and
-  must not be weakened;
-- no release-owner six-lane review covers current head `639b96e7...`; the latest
-  owner PASS is on moved head `f91079676aa8a21c0501bee3951bcd0d40c27083` and is
-  stale. Historical P1 threads remain unresolved.
+- current canonical exact-head CI: run `32487036517`, `CI` run 592, `in_progress`
+  at this checkpoint;
+- current head is one commit ahead of independently blocked parent
+  `639b96e7a64fa101432b3afcc3c08aebfcc838cf` and changes only
+  `tests/wallet-guard/provider-result-thenable-boundary.node.test.mjs` (4
+  additions / 4 deletions). No provider/runtime implementation changed;
+- the changed test relaxes the Promise-prototype-drift assertion from requiring
+  zero hostile constructor-getter execution to requiring only zero authorization
+  and zero sensitive forwarding in that isolated case;
+- the parent exact-head fresh distinct `chatgpt-codex-connector` review reported
+  P1 `Reject Promise drift before entering async layers` and reproduced inherited
+  `Promise.prototype.constructor` + `then` poisoning being consulted by outer
+  async awaits before the inner transport rejection reaches its caller, yielding
+  stable attacker-controlled context, reference authorization and sensitive
+  forwarding;
+- because current head changes only the test and not the implementation, that
+  attack class remains an unresolved release blocker. A green CI result on this
+  head cannot by itself clear it;
+- release-owner exact-head review on `0efb462...` is `BLOCK / NON-INDEPENDENT`
+  for false-PASS risk, and a fresh distinct exact-head Codex review has been
+  requested and is pending;
+- the earlier `37b8e699...` native-Promise bookkeeping-symbol P1 is historical;
+  ordinary native-Promise transport compatibility now passes in the relevant
+  regression and must remain preserved;
+- historical P1 threads remain unresolved and must not be treated as release
+  evidence until a final repaired exact head is independently validated.
 
-Required next repair: on PR #97, close the Promise-prototype drift boundary before
-entering any async layer that can itself perform Promise assimilation. Preserve
-ordinary native-Promise compatibility (including inert runtime bookkeeping
-symbols), direct Proxy/function capture before assimilation, own
-`constructor`/`then` decoration rejection, zero authorization/forwarding on
-rejected hostile transports and the documented same-realm threat boundary. Add
-or retain CI-wired attack and compatibility regressions, then rerun exact-head CI,
-release-owner six-lane review and a fresh distinct independent exact-head review.
-No unresolved P0/P1/P2 may remain before merge.
+Required next repair: do not substitute a weaker test for the parent security
+finding. Repair the Promise-prototype drift boundary before entering outer async
+layers whose own Promise assimilation can consult inherited attacker-controlled
+`constructor`/`then` state. Preserve ordinary native-Promise compatibility,
+direct non-Promise Proxy/function capture, own Promise-decoration rejection and
+zero authorization/forwarding on hostile rejected transports. Then rerun
+exact-head CI, release-owner six-lane review and a fresh distinct independent
+exact-head review. No unresolved P0/P1/P2 may remain before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -151,19 +150,20 @@ dependent Tier-B lot on the assumption that an open PR is already trusted.
 
 ## current_blockers
 
-1. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact head
-   `639b96e7...` has a fresh independent P1: post-import Promise prototype drift
-   can be consulted by outer async-layer awaits before the inner transport
-   rejection reaches its caller; the independent reproducer reaches reference
-   authorization and sensitive forwarding with attacker-controlled context.
-2. `PR97_EXACT_HEAD_CI_FAILURE_32486243945` — CI run 586 failed on exact head
-   `639b96e7...`; all older green CI and owner reviews are stale for release.
-3. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION` — do not resolve
+1. `PR97_UNRESOLVED_PARENT_P1_PROMISE_DRIFT / FALSE_PASS_RISK` — current exact
+   head `0efb462...` changes only the failing regression, not provider/runtime
+   implementation. Parent `639b96e7...` has a fresh independent P1 with a
+   sensitive-forwarding reproducer. Current release-owner verdict is BLOCK.
+2. `PR97_EXACT_HEAD_CI_32487036517_PENDING` — current-head CI is in progress and
+   cannot clear the unresolved technical P1 even if it becomes green.
+3. `PR97_FRESH_INDEPENDENT_EXACT_HEAD_REVIEW_PENDING` — requested specifically
+   for `0efb462...`; moved-head review evidence does not satisfy release.
+4. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION` — do not resolve
    historical P1 threads until a final repaired exact head is independently
    validated.
-4. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
-5. `DAGR_SOURCE_DOCUMENT_MISSING`.
-6. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
+5. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
+6. `DAGR_SOURCE_DOCUMENT_MISSING`.
+7. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
 ## merge_authorization_and_review_rules
 
@@ -187,15 +187,15 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Repair PR #97 exact head `639b96e7...` at the outer async-layer boundary so
-   post-import Promise-prototype constructor/then drift is rejected before any
-   attacker-owned inherited Promise dispatch, while preserving ordinary native
-   Promise compatibility and the already hardened direct-result boundary.
-2. Rerun exact-head CI and release-owner six-lane review after that repair, then
-   obtain a fresh distinct independent exact-head skeptical/security review with
-   no unresolved P0/P1/P2.
-3. If #97 reaches every gate, merge under standing authorization and immediately
-   run exact-merge-SHA post-merge assurance before treating it as trusted.
+1. Keep PR #97 blocked on `0efb462...`; do not accept the relaxed regression as a
+   repair for the parent independent P1.
+2. Repair the Promise-prototype drift/outer-async-layer boundary in runtime code,
+   restore or replace a regression that covers the independent exploit, preserve
+   ordinary native-Promise compatibility, then rerun exact-head CI and owner
+   review plus fresh distinct independent review.
+3. If #97 later reaches every gate, merge under standing authorization and
+   immediately run exact-merge-SHA post-merge assurance before treating it as
+   trusted.
 4. After #97 dependency ordering is trusted, reconcile PR #93 to the then-current
    trusted main and repeat all exact-head gates.
 5. Start no dependent Wallet Guard end-to-end lot until relevant Tier-B
