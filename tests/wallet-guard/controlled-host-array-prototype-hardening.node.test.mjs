@@ -72,10 +72,9 @@ function nativeTransfer(to = RECIPIENT) {
   };
 }
 
-function expectIntrinsicMutation(error) {
+function assertIntrinsicMutation(error) {
   assert.ok(error instanceof WalletGuardControlledHostError);
   assert.equal(error.code, 'POMRX_WG_HOST_E_INTRINSIC_MUTATION');
-  return true;
 }
 
 function installNumericSetter() {
@@ -105,38 +104,48 @@ function installNumericSetter() {
   };
 }
 
-test('controlled host fails closed before policy materialization on post-import numeric setter drift', () => {
+test('controlled host fails closed before policy materialization on post-import numeric setter drift', async () => {
   const attack = installNumericSetter();
+  let thrown;
+  let setterCalls;
   try {
-    assert.throws(
-      () => createWalletGuardControlledReferenceHost(options()),
-      expectIntrinsicMutation,
-    );
-    assert.equal(attack.calls(), 0);
+    try {
+      createWalletGuardControlledReferenceHost(options());
+    } catch (error) {
+      thrown = error;
+    }
+    setterCalls = attack.calls();
   } finally {
     attack.restore();
   }
 
+  assertIntrinsicMutation(thrown);
+  assert.equal(setterCalls, 0);
+
   const { page } = createWalletGuardControlledReferenceHost(options());
-  return page.ethereum.request(nativeTransfer()).then((result) => {
-    assert.equal(result.decision, 'ALLOW');
-    assert.equal(result.forwarded, true);
-  });
+  const result = await page.ethereum.request(nativeTransfer());
+  assert.equal(result.decision, 'ALLOW');
+  assert.equal(result.forwarded, true);
 });
 
 test('controlled host also fails closed if Array.prototype drifts after host construction', async () => {
   const { page, testAuthority } = createWalletGuardControlledReferenceHost(options());
   const attack = installNumericSetter();
+  let rejected;
+  let setterCalls;
   try {
-    await assert.rejects(
-      page.ethereum.request(nativeTransfer(ATTACKER)),
-      expectIntrinsicMutation,
-    );
-    assert.equal(attack.calls(), 0);
+    try {
+      await page.ethereum.request(nativeTransfer(ATTACKER));
+    } catch (error) {
+      rejected = error;
+    }
+    setterCalls = attack.calls();
   } finally {
     attack.restore();
   }
 
+  assertIntrinsicMutation(rejected);
+  assert.equal(setterCalls, 0);
   const state = testAuthority.inspect();
   assert.equal(state.sensitive_call_count, 0);
   assert.equal(state.context_reads, 0);
