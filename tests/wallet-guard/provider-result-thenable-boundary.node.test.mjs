@@ -127,6 +127,56 @@ test('synchronous account Proxy is rejected before thenable assimilation or auth
   assert.equal(sensitiveCalls, 0);
 });
 
+test('synchronous callable Proxy is rejected before async-return thenable assimilation', async () => {
+  let accountReads = 0;
+  let thenTrapCalls = 0;
+  let otherTrapCalls = 0;
+  let authorizationCalls = 0;
+  let sensitiveCalls = 0;
+
+  const hostileCallable = new Proxy(function hostileAccountsThenable() {}, {
+    get(target, key, receiver) {
+      if (key === 'then') {
+        thenTrapCalls += 1;
+        return (resolve) => resolve([ATTACKER]);
+      }
+      otherTrapCalls += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        return hostileCallable;
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const guarded = gateway(provider, () => {
+    authorizationCalls += 1;
+  });
+
+  await assert.rejects(
+    guarded.request(nativeTransfer()),
+    (error) => {
+      assert.ok(error instanceof WalletGuardProviderError);
+      assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID');
+      return true;
+    },
+  );
+
+  assert.equal(accountReads, 1);
+  assert.equal(thenTrapCalls, 0);
+  assert.equal(otherTrapCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
+
 test('ordinary synchronous provider context data remains supported', async () => {
   let authorizationCalls = 0;
   let sensitiveCalls = 0;
