@@ -303,6 +303,33 @@ test('captured arrays detach implicit iteration and method lookup from live Arra
   }
 });
 
+test('captured arrays do not inherit shared ArrayIterator prototype next semantics', () => {
+  const captured = captureReferencePlainData({ items: ['trusted', 'second'] }, 'iterator_detach');
+  const originalArrayIterator = Array.prototype[Symbol.iterator];
+  const probeIterator = Reflect.apply(originalArrayIterator, [], [[]]);
+  const arrayIteratorPrototype = Object.getPrototypeOf(probeIterator);
+  const originalNext = arrayIteratorPrototype.next;
+  let iterated;
+  let valuesIterated;
+
+  try {
+    arrayIteratorPrototype.next = function poisonedArrayIteratorNext() {
+      return { value: 'forged', done: true };
+    };
+    iterated = [...captured.items];
+    valuesIterated = [...captured.items.values()];
+  } finally {
+    arrayIteratorPrototype.next = originalNext;
+  }
+
+  assert.equal(iterated.length, 2);
+  assert.equal(iterated[0], 'trusted');
+  assert.equal(iterated[1], 'second');
+  assert.equal(valuesIterated.length, 2);
+  assert.equal(valuesIterated[0], 'trusted');
+  assert.equal(valuesIterated[1], 'second');
+});
+
 test('Gate prepared execution arrays remain exact under post-issuance Array prototype poisoning', async () => {
   let evidence;
   let downstreamItems;
