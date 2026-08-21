@@ -169,3 +169,50 @@ test('later Object.is replacement cannot collapse 0 and negative-zero request co
   assert.equal(commitments.length, 2);
   assert.notEqual(commitments[0], commitments[1]);
 });
+
+test('later Object.getOwnPropertyNames replacement cannot collapse exact Unicode commitments', async () => {
+  const composedRequest = requestFor(typedData('\u00e9'));
+  const decomposedRequest = requestFor(typedData('e\u0301'));
+  const intent = normalize(composedRequest, 'wg-simulation-exact-object-unicode-0004');
+  const commitments = [];
+  let cachedResult = null;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      commitments.push(input.request_commitment);
+      if (cachedResult === null) {
+        cachedResult = unavailableResult(input);
+        return cachedResult;
+      }
+      return cachedResult;
+    },
+  });
+
+  const originalGetOwnPropertyNames = Object.getOwnPropertyNames;
+  Object.getOwnPropertyNames = (value) => {
+    const names = originalGetOwnPropertyNames(value);
+    if (value
+        && typeof value === 'object'
+        && Object.isFrozen(value)
+        && names.includes('types')
+        && names.includes('primaryType')
+        && names.includes('domain')
+        && names.includes('message')) {
+      return [];
+    }
+    return names;
+  };
+
+  let first;
+  let second;
+  try {
+    first = await runtime.simulate({ intent, request: composedRequest });
+    second = await runtime.simulate({ intent, request: decomposedRequest });
+  } finally {
+    Object.getOwnPropertyNames = originalGetOwnPropertyNames;
+  }
+
+  assert.equal(first.status, 'unavailable');
+  assert.equal(second.status, 'mismatch');
+  assert.equal(commitments.length, 2);
+  assert.notEqual(commitments[0], commitments[1]);
+});
