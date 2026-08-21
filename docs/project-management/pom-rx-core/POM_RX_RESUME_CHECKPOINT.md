@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T17:14:00+02:00`
+Updated: `2026-08-21T17:27:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in a task conversation separate from any interactive chat, so future runs must
@@ -47,10 +47,10 @@ are not proved.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
-- state: `OPEN / NOT_MERGED / MERGEABLE_SIGNAL_ONLY / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
 - current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - PR base SHA remains `0564aecd42cf0794894c12842980969ff59c9f73`, while trusted main has moved to `2c537090...` through coordination-only PR #103;
-- live GitHub reports `mergeable=true`, but that is conflict metadata only and does not waive trusted-main reconciliation or any security/release gate;
+- live GitHub reports `mergeable=false`; that is current mergeability/conflict metadata only, does not establish the cause by itself, and does not waive trusted-main reconciliation or any security/release gate;
 - canonical exact-head CI: run `32487036517`, `CI` run 592, completed `success` on exact head `0efb462...`;
 - current head changes only `tests/wallet-guard/provider-result-thenable-boundary.node.test.mjs` relative to independently blocked parent `639b96e7...`; provider/runtime implementation is unchanged;
 - the changed test relaxes the Promise-prototype-drift assertion instead of repairing the runtime;
@@ -72,10 +72,10 @@ before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- state: `OPEN / NOT_MERGED / MERGEABLE_SIGNAL_ONLY / UNTRUSTED / RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE / UNTRUSTED / RECONCILIATION_REQUIRED`;
 - current live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - PR base remains historical `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- live GitHub reports `mergeable=true`, but that is conflict metadata only and is neither trusted-main reconciliation nor release evidence;
+- live GitHub reports `mergeable=false`; that is current mergeability/conflict metadata only, does not establish the cause by itself, and is neither trusted-main reconciliation nor release evidence;
 - last exact-head CI on `c4e40ceb...`: run `32465835858`, `CI` run 541, completed `success`;
 - the latest distinct Codex release evidence covers a moved head, not `c4e40ceb...`, and cannot release this PR;
 - unresolved review history includes P1/P2 findings from moved heads; these are not releasable until the branch is reconciled and a fresh exact-head independent review validates the actual candidate;
@@ -134,9 +134,9 @@ dependent Tier-B lot on the assumption that an open PR is already trusted.
 1. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — fresh distinct independent review on exact head `0efb462...` confirms the sensitive-forwarding exploit remains reachable and the relaxed regression hides it.
 2. `PR97_FALSE_PASS_GREEN_CI_32487036517` — CI run 592 is green on exact head `0efb462...`, but this head changes only the test and leaves runtime unchanged; green CI does not override the exact-head P1.
 3. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462` — NON-INDEPENDENT owner gate blocks the same test-only candidate.
-4. `PR97_TRUSTED_MAIN_DRIFT_AFTER_PR103` — PR #97 base remains `0564aecd...` while trusted main is `2c537090...`; live `mergeable=true` is not reconciliation evidence.
+4. `PR97_TRUSTED_MAIN_DRIFT_AFTER_PR103` — PR #97 base remains `0564aecd...` while trusted main is `2c537090...`; live `mergeable=false` is current mergeability/conflict metadata and not reconciliation evidence.
 5. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION` — do not resolve historical P1 threads until a final repaired exact head is independently validated.
-6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — historical base remains stale; live `mergeable=true` is not release evidence and moved-head review history remains unresolved.
+6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — historical base remains stale; live `mergeable=false` is current mergeability/conflict metadata and not release evidence, and moved-head review history remains unresolved.
 7. `DAGR_SOURCE_DOCUMENT_MISSING`.
 8. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
