@@ -6,6 +6,10 @@ import {
   createReferenceSingleUseGateHarness,
 } from '../../../core/gate/reference-single-use-gate.mjs';
 import {
+  captureReferencePlainData,
+  PomRxPlainDataError,
+} from '../../../core/reference-data/plain-data-snapshot.mjs';
+import {
   normalizeChainId,
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
@@ -33,6 +37,9 @@ const MAX_REQUEST_NODES = 1_000;
 const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
 const MAX_ACCOUNTS = 64;
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_MAP = Array.prototype.map;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
@@ -90,6 +97,10 @@ export class WalletGuardProviderError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardProviderError(code, message);
+}
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, null, [value]);
 }
 
 function exactKeys(value, expected, label) {
@@ -243,15 +254,40 @@ function normalizeProviderAccount(value) {
   }
 }
 
+function captureProviderAccounts(value) {
+  try {
+    return captureReferencePlainData(value, 'provider accounts');
+  } catch (error) {
+    if (error instanceof PomRxPlainDataError) {
+      fail(
+        'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
+        'provider accounts must be a bounded inert dense data array',
+      );
+    }
+    throw error;
+  }
+}
+
 function normalizeAccounts(value) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
+  // Cross the shared hardened inert-data boundary before any application-level
+  // array normalization. A provider-controlled Proxy/decorated array is rejected
+  // by saved reflection/Proxy intrinsics without executing caller traps/getters;
+  // the returned Array exotic is detached from mutable Array.prototype.
+  const captured = captureProviderAccounts(value);
+  if (!arrayIsArray(captured) || captured.length < 1 || captured.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
   }
-  const normalized = value.map(normalizeProviderAccount);
-  if (new Set(normalized).size !== normalized.length) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
+
+  const normalizedTransient = REFLECT_APPLY(ARRAY_MAP, captured, [normalizeProviderAccount]);
+  const normalized = captureReferencePlainData(normalizedTransient, 'normalized provider accounts');
+  for (let index = 0; index < normalized.length; index += 1) {
+    for (let prior = 0; prior < index; prior += 1) {
+      if (normalized[prior] === normalized[index]) {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
+      }
+    }
   }
-  return Object.freeze(normalized);
+  return normalized;
 }
 
 async function providerRead(provider, method) {
@@ -278,7 +314,11 @@ async function readProviderSnapshot(provider, assertRuntimeIntegrity) {
 }
 
 function sameAccounts(left, right) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
 }
 
 async function sampleStableProviderContext(provider, assertRuntimeIntegrity) {
