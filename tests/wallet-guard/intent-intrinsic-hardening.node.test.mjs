@@ -25,6 +25,35 @@ function request(extra = {}) {
   };
 }
 
+function customTypedData() {
+  return {
+    types: {
+      EIP712Domain: [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+      ],
+      CustomMessage: [
+        { name: 'value', type: 'string' },
+      ],
+    },
+    primaryType: 'CustomMessage',
+    domain: {
+      name: 'Boundary Test',
+      version: '1',
+    },
+    message: {
+      value: 'stable',
+    },
+  };
+}
+
+function typedDataRequest(data) {
+  return {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, data],
+  };
+}
+
 function normalize(rawRequest, requestId) {
   return normalizeWalletGuardIntent({
     requestId,
@@ -81,4 +110,55 @@ test('later Set.prototype.has poisoning cannot widen transaction fields', () => 
 
   assert.ok(thrown);
   expectRequestInvalid(thrown);
+});
+
+test('typed-data normalization rejects hidden, symbol and custom-array decorations', () => {
+  const cases = [
+    {
+      name: 'hidden object field',
+      mutate(data) {
+        Object.defineProperty(data.message, 'hidden', {
+          value: true,
+          enumerable: false,
+        });
+      },
+    },
+    {
+      name: 'symbol array field',
+      mutate(data) {
+        data.types.CustomMessage[Symbol('hidden')] = true;
+      },
+    },
+    {
+      name: 'hidden array field',
+      mutate(data) {
+        Object.defineProperty(data.types.CustomMessage, 'hidden', {
+          value: true,
+          enumerable: false,
+        });
+      },
+    },
+    {
+      name: 'custom array prototype',
+      mutate(data) {
+        Object.setPrototypeOf(
+          data.types.CustomMessage,
+          Object.create(Array.prototype),
+        );
+      },
+    },
+  ];
+
+  cases.forEach(({ name, mutate }, index) => {
+    const data = customTypedData();
+    mutate(data);
+    assert.throws(
+      () => normalize(
+        typedDataRequest(data),
+        `wg-intent-intrinsic-typed-${String(index).padStart(4, '0')}`,
+      ),
+      expectRequestInvalid,
+      name,
+    );
+  });
 });
