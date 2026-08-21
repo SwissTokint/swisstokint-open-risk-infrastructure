@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T21:18:00+02:00",
+  "updated_at": "2026-08-21T22:09:00+02:00",
   "current_main": "de69d066239891f0f2c08384a9f14167d0e30373",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -38,7 +38,7 @@
     "id": "CONTROL-PLANE-POST-107-CHECKPOINT-20260821",
     "title": "Reconcile canonical control plane after trusted PR 107",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "IN_PROGRESS_AWAITING_EXACT_HEAD_GATES",
+    "status": "IN_PROGRESS_EXACT_HEAD_REPAIR_AND_REGATE",
     "base_sha": "de69d066239891f0f2c08384a9f14167d0e30373",
     "branch": "docs/pom-rx-checkpoint-after-107-20260821",
     "owned_files": [
@@ -52,6 +52,8 @@
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "do not promote volatile mergeability metadata into release evidence",
       "preserve shared Core versus Wallet Guard application ownership",
+      "preserve the PR 97 durable-claim-before-observer/downstream ordering, fail-closed replay and one-winner invariants",
+      "preserve the mandatory five-stage pre-merge gate in structured merge authorization rules",
       "preserve production and real-wallet non-claims",
       "change no runtime, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
       "run exact-head CI and scoped release-owner review",
@@ -80,7 +82,7 @@
         "current and historical P1 review threads remain unresolved",
         "branch is not reconciled to trusted main de69d066239891f0f2c08384a9f14167d0e30373"
       ],
-      "next_safe_action": "After the control-plane checkpoint is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge the stale branch wholesale. Restore/replace the independent exploit regression, preserve native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After the control-plane checkpoint is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge the stale branch wholesale. Require the durable capability claim to succeed before any observer or downstream work so losing contenders cannot enter security-sensitive paths, preserve fail-closed replay and one-winner behavior, restore/replace the independent Promise-drift exploit regression, preserve native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -125,7 +127,8 @@
     }
   ],
   "merge_rules": {
-    "standing_authorization": "Applicable only after every technical/security gate, exact-head CI, and required distinct exact-head independent review pass with no unresolved P0/P1/P2.",
+    "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
+    "standing_authorization": "Applicable only after the mandatory five-stage pre-merge gate, every applicable technical/security gate, exact-head CI, and required distinct exact-head independent review pass with no unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
     "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA SpecKit, skeptical, security, code-quality, optimization and integration/regression assurance before dependent work may trust it."
