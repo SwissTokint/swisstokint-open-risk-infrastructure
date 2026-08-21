@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T18:17:00+02:00",
+  "updated_at": "2026-08-21T18:31:00+02:00",
   "current_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -69,8 +69,8 @@
       ],
       "acceptance": [
         "Persist trusted main bfb3e4b7a062427d5ee53f7b76a280da657f6152 and PR #104 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32501713512 / CI 625 SUCCESS.",
-        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, with trusted-main reconciliation required and current live mergeable=false treated only as conflict metadata.",
-        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base with live mergeable=false, unresolved P1/P2 history and later trusted-main reconciliation plus fresh exact-head gates required.",
+        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, with trusted-main reconciliation required and current live mergeable=true treated only as volatile mergeability/conflict metadata.",
+        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base with current live mergeable=true treated only as volatile metadata, unresolved P1/P2 history and later trusted-main reconciliation plus fresh exact-head gates required.",
         "Preserve the five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Change no protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network, public-site/Vercel or financial-execution semantics."
       ],
@@ -87,8 +87,8 @@
       "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "branch_base_sha": "0564aecd42cf0794894c12842980969ff59c9f73",
       "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
-      "mergeable_at_checkpoint": false,
-      "mergeability_interpretation": "LIVE_CONFLICT_SIGNAL_ONLY_NOT_CAUSE_RECONCILIATION_OR_RELEASE_EVIDENCE",
+      "mergeable_at_checkpoint": true,
+      "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
       "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"success"},
       "release_owner": {"status":"BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462","reviewed_head":"0efb462f0b4b8cff62d664a51d13ad71306b6bbb"},
       "independent_review": {"status":"BLOCK_P1_EXACT_HEAD_0EFB462","reviewed_head":"0efb462f0b4b8cff62d664a51d13ad71306b6bbb","finding":"P1 Reject Promise drift before entering async layers","repair_state":"UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"},
@@ -116,8 +116,8 @@
       "branch_base_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8",
       "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
       "checkpoint_ci": {"run":32465835858,"run_number":541,"status":"success"},
-      "mergeable_at_checkpoint": false,
-      "mergeability_interpretation": "LIVE_CONFLICT_SIGNAL_ONLY_NOT_CAUSE_RECONCILIATION_OR_RELEASE_EVIDENCE",
+      "mergeable_at_checkpoint": true,
+      "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
       "threads": "Unresolved current/non-outdated P1/P2 review threads remain; moved-head repairs and reviews do not release current head.",
       "acceptance": [
         "Order after trusted PR #97 dependency state.",
