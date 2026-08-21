@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T11:52:00+02:00`
+Updated: `2026-08-21T13:10:00+02:00`
 
 Current trusted main: `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`
 
@@ -36,11 +36,13 @@ differences, and the recorded mandatory post-merge verdict is
 `POST_MERGE_ASSURANCE_PASS` with SpecKit, skeptical/falsification, security, code
 quality, optimization and integration/regression all PASS.
 
-The current bounded non-Tier-B documentation branch merely persists that new
-trusted-main/merge verdict into the existing checkpoint/task/blocker/capability
-surfaces. It changes no runtime semantics and must still pass its own applicable
-exact-head documentation gates before any merge. Its current branch/PR head must
-be read from live GitHub instead of being embedded as self-referential evidence.
+PR #100 is the current bounded non-Tier-B documentation/control-plane
+reconciliation. Immediately before the latest live-state update, head
+`460abc2369a0796cb9bc10b0573f0a38c3716f7c` had canonical CI run
+`32472828209` success. The newly discovered exact-head PR #97 blocker required
+another checkpoint commit, so that prior PR #100 exact-head evidence is stale.
+PR #100 must pass fresh exact-head documentation gates on its final frozen head
+before merge.
 
 ## PR #93 — Wallet Guard simulation exact-head gate
 
@@ -50,55 +52,63 @@ Checkpoint head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
 
 Exact-head CI: run `32465835858`, `success`.
 
-The current branch contains repairs after its last distinct independent review,
-so that moved-head review is not release evidence for `c4e40ceb...`. A fresh
-distinct skeptical/security review must cover the actual current head. Because
-trusted main has advanced through non-runtime control-plane merges, the PR must
-also be reconciled to the then-current trusted main before eventual merge where
-base/overlap drift is material, with all invalidated exact-head gates repeated.
+The latest distinct Codex review available for release evidence covers moved
+head `03e0201c9fef5ed10a615996d68052613bdd94d6`, where it found a P1 in
+nested typed-data capture using live reflection. The branch moved afterward and
+contains later shared plain-data/reflection hardening. That moved-head review is
+not release evidence for `c4e40ceb...`.
 
 Required to unblock:
 
 1. reconcile material base/overlap drift to current trusted main;
 2. preserve green exact-head CI on the resulting actual current head;
-3. release-owner architecture/falsification/security/code-quality/optimization
-   review on that same head;
-4. fresh distinct independent skeptical/security review on that same head;
-5. no unresolved P0/P1/P2 after that review.
+3. obtain release-owner architecture/falsification/security/code-quality/
+   optimization review on that same head;
+4. obtain a fresh distinct independent skeptical/security review on that same
+   head;
+5. leave no unresolved P0/P1/P2.
 
 No simulation result may be treated as authorization or external effect truth.
 
 ## PR #97 — durable claim + Core Gate composition
 
-Status: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1`
+Status: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1_THENABLE_ASSIMILATION`
 
-Checkpoint head: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`.
+Exact current head: `871cd980cf6c1343336e5d63da78a82a28a8dda3`.
 
-Exact-head CI: run `32464344634`, `success`.
+Reconciled trusted main: `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`.
 
-A distinct Codex review actually covers this exact head and found a P1 in Wallet
-Guard provider-context sampling. When `eth_accounts` returns an Array Proxy or a
-decorated array with attacker-controlled property dispatch, the current
-integrity check occurs before `normalizeAccounts()` first consumes that provider
-value. A trap can redirect `Array.prototype.map`, substitute the active account,
-restore the visible prototype surface and still reach authorization/sensitive
+Exact-head CI: run `32472232474`, `CI` run 563, `success`.
+
+Release-owner exact-head review: all six scoped lanes PASS with zero new
+P0/P1/P2, explicitly **NON-INDEPENDENT**.
+
+A fresh distinct Codex review **does cover exact head `871cd980...`** and found a
+new P1: `Reject account Proxies before thenable assimilation`. The previous
+provider-array `map`/decorated-array attack is repaired, but the hardened inert
+capture is still too late for a synchronously returned Proxy result. `providerRead()`
+awaits the raw provider result first; Promise/thenable assimilation therefore
+reads a result-owned `then` property before the capture boundary. The independent
+review reproduced an Array Proxy whose `get('then')` resolves each account read
+to an attacker-controlled plain array. All six samples remained stable, reference
+authorization ran and the attacker-originated transaction reached sensitive
 forwarding.
 
-Green CI and the release-owner NON-INDEPENDENT PASS on `1f228dab...` do not close
-this independent P1.
+Green CI and the NON-INDEPENDENT owner PASS do not close this exact-head P1.
 
 Required to unblock:
 
-1. reject/capture provider-controlled account arrays through the shared hardened
-   inert plain-data boundary before normalization, including Proxy/decorated-array
-   rejection without hostile trap/getter execution;
-2. add a CI-wired regression proving zero hostile trap dispatch and rejection
-   before authorization and before sensitive provider forwarding;
-3. reconcile the repaired branch to current trusted main;
-4. rerun exact-head CI after all repairs/reconciliation;
-5. obtain fresh release-owner and distinct independent skeptical/security reviews
-   on the resulting exact head;
-6. leave no unresolved P0/P1/P2.
+1. repair the provider-result transport boundary so a raw provider-controlled
+   Proxy/thenable cannot execute result-owned dispatch before hardened capture,
+   or use an async transport contract that cannot execute such thenable behavior;
+2. add a CI-wired adversarial regression reproducing `get('then')` substitution
+   and proving rejection before reference authorization and before sensitive
+   forwarding;
+3. preserve the already repaired Array Proxy/decorated-`map` inert-capture cases;
+4. rerun exact-head CI and release-owner review after the repair;
+5. obtain a fresh distinct independent skeptical/security review on the resulting
+   exact repaired head;
+6. leave no unresolved P0/P1/P2 before merge.
 
 The durable composition remains reference-only. It does not prove hostile
 same-OS-user storage integrity, distributed filesystem consensus, crash recovery,
@@ -154,6 +164,10 @@ be treated as current merely because older Git history mentions them:
 - PR #99 pre-merge gates and exact-merge assurance: merged as `6a6ff5c...` with
   recorded `POST_MERGE_ASSURANCE_PASS`.
 
-If a regression is found in one of those merged properties it becomes a **new**
-typed blocker tied to the exact affected SHA; it is not represented by reviving
-old blocker text.
+The old PR #97 `map`/decorated-array P1 is not the current blocker: its attack
+class was repaired before exact head `871cd980...`. The current blocker is the
+fresh exact-head thenable-assimilation P1 described above.
+
+If a regression is found in any merged property it becomes a **new** typed blocker
+tied to the exact affected SHA; old blocker text is never revived as current
+state.
