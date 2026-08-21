@@ -93,11 +93,19 @@ test('object typed-data request commitment preserves exact normalization-equival
 
   const commitments = [];
   const observedValues = [];
+  let cachedResult = null;
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
       commitments.push(input.request_commitment);
       observedValues.push(input.request.params[1].message.value);
-      return unavailableResult(input);
+      if (cachedResult === null) {
+        cachedResult = unavailableResult(input);
+        return cachedResult;
+      }
+      // Deliberately replay the first request's cached identity. The second
+      // normalization-equivalent request must have a distinct exact request
+      // commitment, turning this stale callback result into local mismatch.
+      return cachedResult;
     },
   });
 
@@ -105,7 +113,7 @@ test('object typed-data request commitment preserves exact normalization-equival
   const second = await runtime.simulate({ intent, request: decomposedRequest });
 
   assert.equal(first.status, 'unavailable');
-  assert.equal(second.status, 'unavailable');
+  assert.equal(second.status, 'mismatch');
   assert.deepEqual(observedValues, ['\u00e9', 'e\u0301']);
   assert.equal(commitments.length, 2);
   assert.notEqual(commitments[0], commitments[1]);
@@ -124,9 +132,11 @@ test('object typed-data request commitment ignores property insertion order only
     },
   });
 
-  await runtime.simulate({ intent, request: firstRequest });
-  await runtime.simulate({ intent, request: reorderedRequest });
+  const first = await runtime.simulate({ intent, request: firstRequest });
+  const second = await runtime.simulate({ intent, request: reorderedRequest });
 
+  assert.equal(first.status, 'unavailable');
+  assert.equal(second.status, 'unavailable');
   assert.equal(commitments.length, 2);
   assert.equal(commitments[0], commitments[1]);
 });
