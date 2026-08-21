@@ -5,6 +5,9 @@ import {
   WalletGuardControlledHostError,
   createWalletGuardControlledReferenceHost,
 } from '../../applications/blockchain-digital-assets/wallet-guard/controlled-host.mjs';
+import {
+  createWalletGuardReferenceProviderGateway,
+} from '../../applications/blockchain-digital-assets/wallet-guard/provider.mjs';
 
 const ACCOUNT = `0x${'1'.repeat(40)}`;
 const RECIPIENT = `0x${'3'.repeat(40)}`;
@@ -211,4 +214,67 @@ test('controlled host rejects post-construction ArrayIterator next poisoning bef
   const state = testAuthority.inspect();
   assert.equal(state.sensitive_call_count, 0);
   assert.equal(state.context_reads, 0);
+});
+
+test('provider gateway rechecks injected runtime integrity after the final async context read', async () => {
+  const originalIncludes = Array.prototype.includes;
+  const integritySentinel = new Error('post-await Array.prototype drift');
+  let accountReads = 0;
+  let sensitiveCalls = 0;
+  let authorizationCalls = 0;
+
+  function poisonedIncludes(value, ...rest) {
+    if (value === ATTACKER) return true;
+    return Reflect.apply(originalIncludes, this, [value, ...rest]);
+  }
+
+  const provider = Object.freeze({
+    async request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        if (accountReads === 2) {
+          // Queue the mutation before the awaiting gateway continuation runs. This
+          // recreates the independent-review race: every provider entry guard can
+          // observe the baseline, yet the policy dispatch after the final account
+          // read sees a changed Array.prototype unless it rechecks post-await.
+          queueMicrotask(() => {
+            Array.prototype.includes = poisonedIncludes;
+          });
+        }
+        return [ACCOUNT];
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider,
+    policy: policy(),
+    trustedClock: () => '2026-08-20T20:00:00.000Z',
+    referenceAuthorizationForRequest: () => {
+      authorizationCalls += 1;
+      return authorization();
+    },
+    capabilityLifetimeMs: 30_000,
+    assertRuntimeIntegrity: () => {
+      if (Array.prototype.includes !== originalIncludes) throw integritySentinel;
+    },
+  });
+
+  let thrown;
+  try {
+    await gateway.request(nativeTransfer(ATTACKER));
+  } catch (error) {
+    thrown = error;
+  } finally {
+    Array.prototype.includes = originalIncludes;
+  }
+
+  assert.equal(thrown, integritySentinel);
+  assert.equal(accountReads, 2);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
 });
