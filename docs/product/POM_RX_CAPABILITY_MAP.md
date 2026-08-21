@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-21
 
-Trusted-main checkpoint: `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`.
+Trusted-main checkpoint: `33986b33b9e8bc40030d940618e5c9df6f8b3fe6`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -82,11 +82,15 @@ local filesystem directory. It is not proof of network/distributed filesystem
 atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
-**not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate,
-is already reconciled to trusted main, and is blocked by a fresh exact-head
-independent P1 in provider-result thenable assimilation. That P1 must be repaired
-and the repaired head must pass fresh CI/release-owner/independent gates before
-any capability-map text treats the composition as merged.
+**not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
+and is reconciled to trusted main at checkpoint head
+`39186dcc8e2fe7c176495d8a4ad654215dbce637`. It remains blocked by the
+independent P1 `Reject account Proxies before thenable assimilation`: a raw
+synchronously returned provider Proxy can execute result-owned `then` behavior
+before the current account snapshot boundary. That transport-boundary P1 must be
+repaired and the repaired head must pass fresh exact-head CI, release-owner and
+distinct independent gates before any capability-map text treats the durable
+Gate composition as merged.
 
 Production issuance remains unproved because production-grade source/Witness
 trust, operator authorization and trusted-time infrastructure are not complete.
@@ -155,14 +159,16 @@ freshness revalidation; the status alone does not establish a PASS.
 ### Durable project-control continuity
 
 Trusted main includes the GitHub-backed cross-chat POM-RX control plane from PR
-#98 and the post-merge durable checkpoint reconciliation from PR #99. PR #99's
-source head `899ae6f1cea6f44e32f5bf89ac9b1b221c6aeec0` merged as exact
-main SHA `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`; canonical push CI run
-`32469503160` succeeded on that merge SHA and its recorded exact-merge verdict is
-`POST_MERGE_ASSURANCE_PASS`. These are coordination/documentation properties,
-not protocol, Gate, Witness, Wallet Guard runtime or production-readiness
-capabilities. Live GitHub remains authoritative whenever volatile PR/CI/review
-state moves after a versioned checkpoint.
+#98, the post-PR #98 checkpoint reconciliation from PR #99, and the post-PR #99
+reconciliation from PR #100. PR #100 source head
+`8924c5357b4299daa74d7e52cb8d20102641d929` merged as exact main SHA
+`33986b33b9e8bc40030d940618e5c9df6f8b3fe6`. Canonical push CI run
+`32480810161` / CI run 570 attempt 1 completed `success` on that exact merge
+SHA; decision-time `pom-rx/exact-main-ci` pointed to that run and the recorded
+exact-merge verdict is `POST_MERGE_ASSURANCE_PASS`. These are
+coordination/documentation properties, not protocol, Gate, Witness, Wallet Guard
+runtime or production-readiness capabilities. Live GitHub remains authoritative
+whenever volatile PR/CI/review state moves after a versioned checkpoint.
 
 ### Proof transport and anchoring
 
@@ -357,7 +363,7 @@ link compatibility.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 composition of durable claim into Gate is blocked by an exact-head independent P1 in provider-result thenable assimilation; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 composition of durable claim into Gate is blocked by the independent provider-result thenable-assimilation P1; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
