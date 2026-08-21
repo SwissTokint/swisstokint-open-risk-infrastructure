@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T00:15:00+02:00`
+Updated: `2026-08-22T00:28:00+02:00`
 
 Current trusted main: `dc926bcc006255825c1598c9699264af3476c363`
 
@@ -33,21 +33,31 @@ PR #110 release evidence:
 PR #110 is trusted coordination evidence only. It changed no runtime/security
 semantics and does not make PR #97 or PR #93 trusted.
 
-The current post-PR #110 reconciliation is intentionally another bounded
-non-Tier-B documentation/control-plane lot on branch
-`docs/pom-rx-checkpoint-after-110-20260822`. A merged checkpoint cannot
-self-describe its future merge SHA, so live GitHub remains authoritative until
-this scoped reconciliation passes its own exact-head gates and exact-merge
-post-merge assurance.
+The current post-PR #110 reconciliation is PR #111 on branch
+`docs/pom-rx-checkpoint-after-110-20260822`, intentionally another bounded
+non-Tier-B documentation/control-plane lot. A merged checkpoint cannot
+self-describe its future merge SHA, so live GitHub remains authoritative for
+PR #111's moving exact head, CI and review state until this scoped reconciliation
+passes its own exact-head gates and exact-merge post-merge assurance.
 
 ## `CONTROL_PLANE_POST_PR110_RECONCILIATION_REQUIRED`
 
 The canonical files merged by PR #110 checkpointed the state that existed before
 that merge. Live trusted main is now `dc926bcc...`; stale main/PR metadata must not
-be used as readiness or dependency evidence until the current bounded
-post-PR110 reconciliation is trusted. This is coordination-only and does not
-invalidate PR #110's recorded post-merge PASS or change runtime/security
-semantics.
+be used as readiness or dependency evidence until PR #111 is trusted. This is
+coordination-only and does not invalidate PR #110's recorded post-merge PASS or
+change runtime/security semantics.
+
+PR #111's prior exact head `70bc3c19b8f76aff5074cd8d251df74adf9b5454`
+had canonical CI run `32532398667` / CI 660 `success`, but the fresh distinct
+exact-head Codex review found P2 `Restore the canonicalization/hash blocker`.
+That finding correctly identified that the detailed PR #93 blocker lists had
+lost the still-unresolved shared proof canonicalization/hash class without a
+validated exact-head resolution. This moving branch now restores that class in
+the canonical continuation surfaces. The old CI/review evidence is stale after
+the repair head move; do not resolve the P2 or merge PR #111 until fresh exact-
+head CI, owner control and distinct independent review validate the repaired
+candidate with zero unresolved P0/P1/P2.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -56,7 +66,7 @@ PR #97 remains open and **must not merge**.
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
 - trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=false`; volatile metadata only and
+- live GitHub currently reports `mergeable=true`; volatile metadata only and
   never security/release evidence;
 - exact-head CI run `32487036517` / CI 592: `success` but not security evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
@@ -128,7 +138,7 @@ PR #93 remains open and untrusted.
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
 - trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=false`; volatile metadata only;
+- live GitHub currently reports `mergeable=true`; volatile metadata only;
 - exact-head CI run `32465835858` / CI 541: `success` but not release evidence;
 - latest distinct review evidence found in the PR record covers moved head
   `03e0201c9f...`, not current `c4e40ceb...`;
@@ -136,8 +146,11 @@ PR #93 remains open and untrusted.
   exact current head;
 - unresolved current/non-outdated P1/P2 findings remain, including exact
   negative-zero identity, typed-data wrapper normalization, generic-signature
-  exact-value commitment and nested payload capture with saved reflection
-  intrinsics.
+  exact-value commitment, **shared proof canonicalization/hash classes**, and
+  nested payload capture with saved reflection intrinsics;
+- the shared proof class includes recorded post-initialization canonicalization
+  and SHA-256/hash hardening findings; moved-head repair comments are not a
+  validated current-head resolution.
 
 Moved-head fixes are not current release evidence. PR #93 overlaps shared
 regression/package surfaces with PR #97. Keep it ordered after trusted #97
