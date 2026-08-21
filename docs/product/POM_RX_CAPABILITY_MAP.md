@@ -33,7 +33,8 @@ intent/context
 
 A capability block may implement only part of this lifecycle. Missing stages
 remain explicit and must never be inferred from a structurally valid receipt.
-Application blocks may overlap, but shared semantics are owned once in Core.
+Application blocks are not mutually exclusive; they may overlap, but shared
+semantics are owned once in Core.
 
 ## 2. Shared core and cross-cutting layers
 
@@ -49,9 +50,10 @@ Its verdicts remain structurally non-authorizing: strict conformance is a
 prerequisite for later authorization, not permission to execute.
 
 Application blocks may add adapters, profiles and tests. They must not duplicate
-or fork Core canonicalization, hashing, verifier, Witness, exact authorization,
-Gate, execution-evidence commitments or observation/reconciliation comparison
-semantics.
+or fork Core canonicalization, hashing, Witness or Gate semantics. Shared
+verifier, exact authorization, execution-evidence commitments and
+observation/reconciliation comparison semantics also remain common Core and must
+not be forked.
 
 Shared bounded hostile-object/plain-data capture exists under
 `core/reference-data/` and is reused by Core and application reference
@@ -226,8 +228,9 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate,
-observation or reconciliation semantics. Its primary home is Blockchain and
-digital assets, with defensive overlap into Cybersecurity.
+observation or reconciliation semantics. Wallet Guard's primary product home is
+the Blockchain and digital assets block, with defensive overlap into
+Cybersecurity.
 
 ## 4. Wallet Guard position
 
