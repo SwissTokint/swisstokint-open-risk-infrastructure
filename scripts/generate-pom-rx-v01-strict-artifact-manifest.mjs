@@ -67,5 +67,4 @@ const manifest = {
 
 const bytes = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 writeFileSync(outputPath, bytes, { flag: 'wx' });
-process.stderr.write(bytes);
 process.stdout.write(bytes);
