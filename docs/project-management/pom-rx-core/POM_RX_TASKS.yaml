@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T23:07:54+02:00",
-  "current_main": "cfbfd81f81375da1a75802f193af37119b11e5a2",
+  "updated_at": "2026-08-21T23:33:10+02:00",
+  "current_main": "5b40135d660366e463f532d4398f179fbff8c006",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -14,18 +14,18 @@
     ]
   },
   "trusted_main": {
-    "sha": "cfbfd81f81375da1a75802f193af37119b11e5a2",
-    "source_pr": 108,
-    "source_head": "684ced52d664f3056a6cf2c19e5e793ef198aa1a",
-    "tree": "800c55bc7535238965f0e67fecbc8e1c2b99023f",
+    "sha": "5b40135d660366e463f532d4398f179fbff8c006",
+    "source_pr": 109,
+    "source_head": "2a4d9567784dc017ca05981a51a0ecc710b0e0ca",
+    "tree": "7288f47dba73b835c103fb9c1125829d0c4a49f0",
     "candidate_ci": {
-      "run_id": 32524074023,
-      "run_number": 646,
+      "run_id": 32527944250,
+      "run_number": 653,
       "conclusion": "success"
     },
     "exact_main_ci": {
-      "run_id": 32524385073,
-      "run_number": 647,
+      "run_id": 32528213464,
+      "run_number": 654,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
@@ -35,13 +35,13 @@
     "scope": "coordination_only_non_tier_b"
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-108-CHECKPOINT-20260821",
-    "pr": 109,
-    "title": "Reconcile canonical control plane after trusted PR 108",
+    "id": "CONTROL-PLANE-POST-109-CHECKPOINT-20260821",
+    "pr": 110,
+    "title": "Reconcile canonical control plane after trusted PR 109",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "IN_PROGRESS_EXACT_HEAD_GATING",
-    "base_sha": "cfbfd81f81375da1a75802f193af37119b11e5a2",
-    "branch": "docs/pom-rx-checkpoint-after-108-20260821",
+    "base_sha": "5b40135d660366e463f532d4398f179fbff8c006",
+    "branch": "docs/pom-rx-checkpoint-after-109-20260821",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -49,7 +49,7 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 108 exact merge and POST_MERGE_ASSURANCE_PASS",
+      "checkpoint trusted PR 109 exact merge and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "do not promote volatile mergeability metadata into release evidence",
       "preserve shared Core versus Wallet Guard application ownership",
@@ -81,9 +81,9 @@
         "runtime implementation unchanged on exact head while the security regression was relaxed",
         "inherited Promise.prototype.constructor plus then poisoning can cross outer async awaits and reach stable attacker context, authorization and sensitive forwarding",
         "current exact-head and historical P1 review threads remain unresolved",
-        "historical branch base is not reconciled to trusted main cfbfd81f81375da1a75802f193af37119b11e5a2"
+        "historical branch base is not reconciled to trusted main 5b40135d660366e463f532d4398f179fbff8c006"
       ],
-      "next_safe_action": "After the current control-plane checkpoint is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR 110 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -100,7 +100,7 @@
       "owner_gate": "NO_FRESH_EXACT_CURRENT_HEAD_RELEASE_REVIEW_FOUND",
       "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
       "blockers": [
-        "trusted-main reconciliation required from cfbfd81f81375da1a75802f193af37119b11e5a2 or later trusted main",
+        "trusted-main reconciliation required from 5b40135d660366e463f532d4398f179fbff8c006 or later trusted main",
         "fresh exact-head release-owner review required",
         "fresh distinct exact-head independent skeptical/security review required",
         "unresolved current/non-outdated P1/P2 review threads remain",
