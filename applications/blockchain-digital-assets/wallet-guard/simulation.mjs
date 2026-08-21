@@ -67,26 +67,34 @@ const EVIDENCE_KEYS = Object.freeze([
 ]);
 const HEX_NIBBLES = '0123456789abcdef';
 
-// Provenance, status registries, object freezing, exact-text hashing and hash
-// validation are load-bearing security state. Capture their intrinsics once so
-// later same-realm prototype/global mutation cannot forge local evidence,
-// substitute its originating intent, widen status vocabulary, make minted
-// evidence mutable, collapse distinct UTF-16 request text through UTF-8
-// replacement, collapse exact -0 request identity, alter exact typed-data array
-// classification/key ordering, or inject failures into the hash-shape decision
-// itself. As elsewhere in the reference runtime, poisoning before module
-// initialization remains outside this scoped guarantee.
+// Provenance, status registries, object freezing, exact-text hashing, exact
+// request-wrapper reflection and hash validation are load-bearing security
+// state. Capture their intrinsics once so later same-realm prototype/global
+// mutation cannot forge local evidence, substitute its originating intent,
+// widen status vocabulary, make minted evidence mutable, collapse distinct
+// UTF-16 request text through UTF-8 replacement, collapse exact -0 request
+// identity, alter exact typed-data array classification/key ordering, bypass the
+// non-Proxy/plain/dense wrapper boundary, or inject failures into the hash-shape
+// decision itself. As elsewhere in the reference runtime, poisoning before
+// module initialization remains outside this scoped guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PROTOTYPE = Array.prototype;
 const ARRAY_SORT = Array.prototype.sort;
+const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_IS = Object.is;
+const OBJECT_PROTOTYPE = Object.prototype;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const REGEXP_TEST = RegExp.prototype.test;
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const SET_HAS = Set.prototype.has;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_SET_ADD = WeakSet.prototype.add;
 const WEAK_SET_HAS = WeakSet.prototype.has;
 const WEAK_MAP_SET = WeakMap.prototype.set;
@@ -98,6 +106,10 @@ function arrayIsArray(value) {
 
 function sortArray(array, compare) {
   return REFLECT_APPLY(ARRAY_SORT, array, [compare]);
+}
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
 }
 
 function freezeValue(value) {
@@ -112,12 +124,28 @@ function objectHasOwn(value, key) {
   return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
 }
 
+function objectGetOwnPropertyDescriptor(value, key) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [value, key]);
+}
+
 function objectGetOwnPropertyNames(value) {
   return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
 }
 
 function objectGetOwnPropertyDescriptors(value) {
   return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
 function deepFreezeCapturedPlainData(value) {
@@ -224,39 +252,59 @@ function asciiCompare(left, right) {
   return 0;
 }
 
+function sortedExactNamesMatch(actualNames, expectedKeys, includeArrayLength = false) {
+  const expectedLength = expectedKeys.length + (includeArrayLength ? 1 : 0);
+  if (actualNames.length !== expectedLength) return false;
+
+  const expectedNames = [];
+  let offset = 0;
+  if (includeArrayLength) {
+    expectedNames[0] = 'length';
+    offset = 1;
+  }
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    expectedNames[index + offset] = expectedKeys[index];
+  }
+
+  sortArray(actualNames, asciiCompare);
+  sortArray(expectedNames, asciiCompare);
+  for (let index = 0; index < expectedNames.length; index += 1) {
+    if (actualNames[index] !== expectedNames[index]) return false;
+  }
+  return true;
+}
+
 function isOwnEnumerableDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'value')
-    && Object.hasOwn(descriptor, 'enumerable')
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
     && descriptor.enumerable === true
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
 }
 
 function captureExactDataRecord(value, expectedKeys, label, code) {
   if (!value
       || typeof value !== 'object'
-      || utilTypes.isProxy(value)
-      || Array.isArray(value)) {
+      || isProxy(value)
+      || arrayIsArray(value)) {
     fail(code, `${label} must be a non-Proxy plain object`);
   }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail(code, `${label} must use Object.prototype or a null prototype`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     fail(code, `${label} cannot contain symbol keys`);
   }
 
-  const actual = Object.getOwnPropertyNames(value).sort(asciiCompare);
-  const expected = [...expectedKeys].sort(asciiCompare);
-  if (actual.length !== expected.length
-      || actual.some((key, index) => key !== expected[index])) {
+  const actual = objectGetOwnPropertyNames(value);
+  if (!sortedExactNamesMatch(actual, expectedKeys)) {
     fail(code, `${label} has missing, hidden or unknown fields`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const snapshot = Object.create(null);
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const snapshot = createObject(null);
   for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
@@ -270,11 +318,11 @@ function captureExactDataRecord(value, expectedKeys, label, code) {
 function hasOwnEnumerableTypedDataMethod(value) {
   if (!value
       || typeof value !== 'object'
-      || utilTypes.isProxy(value)
-      || Array.isArray(value)) {
+      || isProxy(value)
+      || arrayIsArray(value)) {
     return false;
   }
-  const descriptor = Object.getOwnPropertyDescriptor(value, 'method');
+  const descriptor = objectGetOwnPropertyDescriptor(value, 'method');
   return isOwnEnumerableDataDescriptor(descriptor)
     && descriptor.value === 'eth_signTypedData_v4';
 }
@@ -282,39 +330,37 @@ function hasOwnEnumerableTypedDataMethod(value) {
 function captureExactDenseArray(value, expectedLength, label, code) {
   if (!value
       || typeof value !== 'object'
-      || utilTypes.isProxy(value)
-      || !Array.isArray(value)) {
+      || isProxy(value)
+      || !arrayIsArray(value)) {
     fail(code, `${label} must be a non-Proxy array`);
   }
-  if (Object.getPrototypeOf(value) !== Array.prototype) {
+  if (objectGetPrototypeOf(value) !== ARRAY_PROTOTYPE) {
     fail(code, `${label} must use Array.prototype`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     fail(code, `${label} cannot contain symbol keys`);
   }
 
-  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+  const lengthDescriptor = objectGetOwnPropertyDescriptor(value, 'length');
   if (!lengthDescriptor
-      || !Object.hasOwn(lengthDescriptor, 'value')
+      || !objectHasOwn(lengthDescriptor, 'value')
       || lengthDescriptor.value !== expectedLength
-      || Object.hasOwn(lengthDescriptor, 'get')
-      || Object.hasOwn(lengthDescriptor, 'set')) {
+      || objectHasOwn(lengthDescriptor, 'get')
+      || objectHasOwn(lengthDescriptor, 'set')) {
     fail(code, `${label} must contain exactly ${expectedLength} elements`);
   }
 
-  const expectedNames = ['length'];
+  const elementNames = [];
   for (let index = 0; index < expectedLength; index += 1) {
-    expectedNames.push(String(index));
+    elementNames[index] = String(index);
   }
-  const actualNames = Object.getOwnPropertyNames(value).sort(asciiCompare);
-  expectedNames.sort(asciiCompare);
-  if (actualNames.length !== expectedNames.length
-      || actualNames.some((key, index) => key !== expectedNames[index])) {
+  const actualNames = objectGetOwnPropertyNames(value);
+  if (!sortedExactNamesMatch(actualNames, elementNames, true)) {
     fail(code, `${label} must be dense and undecorated`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const snapshot = new Array(expectedLength);
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const snapshot = [];
   for (let index = 0; index < expectedLength; index += 1) {
     const descriptor = descriptors[String(index)];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
@@ -371,7 +417,7 @@ function captureSimulationRequestSnapshot(rawRequest) {
   // outputs before any asynchronous callback can retain or mutate them.
   const capturedAccount = deepFreezeCapturedPlainData(accountCapture.value);
   const capturedTypedData = deepFreezeCapturedPlainData(typedDataCapture.value);
-  const requestSnapshot = Object.create(null);
+  const requestSnapshot = createObject(null);
   requestSnapshot.method = requestRecord.method;
   requestSnapshot.params = freezeValue([
     capturedAccount,
@@ -718,7 +764,6 @@ export function createWalletGuardReferenceSimulationHarness(rawOptions) {
     requireLocalIntent(localIntent);
 
     const requestSnapshot = captureSimulationRequestSnapshot(runInput.request);
-
     const intentCommitment = replayIntentAgainstRequest(localIntent, requestSnapshot);
     const requestCommitment = commitRequestSnapshot(requestSnapshot).request_commitment;
     const identity = freezeValue({
