@@ -111,19 +111,28 @@ test('post-import reflection replacement cannot hide a non-enumerable caller fie
 test('post-import numeric and key-check replacement cannot weaken the accepted data language', () => {
   const originalIsSafeInteger = Number.isSafeInteger;
   const originalRegExpTest = RegExp.prototype.test;
+  const originalRegExpExec = RegExp.prototype.exec;
   const originalSetHas = Set.prototype.has;
 
   let numberError;
-  let keyError;
+  let unsafePatternError;
+  let forbiddenKeyError;
   try {
     Number.isSafeInteger = () => true;
     RegExp.prototype.test = () => true;
+    RegExp.prototype.exec = () => ['forged-match'];
     Set.prototype.has = () => false;
 
     try {
       captureReferencePlainData({ value: 1.5 }, 'numeric_poison');
     } catch (error) {
       numberError = error;
+    }
+
+    try {
+      captureReferencePlainData({ 'bad key': 1 }, 'pattern_poison');
+    } catch (error) {
+      unsafePatternError = error;
     }
 
     const unsafe = originalObjectWithNullPrototype();
@@ -135,18 +144,21 @@ test('post-import numeric and key-check replacement cannot weaken the accepted d
     try {
       captureReferencePlainData(unsafe, 'key_poison');
     } catch (error) {
-      keyError = error;
+      forbiddenKeyError = error;
     }
   } finally {
     Number.isSafeInteger = originalIsSafeInteger;
     RegExp.prototype.test = originalRegExpTest;
+    RegExp.prototype.exec = originalRegExpExec;
     Set.prototype.has = originalSetHas;
   }
 
   assert.ok(numberError);
   assert.equal(expectPlainDataCode(numberError, 'POMRX_DATA_E_NUMBER'), true);
-  assert.ok(keyError);
-  assert.equal(expectPlainDataCode(keyError, 'POMRX_DATA_E_KEY'), true);
+  assert.ok(unsafePatternError);
+  assert.equal(expectPlainDataCode(unsafePatternError, 'POMRX_DATA_E_KEY'), true);
+  assert.ok(forbiddenKeyError);
+  assert.equal(expectPlainDataCode(forbiddenKeyError, 'POMRX_DATA_E_KEY'), true);
 
   function originalObjectWithNullPrototype() {
     return Reflect.apply(Object.create, Object, [null]);
