@@ -32,7 +32,7 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
-const REGEXP_TEST = RegExp.prototype.test;
+const REGEXP_EXEC = RegExp.prototype.exec;
 const SET_HAS = Set.prototype.has;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 
@@ -80,8 +80,8 @@ function objectHasOwn(value, key) {
   return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
 }
 
-function regexpTest(expression, value) {
-  return REFLECT_APPLY(REGEXP_TEST, expression, [value]);
+function regexpMatches(expression, value) {
+  return REFLECT_APPLY(REGEXP_EXEC, expression, [value]) !== null;
 }
 
 function setHas(set, value) {
@@ -210,7 +210,7 @@ function captureObject(value, label, depth, budget) {
   for (let index = 0; index < ownNames.length; index += 1) {
     const key = ownNames[index];
     if (key.length > REFERENCE_PLAIN_DATA_LIMITS.max_key_length
-        || !regexpTest(SAFE_KEY_PATTERN, key)
+        || !regexpMatches(SAFE_KEY_PATTERN, key)
         || setHas(FORBIDDEN_KEYS, key)) {
       fail('POMRX_DATA_E_KEY', `${label} contains an unsafe key: ${key}`);
     }
