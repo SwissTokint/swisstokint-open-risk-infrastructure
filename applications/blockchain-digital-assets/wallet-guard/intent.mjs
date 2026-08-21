@@ -3,6 +3,9 @@ import {
   sha256Hex,
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
 import {
+  captureReferencePlainDataOutcome,
+} from '../../../core/reference-data/plain-data-snapshot.mjs';
+import {
   WalletGuardDecoderError,
   decodeTransactionCalldata,
   decodeTypedData,
@@ -177,7 +180,24 @@ function normalizeTypedDataRequest(request, trustedAccount) {
   if (requestedAccount !== trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'typed data account does not match trusted active account');
   }
-  const decoded = decodeTypedData(request.params[1]);
+
+  // Keep the normalization boundary consistent with the simulation boundary for
+  // typed-data payloads. The shared capture rejects hidden/non-enumerable fields,
+  // symbols, custom array prototypes, sparse/decorated arrays, accessors and
+  // Proxies without widening any shared limit. The typed-data payload receives
+  // the same full 1,000-node/depth/string budget as the decoder itself.
+  const typedDataCapture = captureReferencePlainDataOutcome(
+    request.params[1],
+    'Wallet Guard typed data normalization',
+  );
+  if (!typedDataCapture.ok) {
+    fail(
+      'POMRX_WG_E_REQUEST_INVALID',
+      'typed data must be bounded inert plain data',
+    );
+  }
+
+  const decoded = decodeTypedData(typedDataCapture.value);
   if (decoded.request_class === 'permit_eip2612' && decoded.typed_data_owner !== trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'Permit owner does not match trusted active account');
   }
