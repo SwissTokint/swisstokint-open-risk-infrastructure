@@ -257,8 +257,8 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
-or reconciliation semantics. Wallet Guard's primary product home is Blockchain
-and digital assets, while its defensive control model also overlaps
+or reconciliation semantics. Wallet Guard's primary product home is
+Blockchain and digital assets, while its defensive control model also overlaps
 the Cybersecurity block.
 
 ## 4. Wallet Guard position
