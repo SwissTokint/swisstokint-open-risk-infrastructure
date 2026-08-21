@@ -44,7 +44,6 @@ const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_MAP = Array.prototype.map;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
-const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_PROTOTYPE = Promise.prototype;
@@ -325,7 +324,6 @@ function isNativePromise(value) {
 function validateNativePromiseTransport(value, method) {
   const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
   const ownNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  const ownSymbols = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
   const constructorDescriptor = REFLECT_APPLY(
     OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
     Object,
@@ -335,7 +333,6 @@ function validateNativePromiseTransport(value, method) {
 
   if (prototype !== PROMISE_PROTOTYPE
       || ownNames.length !== 0
-      || ownSymbols.length !== 0
       || !baseline
       || !constructorDescriptor
       || constructorDescriptor.value !== PROMISE_CONSTRUCTOR
@@ -370,9 +367,12 @@ async function providerRead(provider, method) {
   }
 
   // `await` performs PromiseResolve semantics and can consult the transport's
-  // `constructor` before suspension. Accept only an undecorated same-realm native
-  // Promise and require the initialization-time Promise.prototype.constructor
-  // descriptor to remain intact. The reflection used here is captured at module
+  // `constructor` before suspension. Accept only a same-realm native Promise with
+  // no own string properties and require the initialization-time
+  // Promise.prototype.constructor descriptor to remain intact. Node/AsyncHooks
+  // may attach own symbol metadata to ordinary native Promises; PromiseResolve
+  // does not consult those symbols, so they are not treated as transport
+  // decoration here. The reflection used here is captured at module
   // initialization and reads descriptors without invoking result-owned getters.
   // Upstream assimilation already performed internally before a genuine Promise
   // reaches this boundary remains an explicit non-claim.
