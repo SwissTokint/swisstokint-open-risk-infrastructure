@@ -1,295 +1,150 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-14T17:34:57+02:00`
+Updated: `2026-08-21T10:46:00+02:00`
 
-## Prime operational-prototype gate
+Current trusted main: `818718955c9e4136e9e55754a31be2f1c7b610f8`
 
-Status: `NO_GO_IN_PROGRESS`
+This file lists **current** blockers only. Historical August 14 blockers remain in
+Git history and must not be mistaken for the current architecture.
 
-Current main: `60a331540dded68f8e13fa4aae9dc131934b772f`
+## Overall prototype gate
 
-Independent Architecture, Security and Conformance reviews agree that the
-current repository is a reproducible structural prototype, not yet an
-operationally usable local demonstrator. The legacy verifier still reproduces
-exactly seven known-vulnerable chains and one valid control. This is correct
-expected-red evidence, not a correction.
+Status: `NO_GO_FOR_PRODUCTION / REFERENCE_DEVELOPMENT_CONTINUES`
 
-P0 delivery blockers:
+The repository has advanced well beyond the old strict-profile-foundation
+checkpoint: strict verification, exact-authorization/Gate reference semantics,
+Witness reference trust, portable Wallet Guard preflight, execution evidence,
+observation/reconciliation, controlled provider host and exact-main CI
+observability are present on trusted main.
 
-1. repository preservation and cleanup has not completed;
-2. internal strict-profile foundation is absent;
-3. action, input, outcome/assertion and receipt-ID invariants are not corrected
-   in the strict profile;
-4. the strict profile is not activated;
-5. PR #24 does not supply the required enrollment, revocation, clock,
-   transactional persistence or reviewed Gate trust model;
-6. exact synthetic authorization and single-use transactional Gate are absent;
-7. DAGR normative source is unconfirmed;
-8. independent observation, reconciliation and deterministic demo artifacts
-   are absent.
+The remaining blockers are about exact-head release evidence and unproved
+production/runtime boundaries, not absence of the entire Core.
 
-The maximum future claim after these gates is
-`POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic, synthetic and
-offline only. It never means production-ready, audited, certified, deployed or
-authorized for financial execution.
+The maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`.
+It never means production-ready, audited, certified, deployed, arbitrary-browser
+safe or authorized for financial execution.
 
-## Repository preservation and cleanup blocker
+## PR #93 — Wallet Guard simulation exact-head gate
 
-Status: `SAFE_REMOVALS_COMPLETE / OWNER_SELECTION_AND_EXPLICIT_UNFREEZE_REQUIRED`
+Status: `BLOCKED_EXACT_HEAD_MOVED_AND_REVIEW_GATE_OPEN`
 
-Seven clean obsolete POM-RX worktrees were removed locally without force after
-exact path, HEAD, upstream, ahead/behind, merged PR and retained GitHub branch
-checks. Every named remote branch remains available at the recorded exact HEAD;
-the full decision evidence is versioned in `POM_RX_CLEANUP_INVENTORY.md`.
+Checkpoint head: `03e0201c9fef5ed10a615996d68052613bdd94d6`.
 
-The primary checkout and five additional worktrees still contain dirty
-unpublished material. They remain frozen and untouched. No dirty path may be
-deleted, mixed into POM-RX or published merely from its path name. No dirty lot
-is selected as READY. Explicit human selection and unfreeze authorization are
-required before inspecting or publishing one separate lot; ownership
-attribution, secret scan, a dedicated preservation branch, commit and non-force
-GitHub push remain mandatory before any future local removal. The strict-profile
-foundation remains blocked until this preservation gate is completed and a
-separate Tier-B foundation PR is opened.
+Checkpoint CI: run `32464591057`, `in_progress`.
 
-## Fresh Windows checkout exact-LF blocker
+The PR body's embedded "current exact state" still names an older head
+`06f8c7b...`; that prose is not release evidence. Live GitHub head/CI/review
+metadata is authoritative.
 
-Status: `RESOLVED_PR38_MERGED_MAIN_CI_GREEN`
+The branch has accumulated legitimate independent findings across moved heads,
+including exact Unicode/value identity, deep freeze, wrapper/payload budget
+alignment, post-import intrinsic poisoning and canonical/hash provenance.
+Repairs are useful only when the final current head is independently reviewed.
 
-A fresh worktree at main `2a65bfb555b2eea942c8724819487df06c94242c`
-completed the risk, POM-RX, Proof Receipt and integration subsets, including
-legacy POM-RX 12/12. The full fixture suite then returned 18 pass, one fail and
-one POSIX-only skip because the worktree `.gitattributes` bytes were CRLF while
-the immutable-corpus contract expects exact LF. The failure is not caused by
-the control-plane documentation diff.
+Required to unblock:
 
-Do not weaken the verifier or normalize the expected fixture contract. A
-separate checkout-integrity PR must ensure a fresh Windows worktree preserves
-the root `.gitattributes` contract with exact LF, then rerun the full Windows
-suite and exact-head CI.
+1. exact-head CI `success` on the actual current head;
+2. release-owner architecture/falsification/security/code-quality/optimization
+   review on that same head;
+3. fresh distinct independent skeptical/security review on that same head;
+4. no unresolved P0/P1/P2 after that review;
+5. reconciliation to current trusted main if another conflicting lot merges
+   first.
 
-Root cause is confirmed: the system Git configuration has `core.autocrlf=true`
-and the root `.gitattributes` file did not declare its own text/eol behavior.
-The minimal candidate fix adds `/.gitattributes text eol=lf` and updates the
-exact contract assertion to include that line. A fresh detached Windows
-worktree at candidate commit `ab3ca2164acacaf165ea722e1aed659e744256dc`
-materialized 175 bytes with zero CR and four LF without manual normalization.
-Its clean install and full suite passed: 19 applicable fixture tests passed,
-one POSIX-only test skipped, all risk/POM-RX/Proof Receipt Node and Proof
-Receipt Python tests passed, expected-red confirmed the exact 7 vulnerable
-cases plus one green control, and `npm audit --omit=dev --audit-level=high`
-reported zero vulnerabilities. PR #38 received independent exact-head QA
-approval, exact-head CI run `31798335870` passed, and it merged as
-`09d87e71e776727422674f37627d10de9276e444`. Post-merge main CI run
-`31798530195` also passed. The P1 is closed.
+No simulation result may be treated as authorization or external effect truth.
 
-## Strict-profile semantic-ratification blocker
+## PR #97 — durable claim + Core Gate composition
 
-Status: `RESOLVED_PR39_MERGED_MAIN_CI_GREEN`
+Status: `BLOCKED_FRESH_INDEPENDENT_EXACT_HEAD_REVIEW_REQUIRED`
 
-PR #33 merged the exact strict-profile prerequisite proposal. The confirmed
-conversation actor supplied the exact source-bound Option C ratification on
-2026-08-14, including `POMRX-001-INPUT-EXECUTION-RECONCILIATION` and the
-surrogate observability rule. Conversation-bound provenance and exact Git blob
-identities are recorded in the ADR and reconciliation council.
+Checkpoint head: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`.
 
-The semantic decision does not authorize runtime by itself. At exact head
-`77d263f30ea5f1b6cf71645053e25cc993bbbedb`, Protocol Architecture, Security
-and QA/Conformance returned `APPROVE` with no P0/P1/P2. Exact-head CI run
-`31806216191`, job `94785652045`, passed. The human supplied
-`APPROUVE FUSION PR #39`; PR #39 squash-merged as
-`a89201f165612dd2fc25371d548e59f54cb315e5`, and post-merge main CI run
-`31807939958`, job `94791282270`, passed. Runtime remains blocked pending the
-preserving cleanup and a separate profiled-verifier foundation PR.
+Checkpoint exact-head CI: run `32464344634`, `success`.
 
-## R3 immutable-fixture contract blocker
+Earlier independent reviews found real P1 classes over moved heads: event-loop
+starvation, mutable `Object.create`/WeakMap behavior, prepared-execution snapshot
+substitution, mutable Array/iterator surfaces, policy materialization, post-await
+runtime drift and provider-result normalization timing. The current head contains
+later repairs, but a green CI run does not erase the independent-review gate.
 
-Status: `RESOLVED_PR34_MERGED_MAIN_CI_GREEN`
+Required to unblock:
 
-Scope: `R3-STRICT-PROFILE-V01-COMPATIBILITY-FIXTURES`
+1. fresh release-owner pass on the current exact head;
+2. fresh distinct independent skeptical/security review on the current exact
+   head;
+3. no unresolved P0/P1/P2;
+4. if PR #93 or another overlapping lot merges first, reconcile package/shared
+   surfaces to the then-current trusted main and repeat exact-head gates.
 
-Baseline: `743b8082bfc925d1681af7a239856a0b4f7e8464`
+The durable composition remains reference-only. It does not prove hostile
+same-OS-user storage integrity, distributed filesystem consensus, crash recovery,
+production trusted time/Witness or external execution truth.
 
-A clean isolated worktree and branch were created. The four pre-generation P1
-questions are now frozen by the documentation-only amendment at exact local
-head `b686447522a31c04ce132286607da82c229e8cc5`:
+## Control-plane task register drift
 
-1. each scenario must bind the exact `allow_partial` invocation mode;
-2. scenario/canary nested keys, order, types, nullability, path/index rules and
-   raw duplicate/unknown-key rejection must be exact;
-3. `fixture_set_sha256` must be independently pinned outside the self-consistent
-   fixture root at an exact reviewed location and serialization;
-4. exact-byte checkout and filesystem proof must define `.gitattributes -text`,
-   Unicode 17.0 full case folding, and honest Linux/Windows symlink,
-   junction/reparse and ADS coverage.
+Status: `ACTIVE_RECONCILIATION_DEBT`
 
-Exact-head Protocol, Security and Code Quality reviews returned `APPROVE` with
-no P0/P1/P2. Local `git diff --check`, POM-RX Node 12/12 and the strict
-expected-red gate passed unchanged. No fixture, manifest, checksum, test,
-verifier, schema, canonical byte, receipt hash or runtime file was written.
+`POM_RX_TASKS.yaml` preserves valuable historical task/review evidence but its
+top-level `current_main` and multiple old task states predate the current merged
+Core/application implementation. It must not be used as the sole current-state
+selector until reconciled.
 
-The human gate was satisfied by `APPROUVE FUSION PR #34`. The PR was moved out
-of draft and squash-merged as
-`e24997295563fb245b1696f62f07c467349d2c71`. Its merge tree is identical to
-reviewed head `b686447522a31c04ce132286607da82c229e8cc5`. Exact-head run
-`31693154183` and post-merge main run `31697930963` each completed successfully
-with 18 non-empty steps. This blocker is resolved. The fixture implementation
-was subsequently completed by merged PR #35; the current next bounded task is
-repository preservation and cleanup.
+Current-state authority order while this debt is open:
 
-## R3 action-continuity prerequisite blocker
+1. live GitHub `main`, PR heads, CI, review threads and merge metadata;
+2. `POM_RX_RESUME_CHECKPOINT.md` for the latest compact cross-chat checkpoint;
+3. this blocker file and current capability map;
+4. historical task entries for provenance only.
 
-Status: `P1_BLOCKED_BY_FIXTURE_AND_FOUNDATION_SEQUENCE`
+Reconciliation must preserve history rather than deleting old evidence or
+rewriting past verdicts as if they were current.
 
-Scope: `POMRX-INTEGRITY-01-ACTION-CONTINUITY`
+## DAGR source gate
 
-Baseline: `743b8082bfc925d1681af7a239856a0b4f7e8464`
+Status: `DAGR_SOURCE_DOCUMENT_MISSING`
 
-The action-continuity implementation did not start. Independent Security and
-QA review reproduced the seven expected-red defects and found that changing
-the existing `verifyPomRxChain()` would violate the merged Option D contract.
-The existing v0.1 verifier and result shape must remain historically
-compatible.
+No normative `POM-RX Governance Profile — DAGR` content may be invented from
+memory, task-chat context or model inference. Source-backed normative work stays
+blocked until an authorized source is located and validated.
 
-The merged implementation sequence requires these prerequisites before the
-first invariant correction:
+## Production trust and real-wallet gate
 
-1. immutable v0.1 compatibility fixtures and checksums;
-2. an implementation ADR for the profiled verdict envelope and stable inherited
-   diagnostic families;
-3. an exact verifier/artifact identity contract and trusted-policy tuple rules;
-4. the additive profiled verifier entry point with no legacy fallback;
-5. resolution of the surrogate acknowledgement defect-ID observability gap.
+Status: `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`
 
-The receipt-only chain cannot distinguish
-`POMRX-001-SURROGATE-ACK-ACTION-SUBSTITUTION` from the underlying
-`POMRX-001-ACTION-PREFLIGHT-EXECUTION` case because the surrogate object is not
-an authenticated verifier input. Untrusted scenario metadata must not select a
-security diagnostic. The ratified Option C ADR keeps the surrogate ID as a
-conformance-scenario evidence ID while the receipt-only verifier emits the
-underlying continuity defect; that decision becomes authoritative for
-implementation only after PR #39 merges.
+Still unproved or outside the current reference claim:
 
-No POM-RX schema, receipt bytes, canonicalisation, hash domain, receipt hashes,
-legacy verifier behavior, Witness, Gate, DAGR profile or v0.2 candidate runtime
-was modified. The local baseline remains:
+- production exact-authorization issuer and operator authorization;
+- production trusted-time service;
+- durable production Witness trust/KMS/HSM and distributed revocation;
+- distributed replay/consensus semantics if the deployment needs them;
+- arbitrary browser/extension/provider integrity;
+- external EVM state/effect truth and simulation-to-forwarding atomicity;
+- production-independent observer integrity/liveness/finality;
+- crash-recovery semantics for the complete authorization/Gate lifecycle;
+- real/funded wallet safety.
 
-- POM-RX legacy tests: `12/12` pass;
-- expected-red strict gate: `EXPECTED_RED_CONFIRMED`, seven vulnerable failures
-  and one green control;
-- clean new R3 worktree.
+No private key, seed, secret, funded wallet, meaningful funds or mainnet
+transaction is authorized. A burner local/testnet E2E remains behind a separate
+explicit human execution gate.
 
-The prerequisite contract was reviewed at exact head
-`496fe9a49459518f6ceedcc3215401b50fe435e1`. Distinct Protocol, Security and
-Code Quality reviews returned `APPROVE` with no P0/P1/P2. No runtime, schema,
-fixture or test file changed. After explicit authorization for that exact
-payload, PR #33 was squash-merged as
-`743b8082bfc925d1681af7a239856a0b4f7e8464`. Exact-head run `31682647454`, job
-`94391402206`, and post-merge main run `31683246573`, job `94393318356`, each
-completed successfully with 18 non-empty successful steps.
+## Resolved historical blockers — do not reopen from stale documents
 
-The local dependency audit remained unavailable before publication because the
-local npm request could not reach the endpoint. The exact-head CI subsequently
-ran `npm audit --omit=dev --audit-level=high` successfully; that green result is
-bounded to commit `496fe9a` and run `31682647454`.
+The following old blocker classes are already superseded by merged work and
+must not be treated as current merely because older task/control files still
+mention them:
 
-Historical next action, now completed by merged PR #35: create an isolated
-fixture-only slice for the immutable v0.1 compatibility corpus and
-checksum/canary tests. Action-continuity runtime remains blocked by the
-preserving-cleanup sequence and the separate profiled-verifier foundation.
+- strict-profile prerequisite ratification and immutable fixture foundation;
+- the five strict invariant families and strict-profile activation;
+- fresh-Windows exact-LF checkout issue;
+- initial Core exact-authorization/single-use-Gate reference implementation;
+- reference Witness enrollment/revocation/rotation lifecycle;
+- shared bounded plain-data snapshot boundary;
+- reference execution-evidence recorder;
+- reference observation/reconciliation layer;
+- Wallet Guard JSON ingress, policy object boundary, policy controller,
+  portable preflight evidence and controlled-provider host;
+- exact-main CI status publisher introduced by PR #96.
 
-## R3 fixture generator destination ownership blocker
-
-Status: `HISTORICAL_SUPERSEDED_BY_PR35_MERGE`
-
-Scope: `POMRX-R3-FIXTURE-DESTINATION-OWNERSHIP`
-
-Exact reviewed head: `5b3ab9c1016f74b528e585fe90b6d2502eb3561b`
-
-The destination-ownership P1 is resolved at the exact reviewed head above.
-The generator now claims the version root, pin and payload files exclusively,
-records filesystem identities and byte digests, validates the exact owned
-regular-file closure before pin publication and again at commit, and rolls
-back only identity-proven objects. Precreated sentinels, hardlinks, path swaps,
-late foreign files and in-place payload/pin mutations are rejected without
-deleting foreign objects. The four-source post-check completes before the pin
-is published.
-
-The exact Windows suite passed 18 applicable tests with zero failures and one
-expected POSIX-only skip; the corpus root remains
-`a561817969f491ac15f02e5818cea252eecba7acc2726e93162f49b66f9ab23b`.
-Protocol, Security and QA independently approved exact head
-`5b3ab9c1016f74b528e585fe90b6d2502eb3561b` with no P0/P1. The branch is pushed
-and draft PR #35 existed at that historical point. This paragraph is
-`SUPERSEDED_BY_PR35_MERGE`; current disposition is recorded below. The implementation proves
-fail-closed local-process ownership checks; it does not claim crash durability
-or resistance to a privileged/concurrent hostile operating-system actor.
-
-## R3 fixture CI historical-source checkout blocker
-
-Status: `RESOLVED_PR36_MERGED_MAIN_ADVANCED`
-
-Scope: `POMRX-R3-FIXTURE-CI-HISTORICAL-SOURCE-CHECKOUT`
-
-Draft PR: `#35`
-
-Exact head: `5b3ab9c1016f74b528e585fe90b6d2502eb3561b`
-
-GitHub Actions run `31739328166`, job `94578544677`, failed because the default
-shallow `actions/checkout` did not contain historical source baseline
-`743b8082bfc925d1681af7a239856a0b4f7e8464`. The source-binding test correctly
-failed closed at `git rev-parse 743b808:sdk/typescript/pom-rx.mjs`. Ubuntu
-otherwise recorded 17 passes, one source-binding failure and one expected
-Windows-only skip; the POSIX symlink integration passed.
-
-This is a CI checkout-history prerequisite, not evidence of a fixture or
-runtime regression. Do not weaken or skip source binding. CI-only PR #36 at
-exact head `0dd95abfd87bf93265b84d04c8ab54f9dc63184c` keeps the reviewed checkout
-SHA and adds only `fetch-depth: 0`. Independent QA approved it with no P0/P1.
-Actions run `31744486526`, job `94595589780`, completed successfully with all
-18 non-empty steps green. The exact human gate `APPROUVE FUSION PR #36` was
-recorded for reviewed head `0dd95abfd87bf93265b84d04c8ab54f9dc63184c`.
-PR #36 was squash-merged as
-`bd49e11c3adac31a507a4ca1612415ef64139022` at
-`2026-08-14T08:20:13Z`; its source branch was retained. Post-merge main run
-`31783490906` completed successfully on that exact merge commit.
-
-This checkout-history blocker is resolved. The historical next task was a
-non-destructive resynchronization of draft PR #35 onto current main. That
-resynchronization was completed as merge commit
-`2806376076acb081713aee890bc99c2c9433ab8a`. A POSIX-only hand-built file URL
-in the source-binding positive control was corrected test-only at exact head
-`3b8ff1a8ae6799bc6f9381262d1af1097e88ac4e`. Exact-head run `31787982124`, job
-`94728127015`, completed successfully and GitHub reports the PR mergeable and
-clean. The checkout-history blocker is therefore closed; it is superseded by
-the independent Windows QA blocker below.
-
-## R3 Windows metadata-helper timeout blocker
-
-Status: `RESOLVED_MERGED_MAIN_CI_GREEN`
-
-Scope: `R3-STRICT-PROFILE-V01-COMPATIBILITY-FIXTURES`
-
-Draft PR: `#35`
-
-Exact head: `752f61b8ecff784b625cbb581537ba6fe534b334`
-
-Commit `752f61b8ecff784b625cbb581537ba6fe534b334` resolves the P1 with an explicit
-per-target ADS mode, reparse-first stream short-circuit, a 10-second and 1 MiB
-bounded fail-closed production helper, and a 30-second per-case native harness
-deadline with exact-PID process-tree cleanup. Exact-head CI run `31792617893`,
-job `94742703725`, completed successfully. The exact-head Windows Node suite
-passed 19 applicable tests with zero failures and one POSIX-only skip in 222.1
-seconds. The native harness completed in 10.7 seconds: all nine applicable
-cases passed and symlink creation was transparently privilege-limited. No
-related Node, PowerShell or CSC process remained after the runs.
-
-Renewed exact-head Protocol, Security and QA reviews all returned `APPROVE`
-with no P0/P1. After the exact instruction `APPROUVE FUSION PR #35`, PR #35
-was squash-merged as `2a65bfb555b2eea942c8724819487df06c94242c` at
-`2026-08-14T10:47:40Z`; the source branch was retained. Post-merge main CI run
-`31793630923`, job `94745800115`, completed successfully with every non-empty
-step green. Remaining P2 limitations stay explicit: production timeout is not
-Windows Job Object containment, repeated PowerShell/Add-Type startup is costly,
-the local symlink case is partial, and the native harness is not yet run in
-GitHub CI.
+If a regression is found in one of those merged properties it becomes a **new**
+typed blocker tied to the exact affected SHA; it is not represented by reviving
+the stale August 14 blocker text.
