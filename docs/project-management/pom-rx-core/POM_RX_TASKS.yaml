@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T14:45:00+02:00",
+  "updated_at": "2026-08-21T15:13:33+02:00",
   "current_main": "0564aecd42cf0794894c12842980969ff59c9f73",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -123,8 +123,8 @@
       ],
       "acceptance": [
         "Persist exact trusted main 0564aecd42cf0794894c12842980969ff59c9f73 and PR #101 POST_MERGE_ASSURANCE_PASS.",
-        "Represent PR #97 exact head 8195c55970be8230f58a5c237430e7371f400dd7 with green CI and implemented thenable-boundary repair while keeping independent exact-head validation pending.",
-        "Represent PR #93 exact live head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted and requiring trusted-main reconciliation plus fresh exact-head gates.",
+        "Represent PR #97 exact head 37b8e6998f0867f97ef1efcf3dacab50f4097748 with exact-head CI failure 32485543302 and the fresh independent P1 on native-Promise bookkeeping symbols; do not promote stale green or owner evidence.",
+        "Represent PR #93 exact live head c4e40ceb286f4e59657767661daed15d2b68e9a7 as currently mergeable but open/untrusted and still requiring trusted-main reconciliation plus fresh exact-head gates.",
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
       ],
@@ -136,37 +136,37 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "REPAIR_IMPLEMENTED_AWAITING_FRESH_INDEPENDENT_EXACT_HEAD_VALIDATION",
+      "status": "BLOCKED_EXACT_HEAD_P1_NATIVE_PROMISE_SYMBOL_COMPATIBILITY_AND_RED_CI",
       "pr": 97,
-      "checkpoint_head": "8195c55970be8230f58a5c237430e7371f400dd7",
+      "checkpoint_head": "37b8e6998f0867f97ef1efcf3dacab50f4097748",
       "reconciled_main": "0564aecd42cf0794894c12842980969ff59c9f73",
       "checkpoint_ci": {
-        "run": 32482359072,
-        "run_number": 577,
-        "status": "success"
+        "run": 32485543302,
+        "run_number": 584,
+        "status": "failure"
       },
       "release_owner": {
-        "status": "PASS_NON_INDEPENDENT",
-        "reviewed_head": "8195c55970be8230f58a5c237430e7371f400dd7",
-        "p0_p1_p2": 0
+        "status": "STALE_AFTER_HEAD_MOVE",
+        "last_reviewed_head": "f91079676aa8a21c0501bee3951bcd0d40c27083"
       },
       "independent_review": {
-        "status": "PENDING_EXACT_HEAD_8195C559",
-        "last_finding_head": "871cd980cf6c1343336e5d63da78a82a28a8dda3",
-        "last_finding": "P1 Reject account Proxies before thenable assimilation",
-        "repair_state": "IMPLEMENTED_NOT_YET_INDEPENDENTLY_VALIDATED"
+        "status": "BLOCK_P1_EXACT_HEAD_37B8E699",
+        "reviewed_head": "37b8e6998f0867f97ef1efcf3dacab50f4097748",
+        "finding": "P1 Permit runtime bookkeeping symbols on native promises",
+        "repair_state": "UNRESOLVED"
       },
-      "known_state": "providerRead() now obtains the provider result synchronously, classifies genuine native Promises with a module-initialization-captured node:util types.isPromise without reading result-owned properties, and captures every direct non-Promise object before any async/thenable assimilation boundary. A CI-wired Array Proxy get('then') reproducer requires zero result-owned traps, zero reference authorization and zero sensitive forwarding. Historical P1 threads remain unresolved until fresh exact-head independent validation.",
+      "known_state": "The current native-Promise transport validator preserves direct non-Promise Proxy/function capture and attempts to reject decorated Promise transports and post-import Promise.prototype.constructor drift before await. However it rejects every own symbol on a genuine native Promise. Under Node's test runner/promise hooks, ordinary native Promises carry runtime bookkeeping symbols such as async/trigger IDs, so valid provider reads fail closed before authorization and the canonical exact-head CI is red. The repair must stay narrow: keep result-owned constructor/then decoration and Promise-prototype drift fail-closed while permitting inert runtime bookkeeping symbols that Promise assimilation does not consult.",
       "acceptance": [
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
-        "Provider-controlled direct non-Promise object results cross shared hardened inert capture before async/thenable assimilation.",
-        "The CI-wired get('then') substitution regression proves zero result-owned trap dispatch, zero reference authorization and zero sensitive forwarding.",
-        "Current exact repaired head CI succeeds.",
-        "Release-owner review passes on that head and a fresh distinct independent skeptical/security review covers that same head.",
+        "Provider-controlled direct non-Promise object/function results cross shared hardened inert capture before async/thenable assimilation.",
+        "Decorated native Promise constructor/then attack paths and post-import Promise prototype drift remain rejected before attacker-owned dispatch.",
+        "Ordinary genuine native Promise provider context transport remains compatible under the repository's Node test runner and runtime bookkeeping symbols do not cause a false reject.",
+        "Current final repaired exact-head CI succeeds.",
+        "Release-owner review passes on that exact head and a fresh distinct independent skeptical/security review covers that same head.",
         "No unresolved P0/P1/P2 remains before merge.",
         "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "next_action": "keep 8195c559 frozen; obtain fresh distinct independent exact-head validation; if clean resolve validated historical P1 threads, revalidate head/CI and merge; if new finding appears repair and rerun all moved-head gates"
+      "next_action": "repair the native-Promise symbol compatibility boundary narrowly on PR #97; preserve constructor/then/prototype hardening; add or retain exact attack and compatibility regressions; rerun exact-head CI, release-owner review and fresh distinct independent review"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
@@ -182,8 +182,8 @@
         "run_number": 541,
         "status": "success"
       },
-      "mergeable_at_checkpoint": false,
-      "known_state": "The current branch base predates trusted main 0564aecd and the latest distinct Codex release evidence covers a moved head. PR #93 overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
+      "mergeable_at_checkpoint": true,
+      "known_state": "Live GitHub currently reports the PR mergeable, but its branch base still predates trusted main 0564aecd and the latest distinct Codex release evidence covers a moved head. Mergeability is not release evidence. PR #93 overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
       "acceptance": [
         "Reconcile to then-current trusted main after dependency ordering is safe.",
         "Exact current head CI succeeds after reconciliation.",
