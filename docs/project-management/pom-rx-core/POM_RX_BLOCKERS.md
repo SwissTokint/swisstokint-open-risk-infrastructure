@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T23:26:16+02:00`
+Updated: `2026-08-21T23:33:10+02:00`
 
 Current trusted main: `5b40135d660366e463f532d4398f179fbff8c006`
 
@@ -23,20 +23,20 @@ across SpecKit, skeptical/falsification, security, code quality, optimization an
 integration/regression. It is trusted coordination evidence only and changes no
 runtime/security semantics.
 
-The current post-PR #109 reconciliation is intentionally another bounded
+The current post-PR #109 reconciliation is PR #110, intentionally another bounded
 non-Tier-B documentation/control-plane lot on branch
 `docs/pom-rx-checkpoint-after-109-20260821`. It exists only because a merged
-checkpoint cannot self-describe its future merge SHA. Until this new lot passes
-its own exact-head gates and exact-merge post-merge assurance, live GitHub remains
+checkpoint cannot self-describe its future merge SHA. Until PR #110 passes its own
+exact-head gates and exact-merge post-merge assurance, live GitHub remains
 authoritative for all state that moved after PR #109.
 
 ## `CONTROL_PLANE_POST_PR109_RECONCILIATION_REQUIRED`
 
 The canonical files merged by PR #109 checkpoint the state that existed before
 that merge. Live trusted main is now `5b40135d...`, so stale main/PR metadata must
-not be used as readiness or dependency evidence until this scoped reconciliation
-is trusted. This blocker is coordination-only; it does not invalidate PR #109's
-recorded post-merge PASS or change runtime/security semantics.
+not be used as readiness or dependency evidence until PR #110 is trusted. This
+blocker is coordination-only; it does not invalidate PR #109's recorded
+post-merge PASS or change runtime/security semantics.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -92,8 +92,7 @@ security reproducer.
 PR #97's historical base `0564aecd...` trails trusted main `5b40135d...`.
 `mergeable=true/false` is only GitHub conflict metadata and must never be promoted
 to proof of architecture reconciliation or security correctness. The repair lot
-must start from then-current trusted main after the current control-plane lot is
-trusted.
+must start from then-current trusted main after PR #110 is trusted.
 
 ## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
 
