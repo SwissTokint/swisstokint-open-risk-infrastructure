@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T18:45:00+02:00`
+Updated: `2026-08-21T19:10:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in a task conversation separate from any interactive chat, so every run must
@@ -60,11 +60,11 @@ are not proved.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
-- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE_SIGNAL_ONLY / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_TRUE_SIGNAL_ONLY / BLOCKED_EXACT_HEAD_SECURITY_P1 / TRUSTED_MAIN_RECONCILIATION_REQUIRED`;
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - PR base SHA: `0564aecd42cf0794894c12842980969ff59c9f73`;
 - current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`;
-- latest live GitHub reports `mergeable=false`; this changed after main advanced and is volatile conflict/mergeability metadata only. It does not establish the cause of conflict, reconciliation status, security correctness or release readiness;
+- latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability metadata only and does not by itself identify reconciliation status, security correctness or release readiness;
 - exact-head canonical CI: run `32487036517`, `CI` run 592, `success`;
 - exact-head release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - exact-head distinct Codex finding: P1 `Reject Promise drift before entering async layers`;
@@ -86,11 +86,11 @@ merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_FALSE_SIGNAL_ONLY / UNTRUSTED / RECONCILIATION_REQUIRED`;
+- state: `OPEN / NOT_MERGED / LIVE_MERGEABLE_TRUE_SIGNAL_ONLY / UNTRUSTED / RECONCILIATION_REQUIRED`;
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
 - current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`;
-- latest live GitHub reports `mergeable=false`; this changed after main advanced and is volatile conflict/mergeability metadata only, not trusted-main reconciliation, security review or release evidence;
+- latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability metadata only and is not trusted-main reconciliation, security review or release evidence;
 - last exact-head canonical CI: run `32465835858`, `CI` run 541, `success`;
 - latest distinct Codex release evidence covers a moved head, not current `c4e40ceb...`;
 - unresolved current/non-outdated P1/P2 review threads remain, including exact-value generic signature commitment, typed-data wrapper normalization, shared proof canonicalization/hash/reflection classes and nested payload capture concerns. Moved-head fixes are not exact-head release evidence;
@@ -150,9 +150,9 @@ dependent Tier-B lot on the assumption that an open PR is already trusted.
 1. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact-head distinct review on `0efb462...` confirms the sensitive-forwarding exploit class remains reachable.
 2. `PR97_FALSE_PASS_GREEN_CI_32487036517` — CI 592 is green but current head is test-only and runtime remains unchanged.
 3. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462` — owner gate remains BLOCK / NON-INDEPENDENT.
-4. `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR105` — base `0564aecd...` trails trusted main `03554ee...`; current live `mergeable=false` is volatile conflict metadata and not security/reconciliation evidence.
+4. `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR105` — base `0564aecd...` trails trusted main `03554ee...`; current live `mergeable=true` remains volatile conflict metadata and is not security/reconciliation evidence.
 5. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
-6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — stale base, current live `mergeable=false` signal only, moved-head review evidence and unresolved P1/P2 history.
+6. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED` — stale base, current live `mergeable=true` signal only, moved-head review evidence and unresolved P1/P2 history.
 7. `DAGR_SOURCE_DOCUMENT_MISSING`.
 8. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
