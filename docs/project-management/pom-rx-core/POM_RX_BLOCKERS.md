@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T21:18:00+02:00`
+Updated: `2026-08-21T22:09:00+02:00`
 
 Current trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`
 
@@ -23,9 +23,14 @@ It is trusted coordination evidence only and changes no runtime/security
 semantics.
 
 The current post-PR #107 control-plane reconciliation is intentionally a
-non-Tier-B docs lot on branch `docs/pom-rx-checkpoint-after-107-20260821`. It must
-itself pass exact-head gates and exact-merge post-merge assurance before a later
-Tier-B repair treats its merge as trusted coordination evidence.
+non-Tier-B docs lot on branch `docs/pom-rx-checkpoint-after-107-20260821`. Its
+predecessor exact head `0fb13146...` failed CI run 640 because the capability map
+dropped a contract phrase required by the conformance test and received two fresh
+independent findings: P1 durable claim ordering and P2 omission of the five-stage
+gate from the structured merge rule. The current bounded repair restores these
+contracts without weakening tests. Because the head moved, all predecessor
+exact-head CI/review evidence is stale for release; final exact-head CI, owner
+review and fresh distinct independent review are required before merge.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -34,7 +39,7 @@ PR #97 remains open and **must not merge**.
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical PR base: `0564aecd42cf0794894c12842980969ff59c9f73`;
 - trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`;
-- latest live mergeability signal: `false`; volatile metadata only;
+- live GitHub currently reports `mergeable=true`; volatile metadata only and must be re-read at decision time;
 - exact-head CI run `32487036517` / CI 592: `success`;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
 - fresh distinct exact-head finding: P1 `Reject Promise drift before entering async layers`.
@@ -57,10 +62,12 @@ Required closure:
 - restore or replace a CI-wired regression that reproduces the independent
   sensitive-forwarding exploit and does not weaken the zero-hostile-dispatch
   property merely to make CI green;
-- preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
-  compatibility, direct non-Promise object/function hardened capture, own native
-  Promise-decoration rejection, durable one-winner semantics and fail-closed
-  zero authorization/forwarding for hostile rejected transports;
+- require the durable capability claim to succeed before any observer or
+  downstream work so losing contenders cannot enter security-sensitive paths;
+- preserve fail-closed replay, durable one-winner behavior, ordinary
+  native-Promise Node/AsyncHooks bookkeeping-symbol compatibility, direct
+  non-Promise object/function hardened capture, own native Promise-decoration
+  rejection, and zero authorization/forwarding for hostile rejected transports;
 - rerun exact-head CI and release-owner six-lane review;
 - obtain a fresh distinct exact-head independent skeptical/security review;
 - resolve only review findings whose repair is validated on that same exact head;
@@ -95,7 +102,7 @@ PR #93 remains open and untrusted.
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
 - trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`;
-- latest live mergeability signal: `false`; volatile metadata only;
+- live GitHub currently reports `mergeable=true`; volatile metadata only and must be re-read at decision time;
 - exact-head CI run `32465835858` / CI 541: `success`;
 - latest distinct Codex review found in the PR record covers moved head
   `03e0201c9f...`, not current `c4e40ceb...`;
@@ -134,9 +141,10 @@ also remains behind a separate explicit human authorization gate.
 
 ## Current dependency rule
 
-PR #97 and PR #93 are not trusted dependencies merely because their branches or
-CI exist. A dependency is trusted only after all exact-head pre-merge gates pass,
-the PR merges, and the exact merge receives `POST_MERGE_ASSURANCE_PASS`.
+PR #97 and PR #93 are not trusted dependencies merely because their branches,
+mergeability signals or CI exist. A dependency is trusted only after the full
+five-stage pre-merge gate and all applicable exact-head gates pass, the PR merges,
+and the exact merge receives `POST_MERGE_ASSURANCE_PASS`.
 
 Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`:
 local, deterministic, synthetic and bounded — not production readiness, audit,
