@@ -53,12 +53,11 @@ function objectEntries(value) {
 
 function normalizeString(value, form) {
   if (String.prototype.normalize !== STRING_NORMALIZE_INTRINSIC) {
-    // Preserve the established exact runtime-error provenance for hostile
-    // post-initialization replacements that throw, but never accept a value
-    // produced by the replacement into a commitment. A non-throwing
-    // replacement is therefore fail-closed rather than commitment-collapsing.
+    // Preserve the established side effects and exact thrown-error provenance
+    // of a post-initialization replacement, but never consume its return value
+    // into a commitment. A replacement that returns normally therefore cannot
+    // rewrite or collapse the canonical text computed below.
     value.normalize(form);
-    throw new TypeError('String.prototype.normalize changed after module initialization');
   }
   return STRING_NORMALIZE(value, form);
 }
