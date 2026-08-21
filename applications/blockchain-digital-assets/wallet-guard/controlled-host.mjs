@@ -8,13 +8,12 @@ import {
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
 import {
-  normalizeWalletGuardPolicy,
-} from './policy.mjs';
-import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
 
 const REFLECT_APPLY = Reflect.apply;
+const ARRAY_CONSTRUCTOR = Array;
+const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -103,7 +102,7 @@ function captureExactRecord(value, expectedKeys, label) {
   }
 
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const captured = Object.create(null);
+  const captured = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
   for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
@@ -134,7 +133,7 @@ function canonicalOrigin(value) {
 }
 
 function copyFrozenArray(values) {
-  const output = new Array(values.length);
+  const output = new ARRAY_CONSTRUCTOR(values.length);
   for (let index = 0; index < values.length; index += 1) {
     output[index] = values[index];
   }
@@ -148,7 +147,7 @@ function canonicalAccounts(value) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a standard non-Proxy array');
   }
   if (value.length < 1 || value.length > MAX_ACCOUNTS) {
-    fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a bounded non-empty array');
+    fail('POMRX_WG_HOST_E_ACOUNTS_INVALID', 'accounts must be a bounded non-empty array');
   }
   if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain symbol keys');
@@ -159,7 +158,7 @@ function canonicalAccounts(value) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a dense undecorated array');
   }
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const normalized = new Array(value.length);
+  const normalized = new ARRAY_CONSTRUCTOR(value.length);
   const seen = new Set();
   for (let index = 0; index < value.length; index += 1) {
     const key = String(index);
@@ -177,12 +176,37 @@ function canonicalAccounts(value) {
   return freeze(normalized);
 }
 
+function materializeCapturedPlainData(value) {
+  if (value === null || typeof value !== 'object') return value;
+
+  if (ARRAY_IS_ARRAY(value)) {
+    const output = new ARRAY_CONSTRUCTOR(value.length);
+    for (let index = 0; index < value.length; index += 1) {
+      output[index] = materializeCapturedPlainData(value[index]);
+    }
+    return freeze(output);
+  }
+
+  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+  const output = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    output[key] = materializeCapturedPlainData(descriptors[key].value);
+  }
+  return freeze(output);
+}
+
 function capturePolicy(value) {
-  // Policy owns a stricter application schema than the generic Core inert-data
-  // snapshot. Normalize at that application boundary instead of converting its
-  // arrays into Core's deliberately detached snapshot representation and then
-  // asking the policy parser to treat those arrays as fresh caller input.
-  return normalizeWalletGuardPolicy(value);
+  // Keep the generic hardened Core boundary in front of policy input so Proxy,
+  // accessor, hidden/symbol, decorated-array and custom-prototype rejection stays
+  // zero-side-effect and bounded. Then materialize only that trusted inert snapshot
+  // into ordinary frozen arrays before the Wallet Guard application parser sees it.
+  // This avoids making application policy semantics depend on Core's deliberately
+  // detached snapshot-array representation while admitting no caller-supplied
+  // custom array prototype.
+  const captured = captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  return materializeCapturedPlainData(captured);
 }
 
 function capturePageRequest(value) {
@@ -194,7 +218,7 @@ function captureSensitiveRequest(value) {
 }
 
 function inspectSensitiveCalls(calls) {
-  const output = new Array(calls.length);
+  const output = new ARRAY_CONSTRUCTOR(calls.length);
   for (let index = 0; index < calls.length; index += 1) {
     output[index] = captureReferencePlainData(
       calls[index],
