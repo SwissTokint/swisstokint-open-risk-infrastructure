@@ -1,172 +1,166 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T10:46:00+02:00`
+Updated: `2026-08-21T11:06:20+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in an associated task conversation separate from an interactive chat, so no
 future run may depend on conversation history alone. Live GitHub wins over this
-file if a head/CI/review moved after the timestamp above.
+file whenever a PR head, CI run, review or merge changes after this checkpoint.
 
 ## trusted_main
 
 `818718955c9e4136e9e55754a31be2f1c7b610f8`
 
-Latest merge: PR #96 — exact-main CI status observability repair.
+Latest trusted merge: PR #96 — exact-main CI status observability repair.
 
-Exact-main status context `pom-rx/exact-main-ci` is `success` and targets the
-canonical main CI run. Decision-time freshness rules in
-`POM_RX_POST_MERGE_ASSURANCE_GATE.md` still apply; the status is not sufficient
-by itself for a new readiness claim.
+PR #96 exact-merge post-merge assurance is recorded PASS. Trusted main contains
+the prospective `pom-rx/exact-main-ci` status surface, but every later merge still
+requires decision-time freshness validation of the canonical push CI under
+`POM_RX_POST_MERGE_ASSURANCE_GATE.md`.
 
-## repository architecture now present on main
+## repository architecture present on trusted main
 
-The old August 14 checkpoint is superseded. Current `main` already contains:
-
-- activated `pom-rx-v0.1/strict-errata-1` strict verification while preserving
-  the historical verifier;
-- common Core exact-authorization contract and process-local reference
-  single-use Gate;
-- shared bounded hostile-object/plain-data capture;
-- source/Witness signing primitives and process-local reference trust lifecycle
-  with enrollment, revocation, rotation/recovery and monotonic trusted time;
-- a separate filesystem-backed durable claim primitive;
-- shared reference execution-evidence recording;
-- shared reference observation/reconciliation;
-- Wallet Guard strict JSON ingress, normalized EVM intents, effect decoding,
-  fail-closed policy, policy controller, portable preflight evidence,
-  Core-verified Witness-authorization adapter, provider/Gate integration and a
-  controlled in-memory provider host;
-- Filecoin/Stellar/supporting integrations that remain evidence/adapter
-  infrastructure rather than the execution authorization boundary.
+Trusted main already contains the activated bounded strict profile while
+preserving historical `pom-rx/0.1`, common exact authorization, a process-local
+single-use Gate, shared bounded hostile-object/plain-data capture, process-local
+Witness trust lifecycle, a separate filesystem durable claim primitive,
+reference execution evidence, reference observation/reconciliation, and the
+merged Wallet Guard JSON/intent/effect/policy/controller/preflight/Witness-adapter/provider/controlled-host layers.
 
 These are reference/prototype properties. They do not prove production trusted
-time, production issuer/key custody, arbitrary-browser integrity, external
-execution/effect truth or real-wallet safety.
+time, production issuer/key custody, arbitrary-browser/provider integrity,
+external execution/effect truth, distributed filesystem/consensus semantics or
+real-wallet safety.
 
-## open_feature_prs
+## open_prs
 
 ### PR #93 — Wallet Guard simulation evidence
 
 - state: `OPEN / NOT_MERGED / MERGEABLE`;
-- live head at checkpoint: `03e0201c9fef5ed10a615996d68052613bdd94d6`;
-- CI at checkpoint: run `32464591057`, `in_progress`;
-- important: the PR body still labels an older head (`06f8c7b...`), therefore its
-  embedded "current exact state" section is stale and must never be used as the
-  release source of truth;
-- release rule: current live head needs green exact-head CI plus release-owner
-  review and a distinct fresh exact-head independent skeptical/security review
-  with no unresolved P0/P1/P2;
-- prior Codex findings/reviews on moved heads remain historical evidence only.
+- live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
+- exact-head CI: run `32465835858`, `success`;
+- release state: `BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW`;
+- the latest independent Codex review visible before this checkpoint covers moved
+  head `03e0201c9fef5ed10a615996d68052613bdd94d6`, where it found a P1 in nested
+  typed-data capture using live reflection. The branch is seven commits ahead and
+  now changes the shared plain-data snapshot plus regressions, but no fresh
+  independent review on `c4e40ceb...` is yet release evidence;
+- prior release-owner reviews are NON-INDEPENDENT and moved-head reviews cannot
+  release this head.
+
+Next safe action: request/revalidate a fresh distinct independent skeptical /
+security review on exact head `c4e40ceb...`; if the head moves again, invalidate
+current exact-head evidence and repeat.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
 - state: `OPEN / NOT_MERGED / MERGEABLE`;
-- live head at checkpoint: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`;
-- exact-head CI at checkpoint: run `32464344634`, `success`;
-- earlier heads accumulated real independent P1 findings around event-loop
-  yielding, ambient intrinsics, durable-root/path confinement, WeakMap binding,
-  prepared-execution capture, mutable Array/iterator surfaces and post-await
-  provider/policy integrity. Repairs move the head, so every prior release
-  review must be treated as stale unless it explicitly covers `1f228dab...`;
-- release rule: require a fresh exact-head release-owner pass and distinct
-  independent skeptical/security review with no unresolved P0/P1/P2 before any
-  merge decision.
+- exact current head: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`;
+- exact-head CI: run `32464344634`, `success`;
+- release state: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1`;
+- a fresh independent Codex review actually covers this exact head and reports a
+  P1 in provider account normalization: an `eth_accounts` Array Proxy or array
+  with an own `map` can mutate `Array.prototype.map` after the runtime-integrity
+  check and before normalization, substitute the active account, and still reach
+  authorization/sensitive forwarding;
+- the release-owner exact-head PASS is explicitly NON-INDEPENDENT and does not
+  close that P1.
 
-PR #93 and #97 both touch shared regression/package surfaces. If either merges,
-the other must be reconciled to the then-current trusted `main` before its own
-release gate.
+Next safe action: repair provider-controlled account-array capture/rejection
+inside PR #97, add a zero-trap/zero-authorization/zero-sensitive-forwarding
+regression, rerun exact-head CI, then repeat release-owner and fresh independent
+exact-head review.
 
-## current_control_plane_lot
+### PR #98 — durable control-plane continuity reconciliation
 
-Branch: `docs/pom-rx-continuity-reconcile-20260821`
+- state: `OPEN / NOT_MERGED / MERGEABLE`;
+- branch: `docs/pom-rx-continuity-reconcile-20260821`;
+- base: trusted main `818718955c9e4136e9e55754a31be2f1c7b610f8`;
+- scope: non-normative docs/control-plane only; no protocol, verifier, Gate,
+  Witness, Wallet Guard runtime, fixture, key, wallet, network or financial
+  execution semantic changes;
+- independent Codex review on former head
+  `0a9c56a8f8ddcbb266db55815c387efb7a644527` found four P1 documentation
+  contract regressions plus one P2 stale-register claim; canonical CI run
+  `32465189485` failed on that old head;
+- the current branch repairs those findings by preserving contract-checked Core
+  and Wallet Guard ownership phrases, restoring explicit `full five-stage gate`
+  wording, restoring the mandatory SpecKit/skeptical/security/code-quality /
+  optimization post-merge families, and removing the already-resolved
+  task-register blocker;
+- because these repairs moved the branch, old CI/review evidence is stale. Read
+  the exact live PR #98 head from GitHub before any release decision.
 
-Base: trusted main `818718955c9e4136e9e55754a31be2f1c7b610f8`.
+Next safe action: obtain green CI and a fresh independent Codex review on the
+actual repaired PR #98 head. Merge only if the full five-stage gate and every
+applicable exact-head requirement pass, then immediately run exact-merge-SHA
+post-merge assurance.
 
-Scope is non-normative project continuity/information architecture only:
+## overlap_and_dependency_rule
 
-- remove stale model/agent claims from the active roster;
-- make scheduled-task continuity explicitly repository-backed;
-- refresh this checkpoint and current blockers;
-- reconcile capability/readme wording with the implementation actually merged
-  on main;
-- do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture,
-  key, wallet, network or financial-execution semantics.
+PR #93 and PR #97 both touch shared regression/package surfaces. If either merges,
+the other must be reconciled to the then-current trusted main and all exact-head
+gates rerun. Neither may be used as a trusted dependency until its own merge has
+a recorded `POST_MERGE_ASSURANCE_PASS`.
 
-## active_blockers
+The next controlled Wallet Guard end-to-end composition remains blocked on the
+trusted completion of the relevant current composition lots; do not start a
+dependent Tier-B merge that assumes either open PR is already trusted.
 
-1. `PR93_EXACT_HEAD_GATE_PENDING` — current simulation head is still moving and
-   its current CI/review gate must be completed on the actual head, not the PR
-   body's stale head.
-2. `PR97_INDEPENDENT_EXACT_HEAD_REVIEW_PENDING` — current durable-Gate head is
-   green in CI but must receive fresh exact-head independent validation after
-   the latest repairs.
-3. `CONTROL_PLANE_TASK_REGISTER_STALE` — `POM_RX_TASKS.yaml` contains useful
-   historical evidence but its top-level `current_main` and several old READY /
-   blocked task states predate the current architecture. Until that historical
-   register is safely reconciled without destroying history, live GitHub plus
-   this checkpoint/blocker file are authoritative for current-state selection.
-4. `DAGR_SOURCE_DOCUMENT_MISSING` — no normative DAGR content is invented
-   without an authorized source.
-5. `PRODUCTION_TRUST_UNPROVED` — production issuer/trusted time, durable Witness
-   trust/operator authorization, distributed replay/consensus where needed,
-   external execution/effect truth and arbitrary-browser/provider integrity
-   remain out of the current bounded reference claim.
+## current_blockers
 
-## agent_and_review_routing
+1. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED`.
+2. `PR97_UNRESOLVED_EXACT_HEAD_P1_ACCOUNT_ARRAY_CAPTURE`.
+3. `PR98_REPAIRED_HEAD_CI_AND_FRESH_INDEPENDENT_REVIEW_REQUIRED`.
+4. `DAGR_SOURCE_DOCUMENT_MISSING`.
+5. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
-Use `POM_RX_TEAM_ROSTER.md` as the active role contract:
+The old `CONTROL_PLANE_TASK_REGISTER_STALE` blocker is resolved inside PR #98:
+`POM_RX_TASKS.yaml` has been reconciled to trusted main `818718...`, the current
+three open workstreams and current blocker states while preserving historical
+August 14 detail in Git history.
 
-- Prime Lead / Integrator — accountable, non-independent;
-- Protocol / Systems Architect — read-only where Core/compatibility boundaries
-  are touched;
-- Security / Adversarial Skeptic — read-only, concrete falsification hypotheses;
-- one Single Implementer — exclusive writer;
-- QA / Conformance — independent from writer where applicable;
-- Code Quality / Optimization — read-only;
-- Independent Release Gate — only actual distinct exact-head review evidence
-  counts. A fresh `chatgpt-codex-connector` review can satisfy this lane when it
-  covers the exact live head and leaves no unresolved P0/P1/P2.
+## merge_authorization_and_review_rules
 
-Do not claim Claude or any other reviewer/model ran unless evidence proves it.
+The user has standing authorization to merge future POM-RX PRs without asking
+for per-PR approval only after the **full five-stage gate is satisfied**, all
+applicable technical/security gates pass, exact-head CI is green, and every
+required independent review covers that same exact head with no unresolved
+P0/P1/P2. The independent-review waiver remains limited to PR #60 unless the
+user explicitly broadens it.
 
-## scheduled_task_continuity
+Release-owner/Prime/self-review is NON-INDEPENDENT. A fresh
+`chatgpt-codex-connector` review may satisfy the independent lane only when it
+actually covers the exact current candidate SHA and leaves no unresolved
+P0/P1/P2. Never invent reviewer identity or reuse a moved-head review as release
+evidence.
 
-The existing hourly `POM-RX Continuous Build` task has been updated to:
-
-- never create a duplicate POM-RX task;
-- reconstruct state from live GitHub and the canonical control plane each run;
-- treat moved heads as invalidating stale CI/reviews;
-- persist material continuation state back to this repository;
-- emit a `CONTINUITY_CHECKPOINT` in task results;
-- never treat its associated task conversation as the sole project memory.
-
-This mitigates cross-chat continuity loss. It does not change the ChatGPT product
-behavior that a scheduled task can have its own associated task conversation.
+After every merge, run the exact-merge-SHA post-merge sequence: SpecKit
+reconciliation, skeptical/falsification, security audit, code-quality review,
+optimization review and integration/regression. Record exactly one scoped final
+verdict: `POST_MERGE_ASSURANCE_PASS`, `POST_MERGE_ASSURANCE_CONDITIONAL` or
+`POST_MERGE_ASSURANCE_BLOCK`. A non-PASS merge is not a trusted dependency and
+is repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Complete and review the continuity-control-plane docs lot without touching the
-   two feature branches.
-2. Revalidate PR #93 after its current CI completes; if the head moved, start
-   again from the new exact head.
-3. Revalidate PR #97 current review threads and obtain a fresh independent
-   exact-head review after the latest repair.
-4. Merge a Tier-B lot only when its **current** exact-head technical and
-   independent gates are satisfied under the applicable user authorization.
-5. Immediately run exact-merge-SHA post-merge assurance after any merge and do
-   not use the merged property as trusted dependency evidence until PASS.
-6. After the two current lots settle, reconcile the historical
-   `POM_RX_TASKS.yaml` register against the merged sequence without deleting its
-   historical evidence.
+1. Finish PR #98 exact-head CI and fresh independent review because the stale
+   control plane is itself a continuity hazard and #98 is a bounded non-Tier-B
+   dependency-closing lot.
+2. In parallel only where file ownership does not conflict, repair PR #97's
+   current exact-head P1.
+3. Revalidate PR #93's moved repaired head through fresh independent review.
+4. After any merge, immediately run and persist exact-merge post-merge assurance
+   before trusting that property downstream.
+5. Do not begin burner/local-testnet execution without a separate explicit human
+   execution-phase authorization.
 
 ## safety_boundary
 
-No private key, seed, secret, funded wallet, exchange credential, mainnet
-transaction, meaningful funds or uncontrolled malicious-site interaction is
-authorized by this checkpoint. Burner local/testnet E2E remains behind a
-separate explicit human execution gate.
-
-No site/Vercel/funding-directory write belongs to this control plane.
+No private key, seed, secret, funded-wallet credential, real/funded wallet,
+mainnet transaction, meaningful funds or uncontrolled malicious-site interaction
+is authorized. No site/Vercel/funding-directory write belongs to this control
+plane. Burner local/testnet E2E remains behind a separate explicit human gate.
 
 ## operational_claim_boundary
 
