@@ -294,7 +294,7 @@ function normalizeAccounts(value) {
 }
 
 function captureProviderReadResult(value, method) {
-  if (!value || typeof value !== 'object') return value;
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) return value;
   try {
     return captureReferencePlainData(value, `provider ${method} result`);
   } catch (error) {
@@ -323,8 +323,8 @@ async function providerRead(provider, method) {
   // A synchronous provider result must cross the shared inert-data boundary
   // before this async function can perform Promise/thenable assimilation on it.
   // util.types.isPromise performs native Promise classification without reading
-  // a result-owned `then` property, so an Array/Object Proxy is rejected by the
-  // shared capture boundary with zero caller trap/getter dispatch. Genuine
+  // a result-owned `then` property, so an Array/Object/Function Proxy is rejected
+  // by the shared capture boundary with zero caller trap/getter dispatch. Genuine
   // Promise transport remains supported; its fulfilled value is captured before
   // it is returned to the rest of the Wallet Guard pipeline.
   if (!isNativePromise(directResult)) {
