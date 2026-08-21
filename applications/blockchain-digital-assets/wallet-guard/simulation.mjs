@@ -25,9 +25,9 @@ const TYPED_DATA_JSON_COMMIT_DOMAIN =
 const TYPED_DATA_JSON_COMMITMENT_SCHEMA =
   'wallet_guard_typed_data_json_commitment/0.2';
 const TYPED_DATA_OBJECT_COMMIT_DOMAIN =
-  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-object:v1:';
+  'swisstokint:pom-rx-wallet-guard-simulation-typed-data-object-exact:v2:';
 const TYPED_DATA_OBJECT_COMMITMENT_SCHEMA =
-  'wallet_guard_typed_data_object_commitment/0.1';
+  'wallet_guard_typed_data_object_commitment/0.2';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const CALLBACK_STATUSES = new Set(['pass', 'fail', 'unavailable']);
 const EVIDENCE_STATUSES = new Set(['pass', 'fail', 'unavailable', 'mismatch']);
@@ -123,6 +123,36 @@ function utf16CodeUnitTranscript(value) {
     transcript += HEX_NIBBLES[codeUnit & 0x0f];
   }
   return transcript;
+}
+
+function exactPlainDataTranscript(value) {
+  if (value === null) return 'null;';
+  if (typeof value === 'boolean') return value ? 'bool:1;' : 'bool:0;';
+  if (typeof value === 'number') {
+    return Object.is(value, -0) ? 'int:-0;' : `int:${value};`;
+  }
+  if (typeof value === 'string') {
+    return `str:${utf16CodeUnitTranscript(value)};`;
+  }
+  if (Array.isArray(value)) {
+    let transcript = `array:${value.length}:[`;
+    for (let index = 0; index < value.length; index += 1) {
+      transcript += exactPlainDataTranscript(value[index]);
+    }
+    return `${transcript}];`;
+  }
+
+  // This helper is reached only after the typed-data value has crossed the
+  // shared inert plain-data capture boundary and the proof canonicalizer has
+  // validated the same object. Sorting object names removes irrelevant property
+  // insertion order while string values retain their exact UTF-16 code units.
+  const keys = Object.getOwnPropertyNames(value).sort(asciiCompare);
+  let transcript = `object:${keys.length}:{`;
+  for (const key of keys) {
+    transcript += `key:${utf16CodeUnitTranscript(key)};`;
+    transcript += exactPlainDataTranscript(value[key]);
+  }
+  return `${transcript}};`;
 }
 
 export class WalletGuardSimulationError extends Error {
@@ -325,16 +355,22 @@ function typedDataRequestCommitmentMarker(typedData) {
   }
 
   if (typedData && typeof typedData === 'object' && !Array.isArray(typedData)) {
-    // The typed-data object has already passed Wallet Guard replay, whose decoder
-    // canonicalizes this object by itself. Canonicalize that same bounded object
-    // alone, then project its digest into the larger RPC request so the wrapper's
-    // method/account fields cannot consume the remaining 16 KiB Core headroom.
-    const canonicalTypedData = canonicalizePayload(typedData);
+    // Replay has already accepted this independently captured typed-data object.
+    // Keep the existing proof-canonicalizer call as the bounded shape/byte
+    // validation contract, but do not hash its NFC-normalized text: EIP-712
+    // strings are byte-sensitive and canonically equivalent Unicode spellings
+    // must remain distinct request identities. Hash an unambiguous ASCII
+    // transcript of the captured inert value tree instead. Object keys are
+    // sorted so insertion order remains semantically irrelevant; string values
+    // preserve exact UTF-16 code units. The digest marker still keeps the outer
+    // RPC request below the generic 16 KiB canonicalization limit.
+    canonicalizePayload(typedData);
+    const exactTypedDataCommitment = sha256Hex(
+      `${TYPED_DATA_OBJECT_COMMIT_DOMAIN}${exactPlainDataTranscript(typedData)}`,
+    );
     return freezeValue({
       schema_version: TYPED_DATA_OBJECT_COMMITMENT_SCHEMA,
-      canonical_typed_data_sha256: sha256Hex(
-        `${TYPED_DATA_OBJECT_COMMIT_DOMAIN}${canonicalTypedData}`,
-      ),
+      exact_typed_data_sha256: exactTypedDataCommitment,
     });
   }
 
