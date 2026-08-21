@@ -211,3 +211,66 @@ test('post-import WeakMap replacement cannot rewrite the inner Gate authorizatio
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test('post-import Array iterator poisoning cannot rewrite durable bootstrap or claim contracts', async () => {
+  const rootDir = await tempDir('pom-rx-durable-gate-array-iterator-');
+  const originalIterator = Array.prototype[Symbol.iterator];
+  let evidence;
+  let downstreamCalls = 0;
+  let harness;
+
+  try {
+    Array.prototype[Symbol.iterator] = function* poisonedBootstrapIterator() {
+      yield 'forged-bootstrap-key';
+    };
+    harness = createReferenceDurableSingleUseGateHarness({
+      rootDir,
+      trustedClock: (() => {
+        const values = ['2026-08-21T04:00:01.000Z', '2026-08-21T04:00:02.000Z'];
+        let index = 0;
+        return () => values[Math.min(index++, values.length - 1)];
+      })(),
+      observeBinding: async () => observedFrom(evidence),
+      executeDownstream: async () => {
+        downstreamCalls += 1;
+        return 'ok';
+      },
+    });
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+  }
+
+  try {
+    const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+      witnessValidUntil: WITNESS_VALID_UNTIL,
+    });
+    evidence = issued.evidence;
+
+    let pending;
+    try {
+      Array.prototype[Symbol.iterator] = function* poisonedClaimIterator() {
+        yield 'forged-claim-key';
+      };
+      // durableStore.claim() validates its exact input synchronously before its
+      // first filesystem await, so keeping the poison only for this call probes
+      // the claim contract without destabilizing unrelated Node async internals.
+      pending = harness.gate.consume(issued.capability, { request: 'array-iterator-control' });
+    } finally {
+      Array.prototype[Symbol.iterator] = originalIterator;
+    }
+
+    assert.equal(await pending, 'ok');
+    assert.equal(downstreamCalls, 1);
+    assert.equal(
+      harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+      'CONSUMED_SUCCESS',
+    );
+    assert.equal(
+      (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+      'CONSUMED_SUCCESS',
+    );
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
