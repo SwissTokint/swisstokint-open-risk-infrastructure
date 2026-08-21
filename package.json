@@ -16,7 +16,7 @@
     "test:pom-rx:strict-activation": "node --test tests/pom-rx-v01-strict-activation.node.test.mjs",
     "test:pom-rx:artifact-scanner-regression": "node --test tests/pom-rx-v01-artifact-scanner-regression.node.test.mjs",
     "test:pom-rx:exact-authorization-input-hardening": "node --test tests/pom-rx-exact-authorization-input-hardening.node.test.mjs",
-    "test:pom-rx:core-reference-gate": "node --test tests/pom-rx-core-reference-gate.node.test.mjs",
+    "test:pom-rx:core-reference-gate": "node --test tests/pom-rx-core-reference-gate.node.test.mjs tests/pom-rx-core-durable-gate.node.test.mjs",
     "test:pom-rx:core-reference-gate-object-boundary": "node --test tests/pom-rx-core-reference-gate-object-boundary.node.test.mjs",
     "test:pom-rx:core-reference-gate-temporal": "node --test tests/pom-rx-core-reference-gate-temporal.node.test.mjs",
     "test:pom-rx:durable-claim-store": "node --test tests/pom-rx-durable-claim-store.node.test.mjs tests/pom-rx-durable-claim-store-root.node.test.mjs tests/pom-rx-durable-claim-store-publication.node.test.mjs",
