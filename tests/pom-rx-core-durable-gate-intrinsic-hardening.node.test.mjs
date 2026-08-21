@@ -125,7 +125,7 @@ test('post-import Object.create poisoning cannot redirect the composed durable r
       .inspect(durableInput);
 
     assert.equal(configured.state, 'CONSUMED_SUCCESS');
-    assert.equal(substituted.state, 'EMPTY');
+    assert.equal(substituted.state, 'ABSENT');
   } finally {
     await Promise.all([
       rm(configuredRoot, { recursive: true, force: true }),
