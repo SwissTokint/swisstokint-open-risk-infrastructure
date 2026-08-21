@@ -1,0 +1,216 @@
+name: Exact main CI status
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [in_progress, completed]
+
+# This workflow is intentionally privileged but does not check out repository
+# code or consume artifacts from the upstream workflow. It only publishes the
+# GitHub-generated state of the latest canonical main-branch push CI run/attempt
+# onto that run's exact head SHA.
+permissions:
+  actions: read
+  statuses: write
+
+jobs:
+  publish:
+    if: >-
+      ${{ github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository &&
+          (github.event.workflow_run.path == '.github/workflows/ci.yml' ||
+           github.event.workflow_run.path == '.github/workflows/ci.yml@main') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+      UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      RUN_STATUS: ${{ github.event.workflow_run.status }}
+      RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      STATUS_CONTEXT: pom-rx/exact-main-ci
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Publish latest exact-main CI status
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          repository = os.environ['HEAD_REPOSITORY']
+          sha = os.environ['HEAD_SHA']
+          workflow_path = os.environ['UPSTREAM_WORKFLOW_PATH']
+          run_id_text = os.environ['RUN_ID']
+          run_number_text = os.environ['RUN_NUMBER']
+          run_attempt_text = os.environ['RUN_ATTEMPT']
+          run_status = os.environ['RUN_STATUS']
+          conclusion = os.environ['RUN_CONCLUSION']
+          run_url = os.environ['RUN_URL']
+          context = os.environ['STATUS_CONTEXT']
+
+          if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+              raise SystemExit('invalid repository identity')
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('invalid exact-main head SHA')
+          if workflow_path not in {
+              '.github/workflows/ci.yml',
+              '.github/workflows/ci.yml@main',
+          }:
+              raise SystemExit('unexpected upstream workflow path')
+          if context != 'pom-rx/exact-main-ci':
+              raise SystemExit('unexpected status context')
+          if run_status not in {'in_progress', 'completed'}:
+              raise SystemExit('unexpected workflow-run status')
+          if run_status == 'in_progress' and conclusion:
+              raise SystemExit('in-progress workflow run unexpectedly has a conclusion')
+
+          numeric_fields = {
+              'run id': run_id_text,
+              'run number': run_number_text,
+              'run attempt': run_attempt_text,
+          }
+          for label, value in numeric_fields.items():
+              if not value.isascii() or not value.isdigit() or int(value) < 1:
+                  raise SystemExit(f'invalid {label}')
+          run_id = int(run_id_text)
+          run_number = int(run_number_text)
+          run_attempt = int(run_attempt_text)
+
+          expected_run_url = f'https://github.com/{repository}/actions/runs/{run_id}'
+          if run_url != expected_run_url:
+              raise SystemExit('workflow-run URL is not bound to this exact repository run')
+
+          # A completed or in-progress workflow_run handler can itself be queued.
+          # Before publishing anything, re-read every canonical CI run for the
+          # exact SHA and accept this event only if its monotonically increasing
+          # (run_number, run_attempt) pair is still the latest. This prevents a
+          # delayed publisher for an older successful attempt from overwriting a
+          # newer result that is already observable at this freshness check.
+          list_path = f'repos/{repository}/actions/workflows/ci.yml/runs'
+          list_result = subprocess.run(
+              [
+                  'gh', 'api', '--method', 'GET', list_path,
+                  '-f', 'branch=main',
+                  '-f', 'event=push',
+                  '-f', f'head_sha={sha}',
+                  '-f', 'per_page=100',
+              ],
+              text=True,
+              capture_output=True,
+              check=False,
+              timeout=20,
+          )
+          if list_result.returncode != 0:
+              raise SystemExit('canonical workflow-run freshness lookup failed')
+
+          listing = json.loads(list_result.stdout)
+          total_count = listing.get('total_count')
+          runs = listing.get('workflow_runs')
+          if type(total_count) is not int or total_count < 1:
+              raise SystemExit('canonical workflow-run freshness lookup was empty')
+          if total_count > 100:
+              raise SystemExit('too many exact-SHA workflow runs to prove latest safely')
+          if not isinstance(runs, list) or len(runs) != total_count:
+              raise SystemExit('canonical workflow-run freshness lookup was incomplete')
+
+          candidates = []
+          identities = set()
+          for item in runs:
+              if not isinstance(item, dict):
+                  raise SystemExit('malformed canonical workflow-run entry')
+              if item.get('head_sha') != sha:
+                  raise SystemExit('freshness lookup returned a different head SHA')
+              if item.get('head_branch') != 'main' or item.get('event') != 'push':
+                  raise SystemExit('freshness lookup escaped the canonical main push')
+              head_repository = item.get('head_repository')
+              if not isinstance(head_repository, dict) or head_repository.get('full_name') != repository:
+                  raise SystemExit('freshness lookup returned a different head repository')
+
+              item_id = item.get('id')
+              item_number = item.get('run_number')
+              item_attempt = item.get('run_attempt')
+              if not all(type(value) is int and value >= 1 for value in (item_id, item_number, item_attempt)):
+                  raise SystemExit('freshness lookup returned invalid run identity')
+              identity = (item_number, item_attempt)
+              if identity in identities:
+                  raise SystemExit('freshness lookup returned duplicate run identity')
+              identities.add(identity)
+              candidates.append((item_number, item_attempt, item_id, item))
+
+          latest_number, latest_attempt, latest_id, latest = max(
+              candidates,
+              key=lambda entry: (entry[0], entry[1]),
+          )
+          if (run_number, run_attempt, run_id) != (
+              latest_number,
+              latest_attempt,
+              latest_id,
+          ):
+              print('stale exact-main workflow_run event ignored')
+              raise SystemExit(0)
+
+          if latest.get('status') != run_status:
+              print('superseded exact-main workflow_run state ignored')
+              raise SystemExit(0)
+          latest_conclusion = latest.get('conclusion') or ''
+          if latest_conclusion != conclusion:
+              raise SystemExit('workflow-run conclusion changed during freshness verification')
+          if latest.get('html_url') != run_url:
+              raise SystemExit('freshness lookup changed the exact workflow-run target')
+
+          if run_status == 'in_progress':
+              state = 'pending'
+              description = 'Exact main CI is in progress.'
+          else:
+              state = 'success' if conclusion == 'success' else 'failure'
+              description = (
+                  'Exact main CI succeeded.'
+                  if state == 'success'
+                  else f'Exact main CI concluded: {conclusion or "unknown"}.'
+              )
+
+          payload = json.dumps({
+              'state': state,
+              'target_url': run_url,
+              'description': description[:140],
+              'context': context,
+          })
+          status_path = f'repos/{repository}/statuses/{sha}'
+          status_url = f'https://api.github.com/{status_path}'
+
+          result = subprocess.run(
+              ['gh', 'api', '--method', 'POST', status_path, '--input', '-'],
+              input=payload,
+              text=True,
+              capture_output=True,
+              check=False,
+              timeout=20,
+          )
+          if result.returncode != 0:
+              raise SystemExit('commit-status publication failed')
+
+          body = json.loads(result.stdout)
+          # GitHub binds the write to the exact SHA in the request path. The
+          # documented 201 response repeats that SHA-addressed URL and also
+          # carries a separate numeric status id; it does not expose `sha`.
+          status_id = body.get('id')
+          if type(status_id) is not int or status_id < 1:
+              raise SystemExit('commit-status API response returned an invalid status id')
+          if body.get('url') != status_url:
+              raise SystemExit('commit-status API response was not bound to exact head resource')
+          if body.get('context') != context:
+              raise SystemExit('commit-status API response changed the status context')
+          if body.get('state') != state:
+              raise SystemExit('commit-status API response changed the status state')
+          if body.get('target_url') != run_url:
+              raise SystemExit('commit-status API response changed the workflow-run target')
+          PY
