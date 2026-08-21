@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T10:46:00+02:00",
+  "updated_at": "2026-08-21T11:06:20+02:00",
   "current_main": "818718955c9e4136e9e55754a31be2f1c7b610f8",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -34,6 +34,7 @@
     "moved_head_invalidates_exact_head_evidence": true,
     "independent_reviewer_rule": "Only a genuinely distinct review recorded on the exact current candidate SHA counts. A fresh chatgpt-codex-connector review may satisfy the independent lane when it covers that exact SHA and leaves no unresolved P0/P1/P2.",
     "independent_review_waiver": "PR #60 only unless explicitly broadened by the user",
+    "standing_merge_authorization": "The user authorizes future POM-RX PR merges without per-PR approval only after the full five-stage gate plus every applicable technical/security gate and exact-head CI pass; required independent review is never waived by this standing authorization.",
     "post_merge_gate": "docs/project-management/pom-rx-core/POM_RX_POST_MERGE_ASSURANCE_GATE.md"
   },
   "merged_foundation": [
@@ -84,9 +85,10 @@
       "priority": "P0",
       "complexity": "MEDIUM",
       "tier_b": false,
-      "status": "IN_PROGRESS",
+      "status": "IN_PROGRESS_REPAIRING_INDEPENDENT_REVIEW_FINDINGS",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
       "branch": "docs/pom-rx-continuity-reconcile-20260821",
+      "pr": 98,
       "base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
       "files_owned": [
         "README.md",
@@ -105,7 +107,8 @@
         "Capability and README wording matches capabilities actually merged on trusted main.",
         "No protocol/runtime/security semantic is changed."
       ],
-      "next_gate": "open scoped docs PR, run repository CI/review, merge only under non-Tier-B governance, then exact-merge post-merge assurance"
+      "known_review_state": "Independent Codex review of earlier exact head 0a9c56a8 found four contract-breaking P1s and one stale-register P2. The current repair keeps contract-checked ownership wording contiguous, restores the explicit full five-stage and post-merge review-family policy text, and removes the already-resolved task-register blocker. A moved head requires new CI and a fresh exact-head independent review before merge.",
+      "next_gate": "finish scoped review repairs, obtain green exact-head CI and a fresh distinct exact-head independent review with no unresolved P0/P1/P2, then merge under standing authorization and run exact-merge post-merge assurance"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
@@ -113,14 +116,14 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_EXACT_HEAD_GATE",
+      "status": "BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW",
       "pr": 93,
-      "checkpoint_head": "03e0201c9fef5ed10a615996d68052613bdd94d6",
+      "checkpoint_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "checkpoint_ci": {
-        "run": 32464591057,
-        "status": "in_progress"
+        "run": 32465835858,
+        "status": "success"
       },
-      "known_state": "PR body embeds a stale older head; live GitHub metadata is authoritative. Prior Codex reviews/findings are tied to moved heads unless explicitly anchored to the current head.",
+      "known_state": "The live head is seven commits ahead of the last independently reviewed 03e0201c head. That review found a P1 in nested payload capture using live reflection. The moved branch now changes the shared plain-data snapshot plus regressions, but there is no fresh independent review on c4e40ceb yet, so the repair is not release evidence.",
       "acceptance": [
         "Exact current head CI succeeds.",
         "Release-owner scoped review passes on the exact current head.",
@@ -129,7 +132,7 @@
         "Simulation remains reference-only and does not claim external state/effect truth or authorization.",
         "No shared Core payload/security limit is widened merely to make Wallet Guard pass."
       ],
-      "next_action": "revalidate live head/CI/reviews; if head moved, invalidate stale exact-head evidence and repeat gate"
+      "next_action": "request/revalidate fresh independent review on c4e40ceb; any moved head invalidates current CI/review evidence"
     },
     {
       "id": "CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97",
@@ -137,22 +140,23 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_INDEPENDENT_EXACT_HEAD_REVIEW",
+      "status": "BLOCKED_UNRESOLVED_EXACT_HEAD_P1",
       "pr": 97,
       "checkpoint_head": "1f228dab6c5a2c0ac2ac9952d8d52978ba44b780",
       "checkpoint_ci": {
         "run": 32464344634,
         "status": "success"
       },
-      "known_state": "Many real P1 classes were found and repaired across moved heads. Green CI alone is insufficient; every repair requires fresh exact-head review evidence.",
+      "known_state": "Fresh independent Codex review on exact head 1f228dab found a P1 in provider account normalization: an eth_accounts Array Proxy or decorated array can mutate Array.prototype.map after the integrity guard and before normalization, substituting the active account. Green CI and the non-independent release-owner PASS do not close this finding.",
       "acceptance": [
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
+        "Provider-controlled account arrays are rejected/captured through a hardened inert boundary before normalization, with Proxy/decorated-array attacks failing before authorization or sensitive forwarding.",
         "Current exact head CI succeeds after all repairs.",
         "Fresh release-owner and distinct independent skeptical/security reviews cover the exact current head.",
         "No unresolved P0/P1/P2 remains.",
         "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "next_action": "obtain/revalidate exact-head independent review; reconcile against new trusted main if PR #93 or another overlapping lot merges first"
+      "next_action": "repair the exact-head account-array P1 in the PR #97 branch, rerun CI and repeat exact-head release-owner plus independent review; reconcile against new trusted main if another overlapping lot merges first"
     },
     {
       "id": "WALLET-GUARD-CONTROLLED-END-TO-END-DEMO",
