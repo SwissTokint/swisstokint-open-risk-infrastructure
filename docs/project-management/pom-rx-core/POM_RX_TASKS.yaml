@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T16:01:00+02:00",
+  "updated_at": "2026-08-21T16:27:16+02:00",
   "current_main": "62edca5dc665642d95f3e115fd60463fffd68947",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -73,8 +73,8 @@
       ],
       "acceptance": [
         "Persist exact trusted main 62edca5dc665642d95f3e115fd60463fffd68947 and PR #102 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32489395041 SUCCESS.",
-        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, and also requiring reconciliation from base 0564aecd to current trusted main 62edca5d after PR #102.",
-        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted, historical-base, not mergeable after current main drift, and requiring later trusted-main reconciliation plus fresh exact-head gates.",
+        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, requiring reconciliation from base 0564aecd to current trusted main 62edca5d after PR #102; live mergeable=true is conflict metadata only and not release evidence.",
+        "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base and requiring later trusted-main reconciliation plus fresh exact-head gates; live mergeable=true is not release evidence.",
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
       ],
@@ -91,7 +91,8 @@
       "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "branch_base_sha": "0564aecd42cf0794894c12842980969ff59c9f73",
       "current_trusted_main": "62edca5dc665642d95f3e115fd60463fffd68947",
-      "mergeable_at_checkpoint": false,
+      "mergeable_at_checkpoint": true,
+      "mergeability_interpretation": "CONFLICT_SIGNAL_ONLY_NOT_RECONCILIATION_OR_RELEASE_EVIDENCE",
       "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"success"},
       "release_owner": {
         "status": "BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462",
@@ -104,7 +105,7 @@
         "finding": "P1 Reject Promise drift before entering async layers",
         "repair_state": "UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"
       },
-      "known_state": "Exact head 0efb462 changes only the prototype-drift regression, relaxing the isolated assertion while provider/runtime implementation remains unchanged. Exact-head CI run 32487036517 is green, but a fresh distinct exact-head Codex review confirms simultaneous inherited Promise.prototype.constructor + then poisoning can be consulted by outer awaits before the inner rejection reaches its caller, producing attacker-controlled stable context, reference authorization and sensitive forwarding. After trusted coordination merge PR #102, current main is 62edca5d while the PR base remains 0564aecd, and live mergeability is false. The eventual runtime repair must reconcile to current trusted main without weakening native-Promise compatibility or prior hostile-result hardening.",
+      "known_state": "Exact head 0efb462 changes only the prototype-drift regression, relaxing the isolated assertion while provider/runtime implementation remains unchanged. Exact-head CI run 32487036517 is green, but a fresh distinct exact-head Codex review confirms simultaneous inherited Promise.prototype.constructor + then poisoning can be consulted by outer awaits before the inner rejection reaches its caller, producing attacker-controlled stable context, reference authorization and sensitive forwarding. After trusted coordination merge PR #102, current main is 62edca5d while the PR base remains 0564aecd. Live GitHub currently reports mergeable=true, but this is only conflict metadata and does not satisfy the required trusted-main reconciliation. The eventual runtime repair must reconcile to current trusted main without weakening native-Promise compatibility or prior hostile-result hardening.",
       "acceptance": [
         "Reconcile the final repaired candidate to the then-current trusted main before release.",
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
@@ -133,8 +134,9 @@
       "branch_base_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8",
       "current_trusted_main": "62edca5dc665642d95f3e115fd60463fffd68947",
       "checkpoint_ci": {"run":32465835858,"run_number":541,"status":"success"},
-      "mergeable_at_checkpoint": false,
-      "known_state": "Live GitHub reports the PR not mergeable after current-main drift; its branch base is historical and the latest distinct Codex release evidence covers a moved head. PR #93 overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
+      "mergeable_at_checkpoint": true,
+      "mergeability_interpretation": "CONFLICT_SIGNAL_ONLY_NOT_RECONCILIATION_OR_RELEASE_EVIDENCE",
+      "known_state": "Live GitHub currently reports mergeable=true, but its branch base is historical and the latest distinct Codex release evidence covers a moved head. Mergeability is not release evidence. PR #93 overlaps shared regression/package surfaces with PR #97 and remains untrusted until reconciled to then-current trusted main and all exact-head gates are rerun.",
       "acceptance": [
         "Reconcile to then-current trusted main after dependency ordering is safe.",
         "Exact current head CI succeeds after reconciliation.",
