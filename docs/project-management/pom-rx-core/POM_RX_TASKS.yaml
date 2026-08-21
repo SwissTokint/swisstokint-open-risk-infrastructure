@@ -123,7 +123,7 @@
       ],
       "acceptance": [
         "Persist exact trusted main 0564aecd42cf0794894c12842980969ff59c9f73 and PR #101 POST_MERGE_ASSURANCE_PASS.",
-        "Represent PR #97 exact head 37b8e6998f0867f97ef1efcf3dacab50f4097748 with exact-head CI failure 32485543302 and the fresh independent P1 on native-Promise bookkeeping symbols; do not promote stale green or owner evidence.",
+        "Represent PR #97 exact head 639b96e7a64fa101432b3afcc3c08aebfcc838cf with exact-head CI failure 32486243945 and the fresh exact-head independent P1 Reject Promise drift before entering async layers; do not promote stale green or moved-head owner evidence.",
         "Represent PR #93 exact live head c4e40ceb286f4e59657767661daed15d2b68e9a7 as currently mergeable but open/untrusted and still requiring trusted-main reconciliation plus fresh exact-head gates.",
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
@@ -136,13 +136,13 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_EXACT_HEAD_P1_NATIVE_PROMISE_SYMBOL_COMPATIBILITY_AND_RED_CI",
+      "status": "BLOCKED_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS_AND_RED_CI",
       "pr": 97,
-      "checkpoint_head": "37b8e6998f0867f97ef1efcf3dacab50f4097748",
+      "checkpoint_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
       "reconciled_main": "0564aecd42cf0794894c12842980969ff59c9f73",
       "checkpoint_ci": {
-        "run": 32485543302,
-        "run_number": 584,
+        "run": 32486243945,
+        "run_number": 586,
         "status": "failure"
       },
       "release_owner": {
@@ -150,23 +150,25 @@
         "last_reviewed_head": "f91079676aa8a21c0501bee3951bcd0d40c27083"
       },
       "independent_review": {
-        "status": "BLOCK_P1_EXACT_HEAD_37B8E699",
-        "reviewed_head": "37b8e6998f0867f97ef1efcf3dacab50f4097748",
-        "finding": "P1 Permit runtime bookkeeping symbols on native promises",
+        "status": "BLOCK_P1_EXACT_HEAD_639B96E7",
+        "reviewed_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
+        "finding": "P1 Reject Promise drift before entering async layers",
         "repair_state": "UNRESOLVED"
       },
-      "known_state": "The current native-Promise transport validator preserves direct non-Promise Proxy/function capture and attempts to reject decorated Promise transports and post-import Promise.prototype.constructor drift before await. However it rejects every own symbol on a genuine native Promise. Under Node's test runner/promise hooks, ordinary native Promises carry runtime bookkeeping symbols such as async/trigger IDs, so valid provider reads fail closed before authorization and the canonical exact-head CI is red. The repair must stay narrow: keep result-owned constructor/then decoration and Promise-prototype drift fail-closed while permitting inert runtime bookkeeping symbols that Promise assimilation does not consult.",
+      "known_state": "The prior 37b8 bookkeeping-symbol compatibility P1 is historical after the head move: ordinary native Promise transport now passes under Node test-runner instrumentation. Current head still fails the hostile post-import Promise-prototype drift regression because outer async-layer awaits can consult poisoned inherited Promise constructor/then state before providerRead's transport rejection reaches its caller. Canonical CI observes constructor getter execution with zero authorization/forwarding in the isolated failure; the fresh independent reviewer additionally reproduced inherited constructor+then poisoning yielding stable attacker-controlled context, reference authorization and sensitive forwarding through the outer async layers. The repair must close this boundary before async assimilation while preserving native-Promise compatibility, direct non-Promise capture and own constructor/then decoration rejection.",
       "acceptance": [
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
         "Provider-controlled direct non-Promise object/function results cross shared hardened inert capture before async/thenable assimilation.",
-        "Decorated native Promise constructor/then attack paths and post-import Promise prototype drift remain rejected before attacker-owned dispatch.",
-        "Ordinary genuine native Promise provider context transport remains compatible under the repository's Node test runner and runtime bookkeeping symbols do not cause a false reject.",
+        "Decorated native Promise constructor/then attacks remain rejected before attacker-owned dispatch.",
+        "Post-import Promise.prototype constructor/then drift is rejected before any outer async-layer Promise assimilation can execute attacker-owned inherited behavior.",
+        "Ordinary genuine native Promise provider context transport remains compatible under repository Node test-runner bookkeeping symbols.",
+        "Rejected hostile Promise transport cannot reach reference authorization or sensitive forwarding.",
         "Current final repaired exact-head CI succeeds.",
         "Release-owner review passes on that exact head and a fresh distinct independent skeptical/security review covers that same head.",
         "No unresolved P0/P1/P2 remains before merge.",
         "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "next_action": "repair the native-Promise symbol compatibility boundary narrowly on PR #97; preserve constructor/then/prototype hardening; add or retain exact attack and compatibility regressions; rerun exact-head CI, release-owner review and fresh distinct independent review"
+      "next_action": "repair the Promise-prototype drift boundary before entering outer async layers on PR #97; preserve ordinary native-Promise compatibility plus direct/decorated-result hardening; add/retain exact attack and compatibility regressions; rerun exact-head CI, release-owner review and fresh distinct independent review"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
