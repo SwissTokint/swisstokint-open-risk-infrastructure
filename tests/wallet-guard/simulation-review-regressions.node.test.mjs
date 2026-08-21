@@ -205,10 +205,13 @@ test('typed-data payload keeps its full 1000-node budget independent of the RPC 
     method: 'eth_signTypedData_v4',
     params: [ACCOUNT, boundaryTypedData(995)],
   };
+  // The aligned normalization/simulation boundary now rejects an over-budget
+  // payload at intent construction rather than allowing an unsimulatable intent.
   assert.throws(
     () => normalize(overBudgetRequest, 'wg-simulation-review-node-headroom-0002'),
-    (error) => error?.code === 'POMRX_WG_E_TYPED_DATA_INVALID',
+    (error) => error?.code === 'POMRX_WG_E_REQUEST_INVALID',
   );
+  assert.equal(callbackCalls, 1);
 });
 
 test('typed-data wrapper capture rejects hostile params without traps, getters or callback execution', async () => {
