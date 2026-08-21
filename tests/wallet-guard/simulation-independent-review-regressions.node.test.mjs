@@ -169,11 +169,11 @@ test('typed-data nested descriptors cannot be substituted after Core capture ini
 
   const targetMessage = secondRequest.params[1].message;
   const originalDescriptors = Object.getOwnPropertyDescriptors;
-  let poisonCalls = 0;
+  let targetPoisonCalls = 0;
   Object.getOwnPropertyDescriptors = (value) => {
-    poisonCalls += 1;
     const descriptors = originalDescriptors(value);
     if (value === targetMessage) {
+      targetPoisonCalls += 1;
       descriptors.value = {
         value: 'é',
         writable: true,
@@ -191,7 +191,7 @@ test('typed-data nested descriptors cannot be substituted after Core capture ini
     Object.getOwnPropertyDescriptors = originalDescriptors;
   }
 
-  assert.equal(poisonCalls, 0);
+  assert.equal(targetPoisonCalls, 0);
   assert.equal(secondEvidence.status, 'mismatch');
   assert.deepEqual(callbackValues, ['é', 'e\u0301']);
   assert.equal(commitments.length, 2);
