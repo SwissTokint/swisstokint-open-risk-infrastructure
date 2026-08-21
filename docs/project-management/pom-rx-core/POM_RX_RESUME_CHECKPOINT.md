@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T11:52:00+02:00`
+Updated: `2026-08-21T11:55:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in an associated task conversation separate from an interactive chat, so no
@@ -21,12 +21,6 @@ run 556 attempt 1, completed `success` on that exact merge SHA, and the
 `pom-rx/exact-main-ci` status points to the same run. Decision-time freshness
 revalidation remains mandatory for every future exact-main PASS.
 
-The current branch is a separate non-Tier-B documentation checkpoint whose only
-purpose is to persist this post-#99 state into the same canonical control plane.
-It changes no protocol/runtime/security semantics. Read this reconciliation
-branch/PR's own head, CI and review state from live GitHub rather than embedding
-a self-referential authoritative branch SHA in this file.
-
 ## repository architecture present on trusted main
 
 Trusted main contains the activated bounded strict profile while preserving
@@ -43,6 +37,22 @@ external execution/effect truth, distributed filesystem/consensus semantics or
 real-wallet safety.
 
 ## open_prs
+
+### PR #100 — post-PR #99 durable checkpoint reconciliation
+
+- state at creation: `OPEN / NOT_MERGED`;
+- branch: `docs/pom-rx-checkpoint-after-99-20260821`;
+- base: trusted main `6a6ff5c2621e63e007a31b2c55eb2bfde2082d16`;
+- tier: non-Tier-B documentation/control-plane only;
+- scope: the same four canonical checkpoint/task/blocker/capability surfaces;
+- self-head rule: always obtain current head, CI and reviews from live GitHub
+  because recording the branch's own head here would itself move that head;
+- release state at this versioned checkpoint: `AWAITING_EXACT_HEAD_GATES`.
+
+Next safe action: freeze the PR #100 candidate, run exact-head CI and applicable
+release-owner/distinct independent review. Do not merge from stale/moved-head
+evidence. If PR #100 later merges, exact-merge-SHA post-merge assurance remains
+mandatory before treating that merge as trusted.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -115,14 +125,15 @@ dependent Tier-B merge that assumes either open PR is already trusted.
 
 ## current_blockers
 
-1. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED`.
-2. `PR97_UNRESOLVED_EXACT_HEAD_P1_ACCOUNT_ARRAY_CAPTURE`.
-3. `DAGR_SOURCE_DOCUMENT_MISSING`.
-4. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
+1. `CONTROL_PLANE_POST_99_CHECKPOINT_RECONCILIATION_PENDING` — PR #100.
+2. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED`.
+3. `PR97_UNRESOLVED_EXACT_HEAD_P1_ACCOUNT_ARRAY_CAPTURE`.
+4. `DAGR_SOURCE_DOCUMENT_MISSING`.
+5. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
 The prior post-PR #98 checkpoint blocker is resolved by merged PR #99 with exact
-post-merge PASS. The current documentation branch merely persists that new
-trusted-main fact and is not a new runtime dependency.
+post-merge PASS. PR #100 exists only to persist that new trusted-main fact and is
+not a runtime/security dependency.
 
 ## merge_authorization_and_review_rules
 
@@ -148,9 +159,9 @@ is repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Finish the current scoped post-#99 checkpoint PR only after applicable
-   exact-head documentation gates; if merged, immediately run exact-merge
-   post-merge assurance before treating it as trusted.
+1. Complete PR #100's applicable exact-head documentation gates; it may be left
+   open as the durable continuation point rather than recursively merging another
+   checkpoint in the same cycle.
 2. Repair PR #97's exact-head account-array P1 without weakening shared Core or
    Wallet Guard boundaries; reconcile it to current trusted main and repeat all
    invalidated exact-head gates.
