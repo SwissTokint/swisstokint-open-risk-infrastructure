@@ -16,7 +16,7 @@ function unsafePrototypeRecord() {
   return value;
 }
 
-test('plain-data outcome reports only validation errors minted by its own capture', () => {
+test('plain-data outcome reports validation errors minted by its own capture', () => {
   const outcome = captureReferencePlainDataOutcome(unsafePrototypeRecord(), 'fixture');
 
   assert.equal(outcome.ok, false);
@@ -25,49 +25,110 @@ test('plain-data outcome reports only validation errors minted by its own captur
   assert.equal(outcome.error.code, 'POMRX_DATA_E_KEY');
 });
 
-test('foreign same-class failure from a later intrinsic preserves exact provenance', () => {
+test('post-import key-test poisoning cannot alter shared plain-data validation', () => {
   const originalSetHas = Set.prototype.has;
-  const foreign = new PomRxPlainDataError(
-    'POMRX_DATA_E_KEY',
-    'foreign same-realm failure',
-  );
+  const originalRegExpExec = RegExp.prototype.exec;
+  let setCalls = 0;
+  let regexpCalls = 0;
 
   Set.prototype.has = function poisonedSetHas() {
-    Set.prototype.has = originalSetHas;
-    throw foreign;
+    setCalls += 1;
+    return false;
+  };
+  RegExp.prototype.exec = function poisonedExec() {
+    regexpCalls += 1;
+    return ['forged'];
   };
   try {
-    assert.throws(
-      () => captureReferencePlainDataOutcome({ safe: 'value' }, 'fixture'),
-      (error) => error === foreign,
-    );
+    const outcome = captureReferencePlainDataOutcome(unsafePrototypeRecord(), 'fixture');
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.error.code, 'POMRX_DATA_E_KEY');
   } finally {
     Set.prototype.has = originalSetHas;
+    RegExp.prototype.exec = originalRegExpExec;
   }
+
+  assert.equal(setCalls, 0);
+  assert.equal(regexpCalls, 0);
 });
 
-test('validation error from a nested capture cannot be claimed by the outer capture', () => {
-  const originalSetHas = Set.prototype.has;
-  let nestedError;
+test('post-import descriptor poisoning cannot substitute nested captured values', () => {
+  const message = { value: 'e\u0301' };
+  const input = { message };
+  const originalDescriptors = Object.getOwnPropertyDescriptors;
+  let poisonCalls = 0;
 
-  Set.prototype.has = function poisonedSetHas() {
-    Set.prototype.has = originalSetHas;
-    try {
-      captureReferencePlainData(unsafePrototypeRecord(), 'nested');
-    } catch (error) {
-      nestedError = error;
-      throw error;
+  Object.getOwnPropertyDescriptors = (value) => {
+    poisonCalls += 1;
+    const descriptors = originalDescriptors(value);
+    if (value === message) {
+      descriptors.value = {
+        value: 'é',
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
     }
-    throw new Error('nested capture unexpectedly succeeded');
+    return descriptors;
   };
+
+  let captured;
   try {
-    assert.throws(
-      () => captureReferencePlainDataOutcome({ safe: 'value' }, 'outer'),
-      (error) => error === nestedError,
-    );
-    assert.ok(nestedError instanceof PomRxPlainDataError);
-    assert.equal(nestedError.code, 'POMRX_DATA_E_KEY');
+    captured = captureReferencePlainData(input, 'fixture');
   } finally {
-    Set.prototype.has = originalSetHas;
+    Object.getOwnPropertyDescriptors = originalDescriptors;
   }
+
+  assert.equal(poisonCalls, 0);
+  assert.equal(captured.message.value, 'e\u0301');
+  assert.equal(Object.isFrozen(captured), true);
+  assert.equal(Object.isFrozen(captured.message), true);
+});
+
+test('post-import reflection and freeze poisoning cannot hide decoration or leave snapshots mutable', () => {
+  const decorated = { safe: 'value' };
+  Object.defineProperty(decorated, 'hidden', {
+    value: 'blocked',
+    enumerable: false,
+    configurable: true,
+  });
+
+  const originalNames = Object.getOwnPropertyNames;
+  const originalFreeze = Object.freeze;
+  const originalIsArray = Array.isArray;
+  let namesCalls = 0;
+  let freezeCalls = 0;
+  let isArrayCalls = 0;
+
+  Object.getOwnPropertyNames = () => {
+    namesCalls += 1;
+    return ['safe'];
+  };
+  Object.freeze = (value) => {
+    freezeCalls += 1;
+    return value;
+  };
+  Array.isArray = () => {
+    isArrayCalls += 1;
+    return false;
+  };
+
+  try {
+    const outcome = captureReferencePlainDataOutcome(decorated, 'fixture');
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.error.code, 'POMRX_DATA_E_ACCESSOR');
+
+    const captured = captureReferencePlainData({ nested: ['value'] }, 'clean');
+    assert.equal(Object.isFrozen(captured), true);
+    assert.equal(Object.isFrozen(captured.nested), true);
+    assert.deepEqual(captured.nested, ['value']);
+  } finally {
+    Object.getOwnPropertyNames = originalNames;
+    Object.freeze = originalFreeze;
+    Array.isArray = originalIsArray;
+  }
+
+  assert.equal(namesCalls, 0);
+  assert.equal(freezeCalls, 0);
+  assert.equal(isArrayCalls, 0);
 });
