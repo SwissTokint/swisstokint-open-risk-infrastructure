@@ -20,8 +20,10 @@ const BOOTSTRAP_KEYS = Object.freeze([
 // it depends on at module initialization so a later same-realm mutation cannot
 // widen bootstrap shape, turn an accessor into a trusted dependency, substitute
 // the detached bootstrap snapshot, forge local capability provenance, or re-open
-// a wrapper-reserved capability. Poisoning before module initialization and a
-// generally compromised runtime remain outside this reference guarantee.
+// a wrapper-reserved capability. Security-sensitive iteration over module-owned
+// key sets is index-based so a later Array iterator replacement cannot rewrite
+// the bootstrap contract. Poisoning before module initialization and a generally
+// compromised runtime remain outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
@@ -104,7 +106,8 @@ function captureBootstrap(value) {
   }
 
   const snapshot = createObject(null);
-  for (const key of BOOTSTRAP_KEYS) {
+  for (let index = 0; index < BOOTSTRAP_KEYS.length; index += 1) {
+    const key = BOOTSTRAP_KEYS[index];
     if (!objectHasOwn(descriptors, key)
         || !isOwnEnumerableDataDescriptor(descriptors[key])) {
       throw new TypeError(`Reference durable Gate bootstrap.${key} must be an enumerable data property`);
