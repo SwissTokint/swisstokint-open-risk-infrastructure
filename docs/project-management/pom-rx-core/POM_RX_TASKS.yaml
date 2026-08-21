@@ -47,7 +47,7 @@
     {"capability":"wallet_guard_json_intent_effect_policy_controller_preflight_witness_adapter_provider_controlled_host","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"exact_main_ci_status_surface","state":"MERGED_PR_96_POST_MERGE_PASS","merge_sha":"818718955c9e4136e9e55754a31be2f1c7b610f8"},
     {"capability":"github_backed_cross_chat_control_plane","state":"MERGED_PR_98_POST_MERGE_PASS","merge_sha":"1abe57f8baea8dd6844cc8ea9e321c05ec01538f","exact_main_ci_run":32467712934},
-    {"capability":"post_pr98_durable_checkpoint_reconciliation","state":"MERGED_PR_99_POST_MERGE_PASS","merge_sha":"6a6ff5c2621e63e007a31be2f1c7b610f8","exact_main_ci_run":32469503160},
+    {"capability":"post_pr98_durable_checkpoint_reconciliation","state":"MERGED_PR_99_POST_MERGE_PASS","merge_sha":"6a6ff5c2621e63e007a31b2c55eb2bfde2082d16","exact_main_ci_run":32469503160},
     {"capability":"post_pr99_durable_checkpoint_reconciliation","state":"MERGED_PR_100_POST_MERGE_PASS","source_head":"8924c5357b4299daa74d7e52cb8d20102641d929","merge_sha":"33986b33b9e8bc40030d940618e5c9df6f8b3fe6","exact_main_ci_run":32480810161},
     {"capability":"post_pr100_durable_checkpoint_reconciliation","state":"MERGED_PR_101_POST_MERGE_PASS","source_head":"009064788008abe8ac1c08532f3d55ef1c19508f","merge_sha":"0564aecd42cf0794894c12842980969ff59c9f73","exact_main_ci_run":32482258034},
     {"capability":"post_pr101_durable_checkpoint_reconciliation","state":"MERGED_PR_102_POST_MERGE_PASS","source_head":"dc52051b5691913f34d57c3924a01642b7af10e7","merge_sha":"62edca5dc665642d95f3e115fd60463fffd68947","exact_main_ci_run":32489395041},
