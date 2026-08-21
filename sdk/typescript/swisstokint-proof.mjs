@@ -32,7 +32,8 @@ const OBJECT_ENTRIES = Object.entries;
 const REGEXP_TEST = RegExp.prototype.test.call.bind(RegExp.prototype.test);
 const SET_HAS = Set.prototype.has.call.bind(Set.prototype.has);
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt.call.bind(String.prototype.charCodeAt);
-const STRING_NORMALIZE = String.prototype.normalize.call.bind(String.prototype.normalize);
+const STRING_NORMALIZE_INTRINSIC = String.prototype.normalize;
+const STRING_NORMALIZE = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC);
 const STRING_TO_LOWER_CASE = String.prototype.toLowerCase.call.bind(String.prototype.toLowerCase);
 const HASH_PROBE = CRYPTO_CREATE_HASH('sha256');
 const HASH_UPDATE = HASH_PROBE.update.call.bind(HASH_PROBE.update);
@@ -51,6 +52,14 @@ function objectEntries(value) {
 }
 
 function normalizeString(value, form) {
+  if (String.prototype.normalize !== STRING_NORMALIZE_INTRINSIC) {
+    // Preserve the established exact runtime-error provenance for hostile
+    // post-initialization replacements that throw, but never accept a value
+    // produced by the replacement into a commitment. A non-throwing
+    // replacement is therefore fail-closed rather than commitment-collapsing.
+    value.normalize(form);
+    throw new TypeError('String.prototype.normalize changed after module initialization');
+  }
   return STRING_NORMALIZE(value, form);
 }
 
