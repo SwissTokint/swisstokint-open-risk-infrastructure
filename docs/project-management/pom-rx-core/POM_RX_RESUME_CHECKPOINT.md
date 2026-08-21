@@ -1,89 +1,175 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-14T13:25:00+02:00`
+Updated: `2026-08-21T10:46:00+02:00`
 
-## current_main
+Purpose: compact **durable cross-chat continuation state**. The scheduled task may
+run in an associated task conversation separate from an interactive chat, so no
+future run may depend on conversation history alone. Live GitHub wins over this
+file if a head/CI/review moved after the timestamp above.
 
-`2a65bfb555b2eea942c8724819487df06c94242c`
+## trusted_main
 
-This is the squash merge of PR #35. PR #36 is also merged below it. Fresh fetch and GitHub listing were completed before this checkpoint.
+`818718955c9e4136e9e55754a31be2f1c7b610f8`
 
-## open_prs
+Latest merge: PR #96 — exact-main CI status observability repair.
 
-- #24 — signed POM-RX preflight Witness: draft, stale/conflicting and blocked by Core integrity, enrollment, revocation, clock, persistence, Gate and exact-head reviews.
-- #31, #26, #25 and #8 — dependency updates outside the active POM-RX delivery slice.
-- #15, #16, #17, #19 and #20 — frozen multichain/adaptor drafts outside POM-RX Core priority.
+Exact-main status context `pom-rx/exact-main-ci` is `success` and targets the
+canonical main CI run. Decision-time freshness rules in
+`POM_RX_POST_MERGE_ASSURANCE_GATE.md` still apply; the status is not sufficient
+by itself for a new readiness claim.
 
-## stale_prs
+## repository architecture now present on main
 
-- PR #24 may be mined as reviewed source material only. It must not be merged wholesale from its stale dirty worktree.
-- Older multichain/adaptor work remains frozen. Cleanup means preservation and local worktree removal, not unreviewed development or remote deletion.
+The old August 14 checkpoint is superseded. Current `main` already contains:
 
-## worktrees
+- activated `pom-rx-v0.1/strict-errata-1` strict verification while preserving
+  the historical verifier;
+- common Core exact-authorization contract and process-local reference
+  single-use Gate;
+- shared bounded hostile-object/plain-data capture;
+- source/Witness signing primitives and process-local reference trust lifecycle
+  with enrollment, revocation, rotation/recovery and monotonic trusted time;
+- a separate filesystem-backed durable claim primitive;
+- shared reference execution-evidence recording;
+- shared reference observation/reconciliation;
+- Wallet Guard strict JSON ingress, normalized EVM intents, effect decoding,
+  fail-closed policy, policy controller, portable preflight evidence,
+  Core-verified Witness-authorization adapter, provider/Gate integration and a
+  controlled in-memory provider host;
+- Filecoin/Stellar/supporting integrations that remain evidence/adapter
+  infrastructure rather than the execution authorization boundary.
 
-- The primary checkout is on `agent/solana-devnet-anchor-adapter` and has nine dirty paths. It is read-only for POM-RX.
-- Six other worktrees contain dirty unpublished material: Witness, historical POM-RX v0.1, Risknet, Tezos and Uniswap lots. They require secret scan and preservation to dedicated GitHub branches before cleanup.
-- Clean merged POM-RX worktrees for PR #32–#36 are eligible for local removal after reachability and ownership checks.
-- Active coordination worktree: `C:\Dev\pom-rx-prime-control-plane-worktree`, branch `codex/pom-rx-prime-control-plane`.
+These are reference/prototype properties. They do not prove production trusted
+time, production issuer/key custody, arbitrary-browser integrity, external
+execution/effect truth or real-wallet safety.
+
+## open_feature_prs
+
+### PR #93 — Wallet Guard simulation evidence
+
+- state: `OPEN / NOT_MERGED / MERGEABLE`;
+- live head at checkpoint: `03e0201c9fef5ed10a615996d68052613bdd94d6`;
+- CI at checkpoint: run `32464591057`, `in_progress`;
+- important: the PR body still labels an older head (`06f8c7b...`), therefore its
+  embedded "current exact state" section is stale and must never be used as the
+  release source of truth;
+- release rule: current live head needs green exact-head CI plus release-owner
+  review and a distinct fresh exact-head independent skeptical/security review
+  with no unresolved P0/P1/P2;
+- prior Codex findings/reviews on moved heads remain historical evidence only.
+
+### PR #97 — Core durable-claim + single-use-Gate composition
+
+- state: `OPEN / NOT_MERGED / MERGEABLE`;
+- live head at checkpoint: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`;
+- exact-head CI at checkpoint: run `32464344634`, `success`;
+- earlier heads accumulated real independent P1 findings around event-loop
+  yielding, ambient intrinsics, durable-root/path confinement, WeakMap binding,
+  prepared-execution capture, mutable Array/iterator surfaces and post-await
+  provider/policy integrity. Repairs move the head, so every prior release
+  review must be treated as stale unless it explicitly covers `1f228dab...`;
+- release rule: require a fresh exact-head release-owner pass and distinct
+  independent skeptical/security review with no unresolved P0/P1/P2 before any
+  merge decision.
+
+PR #93 and #97 both touch shared regression/package surfaces. If either merges,
+the other must be reconciled to the then-current trusted `main` before its own
+release gate.
+
+## current_control_plane_lot
+
+Branch: `docs/pom-rx-continuity-reconcile-20260821`
+
+Base: trusted main `818718955c9e4136e9e55754a31be2f1c7b610f8`.
+
+Scope is non-normative project continuity/information architecture only:
+
+- remove stale model/agent claims from the active roster;
+- make scheduled-task continuity explicitly repository-backed;
+- refresh this checkpoint and current blockers;
+- reconcile capability/readme wording with the implementation actually merged
+  on main;
+- do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture,
+  key, wallet, network or financial-execution semantics.
 
 ## active_blockers
 
-- Current readiness is `NO_GO`: legacy verification intentionally reproduces seven vulnerable behaviors and one valid control.
-- The internal strict-profile foundation, all invariant families and final profile activation are not implemented.
-- Witness, exact authorization, transactional single-use Gate, trusted clock, persistence/recovery, source-backed DAGR, independent observation and end-to-end demo runtime are absent.
-- DAGR source material must be located and validated before normative profile content is written; otherwise `DAGR_SOURCE_DOCUMENT_MISSING` remains active.
-- Windows fixture evidence retains documented P2 limits: direct-child rather than Job Object containment, PowerShell/Add-Type cost, partial symlink privilege evidence and no Windows-native GitHub CI.
-- Fresh Windows checkout currently has an open P1: `.gitattributes` materializes with CRLF and the exact-LF immutable-corpus closure test fails. This requires a separate non-protocol PR; the contract must not be weakened.
+1. `PR93_EXACT_HEAD_GATE_PENDING` — current simulation head is still moving and
+   its current CI/review gate must be completed on the actual head, not the PR
+   body's stale head.
+2. `PR97_INDEPENDENT_EXACT_HEAD_REVIEW_PENDING` — current durable-Gate head is
+   green in CI but must receive fresh exact-head independent validation after
+   the latest repairs.
+3. `CONTROL_PLANE_TASK_REGISTER_STALE` — `POM_RX_TASKS.yaml` contains useful
+   historical evidence but its top-level `current_main` and several old READY /
+   blocked task states predate the current architecture. Until that historical
+   register is safely reconciled without destroying history, live GitHub plus
+   this checkpoint/blocker file are authoritative for current-state selection.
+4. `DAGR_SOURCE_DOCUMENT_MISSING` — no normative DAGR content is invented
+   without an authorized source.
+5. `PRODUCTION_TRUST_UNPROVED` — production issuer/trusted time, durable Witness
+   trust/operator authorization, distributed replay/consensus where needed,
+   external execution/effect truth and arbitrary-browser/provider integrity
+   remain out of the current bounded reference claim.
 
-## agent_roster
+## agent_and_review_routing
 
-Prime Orchestration level 3 is active. Codex is the accountable Lead and sole writer for the coordination lot. Independent read-only Architecture, Security and Conformance agents completed the operational-target review. Future implementation uses one writer, distinct reviewers and an independent release judge.
+Use `POM_RX_TEAM_ROSTER.md` as the active role contract:
 
-## model_routing
+- Prime Lead / Integrator — accountable, non-independent;
+- Protocol / Systems Architect — read-only where Core/compatibility boundaries
+  are touched;
+- Security / Adversarial Skeptic — read-only, concrete falsification hypotheses;
+- one Single Implementer — exclusive writer;
+- QA / Conformance — independent from writer where applicable;
+- Code Quality / Optimization — read-only;
+- Independent Release Gate — only actual distinct exact-head review evidence
+  counts. A fresh `chatgpt-codex-connector` review can satisfy this lane when it
+  covers the exact live head and leaves no unresolved P0/P1/P2.
 
-- CRITICAL/Tier B: Codex Lead + distinct Protocol/Architecture + distinct Security + independent QA; PR-specific human merge gate.
-- HIGH: one `gpt-5.6-sol` implementer + independent security/code review + `gpt-5.6-terra` QA.
-- MEDIUM/LOW: `gpt-5.6-terra` plus Codex review unless false-PASS risk requires escalation.
-- Requested Claude identities remain unavailable/unverified; use documented Codex fallbacks without claiming Claude approval.
+Do not claim Claude or any other reviewer/model ran unless evidence proves it.
 
-## integration_order
+## scheduled_task_continuity
 
-1. Version and merge the single-repository Prime control plane.
-2. Fix the fresh-Windows exact-LF checkout failure without weakening the immutable fixture contract.
-3. Reconcile and obtain explicit semantic ratification of the R3 strict-profile prerequisite ADR; until then runtime remains blocked.
-4. Preserve unpublished dirty work on GitHub and remove only clean obsolete local worktrees.
-5. Implement the internal strict-profile foundation with no public export and no invariant correction.
-6. Implement action, input, outcome/assertion and receipt-ID invariant families in separate PRs.
-7. Activate the strict profile only when the entire required matrix passes.
-8. Design and implement the local Witness, exact authorization and transactional single-use Gate behind separate Tier-B councils/ADRs.
-9. Add source-backed POM-RX Governance Profile — DAGR, synthetic execution, independent observation and reconciliation.
-10. Deliver one-command local demo runtime, deterministic artifacts, manifest, checksums and site handoff.
+The existing hourly `POM-RX Continuous Build` task has been updated to:
 
-## first_ready_task
+- never create a duplicate POM-RX task;
+- reconstruct state from live GitHub and the canonical control plane each run;
+- treat moved heads as invalidating stale CI/reviews;
+- persist material continuation state back to this repository;
+- emit a `CONTINUITY_CHECKPOINT` in task results;
+- never treat its associated task conversation as the sole project memory.
 
-Current task: `R0-PRIME-CONTROL-PLANE-MIGRATION`.
+This mitigates cross-chat continuity loss. It does not change the ChatGPT product
+behavior that a scheduled task can have its own associated task conversation.
 
-Next task after this control-plane merge: `R3-FIXTURE-WINDOWS-FRESH-CHECKOUT-LF`. It must correct the fresh-Windows exact-LF checkout failure without modifying fixture or protocol bytes.
+## next_safe_actions
 
-Then `R3-STRICT-PROFILE-RATIFICATION-RECONCILIATION`, documentation-only, must resolve the source ADR's remaining `PROPOSED / HUMAN_REVIEW_REQUIRED` status and obtain explicit semantic ratification.
+1. Complete and review the continuity-control-plane docs lot without touching the
+   two feature branches.
+2. Revalidate PR #93 after its current CI completes; if the head moved, start
+   again from the new exact head.
+3. Revalidate PR #97 current review threads and obtain a fresh independent
+   exact-head review after the latest repair.
+4. Merge a Tier-B lot only when its **current** exact-head technical and
+   independent gates are satisfied under the applicable user authorization.
+5. Immediately run exact-merge-SHA post-merge assurance after any merge and do
+   not use the merged property as trusted dependency evidence until PASS.
+6. After the two current lots settle, reconcile the historical
+   `POM_RX_TASKS.yaml` register against the merged sequence without deleting its
+   historical evidence.
 
-First code task only after that ratification and cleanup gates: `R3-STRICT-PROFILE-FOUNDATION-INTERNAL-01`, based on a freshly revalidated `origin/main` in a new isolated worktree.
+## safety_boundary
 
-## files_owned
+No private key, seed, secret, funded wallet, exchange credential, mainnet
+transaction, meaningful funds or uncontrolled malicious-site interaction is
+authorized by this checkpoint. Burner local/testnet E2E remains behind a
+separate explicit human execution gate.
 
-Current writer owns only `docs/project-management/pom-rx-core/**` on `codex/pom-rx-prime-control-plane`. Protocol, verifier, schema, fixture, Witness, Gate, DAGR, site and funding files are read-only in this lot.
-
-## human_gates
-
-- The user granted standing merge authorization for non-Tier-B coordination, documentation, CI and tests after exact-head review and green CI.
-- Source-backed DAGR profile work has standing user merge authorization after its council/ADR, exact-head Protocol, Security and QA approval and green CI. `DAGR_SOURCE_DOCUMENT_MISSING` still blocks normative content today.
-- Other Tier-B changes retain PR-specific explicit merge authorization after exact-head Protocol, Security and QA approval.
-- No force-push, release, deployment, wallet, exchange, testnet/mainnet transaction or funding submission is authorized.
-
-## site_boundary
-
-The SwissTokint site, Vercel, public demo UI, videos and funding dossier remain owned by separate tasks. POM-RX produces only versioned handoff artifacts in this repository and never edits the site or funding directory.
+No site/Vercel/funding-directory write belongs to this control plane.
 
 ## operational_claim_boundary
 
-Target: `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY` — a local, deterministic, synthetic, offline demonstration with a fail-closed single-use simulated execution path. This target is not production readiness, an audit, certification, real authorization, financial execution or external security proof.
+Target remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic,
+synthetic and bounded. It is not production readiness, an audit, certification,
+wallet safety, financial safety or deployment authorization.
