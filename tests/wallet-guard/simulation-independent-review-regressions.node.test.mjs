@@ -141,6 +141,63 @@ test('typed-data simulation rejects a nested Proxy after live isProxy poisoning 
   assert.equal(callbackCalls, 0);
 });
 
+test('typed-data nested descriptors cannot be substituted after Core capture initialization', async () => {
+  const firstRequest = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, simpleTypedData('é')],
+  };
+  const secondRequest = {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, simpleTypedData('e\u0301')],
+  };
+  const intent = normalize(firstRequest, 'wg-independent-descriptor-substitution-0001');
+
+  let cachedResult = null;
+  const commitments = [];
+  const callbackValues = [];
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      commitments.push(input.request_commitment);
+      callbackValues.push(input.request.params[1].message.value);
+      if (cachedResult === null) cachedResult = unavailableResult(input);
+      return cachedResult;
+    },
+  });
+
+  const firstEvidence = await runtime.simulate({ intent, request: firstRequest });
+  assert.equal(firstEvidence.status, 'unavailable');
+
+  const targetMessage = secondRequest.params[1].message;
+  const originalDescriptors = Object.getOwnPropertyDescriptors;
+  let poisonCalls = 0;
+  Object.getOwnPropertyDescriptors = (value) => {
+    poisonCalls += 1;
+    const descriptors = originalDescriptors(value);
+    if (value === targetMessage) {
+      descriptors.value = {
+        value: 'é',
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
+    }
+    return descriptors;
+  };
+
+  let secondEvidence;
+  try {
+    secondEvidence = await runtime.simulate({ intent, request: secondRequest });
+  } finally {
+    Object.getOwnPropertyDescriptors = originalDescriptors;
+  }
+
+  assert.equal(poisonCalls, 0);
+  assert.equal(secondEvidence.status, 'mismatch');
+  assert.deepEqual(callbackValues, ['é', 'e\u0301']);
+  assert.equal(commitments.length, 2);
+  assert.notEqual(commitments[0], commitments[1]);
+});
+
 test('generic signature normalization rejects hidden request and decorated params wrappers', () => {
   const hiddenRequest = {
     method: 'personal_sign',
