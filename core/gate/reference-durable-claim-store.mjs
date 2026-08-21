@@ -25,7 +25,9 @@ const CAPABILITY_ID_PATTERN = /^cap-[a-f0-9]{32}$/u;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const MAX_RECORD_BYTES = 16 * 1024;
 const BOOTSTRAP_KEYS = Object.freeze(['rootDir']);
+const BOOTSTRAP_SORTED_KEYS = Object.freeze(['rootDir']);
 const INSPECT_KEYS = Object.freeze(['capabilityId', 'authorizationCommitment']);
+const INSPECT_SORTED_KEYS = Object.freeze(['authorizationCommitment', 'capabilityId']);
 const CLAIM_RECORD_KEYS = Object.freeze([
   'schema_version',
   'capability_id',
@@ -38,6 +40,18 @@ const CLAIM_RECORD_KEYS = Object.freeze([
   'network_filesystem_atomicity_proved',
   'crash_recovery_proved',
 ]);
+const CLAIM_RECORD_SORTED_KEYS = Object.freeze([
+  'authorization_commitment',
+  'capability_id',
+  'claim_commitment',
+  'crash_recovery_proved',
+  'distributed_consensus_proved',
+  'exclusive_claim_recorded',
+  'local_filesystem_atomicity_assumed',
+  'network_filesystem_atomicity_proved',
+  'reference_only',
+  'schema_version',
+]);
 const TERMINAL_RECORD_KEYS = Object.freeze([
   'schema_version',
   'capability_id',
@@ -47,12 +61,24 @@ const TERMINAL_RECORD_KEYS = Object.freeze([
   'terminal_commitment',
   'reference_only',
 ]);
+const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
+  'authorization_commitment',
+  'capability_id',
+  'claim_commitment',
+  'reference_only',
+  'schema_version',
+  'terminal_commitment',
+  'terminal_state',
+]);
 
 // Durable claim identity and handle provenance are security-critical. Capture the
 // exact-object reflection primitives plus WeakMap constructor/dispatch once at
 // module initialization so a post-import same-realm replacement cannot redirect
-// rootDir through a forged snapshot or substitute claim-handle state. Poisoning
-// before module initialization remains outside this reference guarantee.
+// rootDir through a forged snapshot or substitute claim-handle state. Security-
+// sensitive iteration over module-owned key sets is index-based, with explicit
+// pre-sorted companions, so later Array iterator replacement cannot rewrite the
+// exact-object contracts. Poisoning before module initialization remains outside
+// this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
@@ -146,7 +172,7 @@ function isOwnEnumerableDataDescriptor(descriptor) {
     && !objectHasOwn(descriptor, 'set');
 }
 
-function exactOwnData(value, expectedKeys, label) {
+function exactOwnData(value, expectedKeys, expectedSortedKeys, label) {
   if (!value
       || typeof value !== 'object'
       || isProxy(value)
@@ -159,14 +185,14 @@ function exactOwnData(value, expectedKeys, label) {
   }
 
   const actual = sortArray(objectGetOwnPropertyNames(value));
-  const wanted = sortArray([...expectedKeys]);
-  if (!sameSortedKeys(actual, wanted)) {
+  if (!sameSortedKeys(actual, expectedSortedKeys)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} has missing, hidden or unknown fields`);
   }
 
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const output = createObject(null);
-  for (const key of expectedKeys) {
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_GATE_E_DURABLE_INVALID', `${label}.${key} must be an enumerable data property`);
@@ -240,7 +266,12 @@ function makeTerminalRecord(claimRecord, terminalState) {
 
 function validateClaimRecord(value) {
   return normalizePersistedValidation('durable claim record', () => {
-    const record = exactOwnData(value, CLAIM_RECORD_KEYS, 'durable claim record');
+    const record = exactOwnData(
+      value,
+      CLAIM_RECORD_KEYS,
+      CLAIM_RECORD_SORTED_KEYS,
+      'durable claim record',
+    );
     if (record.schema_version !== POM_RX_DURABLE_CLAIM_SCHEMA_VERSION
         || record.reference_only !== true
         || record.exclusive_claim_recorded !== true
@@ -265,10 +296,16 @@ function validateClaimRecord(value) {
 
 function validateTerminalRecord(value, claimRecord) {
   return normalizePersistedValidation('durable terminal record', () => {
-    const record = exactOwnData(value, TERMINAL_RECORD_KEYS, 'durable terminal record');
+    const record = exactOwnData(
+      value,
+      TERMINAL_RECORD_KEYS,
+      TERMINAL_RECORD_SORTED_KEYS,
+      'durable terminal record',
+    );
     if (record.schema_version !== POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION
         || record.reference_only !== true
-        || !['CONSUMED_SUCCESS', 'CONSUMED_ERROR'].includes(record.terminal_state)) {
+        || (record.terminal_state !== 'CONSUMED_SUCCESS'
+          && record.terminal_state !== 'CONSUMED_ERROR')) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record flags/version/state are invalid');
     }
     if (record.capability_id !== claimRecord.capability_id
@@ -385,7 +422,12 @@ function makeInspection(state, claimRecord = null, terminalRecord = null) {
 }
 
 export function createReferenceDurableClaimStore(options) {
-  const bootstrap = exactOwnData(options, BOOTSTRAP_KEYS, 'durable claim store bootstrap');
+  const bootstrap = exactOwnData(
+    options,
+    BOOTSTRAP_KEYS,
+    BOOTSTRAP_SORTED_KEYS,
+    'durable claim store bootstrap',
+  );
   if (typeof bootstrap.rootDir !== 'string'
       || bootstrap.rootDir.length < 2
       || bootstrap.rootDir.length > 4096
@@ -440,7 +482,12 @@ export function createReferenceDurableClaimStore(options) {
   }
 
   async function inspect(input) {
-    const captured = exactOwnData(input, INSPECT_KEYS, 'durable claim inspection');
+    const captured = exactOwnData(
+      input,
+      INSPECT_KEYS,
+      INSPECT_SORTED_KEYS,
+      'durable claim inspection',
+    );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const root = await trustedRoot();
@@ -477,7 +524,12 @@ export function createReferenceDurableClaimStore(options) {
   }
 
   async function claim(input) {
-    const captured = exactOwnData(input, INSPECT_KEYS, 'durable claim request');
+    const captured = exactOwnData(
+      input,
+      INSPECT_KEYS,
+      INSPECT_SORTED_KEYS,
+      'durable claim request',
+    );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const root = await trustedRoot();
