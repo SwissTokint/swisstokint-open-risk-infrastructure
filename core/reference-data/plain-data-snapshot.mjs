@@ -312,8 +312,12 @@ function defineOwnArrayElement(output, key, value) {
 
 function captureArray(value, label, depth, budget) {
   rejectProxy(value, label);
-  if (objectGetPrototypeOf(value) !== ARRAY_PROTOTYPE) {
-    fail('POMRX_DATA_E_PROTOTYPE', `${label} must use Array.prototype`);
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== ARRAY_PROTOTYPE && prototype !== SNAPSHOT_ARRAY_PROTOTYPE) {
+    fail(
+      'POMRX_DATA_E_PROTOTYPE',
+      `${label} must use Array.prototype or the reference snapshot array prototype`,
+    );
   }
   if (objectGetOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_DATA_E_SYMBOL', `${label} cannot contain symbol keys`);
