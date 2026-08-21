@@ -324,7 +324,9 @@ test('foreign intrinsic failure during request canonicalization preserves exact 
   const sentinel = new TypeError('foreign request canonicalizer failure');
 
   String.prototype.normalize = function normalize(form) {
-    if (String(this) === 'method' && form === 'NFKC') throw sentinel;
+    if (String(this) === 'wallet_guard_simulation_request_exact/0.1' && form === 'NFC') {
+      throw sentinel;
+    }
     return originalNormalize.call(this, form);
   };
   try {
