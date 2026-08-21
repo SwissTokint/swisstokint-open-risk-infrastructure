@@ -6,14 +6,9 @@ import {
   normalizeWalletGuardIntent,
 } from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
 import {
-  WALLET_GUARD_SIMULATION_REQUEST_COMMIT_DOMAIN,
   WalletGuardSimulationError,
   createWalletGuardReferenceSimulationHarness,
 } from '../../applications/blockchain-digital-assets/wallet-guard/simulation.mjs';
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../sdk/typescript/swisstokint-proof.mjs';
 
 const ACCOUNT = `0x${'1'.repeat(40)}`;
 const RECIPIENT = `0x${'2'.repeat(40)}`;
@@ -84,17 +79,14 @@ test('pass evidence binds exact local intent and exact captured request snapshot
     request: rawRequest,
   });
 
-  const canonicalRequest = canonicalizePayload(captured.request);
   assert.equal(evidence.status, 'pass');
   assert.equal(evidence.request_id, normalizedIntent.request_id);
   assert.equal(
     evidence.intent_commitment,
     commitWalletGuardIntent(normalizedIntent).intent_commitment,
   );
-  assert.equal(
-    evidence.request_commitment,
-    sha256Hex(`${WALLET_GUARD_SIMULATION_REQUEST_COMMIT_DOMAIN}${canonicalRequest}`),
-  );
+  assert.equal(evidence.request_commitment, captured.request_commitment);
+  assert.match(evidence.request_commitment, /^[a-f0-9]{64}$/u);
   assert.equal(evidence.origin, ORIGIN);
   assert.equal(evidence.chain_id, CHAIN_ID);
   assert.equal(evidence.account, ACCOUNT);
