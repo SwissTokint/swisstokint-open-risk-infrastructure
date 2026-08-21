@@ -105,11 +105,11 @@ obtain a fresh distinct exact-head independent skeptical/security review, and
 leave no unresolved P0/P1/P2. Simulation remains reference evidence only and does
 not authorize forwarding or prove external state/effect truth.
 
-### Current control-plane reconciliation lot — post-PR #108
+### Current control-plane reconciliation lot — PR #109, post-PR #108
 
 Live GitHub is already at trusted main `cfbfd81f...`, while the canonical state
-merged by PR #108 necessarily described its pre-merge main. This cycle therefore
-uses one bounded non-Tier-B documentation/control-plane branch:
+merged by PR #108 necessarily described its pre-merge main. PR #109 is therefore
+the bounded non-Tier-B documentation/control-plane reconciliation on branch
 `docs/pom-rx-checkpoint-after-108-20260821`.
 
 Its exclusive owned surfaces are exactly:
@@ -126,9 +126,9 @@ repair contract; preserve the mandatory five-stage merge rule; preserve shared
 Core versus Wallet Guard ownership; and preserve all production/real-wallet
 non-claims. It changes no runtime/security implementation.
 
-This branch's own moving head/CI/review state is deliberately not self-embedded as
+PR #109's own moving head/CI/review state is deliberately not self-embedded as
 authoritative because a commit cannot truthfully contain its own future SHA.
-Re-read live GitHub for this PR's exact current head before any release decision;
+Re-read live GitHub for PR #109's exact current head before any release decision;
 any head move invalidates prior exact-head CI/review evidence.
 
 ## recent_merge_and_post_merge
@@ -164,7 +164,7 @@ has a recorded `POST_MERGE_ASSURANCE_PASS`.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR108_RECONCILIATION_REQUIRED` — live trusted main is `cfbfd81f...`; canonical state must be reconciled through this bounded non-Tier-B docs PR before stale entries are used as readiness/dependency evidence.
+1. `CONTROL_PLANE_POST_PR108_RECONCILIATION_REQUIRED` — live trusted main is `cfbfd81f...`; canonical state must be reconciled through PR #109 before stale entries are used as readiness/dependency evidence.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS` — exact-head distinct review on `0efb462...` confirms the sensitive-forwarding exploit class remains reachable.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517` — CI 592 is green but current head is test-only and runtime remains unchanged.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462` — owner gate remains `BLOCK / NON-INDEPENDENT`.
@@ -198,9 +198,9 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Gate this bounded post-PR #108 control-plane reconciliation as a non-Tier-B docs lot. Do not use it as trusted coordination evidence until its exact merge receives post-merge PASS.
+1. Gate PR #109 as the bounded post-PR #108 non-Tier-B docs lot. Do not use it as trusted coordination evidence until its exact merge receives post-merge PASS.
 2. Keep PR #97 blocked; do not merge exact head `0efb462...` or treat CI 592 as a security repair.
-3. After this control-plane checkpoint is trusted, create the smallest fresh #97 runtime repair from then-current trusted main for Promise-prototype drift before outer async assimilation while preserving durable claim-before-observer/downstream ordering; do not merge the stale historical branch wholesale.
+3. After PR #109 is trusted, create the smallest fresh #97 runtime repair from then-current trusted main for Promise-prototype drift before outer async assimilation while preserving durable claim-before-observer/downstream ordering; do not merge the stale historical branch wholesale.
 4. Restore/replace the exact exploit regression, rerun exact-head CI, owner six-lane review and fresh distinct independent skeptical/security review, and resolve only findings validated on that exact head.
 5. If repaired #97 passes every gate, merge under standing authorization and immediately run exact-merge-SHA post-merge assurance.
 6. Reconcile #93 only after #97 dependency ordering is trusted, then repeat all exact-head gates.
