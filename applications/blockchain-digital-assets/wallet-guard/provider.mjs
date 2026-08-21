@@ -42,6 +42,16 @@ const MAX_ACCOUNTS = 64;
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_MAP = Array.prototype.map;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const PROMISE_CONSTRUCTOR = Promise;
+const PROMISE_PROTOTYPE = Promise.prototype;
+const PROMISE_CONSTRUCTOR_DESCRIPTOR = Object.getOwnPropertyDescriptor(
+  PROMISE_PROTOTYPE,
+  'constructor',
+);
 const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
@@ -312,6 +322,36 @@ function isNativePromise(value) {
   return REFLECT_APPLY(UTIL_TYPES_IS_PROMISE, utilTypes, [value]);
 }
 
+function validateNativePromiseTransport(value, method) {
+  const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+  const ownNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+  const ownSymbols = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+  const constructorDescriptor = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    Object,
+    [PROMISE_PROTOTYPE, 'constructor'],
+  );
+  const baseline = PROMISE_CONSTRUCTOR_DESCRIPTOR;
+
+  if (prototype !== PROMISE_PROTOTYPE
+      || ownNames.length !== 0
+      || ownSymbols.length !== 0
+      || !baseline
+      || !constructorDescriptor
+      || constructorDescriptor.value !== PROMISE_CONSTRUCTOR
+      || constructorDescriptor.value !== baseline.value
+      || constructorDescriptor.writable !== baseline.writable
+      || constructorDescriptor.enumerable !== baseline.enumerable
+      || constructorDescriptor.configurable !== baseline.configurable
+      || constructorDescriptor.get !== baseline.get
+      || constructorDescriptor.set !== baseline.set) {
+    fail(
+      'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
+      `provider ${method} must return an undecorated native Promise transport`,
+    );
+  }
+}
+
 async function providerRead(provider, method) {
   let directResult;
   try {
@@ -324,12 +364,19 @@ async function providerRead(provider, method) {
   // before this async function can perform Promise/thenable assimilation on it.
   // util.types.isPromise performs native Promise classification without reading
   // a result-owned `then` property, so an Array/Object/Function Proxy is rejected
-  // by the shared capture boundary with zero caller trap/getter dispatch. Genuine
-  // Promise transport remains supported; its fulfilled value is captured before
-  // it is returned to the rest of the Wallet Guard pipeline.
+  // by the shared capture boundary with zero caller trap/getter dispatch.
   if (!isNativePromise(directResult)) {
     return captureProviderReadResult(directResult, method);
   }
+
+  // `await` performs PromiseResolve semantics and can consult the transport's
+  // `constructor` before suspension. Accept only an undecorated same-realm native
+  // Promise and require the initialization-time Promise.prototype.constructor
+  // descriptor to remain intact. The reflection used here is captured at module
+  // initialization and reads descriptors without invoking result-owned getters.
+  // Upstream assimilation already performed internally before a genuine Promise
+  // reaches this boundary remains an explicit non-claim.
+  validateNativePromiseTransport(directResult, method);
 
   let resolved;
   try {
