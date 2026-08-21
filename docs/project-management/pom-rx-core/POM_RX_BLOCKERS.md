@@ -1,8 +1,8 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T22:09:00+02:00`
+Updated: `2026-08-21T23:07:54+02:00`
 
-Current trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`
+Current trusted main: `cfbfd81f81375da1a75802f193af37119b11e5a2`
 
 This file lists **current** blockers only. Historical blockers remain in Git
 history and must not be mistaken for current architecture. Live GitHub wins if a
@@ -11,26 +11,32 @@ this checkpoint.
 
 ## Control-plane state
 
-PR #107 source head `9558bc0f27e1e15f89f7a39c4e0612236ce8ed1c`
-merged as exact main SHA `de69d066239891f0f2c08384a9f14167d0e30373`.
+PR #108 source head `684ced52d664f3056a6cf2c19e5e793ef198aa1a`
+merged as exact main SHA `cfbfd81f81375da1a75802f193af37119b11e5a2`.
 Source-head and merge trees are identical at
-`89827f54578550e538f6394b91be0f2a6d89107d`. Candidate CI run
-`32512894709` / CI 638 succeeded. Canonical exact-main push CI run
-`32517285170` / CI 639 attempt 1 succeeded on the exact merge SHA, and
-`pom-rx/exact-main-ci` is `success` targeting that run. PR #107 now records
-`POST_MERGE_ASSURANCE_PASS` for its bounded documentation/control-plane scope.
-It is trusted coordination evidence only and changes no runtime/security
-semantics.
+`800c55bc7535238965f0e67fecbc8e1c2b99023f`. Candidate CI run
+`32524074023` / CI 646 succeeded. Canonical exact-main push CI run
+`32524385073` / CI 647 attempt 1 succeeded on the exact merge SHA, and the
+recorded decision-time `pom-rx/exact-main-ci` status was `success` targeting that
+run. PR #108 records `POST_MERGE_ASSURANCE_PASS` for its bounded
+documentation/control-plane scope across SpecKit, skeptical/falsification,
+security, code quality, optimization and integration/regression. It is trusted
+coordination evidence only and changes no runtime/security semantics.
 
-The current post-PR #107 control-plane reconciliation is intentionally a
-non-Tier-B docs lot on branch `docs/pom-rx-checkpoint-after-107-20260821`. Its
-predecessor exact head `0fb13146...` failed CI run 640 because the capability map
-dropped a contract phrase required by the conformance test and received two fresh
-independent findings: P1 durable claim ordering and P2 omission of the five-stage
-gate from the structured merge rule. The current bounded repair restores these
-contracts without weakening tests. Because the head moved, all predecessor
-exact-head CI/review evidence is stale for release; final exact-head CI, owner
-review and fresh distinct independent review are required before merge.
+The current post-PR #108 reconciliation is intentionally another bounded
+non-Tier-B documentation/control-plane lot on branch
+`docs/pom-rx-checkpoint-after-108-20260821`. It exists only because a merged
+checkpoint cannot self-describe its future merge SHA. Until this new lot passes
+its own exact-head gates and exact-merge post-merge assurance, live GitHub remains
+authoritative for all state that moved after PR #108.
+
+## `CONTROL_PLANE_POST_PR108_RECONCILIATION_REQUIRED`
+
+The canonical files merged by PR #108 checkpoint the state that existed before
+that merge. Live trusted main is now `cfbfd81f...`, so stale main/PR metadata must
+not be used as readiness or dependency evidence until this scoped reconciliation
+is trusted. This blocker is coordination-only; it does not invalidate PR #108's
+recorded post-merge PASS or change runtime/security semantics.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -38,11 +44,12 @@ PR #97 remains open and **must not merge**.
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical PR base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`;
-- live GitHub currently reports `mergeable=true`; volatile metadata only and must be re-read at decision time;
+- trusted main: `cfbfd81f81375da1a75802f193af37119b11e5a2`;
+- live GitHub revalidation in this cycle reports `mergeable=true`; volatile metadata only and never security/release evidence;
 - exact-head CI run `32487036517` / CI 592: `success`;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
-- fresh distinct exact-head finding: P1 `Reject Promise drift before entering async layers`.
+- fresh distinct exact-head finding: P1 `Reject Promise drift before entering async layers`;
+- the exact-head P1 thread remains unresolved and non-outdated.
 
 The exact head is a test-only move from independently blocked parent
 `639b96e7...`; the provider/runtime implementation is unchanged. The changed test
@@ -58,7 +65,7 @@ Required closure:
 
 - create the smallest runtime repair from the then-current trusted main rather
   than merging/rebasing the stale historical branch wholesale;
-- prevent the hostile Promise-prototype dispatch before outer async assimilation;
+- prevent hostile Promise-prototype dispatch before outer async assimilation;
 - restore or replace a CI-wired regression that reproduces the independent
   sensitive-forwarding exploit and does not weaken the zero-hostile-dispatch
   property merely to make CI green;
@@ -66,7 +73,7 @@ Required closure:
   downstream work so losing contenders cannot enter security-sensitive paths;
 - preserve fail-closed replay, durable one-winner behavior, ordinary
   native-Promise Node/AsyncHooks bookkeeping-symbol compatibility, direct
-  non-Promise object/function hardened capture, own native Promise-decoration
+  non-Promise object/function hardened capture, own native-Promise-decoration
   rejection, and zero authorization/forwarding for hostile rejected transports;
 - rerun exact-head CI and release-owner six-lane review;
 - obtain a fresh distinct exact-head independent skeptical/security review;
@@ -80,9 +87,9 @@ drift property because the current head does not repair runtime behavior and the
 exact-head independent P1 remains open. Green CI never overrides a concrete
 security reproducer.
 
-## `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR107`
+## `PR97_TRUSTED_MAIN_RECONCILIATION_REQUIRED_AFTER_PR108`
 
-PR #97's historical base `0564aecd...` trails trusted main `de69d066...`.
+PR #97's historical base `0564aecd...` trails trusted main `cfbfd81f...`.
 `mergeable=true/false` is only GitHub conflict metadata and must never be promoted
 to proof of architecture reconciliation or security correctness. The repair lot
 must start from then-current trusted main after the current control-plane lot is
@@ -101,8 +108,8 @@ PR #93 remains open and untrusted.
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- trusted main: `de69d066239891f0f2c08384a9f14167d0e30373`;
-- live GitHub currently reports `mergeable=true`; volatile metadata only and must be re-read at decision time;
+- trusted main: `cfbfd81f81375da1a75802f193af37119b11e5a2`;
+- live GitHub revalidation in this cycle reports `mergeable=true`; volatile metadata only and never release evidence;
 - exact-head CI run `32465835858` / CI 541: `success`;
 - latest distinct Codex review found in the PR record covers moved head
   `03e0201c9f...`, not current `c4e40ceb...`;
@@ -110,13 +117,13 @@ PR #93 remains open and untrusted.
   head `c4e40ceb...`;
 - unresolved current/non-outdated P1/P2 review threads remain, including exact
   negative-zero identity, typed-data wrapper normalization, generic-signature
-  exact-value commitments, shared proof canonicalization/hash classes and nested
-  payload capture with saved reflection intrinsics.
+  exact-value commitments and nested payload capture with saved reflection
+  intrinsics.
 
-Moved-head fixes are not current release evidence. PR #93 also overlaps shared
+Moved-head fixes are not current release evidence. PR #93 overlaps shared
 regression/package surfaces with PR #97. Keep it ordered after trusted #97
 completion unless a separate reviewed dependency-ordering decision is recorded.
-After that, reconcile #93 to then-current trusted main, rerun exact-head CI and
+After that, reconcile #93 from then-current trusted main, rerun exact-head CI and
 owner review, obtain a fresh distinct exact-head independent skeptical/security
 review, and require zero unresolved P0/P1/P2.
 
