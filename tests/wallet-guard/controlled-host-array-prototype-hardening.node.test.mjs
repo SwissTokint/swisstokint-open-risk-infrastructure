@@ -6,6 +6,7 @@ import {
   createWalletGuardControlledReferenceHost,
 } from '../../applications/blockchain-digital-assets/wallet-guard/controlled-host.mjs';
 import {
+  WalletGuardProviderError,
   createWalletGuardReferenceProviderGateway,
 } from '../../applications/blockchain-digital-assets/wallet-guard/provider.mjs';
 
@@ -78,6 +79,11 @@ function nativeTransfer(to = RECIPIENT) {
 function assertIntrinsicMutation(error) {
   assert.ok(error instanceof WalletGuardControlledHostError);
   assert.equal(error.code, 'POMRX_WG_HOST_E_INTRINSIC_MUTATION');
+}
+
+function assertProviderContextInvalid(error) {
+  assert.ok(error instanceof WalletGuardProviderError);
+  assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID');
 }
 
 function installNumericSetter() {
@@ -339,6 +345,123 @@ test('provider gateway guards each awaited account result before Array.map norma
   assert.equal(thrown, integritySentinel);
   assert.equal(accountReads, 1);
   assert.equal(mapCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
+
+test('provider gateway rejects an eth_accounts Array Proxy before array traps or authorization', async () => {
+  let accountReads = 0;
+  let arrayTrapCalls = 0;
+  let sensitiveCalls = 0;
+  let authorizationCalls = 0;
+
+  const hostileAccounts = new Proxy([ACCOUNT], {
+    get(target, key, receiver) {
+      // Promise/await resolution may probe an object's `then` property before the
+      // gateway receives it. The security property under test starts at the
+      // provider-result data boundary: no array length/index/method trap may run.
+      if (key !== 'then') arrayTrapCalls += 1;
+      if (key === 'map') {
+        return () => {
+          arrayTrapCalls += 1;
+          return [ATTACKER];
+        };
+      }
+      return Reflect.get(target, key, receiver);
+    },
+  });
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        return hostileAccounts;
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider,
+    policy: policy(),
+    trustedClock: () => '2026-08-20T20:00:00.000Z',
+    referenceAuthorizationForRequest: () => {
+      authorizationCalls += 1;
+      return authorization();
+    },
+    capabilityLifetimeMs: 30_000,
+    assertRuntimeIntegrity: () => {},
+  });
+
+  let thrown;
+  try {
+    await gateway.request(nativeTransfer());
+  } catch (error) {
+    thrown = error;
+  }
+
+  assertProviderContextInvalid(thrown);
+  assert.equal(accountReads, 1);
+  assert.equal(arrayTrapCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
+
+test('provider gateway rejects a decorated eth_accounts array before its own map can run', async () => {
+  let accountReads = 0;
+  let ownMapCalls = 0;
+  let sensitiveCalls = 0;
+  let authorizationCalls = 0;
+
+  const hostileAccounts = [ACCOUNT];
+  Object.defineProperty(hostileAccounts, 'map', {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value() {
+      ownMapCalls += 1;
+      return [ATTACKER];
+    },
+  });
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        return hostileAccounts;
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider,
+    policy: policy(),
+    trustedClock: () => '2026-08-20T20:00:00.000Z',
+    referenceAuthorizationForRequest: () => {
+      authorizationCalls += 1;
+      return authorization();
+    },
+    capabilityLifetimeMs: 30_000,
+    assertRuntimeIntegrity: () => {},
+  });
+
+  let thrown;
+  try {
+    await gateway.request(nativeTransfer());
+  } catch (error) {
+    thrown = error;
+  }
+
+  assertProviderContextInvalid(thrown);
+  assert.equal(accountReads, 1);
+  assert.equal(ownMapCalls, 0);
   assert.equal(authorizationCalls, 0);
   assert.equal(sensitiveCalls, 0);
 });
