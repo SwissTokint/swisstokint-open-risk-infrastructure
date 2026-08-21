@@ -140,3 +140,32 @@ test('object typed-data request commitment ignores property insertion order only
   assert.equal(commitments.length, 2);
   assert.equal(commitments[0], commitments[1]);
 });
+
+test('later Object.is replacement cannot collapse 0 and negative-zero request commitments', async () => {
+  const zeroRequest = requestFor(typedData(0));
+  const negativeZeroRequest = requestFor(typedData(-0));
+  const intent = normalize(zeroRequest, 'wg-simulation-exact-object-unicode-0003');
+  const commitments = [];
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      commitments.push(input.request_commitment);
+      return unavailableResult(input);
+    },
+  });
+
+  const originalObjectIs = Object.is;
+  let first;
+  let second;
+  Object.is = () => false;
+  try {
+    first = await runtime.simulate({ intent, request: zeroRequest });
+    second = await runtime.simulate({ intent, request: negativeZeroRequest });
+  } finally {
+    Object.is = originalObjectIs;
+  }
+
+  assert.equal(first.status, 'unavailable');
+  assert.equal(second.status, 'unavailable');
+  assert.equal(commitments.length, 2);
+  assert.notEqual(commitments[0], commitments[1]);
+});
