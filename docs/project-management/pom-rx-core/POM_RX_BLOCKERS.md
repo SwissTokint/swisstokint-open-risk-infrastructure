@@ -1,122 +1,93 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T11:20:00+02:00`
+Updated: `2026-08-21T11:30:00+02:00`
 
-Current trusted main: `818718955c9e4136e9e55754a31be2f1c7b610f8`
+Current trusted main: `1abe57f8baea8dd6844cc8ea9e321c05ec01538f`
 
-This file lists **current** blockers only. Historical August 14 blockers remain in
-Git history and must not be mistaken for the current architecture.
+This file lists **current** blockers only. Historical blockers remain in Git
+history and must not be mistaken for current architecture or release state.
 
 ## Overall prototype gate
 
 Status: `NO_GO_FOR_PRODUCTION / REFERENCE_DEVELOPMENT_CONTINUES`
 
-The repository has advanced well beyond the old strict-profile-foundation
-checkpoint: strict verification, exact-authorization/Gate reference semantics,
-Witness reference trust, portable Wallet Guard preflight, execution evidence,
-observation/reconciliation, controlled provider host and exact-main CI
-observability are present on trusted main.
-
-The remaining blockers are about exact-head release evidence and unproved
-production/runtime boundaries, not absence of the entire Core.
+Strict verification, exact-authorization/Gate reference semantics, Witness
+reference trust, Wallet Guard preflight/provider/controlled-host layers,
+execution evidence, observation/reconciliation and exact-main CI observability
+are present on trusted main. PR #98 additionally established the durable
+GitHub-backed cross-chat control plane and passed exact-merge post-merge
+assurance.
 
 The maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`.
 It never means production-ready, audited, certified, deployed, arbitrary-browser
 safe or authorized for financial execution.
 
-## PR #93 — Wallet Guard simulation exact-head gate
-
-Status: `BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW`
-
-Live head at this checkpoint: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
-
-Exact-head CI: run `32465835858`, `success`.
-
-The latest distinct Codex review visible before this checkpoint reviewed moved
-head `03e0201c9fef5ed10a615996d68052613bdd94d6`, not `c4e40ceb...`. That review
-found a P1 in nested typed-data capture because the shared capture path still
-resolved live reflection while `SIMULATION.md` claimed initialization-time
-reflection binding. The branch subsequently moved seven commits and now changes
-`core/reference-data/plain-data-snapshot.mjs` plus dedicated provenance and
-Wallet Guard regressions. Those repairs are not merge evidence until a fresh
-independent review covers the actual current head.
-
-Required to unblock:
-
-1. preserve green exact-head CI on the actual current head;
-2. release-owner architecture/falsification/security/code-quality/optimization
-   review on that same head;
-3. fresh distinct independent skeptical/security review on that same head;
-4. no unresolved P0/P1/P2 after that review;
-5. reconciliation to current trusted main if another conflicting lot merges
-   first.
-
-No simulation result may be treated as authorization or external effect truth.
-
 ## PR #97 — durable claim + Core Gate composition
 
-Status: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1`
+Status: `BLOCKED_UNRESOLVED_EXACT_HEAD_P1_AND_MAIN_RECONCILIATION`
 
-Current exact head: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`.
+Historical exact head: `1f228dab6c5a2c0ac2ac9952d8d52978ba44b780`.
 
-Exact-head CI: run `32464344634`, `success`.
+Historical exact-head CI: run `32464344634`, `success`.
 
-A distinct Codex review actually covers this exact head and found a fresh P1 in
-Wallet Guard provider-context sampling. When `eth_accounts` returns an Array
-Proxy or an array with an own `map`, the current integrity check occurs before
-`normalizeAccounts()` first touches that provider-controlled value. A Proxy `get`
-trap can mutate `Array.prototype.map` after the check, return the poisoned method
-and restore it during the call, substituting an attacker account while the later
-integrity checks still observe the baseline. This was reproduced through the
-controlled provider path with authorization and sensitive forwarding reached.
+GitHub now reports the open PR non-mergeable after trusted `main` advanced to
+`1abe57f8...`; therefore the historical branch must not be merged wholesale.
 
-Green CI and the release-owner NON-INDEPENDENT PASS on `1f228dab...` do not close
-this independent P1.
+A distinct Codex review actually covers `1f228dab...` and found a P1 in Wallet
+Guard provider-context sampling. When `eth_accounts` returns an Array Proxy or
+an array with an own `map`, the integrity check runs before normalization first
+touches the provider-controlled value. A Proxy `get` trap can mutate
+`Array.prototype.map` after the check, return the poisoned method and restore it
+during the call, substituting an attacker account while later integrity checks
+still observe the baseline. The attack was reproduced with authorization and
+sensitive forwarding reached.
 
 Required to unblock:
 
-1. reject/capture provider-controlled account arrays through a hardened inert
+1. reconcile only the bounded useful PR #97 lot to current trusted main without
+   overwriting the PR #98 control plane;
+2. reject/capture provider-controlled account arrays through a hardened inert
    boundary before normalization, including Proxy/decorated-array rejection
    without executing caller traps/getters;
-2. add a CI-wired regression proving the attack fails before authorization and
-   before sensitive provider forwarding;
-3. rerun exact-head CI after the repair;
-4. obtain fresh release-owner and distinct independent skeptical/security
-   reviews on the repaired exact head;
-5. leave no unresolved P0/P1/P2;
-6. if PR #93 or another overlapping lot merges first, reconcile package/shared
-   surfaces to the then-current trusted main and repeat exact-head gates.
+3. add a CI-wired regression requiring zero hostile trap/getter dispatch, zero
+   authorization and zero sensitive forwarding for the attack;
+4. rerun exact-head CI on the reconciled repair;
+5. obtain fresh release-owner and distinct independent skeptical/security
+   reviews on that same exact head;
+6. leave no unresolved P0/P1/P2.
 
 The durable composition remains reference-only. It does not prove hostile
 same-OS-user storage integrity, distributed filesystem consensus, crash recovery,
 production trusted time/Witness or external execution truth.
 
-## PR #98 — control-plane continuity reconciliation
+## PR #93 — Wallet Guard simulation exact-head gate
 
-Status: `AWAITING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW`
+Status: `BLOCKED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW`
 
-The first independent Codex review of moved head
-`0a9c56a8f8ddcbb266db55815c387efb7a644527` found four P1 contract regressions
-and one P2 stale-state claim. Those five findings are repaired: the
-contract-checked Core and Wallet Guard ownership phrases are preserved, the
-policy again explicitly requires the full five-stage gate and all mandatory
-post-merge review families, and the already-resolved stale task-register blocker
-is removed.
+Historical exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
 
-A second independent review on moved head
-`a5d5ad254400d67999241024126ad222b15f592d` found one additional P2 because the
-active task still described repairs as in progress. The task register now records
-that repair work is complete and the lot is waiting for exact-head gates.
-Canonical CI on that moved head also exposed a separate public-identity contract
-regression caused by the branch's root README rewrite. The README rewrite was
-reverted byte-for-byte to trusted-main content rather than weakening the frozen
-public-identity test.
+Historical exact-head CI: run `32465835858`, `success`.
 
-Because those repairs moved the head, all earlier CI/reviews are historical input,
-not release evidence. PR #98 remains non-Tier-B. Read its actual current head from
-live GitHub; it must receive green CI, a fresh distinct exact-head independent
-review with no unresolved P0/P1/P2, and the exact-head release-owner/five-stage
-gate before merge.
+GitHub now reports the open PR non-mergeable after trusted `main` advanced to
+`1abe57f8...`. The latest distinct Codex review available for the simulation
+repair covers moved head `03e0201c9fef5ed10a615996d68052613bdd94d6`, where
+it found a P1 in nested typed-data capture because the shared capture path still
+resolved live reflection while the documentation claimed initialization-time
+reflection binding. Later branch commits change the shared snapshot plus
+regressions, but no fresh independent review covers a reconciled exact head.
+
+Required to unblock:
+
+1. reconcile the useful bounded simulation lot onto current trusted main rather
+   than merging the stale historical branch wholesale;
+2. preserve shared Core limits and the current Core/application ownership split;
+3. rerun exact-head CI on the reconciled candidate;
+4. perform release-owner architecture/falsification/security/code-quality /
+   optimization/integration review on that exact head;
+5. obtain a fresh distinct independent skeptical/security review on the same
+   exact head with no unresolved P0/P1/P2.
+
+No simulation result may be treated as authorization or external effect truth.
 
 ## DAGR source gate
 
@@ -148,23 +119,25 @@ explicit human execution gate.
 
 ## Resolved historical blockers — do not reopen from stale documents
 
-The following old blocker classes are already superseded by merged work and
-must not be treated as current merely because older Git history mentions them:
+The following are resolved historical blocker classes or completed lots and must
+not be revived merely because older Git history mentions them:
 
-- strict-profile prerequisite ratification and immutable fixture foundation;
-- the five strict invariant families and strict-profile activation;
+- strict-profile prerequisite/fixture/invariant activation work;
 - fresh-Windows exact-LF checkout issue;
-- initial Core exact-authorization/single-use-Gate reference implementation;
+- initial Core exact-authorization/process-local Gate reference implementation;
 - reference Witness enrollment/revocation/rotation lifecycle;
-- shared bounded plain-data snapshot boundary as an existing capability;
+- shared bounded plain-data snapshot as an existing capability;
 - reference execution-evidence recorder;
 - reference observation/reconciliation layer;
-- Wallet Guard JSON ingress, policy object boundary, policy controller,
-  portable preflight evidence and controlled-provider host;
+- Wallet Guard JSON ingress, policy object boundary, policy controller, portable
+  preflight evidence and controlled-provider host;
 - exact-main CI status publisher introduced by PR #96;
-- stale top-level task-register `current_main` / obsolete active-state debt,
-  which PR #98 already reconciles in its current task-register content.
+- stale top-level task-register/current-main/control-plane debt addressed by PR
+  #98;
+- PR #98 itself: source head
+  `47bcc2129dc88c97b0d8d42434b42cee82855861`, merge SHA
+  `1abe57f8baea8dd6844cc8ea9e321c05ec01538f`, exact-merge CI run
+  `32467712934` success, final `POST_MERGE_ASSURANCE_PASS`.
 
-If a regression is found in one of those merged properties it becomes a **new**
-typed blocker tied to the exact affected SHA; it is not represented by reviving
-the stale August 14 blocker text.
+If a regression is found in a merged property it becomes a **new** typed blocker
+tied to the exact affected SHA; it is not represented by reviving old text.
