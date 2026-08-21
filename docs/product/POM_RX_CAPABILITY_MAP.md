@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-21
 
-Trusted-main checkpoint: `bfb3e4b7a062427d5ee53f7b76a280da657f6152`.
+Trusted-main checkpoint: `03554ee3191c1ca28e50159a67f822543d619ca3`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -83,10 +83,11 @@ A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
 at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Its PR base remains
 `0564aecd42cf0794894c12842980969ff59c9f73`, while current trusted main has moved
-to `bfb3e4b7a062427d5ee53f7b76a280da657f6152` through coordination-only PR #104.
-Latest live GitHub reports `mergeable=true`; this is volatile
-mergeability/conflict metadata, does not establish reconciliation by itself, and
-does not satisfy security review or any release gate. Canonical exact-head CI run
+to `03554ee3191c1ca28e50159a67f822543d619ca3` through coordination-only PR #105.
+Latest live GitHub reports `mergeable=false`; the signal changed after trusted
+main advanced. This is volatile mergeability/conflict metadata, does not identify
+the conflict cause, does not establish reconciliation by itself, and does not
+satisfy security review or any release gate. Canonical exact-head CI run
 `32487036517` / CI run 592 completed `success` on exact head `0efb462...`, but
 green CI cannot clear the current security blocker.
 
@@ -108,10 +109,10 @@ reaches the caller, substitute stable attacker-controlled context, then permit
 reference authorization and sensitive forwarding. The exact-head release-owner
 review is also `BLOCK / NON-INDEPENDENT` for the same false-PASS risk.
 
-Live review-thread revalidation confirms the exact-head Promise-drift P1 remains
-unresolved and non-outdated. Several earlier P1 threads remain unresolved pending
-final repaired exact-head independent validation; their moved-head repair comments
-are historical evidence, not a release verdict.
+Live review-thread revalidation during this run confirms the exact-head
+Promise-drift P1 remains unresolved and non-outdated. Several earlier P1 threads
+remain unresolved pending final repaired exact-head independent validation; their
+moved-head repair comments are historical evidence, not a release verdict.
 
 The earlier `37b8e699...` P1 about runtime bookkeeping symbols on native Promises
 is historical after later changes; ordinary native-Promise provider transport
@@ -122,9 +123,9 @@ decoration rejection.
 
 PR #97 therefore remains **untrusted and blocked for release**. A test-only
 relaxation cannot establish the missing runtime property. Required evidence is a
-runtime repair created/reconciled on the then-current trusted main, prevention of
-inherited Promise-prototype drift being consulted by outer async assimilation,
-CI-wired coverage for the independent exploit class, exact-head green CI, a fresh
+runtime repair created from the then-current trusted main, prevention of inherited
+Promise-prototype drift being consulted by outer async assimilation, CI-wired
+coverage for the independent exploit class, exact-head green CI, a fresh
 release-owner PASS, a fresh distinct exact-head independent skeptical/security
 review, and no unresolved P0/P1/P2. No capability-map text may treat durable Gate
 composition as merged before exact-merge post-merge assurance PASS.
@@ -187,20 +188,23 @@ revalidation; the status alone does not establish PASS.
 ### Durable project-control continuity
 
 Trusted main includes the GitHub-backed cross-chat control plane from PR #98 and
-the checkpoint reconciliations from PR #99 through PR #104. Most recently, PR
-#104 source head `ff28d200949ae53250ff3beb4268732bf130ec22` merged as exact main SHA
-`bfb3e4b7a062427d5ee53f7b76a280da657f6152`; source-head and merge trees are
-identical at `11a1dec83c380f0515a1eaedbe5685c69e2b6edb`. Canonical push CI run
-`32501713512` / CI run 625 attempt 1 completed `success` on that exact merge SHA;
+the checkpoint reconciliations from PR #99 through PR #105. Most recently, PR
+#105 source head `08af7792241d17f43cbdcf7823c8517aee46cbf9` merged as exact main SHA
+`03554ee3191c1ca28e50159a67f822543d619ca3`; source-head and merge trees are
+identical at `5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33`. Exact-head candidate CI run
+`32503975756` / CI run 630 completed `success`. Canonical exact-main push CI run
+`32504323490` / CI run 631 attempt 1 completed `success` on that exact merge SHA;
 decision-time `pom-rx/exact-main-ci` targeted the same run with `success`, and the
 recorded exact-merge verdict is `POST_MERGE_ASSURANCE_PASS` across SpecKit,
 skeptical/falsification, security, code quality, optimization and
 integration/regression.
 
-PR #104 was a four-file documentation/control-plane reconciliation and changed no
-runtime, protocol, Gate, Witness, verifier, Wallet Guard or execution semantics.
-These are coordination/documentation properties, not production-readiness
-capabilities.
+PR #105 had release-owner `PASS / NON-INDEPENDENT`, no review threads and a fresh
+distinct `chatgpt-codex-connector` review on exact source head `08af779...` that
+found no major issues. PR #105 was a four-file documentation/control-plane
+reconciliation and changed no runtime, protocol, Gate, Witness, verifier, Wallet
+Guard or execution semantics. These are coordination/documentation properties,
+not production-readiness capabilities.
 
 ### Proof transport and anchoring
 
@@ -295,18 +299,18 @@ this checkpoint**. Its current live head is
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
 `32465835858` / CI run 541 is green. Its branch base remains historical
 `818718955c9e4136e9e55754a31be2f1c7b610f8`, while trusted main is now
-`bfb3e4b7...`. Latest live GitHub reports `mergeable=true`; that is volatile
-mergeability/conflict metadata only and does not satisfy trusted-main
-reconciliation, security review or provide release evidence. The latest distinct
-Codex release evidence covers a moved head. Live thread revalidation also shows
-unresolved current/non-outdated P1/P2 findings, including exact-value generic
-signature commitment, typed-data wrapper normalization and nested/shared
-capture/canonicalization classes; moved-head repair comments are not current
-exact-head release evidence. PR #93 therefore requires trusted-main reconciliation
-plus fresh exact-head release-owner and independent review after PR #97 dependency
-ordering is safe. Even after simulation evidence eventually merges,
-simulation-to-forwarding atomic binding remains a separate reviewed composition
-requirement.
+`03554ee...`. Latest live GitHub reports `mergeable=false`; the signal changed
+after trusted main advanced and is volatile mergeability/conflict metadata only.
+It does not satisfy trusted-main reconciliation, security review or provide
+release evidence. The latest distinct Codex release evidence covers a moved head.
+Live thread revalidation also shows unresolved current/non-outdated P1/P2
+findings, including exact-value generic signature commitment, typed-data wrapper
+normalization and nested/shared capture/canonicalization classes; moved-head
+repair comments are not current exact-head release evidence. PR #93 therefore
+requires trusted-main reconciliation plus fresh exact-head release-owner and
+independent review after PR #97 dependency ordering is safe. Even after simulation
+evidence eventually merges, simulation-to-forwarding atomic binding remains a
+separate reviewed composition requirement.
 
 The first success criterion remains a deterministic controlled fixture in which
 a dangerous approval/signature is denied before forwarding, while an explicitly
@@ -375,7 +379,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` trails trusted main `bfb3e4b7...`; live `mergeable=true` is volatile mergeability/conflict metadata only and does not establish trusted reconciliation, security correctness or release readiness. Requires trusted-main reconciliation/runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` trails trusted main `03554ee...`; live `mergeable=false` is volatile mergeability/conflict metadata only and does not establish trusted reconciliation, security correctness or release readiness. Requires a repaired candidate from trusted main, runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
@@ -383,7 +387,7 @@ review.
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
 | Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live `mergeable=true` is volatile mergeability/conflict metadata only and does not waive reconciliation/security/review gates. Unresolved current/non-outdated P1/P2 review history remains; still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live `mergeable=false` is volatile mergeability/conflict metadata only and does not waive reconciliation/security/review gates. Unresolved current/non-outdated P1/P2 review history remains; still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
 | Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
