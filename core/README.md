@@ -22,10 +22,10 @@ Current Core homes include:
   validated exact-authorization bindings.
 
 At trusted-main checkpoint
-`818718955c9e4136e9e55754a31be2f1c7b610f8`, the durable claim primitive and
+`1abe57f8baea8dd6844cc8ea9e321c05ec01538f`, the durable claim primitive and
 process-local single-use Gate both exist, but their reviewed composition is not
-yet on trusted main. That composition is active Tier-B work and must not be
-inferred from the presence of the two separate primitives.
+yet on trusted main. That composition is active Tier-B work in PR #97 and must
+not be inferred from the presence of the two separate primitives.
 
 During the compatibility migration, frozen/shared implementations that predate
 the product-oriented layout remain at their current paths, especially
