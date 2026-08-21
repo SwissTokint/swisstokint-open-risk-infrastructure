@@ -117,11 +117,12 @@ independence without increasing parallelism.
    exact-head second review/control.
 9. Commit and push every useful lot to a dedicated branch before cycle end. Open
    or update one scoped PR. Never force-push.
-10. Standing user authorization may permit merges within its exact granted
-    scope after every applicable gate passes. No standing authority waives a
-    `SKEPTIC_BLOCK`, failing CI, unresolved P0/P1/P2 or a required independent
-    review. The independent-review waiver remains limited to PR #60 unless the
-    user explicitly broadens it.
+10. The current standing user authorization permits future POM-RX PR merges
+    without per-PR approval only after the full five-stage gate is satisfied and
+    every other applicable technical/security gate passes on the exact current
+    head. No standing authority waives a `SKEPTIC_BLOCK`, failing CI, unresolved
+    P0/P1/P2 or a required independent review. The independent-review waiver
+    remains limited to PR #60 unless the user explicitly broadens it.
 11. After every non-trivial merge, run the exact-merge-SHA post-merge assurance
     cycle in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as a
     completed trusted dependency.
@@ -138,7 +139,10 @@ independence without increasing parallelism.
 
 The post-merge cycle is additive to pre-merge review, not a substitute for it.
 It is read-only over the merged `main` state and binds its report to the exact
-merge SHA.
+merge SHA. After every non-trivial merge it explicitly runs SpecKit
+reconciliation, skeptical/falsification review, security audit, code-quality
+review, optimization review and integration/regression evidence before a scoped
+post-merge verdict is recorded.
 
 The canonical exact-main status context is `pom-rx/exact-main-ci`. A PASS still
 requires decision-time revalidation of the canonical `.github/workflows/ci.yml`
