@@ -175,44 +175,47 @@ test('later Object.getOwnPropertyNames replacement cannot collapse exact Unicode
   const decomposedRequest = requestFor(typedData('e\u0301'));
   const intent = normalize(composedRequest, 'wg-simulation-exact-object-unicode-0004');
   const commitments = [];
-  let cachedResult = null;
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
       commitments.push(input.request_commitment);
-      if (cachedResult === null) {
-        cachedResult = unavailableResult(input);
-        return cachedResult;
-      }
-      return cachedResult;
+      return unavailableResult(input);
     },
   });
 
   const originalGetOwnPropertyNames = Object.getOwnPropertyNames;
-  Object.getOwnPropertyNames = (value) => {
-    const names = originalGetOwnPropertyNames(value);
-    if (value
+  async function simulateWithTranscriptPoison(rawRequest) {
+    let matchingFrozenRootReads = 0;
+    Object.getOwnPropertyNames = (value) => {
+      const names = originalGetOwnPropertyNames(value);
+      const isTypedDataRoot = value
         && typeof value === 'object'
         && Object.isFrozen(value)
         && names.includes('types')
         && names.includes('primaryType')
         && names.includes('domain')
-        && names.includes('message')) {
-      return [];
+        && names.includes('message');
+      if (isTypedDataRoot) {
+        matchingFrozenRootReads += 1;
+        // The first matching read belongs to replay's independent shared-data
+        // capture and must remain valid. A vulnerable transcript performs a
+        // second live read of the same captured root; poison only that later
+        // read. The repaired transcript never dispatches through this global.
+        if (matchingFrozenRootReads > 1) return [];
+      }
+      return names;
+    };
+    try {
+      return await runtime.simulate({ intent, request: rawRequest });
+    } finally {
+      Object.getOwnPropertyNames = originalGetOwnPropertyNames;
     }
-    return names;
-  };
-
-  let first;
-  let second;
-  try {
-    first = await runtime.simulate({ intent, request: composedRequest });
-    second = await runtime.simulate({ intent, request: decomposedRequest });
-  } finally {
-    Object.getOwnPropertyNames = originalGetOwnPropertyNames;
   }
 
+  const first = await simulateWithTranscriptPoison(composedRequest);
+  const second = await simulateWithTranscriptPoison(decomposedRequest);
+
   assert.equal(first.status, 'unavailable');
-  assert.equal(second.status, 'mismatch');
+  assert.equal(second.status, 'unavailable');
   assert.equal(commitments.length, 2);
   assert.notEqual(commitments[0], commitments[1]);
 });
