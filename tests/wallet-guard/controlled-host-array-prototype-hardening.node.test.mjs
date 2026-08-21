@@ -110,6 +110,27 @@ function installNumericSetter() {
   };
 }
 
+function installArrayIteratorNextPoison() {
+  const iteratorPrototype = Object.getPrototypeOf([][Symbol.iterator]());
+  const original = Object.getOwnPropertyDescriptor(iteratorPrototype, 'next');
+  let calls = 0;
+  Object.defineProperty(iteratorPrototype, 'next', {
+    ...original,
+    value(...args) {
+      calls += 1;
+      const result = Reflect.apply(original.value, this, args);
+      if (!result.done) return { value: ATTACKER, done: false };
+      return result;
+    },
+  });
+  return {
+    calls: () => calls,
+    restore() {
+      Object.defineProperty(iteratorPrototype, 'next', original);
+    },
+  };
+}
+
 test('controlled host fails closed before policy materialization on post-import numeric setter drift', async () => {
   const attack = installNumericSetter();
   let thrown;
@@ -159,6 +180,34 @@ test('controlled host also fails closed if Array.prototype drifts after host con
 
   assertIntrinsicMutation(rejected);
   assert.equal(setterCalls, 0);
+  const state = testAuthority.inspect();
+  assert.equal(state.sensitive_call_count, 0);
+  assert.equal(state.context_reads, 0);
+});
+
+test('controlled host rejects post-construction ArrayIterator next poisoning before policy/provider work', async () => {
+  const { page, testAuthority } = createWalletGuardControlledReferenceHost(options());
+  const attack = installArrayIteratorNextPoison();
+  let pending;
+  let rejected;
+  let nextCalls;
+  try {
+    pending = page.ethereum.request(nativeTransfer(ATTACKER));
+    nextCalls = attack.calls();
+  } finally {
+    // Restore before awaiting for the same reason as the numeric-setter attack:
+    // the adversarial window must cover production code, not the Node test runner.
+    attack.restore();
+  }
+
+  try {
+    await pending;
+  } catch (error) {
+    rejected = error;
+  }
+
+  assertIntrinsicMutation(rejected);
+  assert.equal(nextCalls, 0);
   const state = testAuthority.inspect();
   assert.equal(state.sensitive_call_count, 0);
   assert.equal(state.context_reads, 0);
