@@ -330,6 +330,31 @@ test('captured arrays do not inherit shared ArrayIterator prototype next semanti
   assert.equal(valuesIterated[1], 'second');
 });
 
+test('reference snapshot arrays can be safely recaptured without admitting arbitrary array prototypes', () => {
+  const first = captureReferencePlainData({
+    assertions: [
+      { type: 'policy', result: 'allow' },
+      { type: 'simulation', result: 'allow' },
+    ],
+  }, 'first_capture');
+  const snapshotPrototype = Object.getPrototypeOf(first.assertions);
+
+  const second = captureReferencePlainData(first, 'second_capture');
+  assert.equal(Array.isArray(second.assertions), true);
+  assert.equal(Object.getPrototypeOf(second.assertions), snapshotPrototype);
+  assert.equal(second.assertions.length, 2);
+  assert.equal(second.assertions[0].type, 'policy');
+  assert.equal(second.assertions[1].type, 'simulation');
+  assert.equal(Object.isFrozen(second.assertions), true);
+
+  const foreign = ['untrusted'];
+  Object.setPrototypeOf(foreign, Object.freeze(Object.create(null)));
+  assert.throws(
+    () => captureReferencePlainData(foreign, 'foreign_array_prototype'),
+    (error) => expectPlainDataCode(error, 'POMRX_DATA_E_PROTOTYPE'),
+  );
+});
+
 test('Gate prepared execution arrays remain exact under post-issuance Array prototype poisoning', async () => {
   let evidence;
   let downstreamItems;
