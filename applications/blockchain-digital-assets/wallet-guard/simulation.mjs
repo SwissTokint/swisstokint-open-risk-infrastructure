@@ -72,11 +72,15 @@ const HEX_NIBBLES = '0123456789abcdef';
 // later same-realm prototype/global mutation cannot forge local evidence,
 // substitute its originating intent, widen status vocabulary, make minted
 // evidence mutable, collapse distinct UTF-16 request text through UTF-8
-// replacement, or inject failures into the hash-shape decision itself. As
-// elsewhere in the reference runtime, poisoning before module initialization
-// remains outside this scoped guarantee.
+// replacement, collapse exact -0 request identity, or inject failures into the
+// hash-shape decision itself. As elsewhere in the reference runtime, poisoning
+// before module initialization remains outside this scoped guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_FREEZE = Object.freeze;
+const OBJECT_IS = Object.is;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_HAS_OWN = Object.hasOwn;
 const REGEXP_TEST = RegExp.prototype.test;
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const SET_HAS = Set.prototype.has;
@@ -87,6 +91,41 @@ const WEAK_MAP_GET = WeakMap.prototype.get;
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectIs(left, right) {
+  return REFLECT_APPLY(OBJECT_IS, Object, [left, right]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function deepFreezeCapturedPlainData(value) {
+  if (!value || typeof value !== 'object') return value;
+
+  // Values reaching this helper have already crossed the bounded shared plain-
+  // data capture boundary, so the graph is acyclic, data-only and limited to at
+  // most 1,000 nodes/depth 8. The shared helper currently freezes with the live
+  // global intrinsic; re-walk the captured copy and apply our module-saved
+  // intrinsic to every nested object before any asynchronous simulator callback
+  // can observe it.
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  for (const key of objectGetOwnPropertyNames(value)) {
+    const descriptor = descriptors[key];
+    if (descriptor && objectHasOwn(descriptor, 'value')) {
+      deepFreezeCapturedPlainData(descriptor.value);
+    }
+  }
+  return freezeValue(value);
 }
 
 function regexpTest(pattern, value) {
@@ -129,7 +168,7 @@ function exactPlainDataTranscript(value) {
   if (value === null) return 'null;';
   if (typeof value === 'boolean') return value ? 'bool:1;' : 'bool:0;';
   if (typeof value === 'number') {
-    return Object.is(value, -0) ? 'int:-0;' : `int:${value};`;
+    return objectIs(value, -0) ? 'int:-0;' : `int:${value};`;
   }
   if (typeof value === 'string') {
     return `str:${utf16CodeUnitTranscript(value)};`;
@@ -287,7 +326,7 @@ function captureSimulationRequestSnapshot(rawRequest) {
     if (!capture.ok) {
       fail(code, 'simulation request is not bounded inert plain data');
     }
-    return capture.value;
+    return deepFreezeCapturedPlainData(capture.value);
   }
 
   const requestRecord = captureExactDataRecord(
@@ -316,13 +355,15 @@ function captureSimulationRequestSnapshot(rawRequest) {
 
   // Wrapper structure is bounded independently while the typed-data payload gets
   // the same full node/depth/string budget it receives during Wallet Guard
-  // decoding. The reconstructed snapshot remains the exact captured account and
-  // typed-data values and is what replay and the simulator callback receive.
+  // decoding. Re-apply the module-saved freeze recursively to shared-capture
+  // outputs before any asynchronous callback can retain or mutate them.
+  const capturedAccount = deepFreezeCapturedPlainData(accountCapture.value);
+  const capturedTypedData = deepFreezeCapturedPlainData(typedDataCapture.value);
   const requestSnapshot = Object.create(null);
   requestSnapshot.method = requestRecord.method;
   requestSnapshot.params = freezeValue([
-    accountCapture.value,
-    typedDataCapture.value,
+    capturedAccount,
+    capturedTypedData,
   ]);
   return freezeValue(requestSnapshot);
 }
