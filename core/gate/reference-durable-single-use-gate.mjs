@@ -16,13 +16,14 @@ const BOOTSTRAP_KEYS = Object.freeze([
 ]);
 
 // This composition boundary sits in front of two independently reviewed Core
-// reference primitives. Capture the reflection/state intrinsics it depends on at
-// module initialization so a later same-realm mutation cannot widen bootstrap
-// shape, turn an accessor into a trusted dependency, forge local capability
-// provenance, or re-open a wrapper-reserved capability. Poisoning before module
-// initialization and a generally compromised runtime remain outside this
-// reference guarantee.
+// reference primitives. Capture the reflection/state intrinsics and constructors
+// it depends on at module initialization so a later same-realm mutation cannot
+// widen bootstrap shape, turn an accessor into a trusted dependency, substitute
+// the detached bootstrap snapshot, forge local capability provenance, or re-open
+// a wrapper-reserved capability. Poisoning before module initialization and a
+// generally compromised runtime remain outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
+const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -31,8 +32,13 @@ const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
@@ -97,7 +103,7 @@ function captureBootstrap(value) {
     throw new TypeError('Reference durable Gate bootstrap has missing, hidden or unknown fields');
   }
 
-  const snapshot = Object.create(null);
+  const snapshot = createObject(null);
   for (const key of BOOTSTRAP_KEYS) {
     if (!objectHasOwn(descriptors, key)
         || !isOwnEnumerableDataDescriptor(descriptors[key])) {
@@ -145,8 +151,8 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     executeDownstream: options.executeDownstream,
   });
 
-  const capabilityMetadata = new WeakMap();
-  const wrapperState = new WeakMap();
+  const capabilityMetadata = new WEAK_MAP_CONSTRUCTOR();
+  const wrapperState = new WEAK_MAP_CONSTRUCTOR();
 
   function issueReferenceAuthorizationForTest(bindingInput, issueOptions = {}) {
     const issued = inner.testAuthority.issueReferenceAuthorizationForTest(
