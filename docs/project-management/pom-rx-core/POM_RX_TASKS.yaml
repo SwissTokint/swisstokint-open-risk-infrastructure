@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T17:14:00+02:00",
+  "updated_at": "2026-08-21T17:19:00+02:00",
   "current_main": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -62,6 +62,7 @@
       "tier_b": false,
       "status": "OPEN_AWAITING_EXACT_HEAD_GATES",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
+      "pr": 104,
       "branch": "docs/pom-rx-checkpoint-after-103-20260821",
       "base": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
       "self_head_policy": "Do not embed this branch's own moving commit SHA as authoritative state. Read its live PR head, CI, reviews and threads before release.",
