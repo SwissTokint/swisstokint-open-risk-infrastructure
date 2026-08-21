@@ -68,3 +68,6 @@ const manifest = {
 const bytes = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 writeFileSync(outputPath, bytes, { flag: 'wx' });
 process.stdout.write(bytes);
+// TEMPORARY CI diagnostic: stderr is not redirected by the manifest reproduction step.
+// Remove after copying the generated manifest into the committed artifact.
+process.stderr.write(bytes);
