@@ -48,6 +48,83 @@ const TERMINAL_RECORD_KEYS = Object.freeze([
   'reference_only',
 ]);
 
+// Durable claim identity and handle provenance are security-critical. Capture the
+// exact-object reflection primitives plus WeakMap constructor/dispatch once at
+// module initialization so a post-import same-realm replacement cannot redirect
+// rootDir through a forged snapshot or substitute claim-handle state. Poisoning
+// before module initialization remains outside this reference guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
+const OBJECT_CREATE = Object.create;
+const OBJECT_FREEZE = Object.freeze;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_PROTOTYPE = Object.prototype;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const WEAK_MAP_CONSTRUCTOR = WeakMap;
+const WEAK_MAP_GET = WeakMap.prototype.get;
+const WEAK_MAP_SET = WeakMap.prototype.set;
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function sortArray(value) {
+  return REFLECT_APPLY(ARRAY_SORT, value, []);
+}
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function weakMapGet(map, key) {
+  return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
+function weakMapSet(map, key, value) {
+  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function sameSortedKeys(actual, wanted) {
+  if (actual.length !== wanted.length) return false;
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== wanted[index]) return false;
+  }
+  return true;
+}
+
 export class PomRxDurableClaimStoreError extends Error {
   constructor(code, message) {
     super(message);
@@ -62,33 +139,33 @@ function fail(code, message) {
 
 function isOwnEnumerableDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'value')
-    && Object.hasOwn(descriptor, 'enumerable')
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
     && descriptor.enumerable === true
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
 }
 
 function exactOwnData(value, expectedKeys, label) {
   if (!value
       || typeof value !== 'object'
-      || utilTypes.isProxy(value)
-      || Array.isArray(value)) {
+      || isProxy(value)
+      || arrayIsArray(value)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} must be a non-Proxy plain object`);
   }
-  if (Object.getPrototypeOf(value) !== Object.prototype
-      || Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetPrototypeOf(value) !== OBJECT_PROTOTYPE
+      || objectGetOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} must be a plain object without symbols`);
   }
 
-  const actual = Object.getOwnPropertyNames(value).sort();
-  const wanted = [...expectedKeys].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const actual = sortArray(objectGetOwnPropertyNames(value));
+  const wanted = sortArray([...expectedKeys]);
+  if (!sameSortedKeys(actual, wanted)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} has missing, hidden or unknown fields`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const output = Object.create(null);
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const output = createObject(null);
   for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
@@ -96,7 +173,7 @@ function exactOwnData(value, expectedKeys, label) {
     }
     output[key] = descriptor.value;
   }
-  return Object.freeze(output);
+  return freezeValue(output);
 }
 
 function validateCapabilityId(value) {
@@ -126,14 +203,14 @@ function normalizePersistedValidation(label, operation) {
 }
 
 function makeClaimRecord(capabilityId, authorizationCommitment) {
-  const payload = Object.freeze({
+  const payload = freezeValue({
     schema_version: POM_RX_DURABLE_CLAIM_SCHEMA_VERSION,
     capability_id: capabilityId,
     authorization_commitment: authorizationCommitment,
   });
   const canonical = canonicalizePayload(payload);
   const claimCommitment = sha256Hex(`${CLAIM_COMMIT_DOMAIN}${canonical}`);
-  return Object.freeze({
+  return freezeValue({
     ...payload,
     claim_commitment: claimCommitment,
     reference_only: true,
@@ -146,7 +223,7 @@ function makeClaimRecord(capabilityId, authorizationCommitment) {
 }
 
 function makeTerminalRecord(claimRecord, terminalState) {
-  const payload = Object.freeze({
+  const payload = freezeValue({
     schema_version: POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION,
     capability_id: claimRecord.capability_id,
     authorization_commitment: claimRecord.authorization_commitment,
@@ -154,7 +231,7 @@ function makeTerminalRecord(claimRecord, terminalState) {
     terminal_state: terminalState,
   });
   const canonical = canonicalizePayload(payload);
-  return Object.freeze({
+  return freezeValue({
     ...payload,
     terminal_commitment: sha256Hex(`${TERMINAL_COMMIT_DOMAIN}${canonical}`),
     reference_only: true,
@@ -182,7 +259,7 @@ function validateClaimRecord(value) {
     if (expected.claim_commitment !== record.claim_commitment) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment does not match record contents');
     }
-    return Object.freeze({ ...record });
+    return freezeValue({ ...record });
   });
 }
 
@@ -206,7 +283,7 @@ function validateTerminalRecord(value, claimRecord) {
     if (expected.terminal_commitment !== record.terminal_commitment) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment does not match record contents');
     }
-    return Object.freeze({ ...record });
+    return freezeValue({ ...record });
   });
 }
 
@@ -292,7 +369,7 @@ async function readBoundedJson(filePath) {
 }
 
 function makeInspection(state, claimRecord = null, terminalRecord = null) {
-  return Object.freeze({
+  return freezeValue({
     state,
     capability_id: claimRecord?.capability_id ?? null,
     authorization_commitment: claimRecord?.authorization_commitment ?? null,
@@ -317,7 +394,7 @@ export function createReferenceDurableClaimStore(options) {
   }
 
   const configuredRoot = path.resolve(bootstrap.rootDir);
-  const handleState = new WeakMap();
+  const handleState = new WEAK_MAP_CONSTRUCTOR();
   let trustedRootPromise = null;
 
   async function trustedRoot() {
@@ -382,7 +459,7 @@ export function createReferenceDurableClaimStore(options) {
 
     const rawClaim = await readBoundedJson(path.join(claimDirectory, 'claim.json'));
     if (rawClaim === null) {
-      return Object.freeze({
+      return freezeValue({
         ...makeInspection('RESERVED_INCOMPLETE'),
         capability_id: capabilityId,
       });
@@ -423,20 +500,20 @@ export function createReferenceDurableClaimStore(options) {
     const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
     await writeExclusiveDurable(path.join(claimDirectory, 'claim.json'), claimRecord);
 
-    const handle = Object.freeze(Object.create(null));
-    handleState.set(handle, {
+    const handle = freezeValue(createObject(null));
+    weakMapSet(handleState, handle, {
       state: 'OPEN',
       claimDirectory,
       claimRecord,
     });
-    return Object.freeze({
+    return freezeValue({
       handle,
       claim: claimRecord,
     });
   }
 
   async function complete(handle, outcome) {
-    const state = handleState.get(handle);
+    const state = weakMapGet(handleState, handle);
     if (!state || state.state !== 'OPEN') {
       fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');
     }
@@ -469,7 +546,7 @@ export function createReferenceDurableClaimStore(options) {
     return makeInspection(terminalState, state.claimRecord, terminalRecord);
   }
 
-  return Object.freeze({
+  return freezeValue({
     claim,
     complete,
     inspect,
