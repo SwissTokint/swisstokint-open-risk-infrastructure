@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
+import { types as utilTypes } from 'node:util';
 
 import {
   normalizeWalletGuardIntent,
@@ -280,4 +281,79 @@ test('later node:crypto createHash poisoning cannot collapse simulation commitme
   assert.notEqual(firstEvidence.intent_commitment, '0'.repeat(64));
   assert.notEqual(firstEvidence.simulation_commitment, '0'.repeat(64));
   assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
+});
+
+test('later util.types isProxy poisoning cannot expose typed-data wrapper Proxy traps', async () => {
+  const cleanRequest = typedDataRequest();
+  const intent = normalize(cleanRequest, 'wg-simulation-intrinsic-0006');
+  let callbackCount = 0;
+  let trapCount = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      callbackCount += 1;
+      return callbackResult(input);
+    },
+  });
+
+  const proxiedRequest = new Proxy(cleanRequest, {
+    getOwnPropertyDescriptor(target, key) {
+      trapCount += 1;
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+    getPrototypeOf(target) {
+      trapCount += 1;
+      return Reflect.getPrototypeOf(target);
+    },
+    ownKeys(target) {
+      trapCount += 1;
+      return Reflect.ownKeys(target);
+    },
+  });
+
+  const originalIsProxy = utilTypes.isProxy;
+  utilTypes.isProxy = () => false;
+  try {
+    await assert.rejects(
+      runtime.simulate({ intent, request: proxiedRequest }),
+      (error) => expectCode(error, 'POMRX_WG_SIM_E_REQUEST_INVALID'),
+    );
+  } finally {
+    utilTypes.isProxy = originalIsProxy;
+  }
+
+  assert.equal(trapCount, 0);
+  assert.equal(callbackCount, 0);
+});
+
+test('later Array sort poisoning cannot hide decorated typed-data request wrapper fields', async () => {
+  const cleanRequest = typedDataRequest();
+  const intent = normalize(cleanRequest, 'wg-simulation-intrinsic-0007');
+  const decoratedRequest = typedDataRequest();
+  Object.defineProperty(decoratedRequest, 'hidden', {
+    value: 'must-not-be-dropped',
+    enumerable: false,
+  });
+  let callbackCount = 0;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      callbackCount += 1;
+      return callbackResult(input);
+    },
+  });
+
+  const originalSort = Array.prototype.sort;
+  Array.prototype.sort = function poisonedSort() {
+    this.length = 0;
+    return this;
+  };
+  try {
+    await assert.rejects(
+      runtime.simulate({ intent, request: decoratedRequest }),
+      (error) => expectCode(error, 'POMRX_WG_SIM_E_REQUEST_INVALID'),
+    );
+  } finally {
+    Array.prototype.sort = originalSort;
+  }
+
+  assert.equal(callbackCount, 0);
 });
