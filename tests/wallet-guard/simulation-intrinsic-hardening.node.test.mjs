@@ -126,7 +126,7 @@ test('later WeakSet/WeakMap prototype poisoning cannot forge provenance or inten
   assert.deepEqual(runtime.toPolicySimulation(firstIntent, evidence), { status: 'pass' });
 });
 
-test('foreign WalletGuardSimulationError after callback capture preserves exact provenance', async () => {
+test('post-import Object.getOwnPropertyNames poisoning cannot inject a callback-shape failure', async () => {
   const request = rawRequest();
   const intent = normalize(request, 'wg-simulation-intrinsic-0002');
   const originalGetOwnPropertyNames = Object.getOwnPropertyNames;
@@ -134,25 +134,26 @@ test('foreign WalletGuardSimulationError after callback capture preserves exact 
     'POMRX_WG_SIM_E_INTERNAL',
     'foreign callback-shape failure',
   );
+  let poisonCalls = 0;
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
       Object.getOwnPropertyNames = () => {
+        poisonCalls += 1;
         throw foreignError;
       };
       return callbackResult(input);
     },
   });
 
-  let thrown;
+  let evidence;
   try {
-    await runtime.simulate({ intent, request });
-  } catch (error) {
-    thrown = error;
+    evidence = await runtime.simulate({ intent, request });
   } finally {
     Object.getOwnPropertyNames = originalGetOwnPropertyNames;
   }
 
-  assert.equal(thrown, foreignError);
+  assert.equal(poisonCalls, 0);
+  assert.equal(evidence.status, 'pass');
 });
 
 test('later Object.freeze replacement cannot leave a mutable typed-data callback request', async () => {
@@ -372,15 +373,14 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
 
   const firstEvidence = await runtime.simulate({ intent, request: firstRequest });
   const originalIterator = Array.prototype[Symbol.iterator];
-  let vulnerableShapeCalls = 0;
+  let transcriptIteratorCalls = 0;
   Array.prototype[Symbol.iterator] = function poisonedIterator() {
-    // Replay/normalization legitimately traverses this one-key shape three times.
-    // The vulnerable exact-transcript loop was the fourth dispatch. Preserve the
-    // earlier traversals so this regression attacks the reviewed sink precisely;
-    // the repaired index-based transcript must never issue that fourth dispatch.
-    if (this.length === 1 && this[0] === 'value') {
-      vulnerableShapeCalls += 1;
-      if (vulnerableShapeCalls === 4) return originalIterator.call([]);
+    const stack = new Error().stack ?? '';
+    if (stack.includes('exactPlainDataTranscript')) {
+      transcriptIteratorCalls += 1;
+      // Any iterator dispatch from the exact transcript is the reviewed bug. If
+      // it reappears, collapse the key sequence so the stale result can match.
+      return originalIterator.call([]);
     }
     return originalIterator.call(this);
   };
@@ -394,6 +394,6 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
 
   assert.equal(firstEvidence.status, 'pass');
   assert.equal(distinctEvidence.status, 'mismatch');
-  assert.equal(vulnerableShapeCalls, 3);
+  assert.equal(transcriptIteratorCalls, 0);
   assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
 });
