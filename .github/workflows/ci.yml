@@ -67,6 +67,9 @@ jobs:
             exit 1
           fi
           cmp --silent "$first_manifest" "$second_manifest"
+          echo "::group::generated strict manifest"
+          cat "$first_manifest"
+          echo "::endgroup::"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
