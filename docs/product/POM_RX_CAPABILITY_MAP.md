@@ -84,8 +84,8 @@ A reviewed composition of that durable claim primitive into the common Gate is
 at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Its PR base remains
 `0564aecd42cf0794894c12842980969ff59c9f73`, while current trusted main has moved
 to `2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9` through coordination-only PR #103.
-Live GitHub currently reports `mergeable=false`; that is current
-mergeability/conflict metadata only, does not establish the cause by itself, and
+Live GitHub final revalidation reports `mergeable=true` and
+`mergeable_state=clean`; that is only current mergeability/conflict metadata and
 does not satisfy trusted-main reconciliation, security review or any release
 gate. Canonical exact-head CI run `32487036517` / CI run 592 completed `success`
 on exact head `0efb462...`, but green CI cannot clear the current security
@@ -291,8 +291,8 @@ this checkpoint**. Its current live head is
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
 `32465835858` / CI run 541 is green. Its branch base remains historical
 `818718955c9e4136e9e55754a31be2f1c7b610f8`, while trusted main is now
-`2c537090...`. Live GitHub currently reports `mergeable=false`; that is current
-mergeability/conflict metadata only, does not establish the cause by itself, and
+`2c537090...`. Live GitHub final revalidation reports `mergeable=true` and
+`mergeable_state=clean`; that is current mergeability/conflict metadata only and
 does not satisfy trusted-main reconciliation or provide release evidence. The
 latest distinct Codex release evidence also covers a moved head, while unresolved
 P1/P2 review history remains. PR #93 therefore requires trusted-main
@@ -368,7 +368,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` now trails trusted main `2c537090...`; live `mergeable=false` is current mergeability/conflict metadata only and does not establish the cause by itself. Requires trusted-main reconciliation, runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` now trails trusted main `2c537090...`; live mergeability is `true/clean` at final revalidation but is conflict metadata only and does not establish trusted reconciliation. Requires trusted-main reconciliation, runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
@@ -376,7 +376,7 @@ review.
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
 | Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live `mergeable=false` is current mergeability/conflict metadata only and does not establish the cause or waive reconciliation/review. Still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live mergeability is `true/clean` at final revalidation but is conflict metadata only and does not waive reconciliation/review. Still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
 | Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
