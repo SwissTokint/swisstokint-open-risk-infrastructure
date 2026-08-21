@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-21T11:06:20+02:00`
+Updated: `2026-08-21T11:20:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. The scheduled task may
 run in an associated task conversation separate from an interactive chat, so no
@@ -76,23 +76,32 @@ exact-head review.
 - state: `OPEN / NOT_MERGED / MERGEABLE`;
 - branch: `docs/pom-rx-continuity-reconcile-20260821`;
 - base: trusted main `818718955c9e4136e9e55754a31be2f1c7b610f8`;
+- release state: `AWAITING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW`;
 - scope: non-normative docs/control-plane only; no protocol, verifier, Gate,
   Witness, Wallet Guard runtime, fixture, key, wallet, network or financial
   execution semantic changes;
-- independent Codex review on former head
+- independent Codex review on moved head
   `0a9c56a8f8ddcbb266db55815c387efb7a644527` found four P1 documentation
-  contract regressions plus one P2 stale-register claim; canonical CI run
-  `32465189485` failed on that old head;
-- the current branch repairs those findings by preserving contract-checked Core
-  and Wallet Guard ownership phrases, restoring explicit `full five-stage gate`
-  wording, restoring the mandatory SpecKit/skeptical/security/code-quality /
-  optimization post-merge families, and removing the already-resolved
-  task-register blocker;
-- because these repairs moved the branch, old CI/review evidence is stale. Read
-  the exact live PR #98 head from GitHub before any release decision.
+  contract regressions plus one P2 stale-register claim; those findings are
+  repaired by preserving the contract-checked Core and Wallet Guard ownership
+  phrases, restoring explicit `full five-stage gate` wording, restoring the
+  mandatory SpecKit/skeptical/security/code-quality/optimization post-merge
+  families, and removing the already-resolved stale task-register blocker;
+- a second independent Codex review on moved head
+  `a5d5ad254400d67999241024126ad222b15f592d` found a P2 because the task still
+  described repair work as in progress; TASKS/BLOCKERS now mark PR #98 as waiting
+  on exact-head gates instead;
+- canonical CI on `a5d5ad...` also exposed a separate public-identity contract
+  regression caused by the branch's root README rewrite. The root README was
+  restored byte-for-byte to trusted-main content rather than weakening the
+  frozen public-identity test, and it is no longer part of the PR diff;
+- every prior CI/review named above is moved-head historical input only. Because
+  this file itself is part of PR #98, it deliberately does not embed the branch's
+  own current SHA; always read the actual PR #98 head, exact-head CI and reviews
+  from live GitHub immediately before a release decision.
 
 Next safe action: obtain green CI and a fresh independent Codex review on the
-actual repaired PR #98 head. Merge only if the full five-stage gate and every
+actual current PR #98 head. Merge only if the full five-stage gate and every
 applicable exact-head requirement pass, then immediately run exact-merge-SHA
 post-merge assurance.
 
@@ -111,7 +120,7 @@ dependent Tier-B merge that assumes either open PR is already trusted.
 
 1. `PR93_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED`.
 2. `PR97_UNRESOLVED_EXACT_HEAD_P1_ACCOUNT_ARRAY_CAPTURE`.
-3. `PR98_REPAIRED_HEAD_CI_AND_FRESH_INDEPENDENT_REVIEW_REQUIRED`.
+3. `PR98_EXACT_HEAD_CI_AND_FRESH_INDEPENDENT_REVIEW_REQUIRED`.
 4. `DAGR_SOURCE_DOCUMENT_MISSING`.
 5. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
