@@ -1,3 +1,5 @@
+import { types as utilTypes } from 'node:util';
+
 import {
   canonicalizePayload,
   sha256Hex,
@@ -38,9 +40,51 @@ const normalizedIntentBrand = new WeakSet();
 // same-realm prototype mutation cannot forge local intent provenance, prevent
 // new intents from being branded, or widen the accepted transaction envelope.
 const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PROTOTYPE = Array.prototype;
+const OBJECT_PROTOTYPE = Object.prototype;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
 const SET_HAS = Set.prototype.has;
 const WEAK_SET_ADD = WeakSet.prototype.add;
 const WEAK_SET_HAS = WeakSet.prototype.has;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function objectGetOwnPropertyDescriptor(value, key) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [value, key]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
 
 function setHas(set, value) {
   return REFLECT_APPLY(SET_HAS, set, [value]);
@@ -100,6 +144,82 @@ function assertExactKeys(value, expected, label) {
   }
 }
 
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
+function validateExactTypedDataRequestWrapper(request) {
+  const label = 'EIP-1193 typed-data request';
+  if (!request
+      || typeof request !== 'object'
+      || isProxy(request)
+      || arrayIsArray(request)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} must be a non-Proxy plain object`);
+  }
+  const prototype = objectGetPrototypeOf(request);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} must use Object.prototype or a null prototype`);
+  }
+  if (objectGetOwnPropertySymbols(request).length !== 0) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} cannot contain symbol keys`);
+  }
+
+  const requestNames = objectGetOwnPropertyNames(request);
+  const requestDescriptors = objectGetOwnPropertyDescriptors(request);
+  if (requestNames.length !== REQUEST_KEYS.length) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} has missing, hidden or unknown fields`);
+  }
+  for (const key of REQUEST_KEYS) {
+    if (!objectHasOwn(requestDescriptors, key)
+        || !isOwnEnumerableDataDescriptor(requestDescriptors[key])) {
+      fail('POMRX_WG_E_REQUEST_INVALID', `${label}.${key} must be an enumerable data property`);
+    }
+  }
+  if (requestDescriptors.method.value !== 'eth_signTypedData_v4') {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} method is invalid`);
+  }
+
+  const params = requestDescriptors.params.value;
+  if (!params
+      || typeof params !== 'object'
+      || isProxy(params)
+      || !arrayIsArray(params)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must be a non-Proxy array`);
+  }
+  if (objectGetPrototypeOf(params) !== ARRAY_PROTOTYPE) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must use Array.prototype`);
+  }
+  if (objectGetOwnPropertySymbols(params).length !== 0) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params cannot contain symbol keys`);
+  }
+
+  const paramNames = objectGetOwnPropertyNames(params);
+  const paramDescriptors = objectGetOwnPropertyDescriptors(params);
+  const lengthDescriptor = objectGetOwnPropertyDescriptor(params, 'length');
+  if (paramNames.length !== 3
+      || !lengthDescriptor
+      || !objectHasOwn(lengthDescriptor, 'value')
+      || lengthDescriptor.value !== 2
+      || objectHasOwn(lengthDescriptor, 'get')
+      || objectHasOwn(lengthDescriptor, 'set')) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must contain exactly 2 dense elements`);
+  }
+  for (let index = 0; index < 2; index += 1) {
+    const descriptor = paramDescriptors[String(index)];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail(
+        'POMRX_WG_E_REQUEST_INVALID',
+        `${label}.params[${index}] must be an enumerable data property`,
+      );
+    }
+  }
+}
+
 function normalizeTrustedOrigin(value) {
   if (typeof value !== 'string' || value.length < 8 || value.length > 512) {
     fail('POMRX_WG_E_ORIGIN_INVALID', 'trusted origin is invalid');
@@ -117,11 +237,38 @@ function normalizeTrustedOrigin(value) {
 }
 
 function normalizeRequest(request) {
-  assertExactKeys(request, REQUEST_KEYS, 'EIP-1193 request');
-  if (typeof request.method !== 'string' || !RPC_METHOD_PATTERN.test(request.method)) {
+  if (!request
+      || typeof request !== 'object'
+      || arrayIsArray(request)
+      || isProxy(request)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'EIP-1193 request must be a non-Proxy object');
+  }
+
+  const methodDescriptor = objectGetOwnPropertyDescriptor(request, 'method');
+  const paramsDescriptor = objectGetOwnPropertyDescriptor(request, 'params');
+  if (!isOwnEnumerableDataDescriptor(methodDescriptor)
+      || !isOwnEnumerableDataDescriptor(paramsDescriptor)) {
+    fail(
+      'POMRX_WG_E_REQUEST_INVALID',
+      'EIP-1193 request method and params must be enumerable data properties',
+    );
+  }
+
+  if (methodDescriptor.value === 'eth_signTypedData_v4') {
+    // The typed-data payload receives its own full shared capture budget later;
+    // validate only the exact request/params wrapper here so hidden fields,
+    // symbols, accessors, Proxies and decorated/custom-prototype arrays cannot
+    // normalize successfully and then fail at the simulation boundary.
+    validateExactTypedDataRequestWrapper(request);
+  } else {
+    assertExactKeys(request, REQUEST_KEYS, 'EIP-1193 request');
+  }
+
+  if (typeof methodDescriptor.value !== 'string'
+      || !RPC_METHOD_PATTERN.test(methodDescriptor.value)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'RPC method is invalid');
   }
-  if (!Array.isArray(request.params)) {
+  if (!arrayIsArray(paramsDescriptor.value)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'RPC params must be an array');
   }
   return request;
