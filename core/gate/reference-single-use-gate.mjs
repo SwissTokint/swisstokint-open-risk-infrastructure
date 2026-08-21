@@ -17,7 +17,18 @@ const OBSERVED_KEYS = Object.freeze([
   'context_commitment',
   'prepared_execution',
 ]);
+const OBSERVED_SORTED_KEYS = Object.freeze([
+  'action_commitment',
+  'binding_profile',
+  'context_commitment',
+  'prepared_execution',
+]);
 const HARNESS_KEYS = Object.freeze([
+  'executeDownstream',
+  'observeBinding',
+  'trustedClock',
+]);
+const HARNESS_SORTED_KEYS = Object.freeze([
   'executeDownstream',
   'observeBinding',
   'trustedClock',
@@ -26,7 +37,9 @@ const HARNESS_KEYS = Object.freeze([
 // The Gate's local provenance and exact-object boundary are security-critical.
 // Capture the constructors/reflection primitives used by the factory once at
 // module initialization so post-import replacement cannot substitute capability
-// state, rewrite detached bootstrap/observer snapshots, or widen their shape.
+// state, rewrite detached bootstrap/observer snapshots, widen their shape, or
+// redirect sorting. Security-sensitive iteration over the module-owned key sets
+// is index-based rather than delegated to the mutable shared Array iterator.
 // Poisoning before module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
@@ -118,7 +131,7 @@ function gateError(code, message) {
   return new PomRxGateError(code, message);
 }
 
-function snapshotExactReferences(value, expectedKeys, label) {
+function snapshotExactReferences(value, expectedKeys, expectedSortedKeys, label) {
   if (!value || typeof value !== 'object' || arrayIsArray(value) || isProxy(value)) {
     throw new TypeError(`${label} must be an exact plain data object`);
   }
@@ -133,13 +146,13 @@ function snapshotExactReferences(value, expectedKeys, label) {
 
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const actual = exactSortedKeys(descriptors);
-  const expected = sortArray([...expectedKeys]);
-  if (!sameSortedKeys(actual, expected)) {
+  if (!sameSortedKeys(actual, expectedSortedKeys)) {
     throw new TypeError(`${label} has missing, hidden or unknown fields`);
   }
 
   const snapshot = createObject(null);
-  for (const key of expectedKeys) {
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (!descriptor
       || descriptor.enumerable !== true
@@ -168,13 +181,13 @@ function snapshotObservedRecord(value) {
 
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const actual = exactSortedKeys(descriptors);
-  const expected = sortArray([...OBSERVED_KEYS]);
-  if (!sameSortedKeys(actual, expected)) {
+  if (!sameSortedKeys(actual, OBSERVED_SORTED_KEYS)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
   }
 
   const snapshot = createObject(null);
-  for (const key of OBSERVED_KEYS) {
+  for (let index = 0; index < OBSERVED_KEYS.length; index += 1) {
+    const key = OBSERVED_KEYS[index];
     const descriptor = descriptors[key];
     if (!descriptor
       || descriptor.enumerable !== true
@@ -221,10 +234,12 @@ function validateObservedBinding(value) {
     || !PROFILE_PATTERN.test(snapshot.binding_profile)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid profile');
   }
-  for (const field of ['action_commitment', 'context_commitment']) {
-    if (typeof snapshot[field] !== 'string' || !HASH_PATTERN.test(snapshot[field])) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
-    }
+
+  if (typeof snapshot.action_commitment !== 'string'
+      || !HASH_PATTERN.test(snapshot.action_commitment)
+      || typeof snapshot.context_commitment !== 'string'
+      || !HASH_PATTERN.test(snapshot.context_commitment)) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
   }
 
   let preparedExecution;
@@ -284,6 +299,7 @@ export function createReferenceSingleUseGateHarness(options) {
   const bootstrap = snapshotExactReferences(
     options,
     HARNESS_KEYS,
+    HARNESS_SORTED_KEYS,
     'Reference Gate harness bootstrap',
   );
   const {
