@@ -86,20 +86,26 @@ test('canonicalizer runtime TypeError provenance is not converted by matching me
   );
 });
 
-test('replacement String.normalize accessor is resolved once before exact foreign invocation', () => {
+test('replacement String.normalize accessor is resolved once with the original string receiver before exact foreign invocation', () => {
   const originalDescriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
   const invokedSentinel = new TypeError('replacement normalizer invoked');
   const secondLookupSentinel = new TypeError('replacement normalizer resolved twice');
   let getterCalls = 0;
   let functionCalls = 0;
+  let getterReceiver = null;
+  let functionReceiver = null;
 
   Object.defineProperty(String.prototype, 'normalize', {
     configurable: true,
     get() {
+      'use strict';
       getterCalls += 1;
+      getterReceiver = this;
       if (getterCalls > 1) throw secondLookupSentinel;
       return function replacementNormalize() {
+        'use strict';
         functionCalls += 1;
+        functionReceiver = this;
         throw invokedSentinel;
       };
     },
@@ -112,6 +118,8 @@ test('replacement String.normalize accessor is resolved once before exact foreig
     );
     assert.equal(getterCalls, 1);
     assert.equal(functionCalls, 1);
+    assert.equal(getterReceiver, 'note');
+    assert.equal(functionReceiver, 'note');
   } finally {
     Object.defineProperty(String.prototype, 'normalize', originalDescriptor);
   }
@@ -121,7 +129,7 @@ test('transport HMAC is stable for the exact body and timestamp', () => {
   const body = JSON.stringify(expected.wire_receipt);
   const signed = signTransport(body, 'a'.repeat(64), '1785147330');
   assert.deepEqual(signed, {
-    timestamp: '1785147330',
+    timestamp,
     signature: 'a6397da1d4380f3d2b329fb676e0d1f3f9577ade246114c0be794d3daf9c0bcb',
   });
 });
