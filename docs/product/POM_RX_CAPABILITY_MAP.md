@@ -81,41 +81,44 @@ atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
-at exact head `639b96e7a64fa101432b3afcc3c08aebfcc838cf`, reconciled to exact
-trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Its canonical exact-head
-CI run `32486243945` / CI run 586 is `failure`, so no earlier green CI or
-release-owner review can be used as current release evidence.
+at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, reconciled to exact
+trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Canonical exact-head CI
+run `32487036517` / CI run 592 is `in_progress` at this checkpoint, but CI color
+alone cannot clear the current security blocker.
 
-The previous exact-head independent finding on `37b8e699...`, P1 `Permit runtime
-bookkeeping symbols on native promises`, is historical after the head move. The
-current candidate now keeps ordinary native-Promise transport compatible under
-Node/AsyncHooks bookkeeping symbols in the relevant regression. The current
-exact-head independent finding is instead P1 `Reject Promise drift before
-entering async layers`.
+Current head is one commit after independently blocked parent
+`639b96e7a64fa101432b3afcc3c08aebfcc838cf` and changes only the Wallet Guard
+Promise-drift regression (4 additions / 4 deletions); provider/runtime
+implementation is unchanged. The new test relaxes the isolated requirement from
+zero hostile `Promise.prototype.constructor` getter execution to requiring only
+zero authorization and zero sensitive forwarding in that isolated scenario.
 
-The candidate retains prior direct-result hardening: direct non-Promise
-objects/functions cross the shared inert capture boundary before result-owned
-thenable assimilation, and own native-Promise `constructor`/`then` decoration is
-rejected. It also validates the captured Promise prototype/constructor surface in
-the inner provider transport. However the surrounding provider/context functions
-are themselves async. On exact head `639b96e7...`, the hostile
-post-import-Promise-prototype regression records inherited constructor getter
-execution before the inner rejection reaches its caller; canonical CI is red.
-The fresh independent reviewer further reproduced simultaneous inherited
-`constructor`/`then` poisoning being consulted by outer awaits in
-`readProviderSnapshot`, `sampleStableProviderContext`, `sampleTrustedContext` and
-`request`, producing stable attacker-controlled context, reference authorization
-and sensitive forwarding. This is a current security blocker, not only a
-compatibility/test-shape issue.
+The parent fresh distinct independent review reported P1 `Reject Promise drift
+before entering async layers`. It reproduced inherited
+`Promise.prototype.constructor` plus `then` poisoning being consulted by outer
+awaits in `readProviderSnapshot`, `sampleStableProviderContext`,
+`sampleTrustedContext` and `request` before the inner transport rejection reached
+its caller, producing stable attacker-controlled context, reference authorization
+and sensitive forwarding. Because current head does not change the implementation,
+that exploit class remains unresolved. An exact-current-head release-owner review
+is therefore `BLOCK / NON-INDEPENDENT` for false-PASS risk, and a fresh distinct
+exact-head Codex review is pending.
 
-PR #97 therefore remains **untrusted and blocked for release** until the
-Promise-prototype drift boundary is closed before outer async assimilation while
-preserving ordinary native-Promise compatibility, direct Proxy/function capture,
-own `constructor`/`then` decoration rejection and zero authorization/forwarding on
-hostile rejected transports; exact-head CI is green; a fresh release-owner review
-and a fresh distinct independent skeptical/security review cover the same final
-head; and no P0/P1/P2 remains unresolved. No capability-map text may treat
-durable Gate composition as merged before exact-merge post-merge assurance PASS.
+The earlier `37b8e699...` P1 about runtime bookkeeping symbols on native Promises
+is historical after later changes; ordinary native-Promise provider transport now
+passes the relevant Node/AsyncHooks compatibility regression. The eventual
+security repair must preserve that compatibility along with prior direct
+non-Promise object/function capture and own native-Promise `constructor`/`then`
+decoration rejection.
+
+PR #97 therefore remains **untrusted and blocked for release**. A test-only
+relaxation cannot establish the missing runtime property. Required evidence is a
+runtime repair preventing inherited Promise-prototype drift from being consulted
+by outer async assimilation, CI-wired coverage for the independent exploit class,
+exact-head green CI, a fresh release-owner PASS, a fresh distinct exact-head
+independent skeptical/security review, and no unresolved P0/P1/P2. No
+capability-map text may treat durable Gate composition as merged before
+exact-merge post-merge assurance PASS.
 
 Production issuance remains unproved because production-grade source/Witness
 trust, operator authorization and trusted-time infrastructure are incomplete.
@@ -354,7 +357,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 candidate `639b96e7...` has exact-head CI failure and fresh independent P1 on Promise-prototype drift being consulted by outer async layers before inner transport rejection, with an independent sensitive-forwarding reproducer; requires repair preserving ordinary native-Promise compatibility plus fresh exact-head CI/owner/independent gates and unresolved P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `0efb462...` is a test-only move from parent `639b96e7...`; the parent fresh independent Promise-drift P1 with sensitive-forwarding reproducer remains unresolved because runtime implementation is unchanged. Exact-current owner verdict is BLOCK, CI 592 and fresh independent review are pending; requires runtime repair plus final exact-head green CI/owner/independent gates and P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
