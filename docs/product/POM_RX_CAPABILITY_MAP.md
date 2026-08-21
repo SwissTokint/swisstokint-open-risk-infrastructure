@@ -65,8 +65,8 @@ matching.
 
 The common exact-authorization/single-use-Gate contract is ratified in Core. It
 defines versioned action/context binding, short-lived capability semantics,
-terminal single-use consumption, fail-closed replay behavior and a private
-trusted bootstrap boundary.
+terminal single-use consumption, fail-closed replay behavior and a private trusted
+bootstrap boundary.
 
 A process-local reference Gate harness exercises those semantics with
 Gate-instance-local capability state, synchronous reservation, complete half-open
@@ -262,7 +262,9 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
-or reconciliation semantics. Wallet Guard's primary product home is Blockchain and digital assets, while its defensive control model also overlaps the Cybersecurity block.
+or reconciliation semantics. Wallet Guard's primary product home is
+Blockchain and digital assets, while its defensive control model also overlaps
+the Cybersecurity block.
 
 ## 4. Wallet Guard position
 
@@ -307,8 +309,9 @@ The latest distinct Codex review found in the PR record covers moved head
 independent review was found on current exact head. Live thread revalidation shows
 unresolved current/non-outdated P1/P2 findings, including exact negative-zero
 identity, typed-data wrapper normalization, generic-signature exact-value
-commitment and nested payload capture with saved reflection intrinsics. Moved-head
-fixes are not current exact-head release evidence.
+commitment, shared proof canonicalization/hash concerns and nested payload capture
+with saved reflection intrinsics. Moved-head fixes are not current exact-head
+release evidence.
 
 PR #93 therefore requires trusted-main reconciliation plus fresh exact-head
 release-owner and independent review after PR #97 dependency ordering is safe.
@@ -382,21 +385,33 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` remains blocked by exact-head P1 Promise drift before async layers; repair must be rebuilt from trusted main rather than merging stale history |
-| Wallet Guard | ingress, intent/effects, policy, controller, preflight, Witness adapter, provider/Gate integration and controlled-host layers merged | PR #93 simulation evidence remains untrusted at `c4e40ceb...`; trusted-main reconciliation, fresh exact-head owner/independent review and zero unresolved P0/P1/P2 are required; simulation-to-forwarding atomicity remains separate |
-| Governance DAGR | profile namespace and non-normative positioning only | authorized source document required before normative controls |
-| Production / real-wallet execution | not claimed | trusted production issuer/time/Witness, external effect truth and separate explicit execution authorization are required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is blocked by exact-head P1 Promise drift before async layers; owner verdict BLOCK and CI 592 SUCCESS do not override the exploit. Historical base `0564aecd...` trails trusted main `cfbfd81f...`; current live `mergeable=true` is volatile metadata only. Requires a fresh repaired candidate from trusted main, durable claim before observer/downstream, runtime repair, exact-head CI, owner PASS, distinct independent PASS, zero unresolved P0/P1/P2 and exact-merge post-merge PASS |
+| Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
+| Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
+| Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
+| Payments and financial operations | market-risk and receipt research exist | exact execution adapters and operational Gate |
+| AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
+| APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
+| Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted/historical-base with moved-head independent evidence and unresolved current/non-outdated P1/P2 review history; current live `mergeable=true` is volatile metadata only. Still missing trusted simulation evidence, simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
+| Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
-## 8. Readiness and safety boundary
+## 8. Naming and claim discipline
 
-Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: a
-local, deterministic, synthetic, offline controlled demonstration with strict
-verification, reviewed Witness evidence, exact authorization, fail-closed
-single-use Gate, bounded execution evidence, independent observation and
-reconciliation.
+Use `POM-RX Core` for common semantics and shared primitives. Use `POM-RX Wallet
+Guard` only for the blockchain/digital-assets application profile. Do not rename a
+supporting chain, proof transport, risk engine, site section or demo as a separate
+peer product.
 
-It is not production readiness, an audit, certification, real-wallet safety,
-exchange authorization, deployment authorization or financial-execution proof.
+`reference`, `synthetic`, `controlled`, `local`, `bounded`, `unproved` and
+`non-production` qualifiers are part of the technical claim when they describe the
+actual evidence boundary. Do not drop them from readiness summaries.
+
+Current maximum near-term operational claim remains
+`POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: a local, deterministic, synthetic and
+bounded prototype target. It is not production readiness, audit, certification,
+wallet safety, financial safety, mainnet authorization or deployment approval.
+
 No private key, seed, secret, funded-wallet credential, real/funded wallet,
-mainnet transaction or meaningful funds are authorized. Burner local/testnet E2E
-remains behind a separate explicit human gate.
+mainnet transaction or meaningful funds are authorized by this map. Burner
+local/testnet E2E remains behind a separate explicit human gate.
