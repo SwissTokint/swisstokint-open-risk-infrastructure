@@ -309,7 +309,10 @@ The latest distinct Codex review found in the PR record covers moved head
 independent review was found on current exact head. Live thread revalidation shows
 unresolved current/non-outdated P1/P2 findings, including exact negative-zero
 identity, typed-data wrapper normalization, generic-signature exact-value
-commitment and nested payload capture with saved reflection intrinsics. Moved-head
+commitment, shared proof canonicalization/hash classes, and nested payload capture
+with saved reflection intrinsics. The shared proof classes include the recorded
+post-initialization canonicalization and SHA-256/hash hardening findings and remain
+unresolved until a repaired exact head is independently validated. Moved-head
 fixes are not current exact-head release evidence.
 
 PR #93 therefore requires trusted-main reconciliation plus fresh exact-head
@@ -392,7 +395,7 @@ review.
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
 | Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted/historical-base with moved-head independent evidence and unresolved current/non-outdated P1/P2 review history; current live `mergeable=false` is volatile metadata only. Still missing trusted simulation evidence, simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted/historical-base with moved-head independent evidence and unresolved current/non-outdated P1/P2 review history, including shared proof canonicalization/hash hardening; current live `mergeable=false` is volatile metadata only. Still missing trusted simulation evidence, simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
 | Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming and claim discipline
