@@ -30,6 +30,7 @@ test('post-import key-test poisoning cannot alter shared plain-data validation',
   const originalRegExpExec = RegExp.prototype.exec;
   let setCalls = 0;
   let regexpCalls = 0;
+  let outcome;
 
   Set.prototype.has = function poisonedSetHas() {
     setCalls += 1;
@@ -40,14 +41,16 @@ test('post-import key-test poisoning cannot alter shared plain-data validation',
     return ['forged'];
   };
   try {
-    const outcome = captureReferencePlainDataOutcome(unsafePrototypeRecord(), 'fixture');
-    assert.equal(outcome.ok, false);
-    assert.equal(outcome.error.code, 'POMRX_DATA_E_KEY');
+    // Keep the poison window scoped to production code. Assertion/runtime internals
+    // are evaluated only after the global prototypes are restored.
+    outcome = captureReferencePlainDataOutcome(unsafePrototypeRecord(), 'fixture');
   } finally {
     Set.prototype.has = originalSetHas;
     RegExp.prototype.exec = originalRegExpExec;
   }
 
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.error.code, 'POMRX_DATA_E_KEY');
   assert.equal(setCalls, 0);
   assert.equal(regexpCalls, 0);
 });
@@ -99,6 +102,8 @@ test('post-import reflection and freeze poisoning cannot hide decoration or leav
   let namesCalls = 0;
   let freezeCalls = 0;
   let isArrayCalls = 0;
+  let outcome;
+  let captured;
 
   Object.getOwnPropertyNames = () => {
     namesCalls += 1;
@@ -114,20 +119,21 @@ test('post-import reflection and freeze poisoning cannot hide decoration or leav
   };
 
   try {
-    const outcome = captureReferencePlainDataOutcome(decorated, 'fixture');
-    assert.equal(outcome.ok, false);
-    assert.equal(outcome.error.code, 'POMRX_DATA_E_ACCESSOR');
-
-    const captured = captureReferencePlainData({ nested: ['value'] }, 'clean');
-    assert.equal(Object.isFrozen(captured), true);
-    assert.equal(Object.isFrozen(captured.nested), true);
-    assert.deepEqual(captured.nested, ['value']);
+    // As above, only the shared capture boundary executes while the intrinsics are
+    // poisoned; test-runner/assertion code must not contaminate dispatch counts.
+    outcome = captureReferencePlainDataOutcome(decorated, 'fixture');
+    captured = captureReferencePlainData({ nested: ['value'] }, 'clean');
   } finally {
     Object.getOwnPropertyNames = originalNames;
     Object.freeze = originalFreeze;
     Array.isArray = originalIsArray;
   }
 
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.error.code, 'POMRX_DATA_E_ACCESSOR');
+  assert.equal(Object.isFrozen(captured), true);
+  assert.equal(Object.isFrozen(captured.nested), true);
+  assert.deepEqual(captured.nested, ['value']);
   assert.equal(namesCalls, 0);
   assert.equal(freezeCalls, 0);
   assert.equal(isArrayCalls, 0);
