@@ -71,7 +71,7 @@
       ],
       "acceptance": [
         "Persist exact trusted main 0564aecd42cf0794894c12842980969ff59c9f73 and PR #101 POST_MERGE_ASSURANCE_PASS.",
-        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as a test-only move from independently blocked 639b96e7, with unresolved Promise-drift security P1, exact-head owner BLOCK, current CI 32487036517 pending and fresh exact-head independent review pending.",
+        "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as a test-only move from 639b96e7 with exact-head CI run 32487036517 SUCCESS but a fresh exact-head independent P1 Reject Promise drift before entering async layers and exact-head release-owner BLOCK; do not promote green CI over the security finding.",
         "Represent PR #93 exact live head c4e40ceb286f4e59657767661daed15d2b68e9a7 as currently mergeable but open/untrusted and still requiring trusted-main reconciliation plus fresh exact-head gates.",
         "Preserve the full five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
         "Do not change protocol, verifier, Gate, Witness, Wallet Guard runtime, fixture, key, wallet, network or financial-execution semantics."
@@ -84,23 +84,23 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_UNRESOLVED_PROMISE_DRIFT_P1_TEST_ONLY_HEAD",
+      "status": "BLOCKED_EXACT_HEAD_P1_PROMISE_DRIFT_TEST_ONLY_FALSE_PASS",
       "pr": 97,
       "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "reconciled_main": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"in_progress"},
+      "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"success"},
       "release_owner": {
         "status": "BLOCK_NON_INDEPENDENT_EXACT_HEAD_0EFB462",
         "reviewed_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-        "finding": "Current head only relaxes the failing security regression and does not modify provider/runtime implementation; parent sensitive-forwarding P1 therefore remains unresolved."
+        "finding": "Current head only relaxes the failing security regression and does not modify provider/runtime implementation; the sensitive-forwarding exploit therefore remains unresolved despite green CI."
       },
       "independent_review": {
-        "status": "PENDING_EXACT_HEAD_0EFB462_PARENT_P1_STILL_APPLICABLE",
-        "last_blocking_reviewed_head": "639b96e7a64fa101432b3afcc3c08aebfcc838cf",
+        "status": "BLOCK_P1_EXACT_HEAD_0EFB462",
+        "reviewed_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
         "finding": "P1 Reject Promise drift before entering async layers",
-        "repair_state": "UNRESOLVED_IMPLEMENTATION_UNCHANGED"
+        "repair_state": "UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"
       },
-      "known_state": "Current head is one commit after independently blocked 639b96e7 and changes only the prototype-drift test (4 additions/4 deletions), relaxing the assertion from zero hostile constructor-getter execution to zero authorization/forwarding in the isolated case. Provider/runtime implementation is unchanged. The parent independent reviewer reproduced inherited Promise.prototype.constructor + then poisoning through outer async awaits yielding stable attacker-controlled context, reference authorization and sensitive forwarding. Therefore a green CI on the relaxed test would be insufficient and risks a false PASS. The earlier bookkeeping-symbol compatibility issue is historical and ordinary native Promise compatibility must remain preserved.",
+      "known_state": "Current head is one commit after 639b96e7 and changes only the prototype-drift regression (4 additions/4 deletions), relaxing the isolated assertion from zero hostile constructor-getter execution to zero authorization/forwarding. Provider/runtime implementation is unchanged. Exact-head CI run 32487036517 is green, but a fresh distinct exact-head Codex review re-confirms that simultaneous inherited Promise.prototype.constructor + then poisoning is consulted by outer awaits in readProviderSnapshot, sampleStableProviderContext, sampleTrustedContext and request before the inner rejection reaches its caller; the reviewer reproduced stable attacker-controlled context, reference authorization and sensitive forwarding. The green test-only head is therefore false-PASS risk, not a security repair. The earlier bookkeeping-symbol compatibility issue is historical and ordinary native Promise compatibility must remain preserved.",
       "acceptance": [
         "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
         "Provider-controlled direct non-Promise object/function results cross shared hardened inert capture before async/thenable assimilation.",
@@ -108,13 +108,13 @@
         "Post-import Promise.prototype constructor/then drift cannot be consulted by outer async layers before fail-closed rejection.",
         "Ordinary genuine native Promise provider context transport remains compatible under repository Node test-runner bookkeeping symbols.",
         "Rejected hostile Promise transport cannot reach reference authorization or sensitive forwarding.",
-        "The independent sensitive-forwarding exploit class has a CI-wired regression; security is not established merely by weakening an assertion.",
+        "The exact independent sensitive-forwarding exploit class has CI-wired regression coverage preserving the zero hostile Promise-prototype dispatch expectation; security is not established merely by weakening an assertion.",
         "Current final repaired exact-head CI succeeds.",
         "Release-owner review passes on that exact head and a fresh distinct independent skeptical/security review covers that same head.",
         "No unresolved P0/P1/P2 remains before merge.",
         "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "next_action": "repair runtime Promise-prototype drift handling before outer async assimilation, restore/replace the regression to cover the independent exploit, preserve native-Promise compatibility and prior direct/decorated-result hardening, then rerun exact-head CI, release-owner review and fresh distinct independent review"
+      "next_action": "repair runtime Promise-prototype drift handling before outer async assimilation, restore/preserve regression coverage for the exact independent exploit, preserve native-Promise compatibility and prior direct/decorated-result hardening, then rerun exact-head CI, release-owner review and fresh distinct independent review"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
