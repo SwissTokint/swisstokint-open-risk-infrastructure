@@ -16,71 +16,70 @@ const MAX_CANONICAL_BYTES = 16 * 1024;
 
 // Canonicalization and SHA-256 commitments are shared trust primitives. Capture
 // the intrinsics they dispatch through once at module initialization so a later
-// same-realm mutation of Array.isArray, Array.prototype.sort or the mutable
-// default node:crypto export cannot change an already-defined commitment
-// function. This preserves the public canonical form and hash values in the
-// normal environment; poisoning before module initialization remains out of
-// scope for this reference runtime.
-const REFLECT_APPLY = Reflect.apply;
+// same-realm mutation of array classification/sorting, string normalization,
+// object enumeration, JSON serialization, byte counting, or the mutable default
+// node:crypto createHash export cannot rewrite an already-defined commitment.
+// Public canonical form, validation limits and normal-environment digest values
+// remain unchanged. Poisoning before module initialization remains outside this
+// reference-runtime guarantee.
 const ARRAY_IS_ARRAY = Array.isArray;
-const ARRAY_SORT = Array.prototype.sort;
+const ARRAY_SORT = Array.prototype.sort.call.bind(Array.prototype.sort);
 const BUFFER_BYTE_LENGTH = Buffer.byteLength;
 const CRYPTO_CREATE_HASH = crypto.createHash;
 const JSON_STRINGIFY = JSON.stringify;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const OBJECT_ENTRIES = Object.entries;
-const REGEXP_TEST = RegExp.prototype.test;
-const SET_HAS = Set.prototype.has;
-const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
-const STRING_NORMALIZE = String.prototype.normalize;
-const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
-const HASH_PROBE = REFLECT_APPLY(CRYPTO_CREATE_HASH, crypto, ['sha256']);
-const HASH_PROTOTYPE = Object.getPrototypeOf(HASH_PROBE);
-const HASH_UPDATE = HASH_PROTOTYPE.update;
-const HASH_DIGEST = HASH_PROTOTYPE.digest;
+const REGEXP_TEST = RegExp.prototype.test.call.bind(RegExp.prototype.test);
+const SET_HAS = Set.prototype.has.call.bind(Set.prototype.has);
+const STRING_CHAR_CODE_AT = String.prototype.charCodeAt.call.bind(String.prototype.charCodeAt);
+const STRING_NORMALIZE = String.prototype.normalize.call.bind(String.prototype.normalize);
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase.call.bind(String.prototype.toLowerCase);
+const HASH_PROBE = CRYPTO_CREATE_HASH('sha256');
+const HASH_UPDATE = HASH_PROBE.update.call.bind(HASH_PROBE.update);
+const HASH_DIGEST = HASH_PROBE.digest.call.bind(HASH_PROBE.digest);
 
 function arrayIsArray(value) {
-  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+  return ARRAY_IS_ARRAY(value);
 }
 
 function sortArray(value, compare) {
-  return REFLECT_APPLY(ARRAY_SORT, value, [compare]);
+  return ARRAY_SORT(value, compare);
 }
 
 function objectEntries(value) {
-  return REFLECT_APPLY(OBJECT_ENTRIES, Object, [value]);
+  return OBJECT_ENTRIES(value);
 }
 
 function normalizeString(value, form) {
-  return REFLECT_APPLY(STRING_NORMALIZE, value, [form]);
+  return STRING_NORMALIZE(value, form);
 }
 
 function lowercaseString(value) {
-  return REFLECT_APPLY(STRING_TO_LOWER_CASE, value, []);
+  return STRING_TO_LOWER_CASE(value);
 }
 
 function charCodeAt(value, index) {
-  return REFLECT_APPLY(STRING_CHAR_CODE_AT, value, [index]);
+  return STRING_CHAR_CODE_AT(value, index);
 }
 
 function jsonStringify(value) {
-  return REFLECT_APPLY(JSON_STRINGIFY, JSON, [value]);
+  return JSON_STRINGIFY(value);
 }
 
 function numberIsSafeInteger(value) {
-  return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
+  return NUMBER_IS_SAFE_INTEGER(value);
 }
 
 function regexpTest(pattern, value) {
-  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+  return REGEXP_TEST(pattern, value);
 }
 
 function setHas(set, value) {
-  return REFLECT_APPLY(SET_HAS, set, [value]);
+  return SET_HAS(set, value);
 }
 
 function bufferByteLength(value, encoding) {
-  return REFLECT_APPLY(BUFFER_BYTE_LENGTH, Buffer, [value, encoding]);
+  return BUFFER_BYTE_LENGTH(value, encoding);
 }
 
 const sensitivePayloadKeys = new Set([
@@ -213,9 +212,9 @@ function canonicalizeValue(value) {
 }
 
 export function sha256Hex(value) {
-  const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, crypto, ['sha256']);
-  REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
-  return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
+  const hash = CRYPTO_CREATE_HASH('sha256');
+  HASH_UPDATE(hash, value, 'utf8');
+  return HASH_DIGEST(hash, 'hex');
 }
 
 export function canonicalizePayload(payload) {
