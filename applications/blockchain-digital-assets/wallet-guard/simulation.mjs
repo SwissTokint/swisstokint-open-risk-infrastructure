@@ -375,6 +375,14 @@ function captureSimulationRequestSnapshot(rawRequest) {
   const label = 'Wallet Guard simulation request';
   const code = 'POMRX_WG_SIM_E_REQUEST_INVALID';
 
+  // Dispatch must not be able to demote a Proxy into the generic shared capture
+  // path if a later same-realm mutation poisons that helper's live reflection.
+  // Use this module's saved isProxy intrinsic before any method inspection so a
+  // top-level request Proxy is rejected without executing its traps.
+  if (rawRequest && typeof rawRequest === 'object' && isProxy(rawRequest)) {
+    fail(code, `${label} must be a non-Proxy plain object`);
+  }
+
   // Preserve the historical generic shared capture path for every RPC method
   // except an exact own enumerable eth_signTypedData_v4 method. Typed data is
   // special because Wallet Guard's decoder budgets the typed-data payload itself,
@@ -414,7 +422,7 @@ function captureSimulationRequestSnapshot(rawRequest) {
   // Wrapper structure is bounded independently while the typed-data payload gets
   // the same full node/depth/string budget it receives during Wallet Guard
   // decoding. Re-apply the module-saved freeze recursively to shared-capture
-  // outputs before any asynchronous callback can retain or mutate them.
+  // outputs before any asynchronous simulator callback can retain or mutate them.
   const capturedAccount = deepFreezeCapturedPlainData(accountCapture.value);
   const capturedTypedData = deepFreezeCapturedPlainData(typedDataCapture.value);
   const requestSnapshot = createObject(null);
