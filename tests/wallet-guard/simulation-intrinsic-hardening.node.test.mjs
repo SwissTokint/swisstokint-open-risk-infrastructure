@@ -372,12 +372,15 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
 
   const firstEvidence = await runtime.simulate({ intent, request: firstRequest });
   const originalIterator = Array.prototype[Symbol.iterator];
+  let vulnerableShapeCalls = 0;
   Array.prototype[Symbol.iterator] = function poisonedIterator() {
-    // This is the exact key-list shape that the vulnerable transcript reached for
-    // `message: { value }`. Returning no keys would erase the only UTF-16-exact
-    // difference between these semantically replay-compatible EIP-712 requests.
+    // Replay/normalization legitimately traverses this one-key shape four times.
+    // The vulnerable exact-transcript loop was the fifth dispatch. Preserve the
+    // earlier traversals so this regression attacks the reviewed sink precisely;
+    // the repaired index-based transcript must never issue that fifth dispatch.
     if (this.length === 1 && this[0] === 'value') {
-      return originalIterator.call([]);
+      vulnerableShapeCalls += 1;
+      if (vulnerableShapeCalls === 5) return originalIterator.call([]);
     }
     return originalIterator.call(this);
   };
@@ -391,5 +394,6 @@ test('later Array iterator poisoning cannot collapse exact typed-data request id
 
   assert.equal(firstEvidence.status, 'pass');
   assert.equal(distinctEvidence.status, 'mismatch');
+  assert.equal(vulnerableShapeCalls, 4);
   assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
 });
