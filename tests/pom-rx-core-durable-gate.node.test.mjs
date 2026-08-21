@@ -361,8 +361,8 @@ test('concurrent local use is synchronously reserved before durable I/O and forw
       (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),
     );
 
-    // Allow the first call to reach the observer before checking cardinality.
-    while (observerCalls === 0) await Promise.resolve();
+    // Yield to the event loop so durable filesystem callbacks can run before the observer barrier.
+    while (observerCalls === 0) await new Promise((resolve) => setImmediate(resolve));
     assert.equal(observerCalls, 1);
     assert.equal(downstreamCalls, 0);
     releaseObserver();
