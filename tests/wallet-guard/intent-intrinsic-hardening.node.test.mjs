@@ -162,3 +162,152 @@ test('typed-data normalization rejects hidden, symbol and custom-array decoratio
     );
   });
 });
+
+test('typed-data normalization rejects hidden, symbol, accessor, Proxy and custom-prototype wrappers', () => {
+  const cases = [
+    {
+      name: 'hidden request field',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        Object.defineProperty(rawRequest, 'hidden', {
+          value: true,
+          enumerable: false,
+        });
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'symbol request field',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        rawRequest[Symbol('hidden')] = true;
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'custom request prototype',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        Object.setPrototypeOf(rawRequest, Object.create(Object.prototype));
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'hidden params field',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        Object.defineProperty(rawRequest.params, 'hidden', {
+          value: true,
+          enumerable: false,
+        });
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'symbol params field',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        rawRequest.params[Symbol('hidden')] = true;
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'custom params prototype',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        Object.setPrototypeOf(rawRequest.params, Object.create(Array.prototype));
+        return { rawRequest, observed: () => 0 };
+      },
+    },
+    {
+      name: 'method accessor',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        let getterCount = 0;
+        Object.defineProperty(rawRequest, 'method', {
+          enumerable: true,
+          configurable: true,
+          get() {
+            getterCount += 1;
+            return 'eth_signTypedData_v4';
+          },
+        });
+        return { rawRequest, observed: () => getterCount };
+      },
+    },
+    {
+      name: 'params accessor',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        const params = rawRequest.params;
+        let getterCount = 0;
+        Object.defineProperty(rawRequest, 'params', {
+          enumerable: true,
+          configurable: true,
+          get() {
+            getterCount += 1;
+            return params;
+          },
+        });
+        return { rawRequest, observed: () => getterCount };
+      },
+    },
+    {
+      name: 'request Proxy',
+      build() {
+        const target = typedDataRequest(customTypedData());
+        let trapCount = 0;
+        const rawRequest = new Proxy(target, {
+          get(...args) {
+            trapCount += 1;
+            return Reflect.get(...args);
+          },
+          getOwnPropertyDescriptor(...args) {
+            trapCount += 1;
+            return Reflect.getOwnPropertyDescriptor(...args);
+          },
+          ownKeys(...args) {
+            trapCount += 1;
+            return Reflect.ownKeys(...args);
+          },
+        });
+        return { rawRequest, observed: () => trapCount };
+      },
+    },
+    {
+      name: 'params Proxy',
+      build() {
+        const rawRequest = typedDataRequest(customTypedData());
+        let trapCount = 0;
+        rawRequest.params = new Proxy(rawRequest.params, {
+          get(...args) {
+            trapCount += 1;
+            return Reflect.get(...args);
+          },
+          getOwnPropertyDescriptor(...args) {
+            trapCount += 1;
+            return Reflect.getOwnPropertyDescriptor(...args);
+          },
+          ownKeys(...args) {
+            trapCount += 1;
+            return Reflect.ownKeys(...args);
+          },
+        });
+        return { rawRequest, observed: () => trapCount };
+      },
+    },
+  ];
+
+  cases.forEach(({ name, build }, index) => {
+    const { rawRequest, observed } = build();
+    assert.throws(
+      () => normalize(
+        rawRequest,
+        `wg-intent-intrinsic-wrapper-${String(index).padStart(4, '0')}`,
+      ),
+      expectRequestInvalid,
+      name,
+    );
+    assert.equal(observed(), 0, `${name} must not execute user code`);
+  });
+});
