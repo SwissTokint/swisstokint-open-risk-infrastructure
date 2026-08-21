@@ -18,9 +18,10 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 // weaken key/number checks, or leave a supposedly frozen snapshot mutable.
 // Captured arrays are additionally detached from the mutable shared
 // Array.prototype onto a frozen method-only prototype assembled at module
-// initialization, so implicit iteration and ordinary Array-method lookup do not
-// re-enter a later-poisoned global Array prototype. Poisoning before module
-// initialization remains outside this reference guarantee.
+// initialization. Iterator-producing methods are reference-owned rather than
+// copied from the runtime so a later mutation of either Array.prototype or the
+// shared ArrayIterator prototype cannot rewrite traversal of captured values.
+// Poisoning before module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
@@ -39,7 +40,95 @@ const OBJECT_PROTOTYPE = Object.prototype;
 const OBJECT_SET_PROTOTYPE_OF = Object.setPrototypeOf;
 const REGEXP_EXEC = RegExp.prototype.exec;
 const SET_HAS = Set.prototype.has;
+const SYMBOL_ITERATOR = Symbol.iterator;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+
+function immutableDataDescriptor(value, enumerable = false) {
+  const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = enumerable;
+  descriptor.writable = false;
+  descriptor.configurable = false;
+  return descriptor;
+}
+
+function defineImmutableMethod(target, key, value) {
+  REFLECT_APPLY(
+    OBJECT_DEFINE_PROPERTY,
+    Object,
+    [target, key, immutableDataDescriptor(value)],
+  );
+}
+
+function createIteratorResult(value, done) {
+  const result = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  REFLECT_APPLY(
+    OBJECT_DEFINE_PROPERTY,
+    Object,
+    [result, 'value', immutableDataDescriptor(value, true)],
+  );
+  REFLECT_APPLY(
+    OBJECT_DEFINE_PROPERTY,
+    Object,
+    [result, 'done', immutableDataDescriptor(done, true)],
+  );
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [result]);
+}
+
+function createSnapshotEntry(index, value) {
+  const entry = new ARRAY_CONSTRUCTOR(2);
+  REFLECT_APPLY(
+    OBJECT_SET_PROTOTYPE_OF,
+    Object,
+    [entry, SNAPSHOT_ARRAY_PROTOTYPE],
+  );
+  defineOwnArrayElement(entry, '0', index);
+  defineOwnArrayElement(entry, '1', value);
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [entry]);
+}
+
+function createSnapshotIterator(target, mode) {
+  let index = 0;
+  const iterator = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+
+  function next() {
+    if (index >= target.length) {
+      return createIteratorResult(undefined, true);
+    }
+
+    const current = index;
+    index += 1;
+    let value;
+    if (mode === 'keys') {
+      value = current;
+    } else if (mode === 'entries') {
+      value = createSnapshotEntry(current, target[current]);
+    } else {
+      value = target[current];
+    }
+    return createIteratorResult(value, false);
+  }
+
+  function iteratorSelf() {
+    return iterator;
+  }
+
+  defineImmutableMethod(iterator, 'next', next);
+  defineImmutableMethod(iterator, SYMBOL_ITERATOR, iteratorSelf);
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [iterator]);
+}
+
+function snapshotArrayValues() {
+  return createSnapshotIterator(this, 'values');
+}
+
+function snapshotArrayKeys() {
+  return createSnapshotIterator(this, 'keys');
+}
+
+function snapshotArrayEntries() {
+  return createSnapshotIterator(this, 'entries');
+}
 
 function createImmutableArraySnapshotPrototype() {
   const prototype = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
@@ -49,13 +138,19 @@ function createImmutableArraySnapshotPrototype() {
     [ARRAY_PROTOTYPE],
   );
 
-  // Copy only callable built-ins. In particular, do not copy `constructor` or
-  // Symbol.unscopables: species construction should fall back to the intrinsic
-  // Array path instead of consulting mutable constructor state, and unscopables
-  // is not data traversal behavior.
+  // Copy callable built-ins that do not manufacture iterator objects. In
+  // particular, do not copy `constructor`: species construction should fall
+  // back to the intrinsic Array path instead of consulting mutable constructor
+  // state. values/keys/entries are installed below as reference-owned iterators.
   for (let index = 0; index < names.length; index += 1) {
     const key = names[index];
-    if (key === 'length' || key === 'constructor') continue;
+    if (key === 'length'
+        || key === 'constructor'
+        || key === 'values'
+        || key === 'keys'
+        || key === 'entries') {
+      continue;
+    }
     const sourceDescriptor = REFLECT_APPLY(
       OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
       Object,
@@ -67,12 +162,7 @@ function createImmutableArraySnapshotPrototype() {
       continue;
     }
 
-    const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
-    descriptor.value = sourceDescriptor.value;
-    descriptor.enumerable = false;
-    descriptor.writable = false;
-    descriptor.configurable = false;
-    REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [prototype, key, descriptor]);
+    defineImmutableMethod(prototype, key, sourceDescriptor.value);
   }
 
   const symbols = REFLECT_APPLY(
@@ -82,6 +172,7 @@ function createImmutableArraySnapshotPrototype() {
   );
   for (let index = 0; index < symbols.length; index += 1) {
     const key = symbols[index];
+    if (key === SYMBOL_ITERATOR) continue;
     const sourceDescriptor = REFLECT_APPLY(
       OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
       Object,
@@ -93,14 +184,13 @@ function createImmutableArraySnapshotPrototype() {
       continue;
     }
 
-    const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
-    descriptor.value = sourceDescriptor.value;
-    descriptor.enumerable = false;
-    descriptor.writable = false;
-    descriptor.configurable = false;
-    REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [prototype, key, descriptor]);
+    defineImmutableMethod(prototype, key, sourceDescriptor.value);
   }
 
+  defineImmutableMethod(prototype, 'values', snapshotArrayValues);
+  defineImmutableMethod(prototype, 'keys', snapshotArrayKeys);
+  defineImmutableMethod(prototype, 'entries', snapshotArrayEntries);
+  defineImmutableMethod(prototype, SYMBOL_ITERATOR, snapshotArrayValues);
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [prototype]);
 }
 
