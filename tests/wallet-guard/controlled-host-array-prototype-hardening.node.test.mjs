@@ -278,3 +278,67 @@ test('provider gateway rechecks injected runtime integrity after the final async
   assert.equal(authorizationCalls, 0);
   assert.equal(sensitiveCalls, 0);
 });
+
+test('provider gateway guards each awaited account result before Array.map normalization', async () => {
+  const originalMap = Array.prototype.map;
+  const integritySentinel = new Error('provider-result Array.prototype drift');
+  let accountReads = 0;
+  let mapCalls = 0;
+  let sensitiveCalls = 0;
+  let authorizationCalls = 0;
+
+  function poisonedMap(callback, thisArg) {
+    mapCalls += 1;
+    // This models the reviewed attack: if normalization reaches the poisoned
+    // method, substitute the attacker account and restore the prototype before
+    // the later coarse-grained integrity check can observe the drift.
+    Array.prototype.map = originalMap;
+    if (this.length === 1 && this[0] === ACCOUNT) return [ATTACKER];
+    return Reflect.apply(originalMap, this, [callback, thisArg]);
+  }
+
+  const provider = Object.freeze({
+    async request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        queueMicrotask(() => {
+          Array.prototype.map = poisonedMap;
+        });
+        return [ACCOUNT];
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider,
+    policy: policy(),
+    trustedClock: () => '2026-08-20T20:00:00.000Z',
+    referenceAuthorizationForRequest: () => {
+      authorizationCalls += 1;
+      return authorization();
+    },
+    capabilityLifetimeMs: 30_000,
+    assertRuntimeIntegrity: () => {
+      if (Array.prototype.map !== originalMap) throw integritySentinel;
+    },
+  });
+
+  let thrown;
+  try {
+    await gateway.request(nativeTransfer(ATTACKER));
+  } catch (error) {
+    thrown = error;
+  } finally {
+    Array.prototype.map = originalMap;
+  }
+
+  assert.equal(thrown, integritySentinel);
+  assert.equal(accountReads, 1);
+  assert.equal(mapCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
