@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import test from 'node:test';
 
 import {
@@ -190,4 +191,93 @@ test('later Object.freeze replacement cannot leave a mutable typed-data callback
   assert.ok(retained.length > 0);
   assert.equal(callbackCount, 1);
   assert.equal(evidence.status, 'pass');
+});
+
+test('later Array sort/isArray poisoning cannot collapse compact typed-data request commitments', async () => {
+  const firstRequest = typedDataRequest('é');
+  const equivalentRequest = typedDataRequest('é');
+  const distinctExactRequest = typedDataRequest('e\u0301');
+  const intent = normalize(firstRequest, 'wg-simulation-intrinsic-0004');
+  let cachedResult = null;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      if (cachedResult === null) cachedResult = callbackResult(input);
+      return cachedResult;
+    },
+  });
+
+  const originalSort = Array.prototype.sort;
+  const originalIsArray = Array.isArray;
+  Array.prototype.sort = function poisonedSort() {
+    this.length = 0;
+    return this;
+  };
+  Array.isArray = (value) => {
+    if (originalIsArray(value)
+        && Object.isFrozen(value)
+        && value.length === 2
+        && value[1]
+        && typeof value[1] === 'object'
+        && Object.hasOwn(value[1], 'exact_typed_data_sha256')) {
+      return false;
+    }
+    return originalIsArray(value);
+  };
+
+  let firstEvidence;
+  let equivalentEvidence;
+  let distinctEvidence;
+  try {
+    firstEvidence = await runtime.simulate({ intent, request: firstRequest });
+    equivalentEvidence = await runtime.simulate({ intent, request: equivalentRequest });
+    distinctEvidence = await runtime.simulate({ intent, request: distinctExactRequest });
+  } finally {
+    Array.prototype.sort = originalSort;
+    Array.isArray = originalIsArray;
+  }
+
+  assert.equal(firstEvidence.status, 'pass');
+  assert.equal(equivalentEvidence.status, 'pass');
+  assert.equal(distinctEvidence.status, 'mismatch');
+  assert.equal(equivalentEvidence.request_commitment, firstEvidence.request_commitment);
+  assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
+});
+
+test('later node:crypto createHash poisoning cannot collapse simulation commitments', async () => {
+  const firstRequest = typedDataRequest('é');
+  const distinctExactRequest = typedDataRequest('e\u0301');
+  const intent = normalize(firstRequest, 'wg-simulation-intrinsic-0005');
+  let cachedResult = null;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      if (cachedResult === null) cachedResult = callbackResult(input);
+      return cachedResult;
+    },
+  });
+
+  const originalCreateHash = crypto.createHash;
+  crypto.createHash = () => ({
+    update() {
+      return this;
+    },
+    digest() {
+      return '0'.repeat(64);
+    },
+  });
+
+  let firstEvidence;
+  let distinctEvidence;
+  try {
+    firstEvidence = await runtime.simulate({ intent, request: firstRequest });
+    distinctEvidence = await runtime.simulate({ intent, request: distinctExactRequest });
+  } finally {
+    crypto.createHash = originalCreateHash;
+  }
+
+  assert.equal(firstEvidence.status, 'pass');
+  assert.equal(distinctEvidence.status, 'mismatch');
+  assert.notEqual(firstEvidence.request_commitment, '0'.repeat(64));
+  assert.notEqual(firstEvidence.intent_commitment, '0'.repeat(64));
+  assert.notEqual(firstEvidence.simulation_commitment, '0'.repeat(64));
+  assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
 });
