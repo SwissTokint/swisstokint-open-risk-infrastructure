@@ -95,7 +95,7 @@ exact-head independent review and zero unresolved P0/P1/P2 before merge.
 - exact-head canonical CI: run `32465835858`, `CI` run 541, `success`;
 - latest distinct Codex review submission found in the PR record covers moved head `03e0201c9f...`, not current `c4e40ceb...`;
 - no fresh release-owner or distinct independent release review was found on exact current head `c4e40ceb...`;
-- unresolved current/non-outdated P1/P2 threads remain, including exact negative-zero identity, typed-data wrapper normalization, exact-value generic-signature commitment and nested payload capture with saved reflection intrinsics; moved-head fixes do not release this head;
+- unresolved current/non-outdated P1/P2 threads remain, including exact negative-zero identity, typed-data wrapper normalization, exact-value generic-signature commitment, shared proof canonicalization/hash classes and nested payload capture with saved reflection intrinsics; moved-head fixes do not release this head;
 - #93 overlaps shared regression/package surfaces with #97 and remains ordered after trusted #97 dependency state unless a separately reviewed dependency decision changes that order.
 
 Required next gate: only after #97 has trusted exact-merge post-merge PASS evidence
