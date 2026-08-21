@@ -108,15 +108,21 @@ function fail(code, message) {
   throw new WalletGuardControlledHostError(code, message);
 }
 
+function descriptorFieldEqual(left, right, field) {
+  const leftHas = OBJECT_HAS_OWN(left, field);
+  const rightHas = OBJECT_HAS_OWN(right, field);
+  return leftHas === rightHas && (!leftHas || OBJECT_IS(left[field], right[field]));
+}
+
 function sameDescriptor(left, right) {
-  if (!left || !right) return false;
-  for (const field of ['value', 'writable', 'get', 'set', 'enumerable', 'configurable']) {
-    const leftHas = OBJECT_HAS_OWN(left, field);
-    const rightHas = OBJECT_HAS_OWN(right, field);
-    if (leftHas !== rightHas) return false;
-    if (leftHas && !OBJECT_IS(left[field], right[field])) return false;
-  }
-  return true;
+  return Boolean(left)
+    && Boolean(right)
+    && descriptorFieldEqual(left, right, 'value')
+    && descriptorFieldEqual(left, right, 'writable')
+    && descriptorFieldEqual(left, right, 'get')
+    && descriptorFieldEqual(left, right, 'set')
+    && descriptorFieldEqual(left, right, 'enumerable')
+    && descriptorFieldEqual(left, right, 'configurable');
 }
 
 function assertArrayPrototypeStable() {
