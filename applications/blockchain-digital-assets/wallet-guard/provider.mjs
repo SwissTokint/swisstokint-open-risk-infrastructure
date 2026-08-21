@@ -42,6 +42,10 @@ const BOOTSTRAP_KEYS = Object.freeze([
   'referenceAuthorizationForRequest',
   'capabilityLifetimeMs',
 ]);
+const GUARDED_BOOTSTRAP_KEYS = Object.freeze([
+  ...BOOTSTRAP_KEYS,
+  'assertRuntimeIntegrity',
+]);
 const REFERENCE_AUTH_KEYS = Object.freeze([
   'run_id',
   'agent_ref',
@@ -97,6 +101,15 @@ function exactKeys(value, expected, label) {
   if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
   }
+}
+
+function exactBootstrapKeys(value) {
+  const expected = value
+    && typeof value === 'object'
+    && Object.hasOwn(value, 'assertRuntimeIntegrity')
+    ? GUARDED_BOOTSTRAP_KEYS
+    : BOOTSTRAP_KEYS;
+  exactKeys(value, expected, 'Wallet Guard provider bootstrap');
 }
 
 function canonicalOrigin(value) {
@@ -383,19 +396,21 @@ function makeDecisionResult(policyResult, committed, forwarded, providerResult =
 }
 
 export function createWalletGuardReferenceProviderGateway(options) {
-  exactKeys(options, BOOTSTRAP_KEYS, 'Wallet Guard provider bootstrap');
+  exactBootstrapKeys(options);
   const {
     captureTrustedOrigin,
     provider,
     trustedClock,
     referenceAuthorizationForRequest,
+    assertRuntimeIntegrity,
   } = options;
   if (typeof captureTrustedOrigin !== 'function'
       || !provider
       || typeof provider !== 'object'
       || typeof provider.request !== 'function'
       || typeof trustedClock !== 'function'
-      || typeof referenceAuthorizationForRequest !== 'function') {
+      || typeof referenceAuthorizationForRequest !== 'function'
+      || (assertRuntimeIntegrity !== undefined && typeof assertRuntimeIntegrity !== 'function')) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'trusted bootstrap dependencies are invalid');
   }
   if (!Number.isSafeInteger(options.capabilityLifetimeMs)
@@ -404,6 +419,11 @@ export function createWalletGuardReferenceProviderGateway(options) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'capabilityLifetimeMs must be between 1 second and 5 minutes');
   }
 
+  function assertRuntimeIntegrityNow() {
+    if (assertRuntimeIntegrity !== undefined) assertRuntimeIntegrity();
+  }
+
+  assertRuntimeIntegrityNow();
   const policy = normalizeWalletGuardPolicy(options.policy);
   const usedRunIds = new Set();
   const usedPreflightHashes = new Set();
@@ -415,6 +435,12 @@ export function createWalletGuardReferenceProviderGateway(options) {
     observeBinding: async (attempt) => {
       exactKeys(attempt, ['request_id', 'request'], 'Wallet Guard execution attempt');
       const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      // The controlled host can supply a synchronous same-realm integrity guard.
+      // Run it immediately after every async context sample, before request cloning,
+      // intent normalization or policy evaluation can dispatch through mutable
+      // application intrinsics. There is no await between this check and policy
+      // dispatch, so post-await prototype drift cannot hide between coarse guards.
+      assertRuntimeIntegrityNow();
       const request = clonePlainRequest(attempt.request);
       const intent = normalizeWalletGuardIntent({
         requestId: attempt.request_id,
@@ -423,6 +449,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
         trustedAccount: context.account,
         request,
       });
+      assertRuntimeIntegrityNow();
       const policyResult = evaluateWalletGuardPolicy(intent, policy, { status: 'not_run' });
       if (policyResult.decision !== 'ALLOW') {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the execution attempt');
@@ -447,6 +474,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);
       const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      assertRuntimeIntegrityNow();
       if (!exactContextMatches(prepared, context)) {
         fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
       }
@@ -464,6 +492,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_BINDING_CHANGED', 'prepared request no longer matches the Gate-bound intent');
       }
 
+      assertRuntimeIntegrityNow();
       const policyResult = evaluateWalletGuardPolicy(intent, policy, { status: 'not_run' });
       if (policyResult.decision !== 'ALLOW' || policyResult.policy_hash !== prepared.policy_hash) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the prepared request');
@@ -481,6 +510,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
 
     const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+    assertRuntimeIntegrityNow();
     const intent = normalizeWalletGuardIntent({
       requestId,
       trustedOrigin: context.origin,
@@ -488,6 +518,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
       trustedAccount: context.account,
       request: requestSnapshot,
     });
+    assertRuntimeIntegrityNow();
     const policyResult = evaluateWalletGuardPolicy(intent, policy, { status: 'not_run' });
     const committed = commitWalletGuardIntent(intent);
 
