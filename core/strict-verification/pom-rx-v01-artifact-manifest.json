@@ -81,9 +81,9 @@
     },
     {
       "path": "sdk/typescript/swisstokint-proof.mjs",
-      "byte_length": 20701,
-      "sha256": "e67fe1c7e8cb32158c4b3b48c77bf736724e1aa94ae5678d49fa9047b4ecfa42"
+      "byte_length": 20737,
+      "sha256": "e8678c860ec215f883a7a260299d05410007c33b26b8c1a64166f46f4b9ca24e"
     }
   ],
-  "implementation_artifact_sha256": "5343ace483a15a04117cb62d827a68517d20a471152cb070cc6f73a7ed72d845"
+  "implementation_artifact_sha256": "989465c2fbbe8666de8ec7462e3ec0004f0ee75e1877995d3d781cfec35cf983"
 }
