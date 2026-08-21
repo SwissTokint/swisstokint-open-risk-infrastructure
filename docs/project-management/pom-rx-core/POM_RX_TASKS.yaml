@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T11:20:00+02:00",
-  "current_main": "818718955c9e4136e9e55754a31be2f1c7b610f8",
+  "updated_at": "2026-08-21T11:30:00+02:00",
+  "current_main": "1abe57f8baea8dd6844cc8ea9e321c05ec01538f",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -16,9 +16,9 @@
     ]
   },
   "history": {
-    "previous_active_register_blob": "aabe9534f2da22fa60d8a6ea89ced2759d94149b",
-    "previous_register_main_checkpoint": "60a331540dded68f8e13fa4aae9dc131934b772f",
-    "preservation": "All superseded detailed August 14 task records remain immutable in Git history. This file is intentionally reconciled to active/current work rather than retaining obsolete READY/BLOCKED labels in the live register."
+    "previous_active_register_blob": "b58fc71e73c5f65a33c8d740c58e9ca565dec006",
+    "previous_register_main_checkpoint": "818718955c9e4136e9e55754a31be2f1c7b610f8",
+    "preservation": "Superseded task records, including the completed PR #98 continuity-reconciliation task and older August 14 detail, remain immutable in Git history."
   },
   "limits": {
     "max_active_specialist_lanes": 3,
@@ -40,8 +40,7 @@
   "merged_foundation": [
     {
       "capability": "strict_profile_activation",
-      "state": "MERGED_TRUSTED_REFERENCE",
-      "notes": "pom-rx-v0.1/strict-errata-1 activated additively while historical verifier remains preserved"
+      "state": "MERGED_TRUSTED_REFERENCE"
     },
     {
       "capability": "core_exact_authorization_and_process_local_gate",
@@ -74,42 +73,44 @@
     },
     {
       "capability": "exact_main_ci_status_surface",
-      "state": "MERGED_PR_96",
-      "merge_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8"
+      "state": "MERGED_PR_96"
+    },
+    {
+      "capability": "github_backed_cross_chat_control_plane",
+      "state": "MERGED_TRUSTED_CONTROL_PLANE",
+      "pr": 98,
+      "source_head": "47bcc2129dc88c97b0d8d42434b42cee82855861",
+      "merge_sha": "1abe57f8baea8dd6844cc8ea9e321c05ec01538f",
+      "exact_merge_ci_run": 32467712934,
+      "post_merge_verdict": "POST_MERGE_ASSURANCE_PASS"
     }
   ],
   "tasks": [
     {
-      "id": "CONTROL-PLANE-CROSS-CHAT-CONTINUITY-20260821",
-      "phase": "COORDINATION",
+      "id": "CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97",
+      "phase": "CORE_REFERENCE",
       "priority": "P0",
-      "complexity": "MEDIUM",
-      "tier_b": false,
-      "status": "AWAITING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW",
-      "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
-      "branch": "docs/pom-rx-continuity-reconcile-20260821",
-      "pr": 98,
-      "base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "self_head_policy": "Do not embed this branch's own current commit SHA in this file because updating the file necessarily moves that SHA. Read PR #98 head and exact-head CI/review state from live GitHub before every release decision.",
-      "files_owned": [
-        "core/README.md",
-        "docs/product/POM_RX_CAPABILITY_MAP.md",
-        "docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md",
-        "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
-        "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-        "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
-        "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml"
-      ],
+      "complexity": "CRITICAL",
+      "tier_b": true,
+      "status": "BLOCKED_UNRESOLVED_P1_AND_MAIN_RECONCILIATION",
+      "pr": 97,
+      "checkpoint_head": "1f228dab6c5a2c0ac2ac9952d8d52978ba44b780",
+      "checkpoint_ci": {
+        "run": 32464344634,
+        "status": "success",
+        "note": "valid only for the historical exact head before trusted main advanced"
+      },
+      "known_state": "Independent Codex review on exact head 1f228dab found a P1: provider-controlled eth_accounts Array Proxy/decorated-array input can trigger map dispatch after the integrity check and substitute the active account before authorization/sensitive forwarding. The branch is now reported non-mergeable against trusted main 1abe57f8 and must be repaired/reconciled rather than merged stale.",
       "acceptance": [
-        "Scheduled runner never relies on associated task-chat history as the only project memory.",
-        "Current main/open PR/head/CI/blocker state is represented without reviving superseded August 14 blockers.",
-        "Active roster uses evidenced responsibility lanes and does not claim unverified Claude/other model approvals.",
-        "Capability and Core README wording matches capabilities actually merged on trusted main.",
-        "The root public README identity remains unchanged by this control-plane lot.",
-        "No protocol/runtime/security semantic is changed."
+        "Reconcile the bounded useful lot to current trusted main without overwriting PR #98 control-plane state.",
+        "Provider-controlled account arrays are rejected/captured through a hardened inert boundary before normalization, with Proxy/decorated-array attacks failing before authorization or sensitive forwarding.",
+        "Add a CI-wired regression requiring zero hostile trap/getter dispatch, zero authorization and zero sensitive forwarding for the attack class.",
+        "Current reconciled exact head CI succeeds.",
+        "Fresh release-owner and distinct independent skeptical/security reviews cover the same reconciled exact head.",
+        "No unresolved P0/P1/P2 remains.",
+        "Reference-only filesystem/install assumptions and production non-claims remain explicit."
       ],
-      "known_review_state": "The first independent Codex review on moved head 0a9c56a8 found four contract-breaking P1s and one stale-register P2; those were repaired. A second independent review on moved head a5d5ad found a P2 because this task still described repair work as in progress; this register now records the correct exact-head gate state. Canonical CI on a5d5ad also exposed an unrelated public-identity contract regression caused by the branch's root README rewrite; the README rewrite was reverted byte-for-byte rather than weakening the test. All prior reviews are moved-head historical input only.",
-      "next_gate": "obtain green CI and a fresh distinct independent review on the actual current PR #98 head with no unresolved P0/P1/P2; then complete the exact-head release-owner/five-stage gate, merge under standing authorization, and run exact-merge post-merge assurance"
+      "next_action": "repair the account-array P1 while reconciling only the bounded PR #97 lot onto current trusted main; then rerun all exact-head gates"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-EVIDENCE-PR93",
@@ -117,47 +118,24 @@
       "priority": "P0",
       "complexity": "CRITICAL",
       "tier_b": true,
-      "status": "BLOCKED_FRESH_EXACT_HEAD_INDEPENDENT_REVIEW",
+      "status": "BLOCKED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW",
       "pr": 93,
       "checkpoint_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "checkpoint_ci": {
         "run": 32465835858,
-        "status": "success"
+        "status": "success",
+        "note": "valid only for the historical exact head before trusted main advanced"
       },
-      "known_state": "The live head is seven commits ahead of the last independently reviewed 03e0201c head. That review found a P1 in nested payload capture using live reflection. The moved branch now changes the shared plain-data snapshot plus regressions, but there is no fresh independent review on c4e40ceb yet, so the repair is not release evidence.",
+      "known_state": "The current head contains later shared snapshot/regression repairs than the last independent review, but GitHub now reports the PR non-mergeable against trusted main 1abe57f8 and no fresh independent review covers a reconciled exact head.",
       "acceptance": [
-        "Exact current head CI succeeds.",
-        "Release-owner scoped review passes on the exact current head.",
-        "Fresh distinct independent skeptical/security review covers that exact head.",
+        "Reconcile only the useful simulation lot to current trusted main without widening shared Core limits or overwriting current control-plane state.",
+        "Exact reconciled head CI succeeds.",
+        "Release-owner scoped review passes on the exact reconciled head.",
+        "Fresh distinct independent skeptical/security review covers that same head.",
         "No unresolved P0/P1/P2 remains.",
-        "Simulation remains reference-only and does not claim external state/effect truth or authorization.",
-        "No shared Core payload/security limit is widened merely to make Wallet Guard pass."
+        "Simulation remains reference-only and does not claim external state/effect truth or authorization."
       ],
-      "next_action": "request/revalidate fresh independent review on c4e40ceb; any moved head invalidates current CI/review evidence"
-    },
-    {
-      "id": "CORE-DURABLE-SINGLE-USE-GATE-COMPOSITION-PR97",
-      "phase": "CORE_REFERENCE",
-      "priority": "P0",
-      "complexity": "CRITICAL",
-      "tier_b": true,
-      "status": "BLOCKED_UNRESOLVED_EXACT_HEAD_P1",
-      "pr": 97,
-      "checkpoint_head": "1f228dab6c5a2c0ac2ac9952d8d52978ba44b780",
-      "checkpoint_ci": {
-        "run": 32464344634,
-        "status": "success"
-      },
-      "known_state": "Fresh independent Codex review on exact head 1f228dab found a P1 in provider account normalization: an eth_accounts Array Proxy or decorated array can mutate Array.prototype.map after the integrity guard and before normalization, substituting the active account. Green CI and the non-independent release-owner PASS do not close this finding.",
-      "acceptance": [
-        "Durable claim is acquired before observer/downstream and single-use/replay remains fail-closed.",
-        "Provider-controlled account arrays are rejected/captured through a hardened inert boundary before normalization, with Proxy/decorated-array attacks failing before authorization or sensitive forwarding.",
-        "Current exact head CI succeeds after all repairs.",
-        "Fresh release-owner and distinct independent skeptical/security reviews cover the exact current head.",
-        "No unresolved P0/P1/P2 remains.",
-        "Reference-only filesystem/install assumptions and production non-claims remain explicit."
-      ],
-      "next_action": "repair the exact-head account-array P1 in the PR #97 branch, rerun CI and repeat exact-head release-owner plus independent review; reconcile against new trusted main if another overlapping lot merges first"
+      "next_action": "after or independently of the PR #97 repair where file ownership permits, reconcile PR #93 to current trusted main and repeat exact-head gates"
     },
     {
       "id": "WALLET-GUARD-CONTROLLED-END-TO-END-DEMO",
@@ -176,7 +154,7 @@
         "Exact authorization, Gate, bounded execution evidence, independent observation and reconciliation remain bound to the same intent/context.",
         "Synthetic/reference proof is not upgraded into production or real-wallet safety."
       ],
-      "next_action": "start only after dependencies are trusted by exact-merge post-merge PASS and select the smallest composition lot"
+      "next_action": "start only after dependencies are trusted by exact-merge post-merge PASS"
     },
     {
       "id": "DAGR-SOURCE-RECOVERY",
@@ -208,7 +186,7 @@
     "No private keys, seeds, secrets or funded-wallet credentials.",
     "No real/funded wallet, mainnet transaction or meaningful funds without a separately authorized future scope.",
     "No website/Vercel/funding-directory write from the POM-RX control plane.",
-    "No stale PR or moved-head review is treated as current release evidence.",
+    "No stale historical branch or moved-head review is treated as current release evidence.",
     "No independent reviewer identity is fabricated.",
     "No simulation, blockchain anchor or structural verifier verdict substitutes for the execution-side Gate."
   ]
