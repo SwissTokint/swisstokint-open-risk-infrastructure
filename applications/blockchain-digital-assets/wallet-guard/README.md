@@ -31,12 +31,13 @@ The current repository contains a bounded local reference slice for:
 - deterministic fail-closed local policy;
 - controller-instance reference policy state with compare-and-swap replacement and an idempotent fail-safe kill switch;
 - portable determinate preflight evidence from one exact locally normalized intent and policy evaluation into the shared `pom-rx/0.1` receipt format;
+- a Wallet Guard application-profile Witness authorization adapter that reduces a cryptographically verified Core source-envelope/Witness-acknowledgement candidate into the existing provider authorization-supplier contract;
 - strict policy/simulation object-boundary capture from exact own enumerable data descriptors, with accessor, Proxy, hidden/symbol/unknown-property and custom-prototype rejection;
 - provider-observed chain/account sampling;
 - bootstrap-captured origin that is not accepted from request fields;
 - repeated context checks around the Core reference single-use Gate;
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
-- per-request synthetic reference authorization metadata with local reuse rejection;
+- per-request synthetic reference authorization metadata with local reuse rejection remains available for older controlled fixtures;
 - a controlled in-memory provider host whose returned `page` object graph exposes only the guarded `ethereum.request` path while the fake raw provider remains closure-owned.
 
 `json-ingress.mjs` closes one narrow parser-equivalence gap before raw JSON text from a controlled fixture is reduced to Wallet Guard request semantics. It lexically scans the supplied JavaScript string before `JSON.parse`, rejects duplicate decoded object keys (including escaped aliases such as `m\u0065thod` versus `method`), prototype-pollution keys, unpaired Unicode surrogates, non-canonical JSON number spellings, excessive bytes/depth/nodes/string/key sizes and ambiguous top-level envelopes. It then emits a frozen `{method, params}` request together with a raw-text SHA-256 and a shared-canonical-request SHA-256.
@@ -48,6 +49,12 @@ Canonical-request compatibility is delegated to the shared proof canonicalizer r
 `preflight-evidence.mjs` is a separate bounded evidence bridge. It requires the exact locally normalized/branded Wallet Guard intent, evaluates the existing hardened Wallet Guard policy with simulation fixed to `not_run`, samples one synchronous reference clock, and binds evidence/run identity, policy identity, normalized-input commitment, action commitment and the canonical Wallet Guard RPC method commitment. Determinate `ALLOW` and `DENY` results are committed through the existing shared `commitPomRxReceipt()` path. `INDETERMINATE` remains explicit standalone evidence and does not get collapsed into a binary portable receipt merely to satisfy the older preflight outcome vocabulary.
 
 The preflight bridge does **not** claim authorization. Its companion evidence fixes `authorization_eligible=false`, `authorization_proved=false`, `simulation_evidence_proved=false`, `production_trusted_time_proved=false`, `normalized_input_only=true`, `raw_request_proved=false` and `reference_only=true`. The strict JSON ingress lot does not silently upgrade those flags: composing a raw-text commitment into later evidence is separate reviewed work. Unexpected runtime/intrinsic failures are not broadly translated into policy/receipt rejection; only typed Wallet Guard policy errors are normalized at the policy boundary.
+
+`witness-authorization.mjs` is the application-profile bridge from the shared Core Witness trust lifecycle to the provider's existing synchronous `referenceAuthorizationForRequest` contract. It does not create a second Witness implementation. A trusted installation callback supplies one source envelope plus one Witness acknowledgement; both are captured as inert bounded plain data and passed to the shared Core `verifyAuthorizationCandidate()` path. Only a successful Core result with enrolled active source/Witness roles, valid signatures, witnessed mode, chronology and trust-bounded validity is accepted. The adapter then requires the signed allow-preflight receipt to match the provider request's exact method, policy and Wallet Guard action commitments and rejects a preflight timestamp after capability issuance or a trust window shorter than the requested capability.
+
+The action commitment is the existing full normalized Wallet Guard intent commitment, so the adapter does not invent a separate application authorization hash. The provider still binds its separately computed `context_commitment` into the Core exact-authorization record and rechecks context at the Gate. The adapter does not claim that the Witness signed that redundant provider context digest as a separate field. It also does not prove the strict verifier/artifact tuple: `verification_profile`, `verifier_version`, `implementation_artifact_sha256` and `effective_verification_policy_sha256` remain an exact trusted bootstrap binding supplied to this reference adapter. The installed evidence callback and Core-verifier handle are trusted synchronous dependencies; malformed/Proxy/accessor return data fails closed after the callback returns, while unrelated verifier runtime failures preserve their original error provenance.
+
+This Witness adapter therefore upgrades one narrow fixture property from opaque synthetic receipt/Witness hashes to cryptographically checked, enrolled Core Witness evidence, but it remains `reference_only`. It does not provide durable trust state, production trusted time, HSM/KMS key custody, operator authorization for trust mutations, remote attestation, distributed revocation, quorum, browser integrity, or production authorization. The current controlled host continues to use its synthetic fixture supplier unless a separately reviewed composition explicitly installs this adapter.
 
 The policy normalizer does not treat arbitrary JavaScript object behavior as policy data. Top-level policy and simulation records are snapshotted once from exact own enumerable data properties. Policy allowlists and `require_simulation_for` must be bounded dense standard arrays: accessors, Node Proxy wrappers, holes, symbol keys, hidden/extra properties and non-standard array prototypes fail closed before policy values participate in normalization or hashing. This prevents getter/Proxy/prototype behavior from substituting policy or simulation semantics in the Node reference runtime.
 
@@ -83,24 +90,20 @@ That guarantee is **not** browser or JavaScript-realm integrity. It does not
 prevent another provider installed elsewhere, a hostile extension or host that
 already retained an independent provider reference, or compromise of trusted
 runtime/bootstrap dependencies. The controlled host performs no network I/O,
-holds no wallet keys and does not upgrade the synthetic reference authorization
-supplier into a real Witness.
+holds no wallet keys and does not upgrade its synthetic reference authorization
+supplier merely because the separate Witness adapter exists.
 
 This is **not** yet the complete Wallet Guard security claim. In particular:
 
-- the reference authorization supplier is synthetic and does not prove a real
-  signed Witness acknowledgement;
+- the generic provider supplier and controlled-host fixture still support synthetic reference authorization; the separate Witness adapter must be explicitly composed to replace those opaque hashes with Core-verified reference Witness evidence;
+- even with that adapter, the strict verifier/artifact tuple and evidence callback remain trusted reference bootstrap dependencies and production authorization is not proved;
 - the bootstrap origin/provider authorities are trusted installation inputs;
 - the controlled-host returned page graph removes a second raw-provider reference only inside that fixture; arbitrary browser/extension/host integrity and independently installed providers remain unproved;
 - strict JSON text parsing does not prove upstream transport-byte decoding;
 - policy-state mutation authority is still a trusted in-process reference dependency and is not yet bound into provider/Gate state;
-- portable reference preflight evidence does not prove a production Witness,
-  authorization eligibility, Gate consumption or production trusted time;
-- simulation evidence, production Witness enrollment/revocation/trusted time,
-  external execution truth, independent observation and reconciliation are
-  still separate lots;
-- no real wallet, private key, testnet/mainnet transaction, custody path or
-  uncontrolled malicious site is part of this reference layer.
+- portable reference preflight evidence does not prove production trusted time or production Gate consumption;
+- simulation evidence, durable/production Witness trust, external execution truth, independent observation and reconciliation are still separate lots;
+- no real wallet, private key, testnet/mainnet transaction, custody path or uncontrolled malicious site is part of this reference layer.
 
 The first acceptable simulated demonstration must prove that a dangerous
 approval/signature is denied before forwarding while an explicitly allowed
