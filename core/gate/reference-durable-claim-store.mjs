@@ -71,17 +71,22 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
   'terminal_state',
 ]);
 
-// Durable claim identity and handle provenance are security-critical. Capture the
-// exact-object reflection primitives plus WeakMap constructor/dispatch once at
-// module initialization so a post-import same-realm replacement cannot redirect
-// rootDir through a forged snapshot or substitute claim-handle state. Security-
-// sensitive iteration over module-owned key sets is index-based, with explicit
-// pre-sorted companions, so later Array iterator replacement cannot rewrite the
-// exact-object contracts. Poisoning before module initialization remains outside
-// this reference guarantee.
+// Durable claim identity, root confinement and handle provenance are security-
+// critical. Capture exact-object reflection, identifier validation, path dispatch
+// and WeakMap state once at module initialization so a later same-realm mutation
+// cannot redirect rootDir through either a forged snapshot or mutable node:path
+// exports, admit traversal-shaped capability IDs through a poisoned RegExp test,
+// or substitute claim-handle state. Security-sensitive iteration over module-owned
+// key sets is index-based, with explicit pre-sorted companions, so later Array
+// iterator replacement cannot rewrite the exact-object contracts. Poisoning before
+// module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
+const BUFFER_CONSTRUCTOR = Buffer;
+const BUFFER_BYTE_LENGTH = Buffer.byteLength;
+const JSON_OBJECT = JSON;
+const JSON_PARSE = JSON.parse;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
@@ -90,6 +95,13 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
+const PATH_BASENAME = path.basename;
+const PATH_DIRNAME = path.dirname;
+const PATH_IS_ABSOLUTE = path.isAbsolute;
+const PATH_JOIN = path.join;
+const PATH_RESOLVE = path.resolve;
+const PROCESS_GET_UID = typeof process.getuid === 'function' ? process.getuid : null;
+const REGEXP_TEST = RegExp.prototype.test;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
@@ -103,12 +115,20 @@ function sortArray(value) {
   return REFLECT_APPLY(ARRAY_SORT, value, []);
 }
 
+function bufferByteLength(value, encoding) {
+  return REFLECT_APPLY(BUFFER_BYTE_LENGTH, BUFFER_CONSTRUCTOR, [value, encoding]);
+}
+
 function createObject(prototype) {
   return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
 }
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function jsonParse(value) {
+  return REFLECT_APPLY(JSON_PARSE, JSON_OBJECT, [value]);
 }
 
 function objectGetOwnPropertyDescriptors(value) {
@@ -133,6 +153,10 @@ function objectHasOwn(value, key) {
 
 function isProxy(value) {
   return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
 }
 
 function weakMapGet(map, key) {
@@ -203,14 +227,14 @@ function exactOwnData(value, expectedKeys, expectedSortedKeys, label) {
 }
 
 function validateCapabilityId(value) {
-  if (typeof value !== 'string' || !CAPABILITY_ID_PATTERN.test(value)) {
+  if (typeof value !== 'string' || !regexpTest(CAPABILITY_ID_PATTERN, value)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'capabilityId has an invalid format');
   }
   return value;
 }
 
 function validateAuthorizationCommitment(value) {
-  if (typeof value !== 'string' || !HASH_PATTERN.test(value)) {
+  if (typeof value !== 'string' || !regexpTest(HASH_PATTERN, value)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'authorizationCommitment must be a lowercase SHA-256 hash');
   }
   return value;
@@ -283,7 +307,7 @@ function validateClaimRecord(value) {
     }
     validateCapabilityId(record.capability_id);
     validateAuthorizationCommitment(record.authorization_commitment);
-    if (typeof record.claim_commitment !== 'string' || !HASH_PATTERN.test(record.claim_commitment)) {
+    if (typeof record.claim_commitment !== 'string' || !regexpTest(HASH_PATTERN, record.claim_commitment)) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment is invalid');
     }
     const expected = makeClaimRecord(record.capability_id, record.authorization_commitment);
@@ -313,7 +337,7 @@ function validateTerminalRecord(value, claimRecord) {
         || record.claim_commitment !== claimRecord.claim_commitment) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal record is not bound to the persisted claim');
     }
-    if (typeof record.terminal_commitment !== 'string' || !HASH_PATTERN.test(record.terminal_commitment)) {
+    if (typeof record.terminal_commitment !== 'string' || !regexpTest(HASH_PATTERN, record.terminal_commitment)) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment is invalid');
     }
     const expected = makeTerminalRecord(claimRecord, record.terminal_state);
@@ -338,14 +362,14 @@ async function fsyncDirectory(directory) {
 
 async function writeExclusiveDurable(filePath, value) {
   const body = `${canonicalizePayload(value)}\n`;
-  if (Buffer.byteLength(body, 'utf8') > MAX_RECORD_BYTES) {
+  if (bufferByteLength(body, 'utf8') > MAX_RECORD_BYTES) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record exceeds the maximum size');
   }
 
-  const directory = path.dirname(filePath);
-  const tempPath = path.join(
+  const directory = PATH_DIRNAME(filePath);
+  const tempPath = PATH_JOIN(
     directory,
-    `.${path.basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+    `.${PATH_BASENAME(filePath)}.${process.pid}.${randomUUID()}.tmp`,
   );
   let handle;
   let tempExists = false;
@@ -399,7 +423,7 @@ async function readBoundedJson(filePath) {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record could not be read');
   }
   try {
-    return JSON.parse(text);
+    return jsonParse(text);
   } catch {
     fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record JSON is invalid');
   }
@@ -431,11 +455,11 @@ export function createReferenceDurableClaimStore(options) {
   if (typeof bootstrap.rootDir !== 'string'
       || bootstrap.rootDir.length < 2
       || bootstrap.rootDir.length > 4096
-      || !path.isAbsolute(bootstrap.rootDir)) {
+      || !PATH_IS_ABSOLUTE(bootstrap.rootDir)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'rootDir must be a bounded absolute path');
   }
 
-  const configuredRoot = path.resolve(bootstrap.rootDir);
+  const configuredRoot = PATH_RESOLVE(bootstrap.rootDir);
   const handleState = new WEAK_MAP_CONSTRUCTOR();
   let trustedRootPromise = null;
 
@@ -456,7 +480,9 @@ export function createReferenceDurableClaimStore(options) {
           }
           fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be inspected');
         }
-        const currentUid = typeof process.getuid === 'function' ? process.getuid() : null;
+        const currentUid = PROCESS_GET_UID === null
+          ? null
+          : REFLECT_APPLY(PROCESS_GET_UID, process, []);
         const unsafePermissions = process.platform !== 'win32' && (stat.mode & 0o022) !== 0;
         const wrongOwner = currentUid !== null && stat.uid !== currentUid;
         if (!stat.isDirectory()
@@ -474,7 +500,7 @@ export function createReferenceDurableClaimStore(options) {
         // durably before bootstrap. Synchronizing the direct parent here also
         // persists the already-present root directory entry under the supported
         // local-filesystem model before any capability claim can report success.
-        await fsyncDirectory(path.dirname(configuredRoot));
+        await fsyncDirectory(PATH_DIRNAME(configuredRoot));
         return resolved;
       })();
     }
@@ -491,7 +517,7 @@ export function createReferenceDurableClaimStore(options) {
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const root = await trustedRoot();
-    const claimDirectory = path.join(root, capabilityId);
+    const claimDirectory = PATH_JOIN(root, capabilityId);
 
     let directoryStat;
     try {
@@ -504,7 +530,7 @@ export function createReferenceDurableClaimStore(options) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
     }
 
-    const rawClaim = await readBoundedJson(path.join(claimDirectory, 'claim.json'));
+    const rawClaim = await readBoundedJson(PATH_JOIN(claimDirectory, 'claim.json'));
     if (rawClaim === null) {
       return freezeValue({
         ...makeInspection('RESERVED_INCOMPLETE'),
@@ -517,7 +543,7 @@ export function createReferenceDurableClaimStore(options) {
       fail('POMRX_GATE_E_DURABLE_BINDING_MISMATCH', 'persisted durable claim does not match the expected authorization binding');
     }
 
-    const rawTerminal = await readBoundedJson(path.join(claimDirectory, 'terminal.json'));
+    const rawTerminal = await readBoundedJson(PATH_JOIN(claimDirectory, 'terminal.json'));
     if (rawTerminal === null) return makeInspection('RESERVED', claimRecord);
     const terminalRecord = validateTerminalRecord(rawTerminal, claimRecord);
     return makeInspection(terminalRecord.terminal_state, claimRecord, terminalRecord);
@@ -533,7 +559,7 @@ export function createReferenceDurableClaimStore(options) {
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const root = await trustedRoot();
-    const claimDirectory = path.join(root, capabilityId);
+    const claimDirectory = PATH_JOIN(root, capabilityId);
 
     try {
       await mkdir(claimDirectory, { mode: 0o700 });
@@ -550,7 +576,7 @@ export function createReferenceDurableClaimStore(options) {
     await fsyncDirectory(root);
 
     const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
-    await writeExclusiveDurable(path.join(claimDirectory, 'claim.json'), claimRecord);
+    await writeExclusiveDurable(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);
 
     const handle = freezeValue(createObject(null));
     weakMapSet(handleState, handle, {
@@ -579,7 +605,7 @@ export function createReferenceDurableClaimStore(options) {
     const terminalState = outcome === 'success' ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
-      const rawPersistedClaim = await readBoundedJson(path.join(state.claimDirectory, 'claim.json'));
+      const rawPersistedClaim = await readBoundedJson(PATH_JOIN(state.claimDirectory, 'claim.json'));
       if (rawPersistedClaim === null) {
         fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
       }
@@ -589,7 +615,7 @@ export function createReferenceDurableClaimStore(options) {
           || persistedClaim.claim_commitment !== state.claimRecord.claim_commitment) {
         fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
       }
-      await writeExclusiveDurable(path.join(state.claimDirectory, 'terminal.json'), terminalRecord);
+      await writeExclusiveDurable(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);
       state.state = terminalState;
     } catch (error) {
       state.state = 'FAILED_CLOSED';
