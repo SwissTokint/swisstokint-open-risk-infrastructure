@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T16:02:00+02:00`
+Updated: `2026-08-21T16:27:16+02:00`
 
 Current trusted main: `62edca5dc665642d95f3e115fd60463fffd68947`
 
@@ -49,9 +49,10 @@ Current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`.
 
 PR base SHA remains `0564aecd42cf0794894c12842980969ff59c9f73`,
 while current trusted main is `62edca5dc665642d95f3e115fd60463fffd68947`.
-Live GitHub currently reports PR #97 **not mergeable** after the coordination-only
-main move. The eventual repair must reconcile to the then-current trusted main
-before any release gate can pass.
+Live GitHub currently reports PR #97 **mergeable**. That signal is only GitHub's
+current conflict computation; it is not trusted-main reconciliation, security
+evidence or release evidence. The eventual repaired candidate must still be
+reconciled to the then-current trusted main before any release gate can pass.
 
 Canonical exact-head CI run `32487036517`, `CI` run 592, completed `success` on
 exact head `0efb462...`. Green CI does not clear the current technical/security
@@ -138,9 +139,10 @@ Current live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
 
 Current PR base remains historical
 `818718955c9e4136e9e55754a31be2f1c7b610f8`; current trusted main is
-`62edca5dc665642d95f3e115fd60463fffd68947`. Live GitHub currently reports the
-PR **not mergeable**. That signal reinforces the already-required trusted-main
-reconciliation and is not itself a security verdict.
+`62edca5dc665642d95f3e115fd60463fffd68947`. Live GitHub currently reports PR
+#93 **mergeable**. That conflict signal does not satisfy trusted-main
+reconciliation, does not refresh moved-head review evidence, and is not a
+security/release verdict.
 
 Last known exact-head CI on `c4e40ceb...`: run `32465835858`, `CI` run 541,
 `success`. The latest distinct Codex release evidence covers a moved head, not
