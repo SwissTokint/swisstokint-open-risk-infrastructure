@@ -147,7 +147,7 @@ function canonicalAccounts(value) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a standard non-Proxy array');
   }
   if (value.length < 1 || value.length > MAX_ACCOUNTS) {
-    fail('POMRX_WG_HOST_E_ACOUNTS_INVALID', 'accounts must be a bounded non-empty array');
+    fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a bounded non-empty array');
   }
   if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain symbol keys');
