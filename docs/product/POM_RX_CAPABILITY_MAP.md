@@ -4,11 +4,12 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-21
 
-Trusted-main checkpoint: `33986b33b9e8bc40030d940618e5c9df6f8b3fe6`.
+Trusted-main checkpoint: `0564aecd42cf0794894c12842980969ff59c9f73`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
-activate an authorization/Gate claim.
+activate an authorization/Gate claim. Live GitHub wins whenever volatile PR,
+CI, review or merge state changes after this checkpoint.
 
 ## 1. Product rule
 
@@ -31,37 +32,34 @@ intent/context
 ```
 
 A capability block may implement only part of this lifecycle. Missing stages
-must remain explicit and must never be inferred from a structurally valid
-receipt.
-
-Application blocks are not mutually exclusive. A use case may span two blocks,
-but it has one primary implementation owner so shared semantics are not copied
-into multiple competing implementations.
+remain explicit and must never be inferred from a structurally valid receipt.
+Application blocks are not mutually exclusive; they may overlap, but shared
+semantics are owned once in Core.
 
 ## 2. Shared core and cross-cutting layers
 
 ### POM-RX Core
 
 Shared receipt semantics, strict verification, continuity invariants, typed
-diagnostics and policy/artifact binding. Historical `pom-rx/0.1` compatibility
-remains frozen; stronger behavior is additive through separately reviewed
-profiles.
+diagnostics and policy/artifact binding remain common Core. Historical
+`pom-rx/0.1` compatibility is frozen; stronger behavior is additive through
+separately reviewed profiles.
 
-The bounded `pom-rx-v0.1/strict-errata-1` profiled verifier is activated in
-Core. Its verdicts remain structurally non-authorizing: strict conformance is a
+The bounded `pom-rx-v0.1/strict-errata-1` profiled verifier is activated in Core.
+Its verdicts remain structurally non-authorizing: strict conformance is a
 prerequisite for later authorization, not permission to execute.
 
 Application blocks may add adapters, profiles and tests. They must not duplicate
 or fork Core canonicalization, hashing, verifier, Witness or Gate semantics.
-Exact authorization, execution-evidence commitments and observation/reconciliation
-comparison semantics are also common Core behavior and must not be forked into
-application-specific implementations.
+Shared exact authorization, execution-evidence commitments and
+observation/reconciliation comparison semantics also remain common Core and must
+not be forked.
 
 Shared bounded hostile-object/plain-data capture exists under
-`core/reference-data/` and is reused by Core/application reference boundaries.
-Expected proof-payload validation rejection is positively branded; unrelated
-runtime/intrinsic failures must not be converted by broad `TypeError` or message
-matching.
+`core/reference-data/` and is reused by Core and application reference
+boundaries. Expected proof-payload validation rejection is positively branded;
+unrelated runtime/intrinsic failures are not converted by broad `TypeError` or
+message matching.
 
 ### Exact authorization and Gate
 
@@ -71,66 +69,89 @@ terminal single-use consumption, fail-closed replay behavior and a private
 trusted bootstrap boundary.
 
 A process-local reference Gate harness exercises those semantics with
-Gate-instance-local capability state, synchronous reservation, complete
-half-open `[issued_at, expires_at)` checks, Gate-instance monotonic-clock
-enforcement and a trusted prepared-execution snapshot so raw caller-owned data
-is not forwarded downstream. This remains reference-only and non-production.
+Gate-instance-local capability state, synchronous reservation, complete half-open
+`[issued_at, expires_at)` checks, Gate-instance monotonic-clock enforcement and a
+trusted prepared-execution snapshot so raw caller-owned data is not forwarded
+downstream. This remains reference-only and non-production.
 
 A separate shared durable claim-store reference primitive provides bounded
-at-most-once capability claiming for multiple processes sharing one trusted
-local filesystem directory. It is not proof of network/distributed filesystem
+at-most-once capability claiming for multiple processes sharing one trusted local
+filesystem directory. It is not proof of network/distributed filesystem
 atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
-and is reconciled to trusted main at checkpoint head
-`39186dcc8e2fe7c176495d8a4ad654215dbce637`. It remains blocked by the
-independent P1 `Reject account Proxies before thenable assimilation`: a raw
-synchronously returned provider Proxy can execute result-owned `then` behavior
-before the current account snapshot boundary. That transport-boundary P1 must be
-repaired and the repaired head must pass fresh exact-head CI, release-owner and
-distinct independent gates before any capability-map text treats the durable
-Gate composition as merged.
+at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, reconciled to exact
+trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Canonical exact-head CI
+run `32487036517` / CI run 592 completed `success` on this exact head, but green
+CI cannot clear the current security blocker.
+
+Current head is one commit after independently blocked parent
+`639b96e7a64fa101432b3afcc3c08aebfcc838cf` and changes only the Wallet Guard
+Promise-drift regression (4 additions / 4 deletions); provider/runtime
+implementation is unchanged. The new test relaxes the isolated requirement from
+zero hostile `Promise.prototype.constructor` getter execution to requiring only
+zero authorization and zero sensitive forwarding in that isolated scenario.
+
+A fresh distinct `chatgpt-codex-connector` review covers exact current head
+`0efb462f0b4b8cff62d664a51d13ad71306b6bbb` and reports P1 `Reject Promise
+drift before entering async layers`. It explicitly states that the relaxed
+assertion hides the still-reachable parent exploit. The exact-head reproducer
+poisons inherited `Promise.prototype.constructor` plus `then`; outer awaits in
+`readProviderSnapshot`, `sampleStableProviderContext`, `sampleTrustedContext` and
+`request` assimilate rejected promises before the inner transport rejection
+reaches its caller, can substitute stable attacker-controlled context, then
+permit reference authorization and sensitive forwarding. The exact-current-head
+release-owner review is also `BLOCK / NON-INDEPENDENT` for the same false-PASS
+risk.
+
+The earlier `37b8e699...` P1 about runtime bookkeeping symbols on native Promises
+is historical after later changes; ordinary native-Promise provider transport now
+passes the relevant Node/AsyncHooks compatibility regression. The eventual
+security repair must preserve that compatibility along with prior direct
+non-Promise object/function capture and own native-Promise `constructor`/`then`
+decoration rejection.
+
+PR #97 therefore remains **untrusted and blocked for release**. A test-only
+relaxation cannot establish the missing runtime property. Required evidence is a
+runtime repair preventing inherited Promise-prototype drift from being consulted
+by outer async assimilation, CI-wired coverage for the independent exploit class,
+exact-head green CI, a fresh release-owner PASS, a fresh distinct exact-head
+independent skeptical/security review, and no unresolved P0/P1/P2. No
+capability-map text may treat durable Gate composition as merged before
+exact-merge post-merge assurance PASS.
 
 Production issuance remains unproved because production-grade source/Witness
-trust, operator authorization and trusted-time infrastructure are not complete.
+trust, operator authorization and trusted-time infrastructure are incomplete.
 
 ### Witness
 
 Source-signed preflight material and signed Witness acknowledgement primitives
-are merged. A process-local reference lifecycle adds explicit public-key
-enrollment, bounded validity, revocation, one-successor rotation/recovery,
-injected monotonic trusted time and deterministic public trust-state snapshots.
-Administrative mutations are staged against the exact prospective trust state
-before commit and the reference store is explicitly bounded.
+are merged. A process-local reference lifecycle adds public-key enrollment,
+bounded validity, revocation, one-successor rotation/recovery, injected monotonic
+trusted time and deterministic public trust-state snapshots. Administrative
+mutations are staged against the exact prospective trust state before commit and
+the reference store is explicitly bounded.
 
-Wallet Guard also has a merged application-profile adapter that reduces one
+Wallet Guard has a merged application-profile adapter that reduces one
 cryptographically verified Core source-envelope/Witness-acknowledgement candidate
 into the provider's reference authorization-supplier contract while checking the
 exact Wallet Guard method/policy/action binding. This does not create a second
 Witness implementation and does not establish production issuer/trusted-time or
 strict-verifier-artifact attestation.
 
-These reference controls do not establish production trust: state is
-non-durable, operator authorization is assumed, and production KMS/HSM,
-distributed revocation propagation, remote attestation, quorum and trusted-time
-service semantics remain unproved. Witness verification also does not by itself
-prove external execution authorization.
+Production KMS/HSM, distributed revocation, remote attestation, quorum and
+trusted-time service semantics remain unproved. Witness verification alone does
+not prove external execution authorization.
 
 ### Execution evidence
 
 A bounded reference execution-evidence recorder owns the common commitment shape
-between exact authorization / Gate work and later observation. It recomputes the
+between exact authorization/Gate work and later observation. It recomputes the
 exact authorization commitment, records recorder-local start/completion
 chronology, permits one local record per authorization commitment and commits
 bounded adapter-reported effect data for known `success` or `error` outcomes.
-Malformed or ambiguous outcome data becomes explicit `unknown` evidence rather
-than a known effect.
-
-Expected shared canonical-payload rejection is identified through the shared
-branded validation contract, not broad `TypeError` or message text. Unrelated
-runtime/intrinsic failures propagate fail-closed rather than being rewritten as
-semantic `unknown` evidence.
+Malformed or ambiguous outcome data becomes explicit `unknown` evidence.
 
 This recorder is deliberately **not** an execution path. It has no downstream
 callback and its evidence does not prove Gate consumption, native execution time,
@@ -139,36 +160,36 @@ forwarding and production execution evidence remains separate work.
 
 ### Observation and reconciliation
 
-A shared reference observation/reconciliation layer compares captured observation
-evidence against a validated exact-authorization binding, including binding
-profile, action/context commitments, expected status/effect and chronology. Its
-evidence channel uses a one-shot bounded capture callback rather than treating an
-observer-returned value as evidence.
+A shared reference observation/reconciliation layer compares captured
+observation evidence against a validated exact-authorization binding, including
+binding profile, action/context commitments, expected status/effect and
+chronology. Its evidence channel uses a one-shot bounded capture callback rather
+than treating an observer-returned value as external truth.
 
-This still does not prove external-world truth. Production observer independence,
-liveness, host/RPC integrity, chain finality, remote attestation and production
-trusted time remain outside the reference claim.
+Production observer independence, liveness, host/RPC integrity, finality, remote
+attestation and external-world truth remain outside the reference claim.
 
 ### Exact-main CI assurance surface
 
 Trusted main includes the prospective exact-main CI status publisher introduced
-by PR #96. It publishes `pom-rx/exact-main-ci` for the canonical push CI on the
-exact main SHA. The post-merge assurance gate still requires decision-time
-freshness revalidation; the status alone does not establish a PASS.
+by PR #96. It publishes `pom-rx/exact-main-ci` for canonical push CI on the exact
+main SHA. Post-merge assurance still requires decision-time freshness
+revalidation; the status alone does not establish PASS.
 
 ### Durable project-control continuity
 
-Trusted main includes the GitHub-backed cross-chat POM-RX control plane from PR
-#98, the post-PR #98 checkpoint reconciliation from PR #99, and the post-PR #99
-reconciliation from PR #100. PR #100 source head
-`8924c5357b4299daa74d7e52cb8d20102641d929` merged as exact main SHA
-`33986b33b9e8bc40030d940618e5c9df6f8b3fe6`. Canonical push CI run
-`32480810161` / CI run 570 attempt 1 completed `success` on that exact merge
-SHA; decision-time `pom-rx/exact-main-ci` pointed to that run and the recorded
-exact-merge verdict is `POST_MERGE_ASSURANCE_PASS`. These are
-coordination/documentation properties, not protocol, Gate, Witness, Wallet Guard
-runtime or production-readiness capabilities. Live GitHub remains authoritative
-whenever volatile PR/CI/review state moves after a versioned checkpoint.
+Trusted main includes the GitHub-backed cross-chat control plane from PR #98 and
+the checkpoint reconciliations from PR #99, #100 and #101. Most recently, PR
+#101 source head `009064788008abe8ac1c08532f3d55ef1c19508f` merged as exact
+main SHA `0564aecd42cf0794894c12842980969ff59c9f73`. Canonical push CI run
+`32482258034` / CI run 576 attempt 1 completed `success` on that exact merge SHA;
+decision-time `pom-rx/exact-main-ci` targeted the same run, and the recorded
+exact-merge verdict is `POST_MERGE_ASSURANCE_PASS` across SpecKit,
+skeptical/falsification, security, code quality, optimization and
+integration/regression.
+
+These are coordination/documentation properties, not protocol, Gate, Witness,
+Wallet Guard runtime or production-readiness capabilities.
 
 ### Proof transport and anchoring
 
@@ -180,74 +201,52 @@ become the authorization boundary merely because they are on-chain.
 
 `POM-RX Governance Profile — DAGR` is a cross-cutting profile under POM-RX. It is
 not a second product, audit firm, certification system or global security score.
-Normative DAGR work remains source-gated; no profile content is invented while
+Normative DAGR work remains source-gated while
 `DAGR_SOURCE_DOCUMENT_MISSING` is active.
 
 ## 3. Application blocks
 
 These block names mirror the public SwissTokint site taxonomy. They are contexts
-in which POM-RX controls can be researched and integrated; they are not claims
-that every block is deployed or operational.
+for POM-RX research and integration, not claims that every block is operational.
 
 ### Block A — Payments and financial operations
 
-Examples:
-
-- payment destination and amount controls;
-- trading-agent preflight and execution reconciliation;
-- transfer limits and beneficiary policy;
-- exchange/broker adapter evidence.
-
-The current market-risk engine is supporting research, not a complete POM-RX
-authorization engine.
+Examples include payment destination/amount controls, trading-agent preflight and
+execution reconciliation, transfer limits/beneficiary policy and exchange/broker
+adapter evidence. The current market-risk engine remains supporting research,
+not a complete POM-RX authorization engine.
 
 ### Block B — AI agents
 
-Examples:
-
-- external tool/API calls made by an autonomous agent;
-- agent spending or transfer authority;
-- model-generated actions that require a bounded policy decision;
-- separation between agent intent, policy, authorization and external effect.
-
-POM-RX must not imply that model reasoning quality is proved merely because the
-resulting action lifecycle is evidenced.
+Examples include external tool/API calls by autonomous agents, bounded spending
+or transfer authority, model-generated actions requiring policy decisions and
+separation of agent intent, policy, authorization and external effect. POM-RX
+does not prove model reasoning quality merely because an action lifecycle is
+evidenced.
 
 ### Block C — APIs and enterprise systems
 
-Examples:
-
-- critical configuration changes;
-- privileged API mutations;
-- approval workflows for ERP, infrastructure or administrative operations;
-- exact target/action binding before a write reaches the downstream system.
+Examples include critical configuration changes, privileged API mutations,
+approval workflows for ERP/infrastructure/administrative operations, and exact
+target/action binding before writes reach downstream systems.
 
 ### Block D — Cybersecurity
 
-Examples:
-
-- blocking a policy-violating high-impact action before forwarding;
-- detecting a mismatch between declared intent and requested effect;
-- fail-closed handling of unknown or ambiguous critical operations;
-- incident evidence and post-action reconciliation.
-
-POM-RX is not an antivirus, malware detector, firewall or universal phishing
-detector. Security integrations must identify the exact execution boundary they
-control.
+Examples include blocking policy-violating high-impact actions before forwarding,
+detecting declared-intent/requested-effect mismatch, fail-closed handling of
+unknown critical operations and incident evidence/reconciliation. POM-RX is not
+an antivirus, malware detector, firewall or universal phishing detector.
 
 ### Block E — Blockchain and digital assets
 
-Examples:
-
-- Wallet Guard for dangerous wallet RPC requests;
-- smart-account or contract-level Risk Gates;
-- exact authorization for token approvals, permits and transfers;
-- on-chain proof/commitment anchoring;
-- chain-specific observation and reconciliation adapters.
+Examples include Wallet Guard for dangerous wallet RPC requests, smart-account
+or contract-level Risk Gates, exact authorization for approvals/permits/transfers,
+on-chain commitment anchoring, and chain-specific observation/reconciliation
+adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate,
-observation or reconciliation semantics. Its primary product home is
+observation or reconciliation semantics. Wallet Guard's primary product home is
 Blockchain and digital assets, while its defensive control model also overlaps
 the Cybersecurity block.
 
@@ -275,43 +274,41 @@ controller, portable determinate preflight evidence, a Core-verified Witness
 authorization adapter, provider/Gate integration and a controlled in-memory host
 whose page-facing graph exposes only guarded `ethereum.request`.
 
-The controlled host's stronger Witness adapter is not yet claimed as universally
-composed into every fixture. The generic/synthetic reference authorization
-supplier remains available for older controlled tests and must not be confused
-with production authorization.
+The controlled host's stronger Witness adapter is not universally composed into
+every fixture. The generic/synthetic reference authorization supplier remains
+available for older controlled tests and must not be confused with production
+authorization.
 
-Reference simulation evidence is the active PR #93 workstream and is **not on
-trusted main at this checkpoint**. Even after it merges, simulation-to-forwarding
-atomic binding remains a separate reviewed composition requirement.
+Reference simulation evidence is active PR #93 and is **not on trusted main at
+this checkpoint**. Its current live head is
+`c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
+`32465835858` / CI run 541 is green. Live GitHub currently reports the PR
+mergeable, but its branch base predates current trusted main and the latest
+distinct Codex release evidence covers a moved head. Mergeability is not release
+evidence. PR #93 therefore requires trusted-main reconciliation plus fresh
+exact-head release-owner and independent review after PR #97 dependency ordering
+is safe. Even after simulation evidence eventually merges,
+simulation-to-forwarding atomic binding remains a separate reviewed composition
+requirement.
 
-The first success criterion is a deterministic controlled fixture in which a
-dangerous approval/signature is denied before forwarding, while an explicitly
-allowed control request is forwarded once and reconciled.
-
-That demonstration proves only the bounded guarded path. It does not prove that
-all browsers, wallets, dApps or chains are protected.
+The first success criterion remains a deterministic controlled fixture in which
+a dangerous approval/signature is denied before forwarding, while an explicitly
+allowed control request is forwarded once and reconciled. That proves only the
+bounded guarded path, not universal browser/wallet/dApp/chain protection.
 
 ## 5. Integration and adapter block
 
 Existing Filecoin, Stellar and other chain work belongs here unless it directly
-implements an execution Gate for an application block.
-
-Adapters may provide:
-
-- timestamp/publication evidence;
-- content-addressed storage;
-- chain finality/observation records;
-- commitment registries;
-- independent retrieval or availability checks.
-
-An adapter is supporting infrastructure. It must not be promoted to a peer POM-RX
+implements an execution Gate for an application block. Adapters may provide
+timestamp/publication evidence, content-addressed storage, finality/observation
+records, commitment registries and independent retrieval/availability checks.
+An adapter is supporting infrastructure and is not promoted to a peer POM-RX
 product solely because it uses a blockchain.
 
 ## 6. Target information architecture
 
-Do not mass-move frozen protocol or fixture files merely for cosmetic organization.
-The product-oriented repository layout is established incrementally. New Core
-work goes into the common Core blocks; application-specific code stays in its
+Do not mass-move frozen protocol or fixture files for cosmetic organization. New
+Core work goes into common Core blocks; application-specific code stays in its
 application owner and references Core instead of copying it.
 
 ```text
@@ -351,19 +348,17 @@ tests/
 
 Application folders contain only domain adapters, profiles, fixtures and tests.
 Shared verifier, canonicalization, hashing, Witness, authorization, Gate,
-execution-evidence and observation/reconciliation rules remain in the common
-POM-RX implementation and are referenced rather than copied.
-
-Existing frozen fixture paths, historical verifier paths and public source pins
-must not be relocated until a dedicated migration PR proves byte/hash and public
-link compatibility.
+execution-evidence and observation/reconciliation rules remain common POM-RX
+implementation and are referenced rather than copied. Existing frozen fixture
+paths and public source pins are not relocated without dedicated compatibility
+review.
 
 ## 7. Current maturity by block
 
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 composition of durable claim into Gate is blocked by the independent provider-result thenable-assimilation P1; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review on `0efb462...` reports P1 `Reject Promise drift before entering async layers`, with a sensitive-forwarding reproducer still reachable because runtime implementation is unchanged. Exact-current owner verdict is BLOCK and CI run 592 is SUCCESS; requires runtime repair plus a final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
@@ -371,7 +366,7 @@ link compatibility.
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
 | Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 simulation evidence; simulation-to-forwarding binding; stronger Witness/preflight/provider composition; complete execution/reconciliation demo; later separately authorized burner E2E |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 simulation evidence reconciliation/review; simulation-to-forwarding binding; stronger complete execution/reconciliation demo; later separately authorized burner E2E |
 | Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
@@ -384,13 +379,11 @@ Allowed examples:
 - `POM-RX blockchain adapter`
 - `POM-RX autonomous-agent integration`
 
-Avoid wording that implies independent peer products such as:
+Avoid wording that implies independent peer products such as `Wallet Guard
+replaces POM-RX`, `DAGR is a separate POM-RX-equivalent platform`, or that a
+Stellar/Filecoin integration is itself the POM-RX security boundary.
 
-- `Wallet Guard replaces POM-RX`;
-- `DAGR is a separate POM-RX-equivalent platform`;
-- `the Stellar/Filecoin integration is the POM-RX security boundary`.
-
-The product hierarchy is therefore:
+The product hierarchy remains:
 
 ```text
 POM-RX
