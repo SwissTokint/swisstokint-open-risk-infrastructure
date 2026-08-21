@@ -1,8 +1,8 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T19:10:00+02:00`
+Updated: `2026-08-21T20:18:00+02:00`
 
-Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`
+Current trusted main: `fac194134dfe70767964e5816bcfb68f3b490099`
 
 This file lists **current** blockers only. Historical blockers remain in Git
 history and must not be mistaken for current architecture. Live GitHub wins if a
@@ -16,7 +16,7 @@ Status: `NO_GO_FOR_PRODUCTION / REFERENCE_DEVELOPMENT_CONTINUES`
 Trusted main includes strict verification, exact-authorization/Gate reference
 semantics, Witness reference trust, portable Wallet Guard preflight, execution
 evidence, observation/reconciliation, controlled provider host, exact-main CI
-observability and the GitHub-backed cross-chat control plane. PR #105 is the
+observability and the GitHub-backed cross-chat control plane. PR #106 is the
 latest trusted coordination-only checkpoint merge; it changed no protocol,
 authorization or wallet-security semantics.
 
@@ -24,25 +24,25 @@ The maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`.
 It never means production-ready, audited, certified, deployed, arbitrary-browser
 safe or authorized for financial execution.
 
-## PR #105 — resolved control-plane checkpoint merge
+## PR #106 — resolved control-plane checkpoint merge
 
 Status: `RESOLVED_POST_MERGE_ASSURANCE_PASS`
 
-PR #105 source head `08af7792241d17f43cbdcf7823c8517aee46cbf9`
-merged as exact main SHA `03554ee3191c1ca28e50159a67f822543d619ca3`.
+PR #106 source head `f654ee8f7becdc0916e7d94e053d7d5b56910083`
+merged as exact main SHA `fac194134dfe70767964e5816bcfb68f3b490099`.
 Source-head and merge trees are identical at
-`5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33`. Exact-head candidate CI run
-`32503975756`, `CI` run 630, completed `success`. Canonical exact-main push CI run
-`32504323490`, `CI` run 631 attempt 1, completed `success` on the exact merge SHA;
+`31fee2a35bff60dc5854d518874a8ed2bac3076e`. Exact-head candidate CI run
+`32507298764`, `CI` run 636, completed `success`. Canonical exact-main push CI run
+`32512231029`, `CI` run 637 attempt 1, completed `success` on the exact merge SHA;
 decision-time `pom-rx/exact-main-ci` was `success` targeting that same run. The
-mandatory exact-merge report is recorded on PR #105 with
+mandatory exact-merge report is recorded on PR #106 with
 `POST_MERGE_ASSURANCE_PASS`: SpecKit, skeptical/falsification, security, code
 quality, optimization and integration/regression all PASS for the bounded
 documentation/control-plane scope.
 
-PR #105 had a release-owner `PASS / NON-INDEPENDENT`, no review threads and a
-fresh distinct exact-head `chatgpt-codex-connector` review on `08af779...` finding
-no major issues. PR #105 is trusted coordination evidence only. It does not make
+PR #106 had a release-owner `PASS / NON-INDEPENDENT`, no review threads and a
+fresh distinct exact-head `chatgpt-codex-connector` review on `f654ee8...` finding
+no major issues. PR #106 is trusted coordination evidence only. It does not make
 any open Tier-B PR trusted and does not establish production or real-wallet
 readiness.
 
@@ -52,8 +52,8 @@ Status: `BLOCKED_EXACT_HEAD_PROMISE_DRIFT_P1 / TEST_ONLY_FALSE_PASS_RISK / TRUST
 
 Current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`.
 PR base: `0564aecd42cf0794894c12842980969ff59c9f73`.
-Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`.
-Latest live GitHub reports `mergeable=true`; this is volatile mergeability/conflict
+Current trusted main: `fac194134dfe70767964e5816bcfb68f3b490099`.
+Latest live GitHub reports `mergeable=false`; this is volatile mergeability/conflict
 metadata only. It neither establishes reconciliation nor satisfies security review
 or a release gate.
 
@@ -113,8 +113,8 @@ Status: `BLOCKED_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW`
 
 Current exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`.
 Historical PR base: `818718955c9e4136e9e55754a31be2f1c7b610f8`.
-Current trusted main: `03554ee3191c1ca28e50159a67f822543d619ca3`.
-Latest live GitHub reports `mergeable=true`; this is volatile conflict/mergeability
+Current trusted main: `fac194134dfe70767964e5816bcfb68f3b490099`.
+Latest live GitHub reports `mergeable=false`; this is volatile conflict/mergeability
 metadata only and not trusted-main reconciliation, security review or release
 evidence.
 
@@ -175,7 +175,7 @@ authorization/process-local Gate, Witness enrollment/revocation/rotation,
 reference plain-data boundary, execution evidence, observation/reconciliation,
 Wallet Guard JSON/policy/controller/preflight/provider/controlled-host foundation,
 exact-main CI status publication, and control-plane checkpoint PRs #98 through
-#105 with their recorded post-merge PASS verdicts.
+#106 with their recorded post-merge PASS verdicts.
 
 Older PR #97 event-loop, intrinsic-poisoning, Array/decorated-array, thenable,
 Promise-decoration and native-Promise bookkeeping-symbol reports remain useful
