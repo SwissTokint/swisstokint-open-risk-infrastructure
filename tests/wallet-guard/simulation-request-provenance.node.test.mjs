@@ -16,6 +16,8 @@ const ACCOUNT = `0x${'1'.repeat(40)}`;
 const RECIPIENT = `0x${'2'.repeat(40)}`;
 const ORIGIN = 'https://simulation.wallet-guard.local';
 const CHAIN_ID = '0x1';
+const TYPED_DATA_OBJECT_COMMITMENT_SCHEMA =
+  'wallet_guard_typed_data_object_commitment/0.2';
 
 function rawRequest() {
   return {
@@ -25,6 +27,25 @@ function rawRequest() {
       to: RECIPIENT,
       value: '0x1',
       data: '0x',
+    }],
+  };
+}
+
+function rawObjectTypedDataRequest() {
+  return {
+    method: 'eth_signTypedData_v4',
+    params: [ACCOUNT, {
+      types: {
+        EIP712Domain: [],
+        CustomMessage: [
+          { name: 'note', type: 'string' },
+        ],
+      },
+      primaryType: 'CustomMessage',
+      domain: {},
+      message: {
+        note: 'provenance-test',
+      },
     }],
   };
 }
@@ -62,24 +83,28 @@ function unavailableResult(simulatorInput) {
 }
 
 test('foreign ProofPayloadValidationError during request commitment preserves exact provenance', async () => {
-  const request = rawRequest();
+  const request = rawObjectTypedDataRequest();
   const intent = normalize(request, 'wg-simulation-request-provenance-0001');
   const runtime = neverCalledHarness();
-  const originalEntries = Object.entries;
+  const originalNormalize = String.prototype.normalize;
   const foreign = new ProofPayloadValidationError(
     'PROOF_E_PAYLOAD_KEY',
     'foreign canonicalizer-path failure',
   );
 
-  Object.entries = function poisonedEntries(value) {
-    if (value
-        && typeof value === 'object'
-        && Object.hasOwn(value, 'method')
-        && Object.hasOwn(value, 'params')) {
-      Object.entries = originalEntries;
+  // The shared canonicalizer now captures its object/array/hash intrinsics at
+  // module initialization, so poisoning Object.entries is intentionally inert.
+  // It still preserves exact thrown-error provenance from a later replacement of
+  // String.prototype.normalize while refusing to consume that replacement's
+  // return value. Target the compact typed-data marker schema, which exists only
+  // in the final request-commitment projection after replay has succeeded.
+  String.prototype.normalize = function poisonedNormalize(form) {
+    const normalized = Reflect.apply(originalNormalize, this, [form]);
+    if (normalized === TYPED_DATA_OBJECT_COMMITMENT_SCHEMA) {
+      String.prototype.normalize = originalNormalize;
       throw foreign;
     }
-    return originalEntries(value);
+    return normalized;
   };
   try {
     await assert.rejects(
@@ -87,7 +112,7 @@ test('foreign ProofPayloadValidationError during request commitment preserves ex
       (error) => error === foreign,
     );
   } finally {
-    Object.entries = originalEntries;
+    String.prototype.normalize = originalNormalize;
   }
 });
 
