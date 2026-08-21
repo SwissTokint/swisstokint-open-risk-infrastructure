@@ -6,10 +6,9 @@ verifiable evidence and selected distributed-infrastructure experiments. It
 does not define the full scope of the Association.
 
 POM-RX v0.1 structurally checks a supplied receipt chain describing a declared
-preflight, execution acknowledgement and reconciliation path. The activated
-strict profile adds bounded structural checks while remaining explicitly
-non-authorizing. Financial environments are test beds; Filecoin, Stellar and
-other chains are anchoring or integration experiments.
+preflight, execution acknowledgement and reconciliation path. Financial
+environments are test beds; Filecoin, Stellar and other chains are anchoring
+or integration experiments.
 
 This research is non-custodial: it does not execute for third parties or
 receive exchange keys, and makes no token-sale or financial-performance claim.
@@ -17,20 +16,19 @@ receive exchange keys, and makes no token-sale or financial-performance claim.
 Open infrastructure for deterministic receipt commitments and inspectable
 risk-rule evaluation without publishing the private strategy.
 
-The repository currently contains four interoperable research building blocks:
+This repository contains three interoperable building blocks:
 
 1. a deterministic risk-rule engine whose results can be replayed and reviewed;
 2. Proof Receipt v0.2, a signed commitment format with matching TypeScript and
    Python SDKs, deterministic Merkle batching and a minimal Docker relay;
-3. POM-RX Core plus application profiles for bounded pre-execution control,
-   exact authorization/Gate research, Witness evidence, execution evidence and
-   observation/reconciliation;
-4. distributed evidence/anchor experiments including Filecoin CAR storage and
-   Stellar evidence-registry work.
+3. a pre-grant Filecoin readiness prototype that packages receipt proofs into a
+   deterministic CAR, derives a stable root CID and verifies every block and
+   Merkle path after retrieval.
+4. a normalized multichain anchor record profile that future network adapters
+   must emit without hiding chain-specific finality or failure state.
 
-The protocol is designed for trading bots, financial agents and other high-impact
-automation, but this repository does not execute trades, hold assets or receive
-exchange credentials.
+The protocol is designed for trading bots and financial agents, but it does not
+execute trades, hold assets or receive exchange credentials.
 
 ## Why it exists
 
@@ -40,7 +38,7 @@ make that claim portable or independently verifiable. Proof of Method creates a
 small evidence object that another party can verify without access to the
 strategy, account or proprietary event payload.
 
-The current prototype provides, in bounded reference form:
+The current prototype provides:
 
 - canonical, cross-language payload hashing;
 - signed receipt commitments;
@@ -49,14 +47,7 @@ The current prototype provides, in bounded reference form:
 - inclusion proof generation and verification;
 - a dry-run capable Docker relay;
 - shared test fixtures for TypeScript and Python;
-- deterministic, inspectable market-risk rules;
-- activated POM-RX strict structural verification that remains non-authorizing;
-- common exact-authorization and process-local single-use-Gate reference
-  semantics;
-- reference Witness trust, execution-evidence and observation/reconciliation
-  layers;
-- a Wallet Guard application profile with controlled EVM intent/policy/provider
-  research;
+- deterministic, inspectable market-risk rules.
 - deterministic CARv1 evidence bundles with content-addressed receipt proofs;
 - a fail-closed Synapse adapter boundary for prepare, upload and byte-for-byte
   retrieval verification.
@@ -65,34 +56,22 @@ The current prototype provides, in bounded reference form:
 
 | Path | Purpose |
 | --- | --- |
-| `ARCHITECTURE.md` | Product hierarchy and Core/application ownership rules |
-| `core/` | Shared strict verification, authorization, Gate, reference-data, Witness, execution and observation semantics |
-| `profiles/` | Cross-cutting profiles such as governance/DAGR framing |
-| `applications/` | Domain-specific application blocks; Wallet Guard lives under Blockchain and digital assets |
-| `integrations/` | Supporting Filecoin, Stellar and other evidence/anchor integrations |
-| `compatibility/pom-rx-v0.1/` | Historical compatibility boundary |
-| `docs/product/POM_RX_CAPABILITY_MAP.md` | Current non-normative POM-RX capability/information architecture |
-| `docs/project-management/pom-rx-core/` | Versioned automation, review, blocker and cross-chat continuation control plane |
 | `docs/PROOF_OF_METHOD_PROTOCOL.md` | Protocol thesis, safeguards and staged roadmap |
 | `docs/PROOF_RECEIPT_V0_2_SPEC.md` | Receipt wire format and verification rules |
 | `docs/PROOF_BATCH_V0_1_SPEC.md` | Deterministic Merkle batch format |
-| `docs/POM_RX_PROTOCOL_V0_1.md` | Historical POM-RX v0.1 receipt protocol |
+| `docs/POM_RX_PROTOCOL_V0_1.md` | Hash-linked risk execution receipts for financial agents |
 | `docs/FILECOIN_EVIDENCE_BUNDLE_V0_1.md` | CAR, CID and Synapse integration profile |
 | `docs/MULTICHAIN_ANCHOR_ADAPTER_PROFILE_V0_1.md` | Normalized output and fail-closed rules for chain adapters |
 | `docs/STELLAR_SOROBAN_MVP_V0_1.md` | Soroban evidence-registry scope, ABI and verification evidence |
 | `docs/grants/FILECOIN_OPEN_GRANT_2159_READINESS.md` | Public grant-readiness evidence and remaining gaps |
+| `integrations/stellar-evidence-registry/` | Tested Soroban registry for proof-batch commitments |
 | `schemas/` | JSON Schemas and cross-language fixtures |
-| `sdk/typescript/` | TypeScript/Node shared and compatibility implementation |
+| `sdk/typescript/` | TypeScript/Node reference implementation |
 | `sdk/python/` | Python reference implementation |
-| `scripts/` | Relay, batch builder and portable verifier tooling |
-| `examples/proof-relay/` | Minimal container deployment example |
-| `src/` | Deterministic market-risk rule engine |
-| `tests/` | Cross-language, POM-RX Core and application conformance/adversarial suites |
-
-Shared canonicalization, hashing, verifier, Witness, exact-authorization, Gate,
-execution-evidence and observation/reconciliation semantics remain common. An
-application profile may add domain normalization, policy and adapters, but must
-not fork those shared security semantics.
+| `scripts/` | Relay, batch builder and portable verifier |
+| `examples/proof-relay/` | Minimal container deployment |
+| `src/` | Deterministic risk-rule engine |
+| `tests/` | Cross-language proof tests |
 
 ## Verify the prototype
 
@@ -105,8 +84,7 @@ npm test
 
 The proof fixtures intentionally use the same inputs in both SDKs. A passing
 test run demonstrates that both languages derive the same receipt commitments,
-Merkle root and inclusion proofs for the covered fixtures. It is not a production
-security certification.
+Merkle root and inclusion proofs.
 
 Build and verify the deterministic Filecoin CAR prototype:
 
@@ -125,10 +103,9 @@ identifies the uploaded storage piece and is a separate value.
 ## POM-RX risk execution receipts
 
 POM-RX v0.1 is the domain-specific research layer above generic Proof of
-Method receipts. The historical verifier structurally checks a supplied receipt
-chain describing a declared preflight, execution acknowledgement and
-reconciliation path, without publishing strategy inputs, numeric limits or
-credentials.
+Method receipts. It structurally checks a supplied receipt chain describing a
+declared preflight, execution acknowledgement and reconciliation path, without
+publishing strategy inputs, numeric limits or credentials.
 
 ```js
 import {
@@ -137,14 +114,8 @@ import {
 } from './sdk/typescript/pom-rx.mjs';
 ```
 
-The historical `verifyPomRxChain()` compatibility path is intentionally
-preserved. Stronger bounded strict-profile verification and common
-authorization/Gate reference work are additive rather than silent changes to the
-historical API.
-
 See [`docs/POM_RX_PROTOCOL_V0_1.md`](docs/POM_RX_PROTOCOL_V0_1.md) for the
-historical scope and `docs/product/POM_RX_CAPABILITY_MAP.md` for the current
-repository organization and explicit missing production properties.
+scope, threat model and relationship to ERC-8004 and ERC-8126.
 
 To inspect a receipt without sending anything:
 
@@ -186,11 +157,8 @@ The public prototype is deliberately narrow:
 - no trading on behalf of another person;
 - no token sale, token issuance or financial-performance claim.
 
-Current POM-RX/Wallet Guard work is reference-only. It does not prove production
-trusted time, production issuer/key custody, arbitrary-browser or extension
-integrity, external EVM state/effect truth, complete crash recovery or real-wallet
-safety. See [SECURITY.md](SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
-before integrating any relay or reference control.
+See [SECURITY.md](SECURITY.md) and
+[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before integrating the relay.
 
 ## Roadmap
 
