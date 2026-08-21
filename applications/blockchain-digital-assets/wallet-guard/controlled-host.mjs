@@ -8,19 +8,27 @@ import {
   normalizeEvmAddress,
 } from './evm-decoders.mjs';
 import {
+  normalizeWalletGuardPolicy,
+} from './policy.mjs';
+import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
 
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_CONSTRUCTOR = Array;
+const ARRAY_PROTOTYPE = Array.prototype;
+const OBJECT_PROTOTYPE = Object.prototype;
 const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_IS = Object.is;
 const ARRAY_IS_ARRAY = Array.isArray;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
@@ -43,6 +51,15 @@ function setAdd(set, value) {
   REFLECT_APPLY(SET_ADD, set, [value]);
 }
 
+function defineArrayElement(array, index, value) {
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  }]);
+}
+
 const HOST_KEYS = freeze([
   'trustedOrigin',
   'chainId',
@@ -57,6 +74,28 @@ const TX_HASH_PATTERN = /^0x[a-f0-9]{64}$/u;
 const MAX_ACCOUNTS = 64;
 const MAX_SENSITIVE_CALLS = 64;
 
+// The application policy parser intentionally accepts standard Arrays. Capture
+// the exact initialization-time Array.prototype surface and fail closed if a
+// same-realm actor changes it later. Policy capture below is fully synchronous
+// and receives only already-inert Core data, so after this check there is no
+// caller callback or await point that can race parser dispatch. This guard is
+// intentionally application-local; Core keeps its detached captured-array model.
+const ARRAY_PROTOTYPE_BASELINE_NAMES = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_NAMES,
+  Object,
+  [ARRAY_PROTOTYPE],
+);
+const ARRAY_PROTOTYPE_BASELINE_SYMBOLS = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_SYMBOLS,
+  Object,
+  [ARRAY_PROTOTYPE],
+);
+const ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_DESCRIPTORS,
+  Object,
+  [ARRAY_PROTOTYPE],
+);
+
 export class WalletGuardControlledHostError extends Error {
   constructor(code, message) {
     super(message);
@@ -67,6 +106,69 @@ export class WalletGuardControlledHostError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardControlledHostError(code, message);
+}
+
+function sameDescriptor(left, right) {
+  if (!left || !right) return false;
+  for (const field of ['value', 'writable', 'get', 'set', 'enumerable', 'configurable']) {
+    const leftHas = OBJECT_HAS_OWN(left, field);
+    const rightHas = OBJECT_HAS_OWN(right, field);
+    if (leftHas !== rightHas) return false;
+    if (leftHas && !OBJECT_IS(left[field], right[field])) return false;
+  }
+  return true;
+}
+
+function assertArrayPrototypeStable() {
+  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [ARRAY_PROTOTYPE]);
+  const symbols = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [ARRAY_PROTOTYPE]);
+  if (names.length !== ARRAY_PROTOTYPE_BASELINE_NAMES.length
+      || symbols.length !== ARRAY_PROTOTYPE_BASELINE_SYMBOLS.length) {
+    fail(
+      'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+      'Array.prototype changed after Wallet Guard controlled-host initialization',
+    );
+  }
+  for (let index = 0; index < names.length; index += 1) {
+    if (!OBJECT_IS(names[index], ARRAY_PROTOTYPE_BASELINE_NAMES[index])) {
+      fail(
+        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+        'Array.prototype changed after Wallet Guard controlled-host initialization',
+      );
+    }
+  }
+  for (let index = 0; index < symbols.length; index += 1) {
+    if (!OBJECT_IS(symbols[index], ARRAY_PROTOTYPE_BASELINE_SYMBOLS[index])) {
+      fail(
+        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+        'Array.prototype changed after Wallet Guard controlled-host initialization',
+      );
+    }
+  }
+
+  const descriptors = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTORS,
+    Object,
+    [ARRAY_PROTOTYPE],
+  );
+  for (let index = 0; index < ARRAY_PROTOTYPE_BASELINE_NAMES.length; index += 1) {
+    const key = ARRAY_PROTOTYPE_BASELINE_NAMES[index];
+    if (!sameDescriptor(descriptors[key], ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS[key])) {
+      fail(
+        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+        'Array.prototype changed after Wallet Guard controlled-host initialization',
+      );
+    }
+  }
+  for (let index = 0; index < ARRAY_PROTOTYPE_BASELINE_SYMBOLS.length; index += 1) {
+    const key = ARRAY_PROTOTYPE_BASELINE_SYMBOLS[index];
+    if (!sameDescriptor(descriptors[key], ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS[key])) {
+      fail(
+        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+        'Array.prototype changed after Wallet Guard controlled-host initialization',
+      );
+    }
+  }
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
@@ -86,7 +188,7 @@ function captureExactRecord(value, expectedKeys, label) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must be a non-Proxy plain object`);
   }
   const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
-  if (prototype !== Object.prototype && prototype !== null) {
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
   if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
@@ -135,7 +237,7 @@ function canonicalOrigin(value) {
 function copyFrozenArray(values) {
   const output = new ARRAY_CONSTRUCTOR(values.length);
   for (let index = 0; index < values.length; index += 1) {
-    output[index] = values[index];
+    defineArrayElement(output, index, values[index]);
   }
   return freeze(output);
 }
@@ -143,7 +245,7 @@ function copyFrozenArray(values) {
 function canonicalAccounts(value) {
   if (!ARRAY_IS_ARRAY(value)
       || REFLECT_APPLY(IS_PROXY, utilTypes, [value])
-      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== Array.prototype) {
+      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== ARRAY_PROTOTYPE) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a standard non-Proxy array');
   }
   if (value.length < 1 || value.length > MAX_ACCOUNTS) {
@@ -171,7 +273,7 @@ function canonicalAccounts(value) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain duplicates');
     }
     setAdd(seen, account);
-    normalized[index] = account;
+    defineArrayElement(normalized, index, account);
   }
   return freeze(normalized);
 }
@@ -182,7 +284,7 @@ function materializeCapturedPlainData(value) {
   if (ARRAY_IS_ARRAY(value)) {
     const output = new ARRAY_CONSTRUCTOR(value.length);
     for (let index = 0; index < value.length; index += 1) {
-      output[index] = materializeCapturedPlainData(value[index]);
+      defineArrayElement(output, index, materializeCapturedPlainData(value[index]));
     }
     return freeze(output);
   }
@@ -202,11 +304,17 @@ function capturePolicy(value) {
   // accessor, hidden/symbol, decorated-array and custom-prototype rejection stays
   // zero-side-effect and bounded. Then materialize only that trusted inert snapshot
   // into ordinary frozen arrays before the Wallet Guard application parser sees it.
-  // This avoids making application policy semantics depend on Core's deliberately
-  // detached snapshot-array representation while admitting no caller-supplied
-  // custom array prototype.
+  // The parser intentionally consumes standard Arrays, so the exact initialization-
+  // time Array.prototype is checked immediately before/after this synchronous path;
+  // any post-import drift fails closed instead of dispatching through attacker-owned
+  // inherited methods or setters. Core's detached snapshot representation is unchanged.
+  assertArrayPrototypeStable();
   const captured = captureReferencePlainData(value, 'Wallet Guard controlled host policy');
-  return materializeCapturedPlainData(captured);
+  const materialized = materializeCapturedPlainData(captured);
+  assertArrayPrototypeStable();
+  const normalized = normalizeWalletGuardPolicy(materialized);
+  assertArrayPrototypeStable();
+  return normalized;
 }
 
 function capturePageRequest(value) {
@@ -220,15 +328,16 @@ function captureSensitiveRequest(value) {
 function inspectSensitiveCalls(calls) {
   const output = new ARRAY_CONSTRUCTOR(calls.length);
   for (let index = 0; index < calls.length; index += 1) {
-    output[index] = captureReferencePlainData(
+    defineArrayElement(output, index, captureReferencePlainData(
       calls[index],
       'Wallet Guard controlled provider recorded request',
-    );
+    ));
   }
   return freeze(output);
 }
 
 export function createWalletGuardControlledReferenceHost(rawOptions) {
+  assertArrayPrototypeStable();
   const options = captureExactRecord(
     rawOptions,
     HOST_KEYS,
@@ -241,7 +350,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
       'trusted clock and reference authorization supplier are required',
     );
   }
-  if (!Number.isSafeInteger(options.capabilityLifetimeMs)
+  if (!NUMBER_IS_SAFE_INTEGER(options.capabilityLifetimeMs)
       || options.capabilityLifetimeMs < 1_000
       || options.capabilityLifetimeMs > 300_000) {
     fail(
@@ -273,6 +382,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
   // authority returned beside, never beneath, the controlled page graph.
   const rawProvider = freeze({
     async request(request) {
+      assertArrayPrototypeStable();
       if (request && request.method === 'eth_chainId') {
         state.contextReads += 1;
         return state.chainId;
@@ -309,6 +419,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
   // reserved synchronously before the first gateway async boundary so a full
   // log cannot keep issuing authorization/replay state under concurrency.
   async function request(untrustedRequest) {
+    assertArrayPrototypeStable();
     const requestSnapshot = capturePageRequest(untrustedRequest);
     if (state.sensitiveCalls.length + state.inFlightRequests >= MAX_SENSITIVE_CALLS) {
       fail(
@@ -328,15 +439,19 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
   const page = freeze({ ethereum });
   const testAuthority = freeze({
     setTrustedOrigin(value) {
+      assertArrayPrototypeStable();
       state.origin = canonicalOrigin(value);
     },
     setChainId(value) {
+      assertArrayPrototypeStable();
       state.chainId = normalizeChainId(value);
     },
     setAccounts(value) {
+      assertArrayPrototypeStable();
       state.accounts = canonicalAccounts(value);
     },
     inspect() {
+      assertArrayPrototypeStable();
       return freeze({
         origin: state.origin,
         chain_id: state.chainId,
