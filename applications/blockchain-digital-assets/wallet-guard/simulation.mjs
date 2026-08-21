@@ -185,7 +185,7 @@ function exactPlainDataTranscript(value) {
   // shared inert plain-data capture boundary and the proof canonicalizer has
   // validated the same object. Sorting object names removes irrelevant property
   // insertion order while string values retain their exact UTF-16 code units.
-  const keys = Object.getOwnPropertyNames(value).sort(asciiCompare);
+  const keys = objectGetOwnPropertyNames(value).sort(asciiCompare);
   let transcript = `object:${keys.length}:{`;
   for (const key of keys) {
     transcript += `key:${utf16CodeUnitTranscript(key)};`;
