@@ -83,8 +83,8 @@ A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
 at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, reconciled to exact
 trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Canonical exact-head CI
-run `32487036517` / CI run 592 is `in_progress` at this checkpoint, but CI color
-alone cannot clear the current security blocker.
+run `32487036517` / CI run 592 completed `success` on this exact head, but green
+CI cannot clear the current security blocker.
 
 Current head is one commit after independently blocked parent
 `639b96e7a64fa101432b3afcc3c08aebfcc838cf` and changes only the Wallet Guard
@@ -93,16 +93,17 @@ implementation is unchanged. The new test relaxes the isolated requirement from
 zero hostile `Promise.prototype.constructor` getter execution to requiring only
 zero authorization and zero sensitive forwarding in that isolated scenario.
 
-The parent fresh distinct independent review reported P1 `Reject Promise drift
-before entering async layers`. It reproduced inherited
-`Promise.prototype.constructor` plus `then` poisoning being consulted by outer
-awaits in `readProviderSnapshot`, `sampleStableProviderContext`,
-`sampleTrustedContext` and `request` before the inner transport rejection reached
-its caller, producing stable attacker-controlled context, reference authorization
-and sensitive forwarding. Because current head does not change the implementation,
-that exploit class remains unresolved. An exact-current-head release-owner review
-is therefore `BLOCK / NON-INDEPENDENT` for false-PASS risk, and a fresh distinct
-exact-head Codex review is pending.
+A fresh distinct `chatgpt-codex-connector` review covers exact current head
+`0efb462f0b4b8cff62d664a51d13ad71306b6bbb` and reports P1 `Reject Promise
+drift before entering async layers`. It explicitly states that the relaxed
+assertion hides the still-reachable parent exploit. The exact-head reproducer
+poisons inherited `Promise.prototype.constructor` plus `then`; outer awaits in
+`readProviderSnapshot`, `sampleStableProviderContext`, `sampleTrustedContext` and
+`request` assimilate rejected promises before the inner transport rejection
+reaches its caller, can substitute stable attacker-controlled context, then
+permit reference authorization and sensitive forwarding. The exact-current-head
+release-owner review is also `BLOCK / NON-INDEPENDENT` for the same false-PASS
+risk.
 
 The earlier `37b8e699...` P1 about runtime bookkeeping symbols on native Promises
 is historical after later changes; ordinary native-Promise provider transport now
@@ -357,7 +358,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `0efb462...` is a test-only move from parent `639b96e7...`; the parent fresh independent Promise-drift P1 with sensitive-forwarding reproducer remains unresolved because runtime implementation is unchanged. Exact-current owner verdict is BLOCK, CI 592 and fresh independent review are pending; requires runtime repair plus final exact-head green CI/owner/independent gates and P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review on `0efb462...` reports P1 `Reject Promise drift before entering async layers`, with a sensitive-forwarding reproducer still reachable because runtime implementation is unchanged. Exact-current owner verdict is BLOCK and CI run 592 is SUCCESS; requires runtime repair plus a final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
