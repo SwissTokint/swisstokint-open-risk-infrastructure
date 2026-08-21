@@ -357,3 +357,39 @@ test('later Array sort poisoning cannot hide decorated typed-data request wrappe
 
   assert.equal(callbackCount, 0);
 });
+
+test('later Array iterator poisoning cannot collapse exact typed-data request identity', async () => {
+  const firstRequest = typedDataRequest('é');
+  const distinctExactRequest = typedDataRequest('e\u0301');
+  const intent = normalize(firstRequest, 'wg-simulation-intrinsic-0008');
+  let cachedResult = null;
+  const runtime = createWalletGuardReferenceSimulationHarness({
+    simulateRequest: async (input) => {
+      if (cachedResult === null) cachedResult = callbackResult(input);
+      return cachedResult;
+    },
+  });
+
+  const firstEvidence = await runtime.simulate({ intent, request: firstRequest });
+  const originalIterator = Array.prototype[Symbol.iterator];
+  Array.prototype[Symbol.iterator] = function poisonedIterator() {
+    // This is the exact key-list shape that the vulnerable transcript reached for
+    // `message: { value }`. Returning no keys would erase the only UTF-16-exact
+    // difference between these semantically replay-compatible EIP-712 requests.
+    if (this.length === 1 && this[0] === 'value') {
+      return originalIterator.call([]);
+    }
+    return originalIterator.call(this);
+  };
+
+  let distinctEvidence;
+  try {
+    distinctEvidence = await runtime.simulate({ intent, request: distinctExactRequest });
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+  }
+
+  assert.equal(firstEvidence.status, 'pass');
+  assert.equal(distinctEvidence.status, 'mismatch');
+  assert.notEqual(distinctEvidence.request_commitment, firstEvidence.request_commitment);
+});
