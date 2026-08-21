@@ -82,10 +82,11 @@ local filesystem directory. It is not proof of network/distributed filesystem
 atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
-**not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
-and must repair its current independent P1, reconcile to trusted main, then pass
-fresh exact-head CI/release-owner/independent gates before any capability-map text
-treats the composition as merged.
+**not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate,
+is already reconciled to trusted main, and is blocked by a fresh exact-head
+independent P1 in provider-result thenable assimilation. That P1 must be repaired
+and the repaired head must pass fresh CI/release-owner/independent gates before
+any capability-map text treats the composition as merged.
 
 Production issuance remains unproved because production-grade source/Witness
 trust, operator authorization and trusted-time infrastructure are not complete.
@@ -356,7 +357,7 @@ link compatibility.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 composition of durable claim into Gate is blocked by an independent P1; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 composition of durable claim into Gate is blocked by an exact-head independent P1 in provider-result thenable assimilation; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
