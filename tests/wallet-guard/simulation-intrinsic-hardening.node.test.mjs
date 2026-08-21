@@ -125,17 +125,17 @@ test('later WeakSet/WeakMap prototype poisoning cannot forge provenance or inten
   assert.deepEqual(runtime.toPolicySimulation(firstIntent, evidence), { status: 'pass' });
 });
 
-test('foreign WalletGuardSimulationError during evidence minting preserves exact provenance', async () => {
+test('foreign WalletGuardSimulationError after callback capture preserves exact provenance', async () => {
   const request = rawRequest();
   const intent = normalize(request, 'wg-simulation-intrinsic-0002');
-  const originalNormalize = String.prototype.normalize;
+  const originalGetOwnPropertyNames = Object.getOwnPropertyNames;
   const foreignError = new WalletGuardSimulationError(
     'POMRX_WG_SIM_E_INTERNAL',
-    'foreign canonicalization failure',
+    'foreign callback-shape failure',
   );
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
-      String.prototype.normalize = () => {
+      Object.getOwnPropertyNames = () => {
         throw foreignError;
       };
       return callbackResult(input);
@@ -148,7 +148,7 @@ test('foreign WalletGuardSimulationError during evidence minting preserves exact
   } catch (error) {
     thrown = error;
   } finally {
-    String.prototype.normalize = originalNormalize;
+    Object.getOwnPropertyNames = originalGetOwnPropertyNames;
   }
 
   assert.equal(thrown, foreignError);
