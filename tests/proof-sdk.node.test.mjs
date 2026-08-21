@@ -129,7 +129,7 @@ test('transport HMAC is stable for the exact body and timestamp', () => {
   const body = JSON.stringify(expected.wire_receipt);
   const signed = signTransport(body, 'a'.repeat(64), '1785147330');
   assert.deepEqual(signed, {
-    timestamp,
+    timestamp: '1785147330',
     signature: 'a6397da1d4380f3d2b329fb676e0d1f3f9577ade246114c0be794d3daf9c0bcb',
   });
 });
