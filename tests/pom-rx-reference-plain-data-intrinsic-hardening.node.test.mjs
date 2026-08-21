@@ -75,7 +75,10 @@ test('post-import Object.create and Object.freeze replacement cannot redirect or
   }
 
   assert.equal(captured.request.value, 'prepared');
-  assert.deepEqual(captured.values, [1, 2]);
+  assert.equal(Array.isArray(captured.values), true);
+  assert.equal(captured.values.length, 2);
+  assert.equal(captured.values[0], 1);
+  assert.equal(captured.values[1], 2);
   assert.equal(Object.getPrototypeOf(captured), null);
   assert.equal(Object.isFrozen(captured), true);
   assert.equal(Object.isFrozen(captured.request), true);
@@ -258,6 +261,89 @@ test('Gate prepared execution remains exact under post-issuance Object.create po
   }
 
   assert.equal(downstreamValue, 'observer-prepared-value');
+  assert.equal(
+    harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+    'CONSUMED_SUCCESS',
+  );
+});
+
+test('captured arrays detach implicit iteration and method lookup from live Array.prototype', () => {
+  const captured = captureReferencePlainData({ items: ['trusted', 'second'] }, 'array_detach');
+  const snapshotPrototype = Object.getPrototypeOf(captured.items);
+
+  assert.equal(Array.isArray(captured.items), true);
+  assert.notEqual(snapshotPrototype, Array.prototype);
+  assert.equal(Object.isFrozen(snapshotPrototype), true);
+  assert.equal(Object.getPrototypeOf(snapshotPrototype), null);
+
+  const originalIterator = Array.prototype[Symbol.iterator];
+  const originalJoin = Array.prototype.join;
+  const originalMap = Array.prototype.map;
+  try {
+    Array.prototype[Symbol.iterator] = function* poisonedIterator() {
+      yield 'forged';
+    };
+    Array.prototype.join = () => 'forged';
+    Array.prototype.map = () => ['forged'];
+
+    const iterated = [...captured.items];
+    assert.equal(iterated.length, 2);
+    assert.equal(iterated[0], 'trusted');
+    assert.equal(iterated[1], 'second');
+    assert.equal(captured.items.join(','), 'trusted,second');
+
+    const mapped = captured.items.map((value) => value);
+    assert.equal(mapped.length, 2);
+    assert.equal(mapped[0], 'trusted');
+    assert.equal(mapped[1], 'second');
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+    Array.prototype.join = originalJoin;
+    Array.prototype.map = originalMap;
+  }
+});
+
+test('Gate prepared execution arrays remain exact under post-issuance Array prototype poisoning', async () => {
+  let evidence;
+  let downstreamItems;
+  const harness = createReferenceSingleUseGateHarness({
+    trustedClock: (() => {
+      const values = ['2026-08-21T05:00:01.000Z', '2026-08-21T05:00:02.000Z'];
+      let index = 0;
+      return () => values[Math.min(index++, values.length - 1)];
+    })(),
+    observeBinding: async () => ({
+      binding_profile: evidence.binding.binding_profile,
+      action_commitment: evidence.binding.action_commitment,
+      context_commitment: evidence.binding.context_commitment,
+      prepared_execution: {
+        items: ['trusted'],
+      },
+    }),
+    executeDownstream: async (preparedExecution) => {
+      downstreamItems = [...preparedExecution.items];
+      return 'ok';
+    },
+  });
+
+  const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+    witnessValidUntil: '2026-08-21T05:01:00.000Z',
+  });
+  evidence = issued.evidence;
+
+  const originalIterator = Array.prototype[Symbol.iterator];
+  try {
+    Array.prototype[Symbol.iterator] = function* poisonedIterator() {
+      yield 'forged';
+    };
+    assert.equal(await harness.gate.consume(issued.capability, { request: 'attempt' }), 'ok');
+  } finally {
+    Array.prototype[Symbol.iterator] = originalIterator;
+  }
+
+  assert.ok(downstreamItems);
+  assert.equal(downstreamItems.length, 1);
+  assert.equal(downstreamItems[0], 'trusted');
   assert.equal(
     harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
     'CONSUMED_SUCCESS',
