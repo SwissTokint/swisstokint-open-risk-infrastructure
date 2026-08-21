@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-21T18:31:00+02:00",
-  "current_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
+  "updated_at": "2026-08-21T19:10:00+02:00",
+  "current_main": "03554ee3191c1ca28e50159a67f822543d619ca3",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -16,7 +16,7 @@
     ]
   },
   "history": {
-    "previous_register_main_checkpoint": "2c5370907e6f20c3dcfdc25ac89c0b1fa1b6f4f9",
+    "previous_register_main_checkpoint": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
     "preservation": "Superseded task detail remains immutable in Git history. This active register tracks current live work only and must not revive stale READY/BLOCKED labels."
   },
   "limits": {
@@ -47,19 +47,19 @@
     {"capability":"wallet_guard_reference_foundation","state":"MERGED_TRUSTED_REFERENCE"},
     {"capability":"exact_main_ci_status_surface","state":"MERGED_PR_96_POST_MERGE_PASS","merge_sha":"818718955c9e4136e9e55754a31be2f1c7b610f8"},
     {"capability":"github_backed_cross_chat_control_plane","state":"MERGED_PR_98_POST_MERGE_PASS","merge_sha":"1abe57f8baea8dd6844cc8ea9e321c05ec01538f"},
-    {"capability":"post_pr103_durable_checkpoint_reconciliation","state":"MERGED_PR_104_POST_MERGE_PASS","source_head":"ff28d200949ae53250ff3beb4268732bf130ec22","merge_sha":"bfb3e4b7a062427d5ee53f7b76a280da657f6152","source_merge_tree":"11a1dec83c380f0515a1eaedbe5685c69e2b6edb","exact_main_ci_run":32501713512,"ci_run_number":625}
+    {"capability":"post_pr104_durable_checkpoint_reconciliation","state":"MERGED_PR_105_POST_MERGE_PASS","source_head":"08af7792241d17f43cbdcf7823c8517aee46cbf9","merge_sha":"03554ee3191c1ca28e50159a67f822543d619ca3","source_merge_tree":"5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33","candidate_ci_run":32503975756,"candidate_ci_run_number":630,"exact_main_ci_run":32504323490,"ci_run_number":631}
   ],
   "tasks": [
     {
-      "id": "CONTROL-PLANE-POST-104-CHECKPOINT-20260821",
+      "id": "CONTROL-PLANE-POST-105-CHECKPOINT-20260821",
       "phase": "COORDINATION",
       "priority": "P0",
       "complexity": "LOW",
       "tier_b": false,
       "status": "OPEN_AWAITING_EXACT_HEAD_GATES",
       "owner": "PRIME_LEAD_SINGLE_DOC_WRITER",
-      "branch": "docs/pom-rx-checkpoint-after-104-20260821",
-      "base": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
+      "branch": "docs/pom-rx-checkpoint-after-105-20260821",
+      "base": "03554ee3191c1ca28e50159a67f822543d619ca3",
       "self_head_policy": "Do not embed this branch's own moving SHA as authoritative. Re-read live head, CI, reviews and threads before release.",
       "files_owned": [
         "docs/product/POM_RX_CAPABILITY_MAP.md",
@@ -68,7 +68,7 @@
         "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml"
       ],
       "acceptance": [
-        "Persist trusted main bfb3e4b7a062427d5ee53f7b76a280da657f6152 and PR #104 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32501713512 / CI 625 SUCCESS.",
+        "Persist trusted main 03554ee3191c1ca28e50159a67f822543d619ca3 and PR #105 POST_MERGE_ASSURANCE_PASS with exact-main CI run 32504323490 / CI 631 SUCCESS and source/merge tree 5b40e7d2f496bd2d70eb60049db2d0a7d2b0ab33.",
         "Represent PR #97 exact head 0efb462f0b4b8cff62d664a51d13ad71306b6bbb as blocked by the exact-head Promise-drift P1 and owner BLOCK despite CI 592 SUCCESS, with trusted-main reconciliation required and current live mergeable=true treated only as volatile mergeability/conflict metadata.",
         "Represent PR #93 exact head c4e40ceb286f4e59657767661daed15d2b68e9a7 as open/untrusted on a historical base with current live mergeable=true treated only as volatile metadata, unresolved P1/P2 history and later trusted-main reconciliation plus fresh exact-head gates required.",
         "Preserve the five-stage gate, exact-head independent-review rule and exact-merge post-merge assurance requirement.",
@@ -86,7 +86,7 @@
       "pr": 97,
       "checkpoint_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "branch_base_sha": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
+      "current_trusted_main": "03554ee3191c1ca28e50159a67f822543d619ca3",
       "mergeable_at_checkpoint": true,
       "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
       "checkpoint_ci": {"run":32487036517,"run_number":592,"status":"success"},
@@ -94,7 +94,7 @@
       "independent_review": {"status":"BLOCK_P1_EXACT_HEAD_0EFB462","reviewed_head":"0efb462f0b4b8cff62d664a51d13ad71306b6bbb","finding":"P1 Reject Promise drift before entering async layers","repair_state":"UNRESOLVED_IMPLEMENTATION_UNCHANGED_TEST_RELAXED"},
       "threads": "Current exact-head Promise-drift P1 is unresolved; historical P1 threads remain unresolved until a final repaired exact head is independently validated.",
       "acceptance": [
-        "Reconcile/start the repaired candidate from then-current trusted main.",
+        "Start the repaired candidate from then-current trusted main rather than merging stale branch state wholesale.",
         "Prevent inherited Promise.prototype constructor/then drift from being consulted before fail-closed rejection in outer async layers.",
         "Preserve direct non-Promise hardened capture, own decorated-Promise rejection and ordinary native-Promise Node bookkeeping-symbol compatibility.",
         "Maintain durable claim before observer/downstream and fail-closed single-use replay behavior.",
@@ -114,7 +114,7 @@
       "pr": 93,
       "checkpoint_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "branch_base_sha": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "current_trusted_main": "bfb3e4b7a062427d5ee53f7b76a280da657f6152",
+      "current_trusted_main": "03554ee3191c1ca28e50159a67f822543d619ca3",
       "checkpoint_ci": {"run":32465835858,"run_number":541,"status":"success"},
       "mergeable_at_checkpoint": true,
       "mergeability_interpretation": "LIVE_MERGEABILITY_SIGNAL_ONLY_NOT_RECONCILIATION_SECURITY_OR_RELEASE_EVIDENCE",
