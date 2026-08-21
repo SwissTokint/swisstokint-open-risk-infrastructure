@@ -16,7 +16,11 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 // intrinsic at module initialization so later same-realm mutation cannot hide
 // caller-owned fields, reclassify arrays/Proxies, redirect null-prototype output,
 // weaken key/number checks, or leave a supposedly frozen snapshot mutable.
-// Poisoning before module initialization remains outside this reference guarantee.
+// Captured arrays are additionally detached from the mutable shared
+// Array.prototype onto a frozen method-only prototype assembled at module
+// initialization, so implicit iteration and ordinary Array-method lookup do not
+// re-enter a later-poisoned global Array prototype. Poisoning before module
+// initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
@@ -32,9 +36,75 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
+const OBJECT_SET_PROTOTYPE_OF = Object.setPrototypeOf;
 const REGEXP_EXEC = RegExp.prototype.exec;
 const SET_HAS = Set.prototype.has;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+
+function createImmutableArraySnapshotPrototype() {
+  const prototype = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  const names = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_NAMES,
+    Object,
+    [ARRAY_PROTOTYPE],
+  );
+
+  // Copy only callable built-ins. In particular, do not copy `constructor` or
+  // Symbol.unscopables: species construction should fall back to the intrinsic
+  // Array path instead of consulting mutable constructor state, and unscopables
+  // is not data traversal behavior.
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    if (key === 'length' || key === 'constructor') continue;
+    const sourceDescriptor = REFLECT_APPLY(
+      OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+      Object,
+      [ARRAY_PROTOTYPE, key],
+    );
+    if (!sourceDescriptor
+        || !REFLECT_APPLY(OBJECT_HAS_OWN, Object, [sourceDescriptor, 'value'])
+        || typeof sourceDescriptor.value !== 'function') {
+      continue;
+    }
+
+    const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+    descriptor.value = sourceDescriptor.value;
+    descriptor.enumerable = false;
+    descriptor.writable = false;
+    descriptor.configurable = false;
+    REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [prototype, key, descriptor]);
+  }
+
+  const symbols = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_SYMBOLS,
+    Object,
+    [ARRAY_PROTOTYPE],
+  );
+  for (let index = 0; index < symbols.length; index += 1) {
+    const key = symbols[index];
+    const sourceDescriptor = REFLECT_APPLY(
+      OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+      Object,
+      [ARRAY_PROTOTYPE, key],
+    );
+    if (!sourceDescriptor
+        || !REFLECT_APPLY(OBJECT_HAS_OWN, Object, [sourceDescriptor, 'value'])
+        || typeof sourceDescriptor.value !== 'function') {
+      continue;
+    }
+
+    const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+    descriptor.value = sourceDescriptor.value;
+    descriptor.enumerable = false;
+    descriptor.writable = false;
+    descriptor.configurable = false;
+    REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [prototype, key, descriptor]);
+  }
+
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [prototype]);
+}
+
+const SNAPSHOT_ARRAY_PROTOTYPE = createImmutableArraySnapshotPrototype();
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -78,6 +148,10 @@ function objectGetPrototypeOf(value) {
 
 function objectHasOwn(value, key) {
   return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function objectSetPrototypeOf(value, prototype) {
+  return REFLECT_APPLY(OBJECT_SET_PROTOTYPE_OF, Object, [value, prototype]);
 }
 
 function regexpMatches(expression, value) {
@@ -175,6 +249,7 @@ function captureArray(value, label, depth, budget) {
 
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const output = new ARRAY_CONSTRUCTOR(length);
+  objectSetPrototypeOf(output, SNAPSHOT_ARRAY_PROTOTYPE);
   for (let index = 0; index < length; index += 1) {
     const key = `${index}`;
     if (!objectHasOwn(descriptors, key)) {
