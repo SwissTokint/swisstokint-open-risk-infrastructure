@@ -158,9 +158,12 @@ function deepFreezeCapturedPlainData(value) {
   // The shared Core capture now freezes through its own initialization-time
   // intrinsic too. Re-walk its already bounded copy with this module's saved
   // intrinsic as defense in depth before any asynchronous simulator callback can
-  // observe the request graph.
+  // observe the request graph. Reflection results are traversed by index so a
+  // post-import Array iterator replacement cannot skip nested values.
   const descriptors = objectGetOwnPropertyDescriptors(value);
-  for (const key of objectGetOwnPropertyNames(value)) {
+  const names = objectGetOwnPropertyNames(value);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
     const descriptor = descriptors[key];
     if (descriptor && objectHasOwn(descriptor, 'value')) {
       deepFreezeCapturedPlainData(descriptor.value);
@@ -224,11 +227,13 @@ function exactPlainDataTranscript(value) {
 
   // Values reaching this helper have crossed the bounded inert Core capture (or
   // the equally strict typed-data bridge). Sorting object names removes irrelevant
-  // insertion order while string values retain exact UTF-16 code units.
+  // insertion order while string values retain exact UTF-16 code units. Traverse
+  // by index so the transcript never dispatches through a mutable Array iterator.
   const keys = objectGetOwnPropertyNames(value);
   sortArray(keys, asciiCompare);
   let transcript = `object:${keys.length}:{`;
-  for (const key of keys) {
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
     transcript += `key:${utf16CodeUnitTranscript(key)};`;
     transcript += exactPlainDataTranscript(value[key]);
   }
@@ -306,7 +311,8 @@ function captureExactDataRecord(value, expectedKeys, label, code) {
 
   const descriptors = objectGetOwnPropertyDescriptors(value);
   const snapshot = createObject(null);
-  for (const key of expectedKeys) {
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail(code, `${label}.${key} must be an enumerable data property`);
