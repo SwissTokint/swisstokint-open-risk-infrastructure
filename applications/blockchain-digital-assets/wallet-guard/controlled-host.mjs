@@ -17,6 +17,8 @@ import {
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_PROTOTYPE = Array.prototype;
+const SET_CONSTRUCTOR = Set;
+const SET_PROTOTYPE = Set.prototype;
 const OBJECT_PROTOTYPE = Object.prototype;
 const OBJECT_CREATE = Object.create;
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
@@ -28,6 +30,8 @@ const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_IS = Object.is;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_ITERATOR_METHOD = Array.prototype[Symbol.iterator];
+const SET_ITERATOR_METHOD = Set.prototype.values;
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
@@ -74,27 +78,39 @@ const TX_HASH_PATTERN = /^0x[a-f0-9]{64}$/u;
 const MAX_ACCOUNTS = 64;
 const MAX_SENSITIVE_CALLS = 64;
 
-// The application policy parser intentionally accepts standard Arrays. Capture
-// the exact initialization-time Array.prototype surface and fail closed if a
-// same-realm actor changes it later. Policy capture below is fully synchronous
-// and receives only already-inert Core data, so after this check there is no
-// caller callback or await point that can race parser dispatch. This guard is
-// intentionally application-local; Core keeps its detached captured-array model.
-const ARRAY_PROTOTYPE_BASELINE_NAMES = REFLECT_APPLY(
-  OBJECT_GET_OWN_PROPERTY_NAMES,
+const ARRAY_ITERATOR_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
   Object,
-  [ARRAY_PROTOTYPE],
+  [REFLECT_APPLY(ARRAY_ITERATOR_METHOD, new ARRAY_CONSTRUCTOR(), [])],
 );
-const ARRAY_PROTOTYPE_BASELINE_SYMBOLS = REFLECT_APPLY(
-  OBJECT_GET_OWN_PROPERTY_SYMBOLS,
+const SET_ITERATOR_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
   Object,
-  [ARRAY_PROTOTYPE],
+  [REFLECT_APPLY(SET_ITERATOR_METHOD, new SET_CONSTRUCTOR(), [])],
 );
-const ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS = REFLECT_APPLY(
-  OBJECT_GET_OWN_PROPERTY_DESCRIPTORS,
-  Object,
-  [ARRAY_PROTOTYPE],
-);
+
+function captureIntrinsicSurface(value) {
+  return {
+    parent: REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]),
+    names: REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]),
+    symbols: REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]),
+    descriptors: REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]),
+  };
+}
+
+// The application policy parser intentionally accepts standard Arrays and uses
+// the standard Array/Set iterator protocol. Capture the exact initialization-time
+// prototype surfaces it dispatches through and fail closed if a same-realm actor
+// changes them later. Checking Array.prototype alone is insufficient because an
+// unchanged Symbol.iterator method can still return an iterator whose shared
+// %ArrayIteratorPrototype%.next was mutated. Policy capture below is synchronous
+// and receives only already-inert Core data, so there is no callback/await point
+// between the final guard and parser dispatch. This remains application-local;
+// Core keeps its detached captured-array representation.
+const ARRAY_PROTOTYPE_BASELINE = captureIntrinsicSurface(ARRAY_PROTOTYPE);
+const ARRAY_ITERATOR_PROTOTYPE_BASELINE = captureIntrinsicSurface(ARRAY_ITERATOR_PROTOTYPE);
+const SET_PROTOTYPE_BASELINE = captureIntrinsicSurface(SET_PROTOTYPE);
+const SET_ITERATOR_PROTOTYPE_BASELINE = captureIntrinsicSurface(SET_ITERATOR_PROTOTYPE);
 
 export class WalletGuardControlledHostError extends Error {
   constructor(code, message) {
@@ -125,56 +141,61 @@ function sameDescriptor(left, right) {
     && descriptorFieldEqual(left, right, 'configurable');
 }
 
-function assertArrayPrototypeStable() {
-  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [ARRAY_PROTOTYPE]);
-  const symbols = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [ARRAY_PROTOTYPE]);
-  if (names.length !== ARRAY_PROTOTYPE_BASELINE_NAMES.length
-      || symbols.length !== ARRAY_PROTOTYPE_BASELINE_SYMBOLS.length) {
-    fail(
-      'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
-      'Array.prototype changed after Wallet Guard controlled-host initialization',
-    );
+function intrinsicMutation(label) {
+  fail(
+    'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
+    `${label} changed after Wallet Guard controlled-host initialization`,
+  );
+}
+
+function assertIntrinsicSurfaceStable(value, baseline, label) {
+  if (!OBJECT_IS(
+    REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]),
+    baseline.parent,
+  )) {
+    intrinsicMutation(label);
+  }
+
+  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+  const symbols = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+  if (names.length !== baseline.names.length || symbols.length !== baseline.symbols.length) {
+    intrinsicMutation(label);
   }
   for (let index = 0; index < names.length; index += 1) {
-    if (!OBJECT_IS(names[index], ARRAY_PROTOTYPE_BASELINE_NAMES[index])) {
-      fail(
-        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
-        'Array.prototype changed after Wallet Guard controlled-host initialization',
-      );
-    }
+    if (!OBJECT_IS(names[index], baseline.names[index])) intrinsicMutation(label);
   }
   for (let index = 0; index < symbols.length; index += 1) {
-    if (!OBJECT_IS(symbols[index], ARRAY_PROTOTYPE_BASELINE_SYMBOLS[index])) {
-      fail(
-        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
-        'Array.prototype changed after Wallet Guard controlled-host initialization',
-      );
-    }
+    if (!OBJECT_IS(symbols[index], baseline.symbols[index])) intrinsicMutation(label);
   }
 
   const descriptors = REFLECT_APPLY(
     OBJECT_GET_OWN_PROPERTY_DESCRIPTORS,
     Object,
-    [ARRAY_PROTOTYPE],
+    [value],
   );
-  for (let index = 0; index < ARRAY_PROTOTYPE_BASELINE_NAMES.length; index += 1) {
-    const key = ARRAY_PROTOTYPE_BASELINE_NAMES[index];
-    if (!sameDescriptor(descriptors[key], ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS[key])) {
-      fail(
-        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
-        'Array.prototype changed after Wallet Guard controlled-host initialization',
-      );
-    }
+  for (let index = 0; index < baseline.names.length; index += 1) {
+    const key = baseline.names[index];
+    if (!sameDescriptor(descriptors[key], baseline.descriptors[key])) intrinsicMutation(label);
   }
-  for (let index = 0; index < ARRAY_PROTOTYPE_BASELINE_SYMBOLS.length; index += 1) {
-    const key = ARRAY_PROTOTYPE_BASELINE_SYMBOLS[index];
-    if (!sameDescriptor(descriptors[key], ARRAY_PROTOTYPE_BASELINE_DESCRIPTORS[key])) {
-      fail(
-        'POMRX_WG_HOST_E_INTRINSIC_MUTATION',
-        'Array.prototype changed after Wallet Guard controlled-host initialization',
-      );
-    }
+  for (let index = 0; index < baseline.symbols.length; index += 1) {
+    const key = baseline.symbols[index];
+    if (!sameDescriptor(descriptors[key], baseline.descriptors[key])) intrinsicMutation(label);
   }
+}
+
+function assertArrayPrototypeStable() {
+  assertIntrinsicSurfaceStable(ARRAY_PROTOTYPE, ARRAY_PROTOTYPE_BASELINE, 'Array.prototype');
+  assertIntrinsicSurfaceStable(
+    ARRAY_ITERATOR_PROTOTYPE,
+    ARRAY_ITERATOR_PROTOTYPE_BASELINE,
+    '%ArrayIteratorPrototype%',
+  );
+  assertIntrinsicSurfaceStable(SET_PROTOTYPE, SET_PROTOTYPE_BASELINE, 'Set.prototype');
+  assertIntrinsicSurfaceStable(
+    SET_ITERATOR_PROTOTYPE,
+    SET_ITERATOR_PROTOTYPE_BASELINE,
+    '%SetIteratorPrototype%',
+  );
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
@@ -267,7 +288,7 @@ function canonicalAccounts(value) {
   }
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
   const normalized = new ARRAY_CONSTRUCTOR(value.length);
-  const seen = new Set();
+  const seen = new SET_CONSTRUCTOR();
   for (let index = 0; index < value.length; index += 1) {
     const key = String(index);
     const descriptor = descriptors[key];
@@ -310,10 +331,11 @@ function capturePolicy(value) {
   // accessor, hidden/symbol, decorated-array and custom-prototype rejection stays
   // zero-side-effect and bounded. Then materialize only that trusted inert snapshot
   // into ordinary frozen arrays before the Wallet Guard application parser sees it.
-  // The parser intentionally consumes standard Arrays, so the exact initialization-
-  // time Array.prototype is checked immediately before/after this synchronous path;
-  // any post-import drift fails closed instead of dispatching through attacker-owned
-  // inherited methods or setters. Core's detached snapshot representation is unchanged.
+  // The parser intentionally consumes standard Array/Set iteration surfaces, so
+  // those initialization-time prototypes (including iterator prototypes) are
+  // checked immediately before/after this synchronous path. Any post-import drift
+  // fails closed instead of dispatching through attacker-owned iteration or
+  // inherited setters. Core's detached snapshot representation is unchanged.
   assertArrayPrototypeStable();
   const captured = captureReferencePlainData(value, 'Wallet Guard controlled host policy');
   const materialized = materializeCapturedPlainData(captured);
