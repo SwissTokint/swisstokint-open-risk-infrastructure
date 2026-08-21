@@ -84,10 +84,9 @@ A reviewed composition of that durable claim primitive into the common Gate is
 at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Its PR base remains
 `0564aecd42cf0794894c12842980969ff59c9f73`, while current trusted main has moved
 to `03554ee3191c1ca28e50159a67f822543d619ca3` through coordination-only PR #105.
-Latest live GitHub reports `mergeable=false`; the signal changed after trusted
-main advanced. This is volatile mergeability/conflict metadata, does not identify
-the conflict cause, does not establish reconciliation by itself, and does not
-satisfy security review or any release gate. Canonical exact-head CI run
+Latest live GitHub reports `mergeable=true`; this is volatile
+mergeability/conflict metadata, does not establish reconciliation by itself, and
+does not satisfy security review or any release gate. Canonical exact-head CI run
 `32487036517` / CI run 592 completed `success` on exact head `0efb462...`, but
 green CI cannot clear the current security blocker.
 
@@ -299,18 +298,18 @@ this checkpoint**. Its current live head is
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
 `32465835858` / CI run 541 is green. Its branch base remains historical
 `818718955c9e4136e9e55754a31be2f1c7b610f8`, while trusted main is now
-`03554ee...`. Latest live GitHub reports `mergeable=false`; the signal changed
-after trusted main advanced and is volatile mergeability/conflict metadata only.
-It does not satisfy trusted-main reconciliation, security review or provide
-release evidence. The latest distinct Codex release evidence covers a moved head.
-Live thread revalidation also shows unresolved current/non-outdated P1/P2
-findings, including exact-value generic signature commitment, typed-data wrapper
-normalization and nested/shared capture/canonicalization classes; moved-head
-repair comments are not current exact-head release evidence. PR #93 therefore
-requires trusted-main reconciliation plus fresh exact-head release-owner and
-independent review after PR #97 dependency ordering is safe. Even after simulation
-evidence eventually merges, simulation-to-forwarding atomic binding remains a
-separate reviewed composition requirement.
+`03554ee...`. Latest live GitHub reports `mergeable=true`; this is volatile
+mergeability/conflict metadata only. It does not satisfy trusted-main
+reconciliation, security review or provide release evidence. The latest distinct
+Codex release evidence covers a moved head. Live thread revalidation also shows
+unresolved current/non-outdated P1/P2 findings, including exact-value generic
+signature commitment, typed-data wrapper normalization and nested/shared
+capture/canonicalization classes; moved-head repair comments are not current
+exact-head release evidence. PR #93 therefore requires trusted-main reconciliation
+plus fresh exact-head release-owner and independent review after PR #97 dependency
+ordering is safe. Even after simulation evidence eventually merges,
+simulation-to-forwarding atomic binding remains a separate reviewed composition
+requirement.
 
 The first success criterion remains a deterministic controlled fixture in which
 a dangerous approval/signature is denied before forwarding, while an explicitly
@@ -379,7 +378,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` trails trusted main `03554ee...`; live `mergeable=false` is volatile mergeability/conflict metadata only and does not establish trusted reconciliation, security correctness or release readiness. Requires a repaired candidate from trusted main, runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is a test-only move from parent `639b96e7...`; fresh distinct exact-head review reports P1 `Reject Promise drift before entering async layers`, with sensitive forwarding still reachable because runtime implementation is unchanged. Owner verdict is BLOCK and CI run 592 is SUCCESS. Its base `0564aecd...` trails trusted main `03554ee...`; live `mergeable=true` is volatile mergeability/conflict metadata only and does not establish trusted reconciliation, security correctness or release readiness. Requires a repaired candidate from trusted main, runtime repair, final exact-head green CI, owner PASS, distinct independent PASS and validated P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
@@ -387,7 +386,7 @@ review.
 | AI agents | protocol framing and agent references exist | concrete bounded autonomous-agent integration |
 | APIs and enterprise systems | application domain exists | exact target adapter and controlled demo |
 | Cybersecurity | application domain plus Wallet Guard defensive overlap | controlled enforcement demonstrations beyond wallet scope |
-| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live `mergeable=false` is volatile mergeability/conflict metadata only and does not waive reconciliation/security/review gates. Unresolved current/non-outdated P1/P2 review history remains; still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
+| Blockchain and digital assets | anchors, Stellar registry, Filecoin integration, Wallet Guard JSON ingress, EVM intent/effect decoding, fail-closed policy, policy controller, portable preflight, Core-verified Witness adapter, provider/Gate integration and controlled host exist | PR #93 exact head `c4e40ceb...` remains untrusted and historical-base; live `mergeable=true` is volatile mergeability/conflict metadata only and does not waive reconciliation/security/review gates. Unresolved current/non-outdated P1/P2 review history remains; still missing simulation-to-forwarding binding, stronger complete execution/reconciliation demo and later separately authorized burner E2E |
 | Governance/DAGR | subordinate profile framing exists | authorized source-backed normative profile work |
 
 ## 8. Naming discipline
