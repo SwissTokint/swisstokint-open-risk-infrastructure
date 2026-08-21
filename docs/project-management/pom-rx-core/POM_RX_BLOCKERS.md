@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T11:06:20+02:00`
+Updated: `2026-08-21T11:20:00+02:00`
 
 Current trusted main: `818718955c9e4136e9e55754a31be2f1c7b610f8`
 
@@ -93,21 +93,30 @@ production trusted time/Witness or external execution truth.
 
 ## PR #98 — control-plane continuity reconciliation
 
-Status: `IN_PROGRESS_REPAIRING_REVIEW_FINDINGS`
+Status: `AWAITING_EXACT_HEAD_CI_AND_INDEPENDENT_REVIEW`
 
-The first independent Codex review of exact head
+The first independent Codex review of moved head
 `0a9c56a8f8ddcbb266db55815c387efb7a644527` found four P1 contract regressions
-and one P2 stale-state claim. Canonical CI run `32465189485` failed on that head.
-The findings are bounded to documentation/control-plane wording: contract-checked
-Core ownership text, Wallet Guard ownership text, explicit full five-stage merge
-language, explicit post-merge review-family language, and removal of a task
-register blocker that the same PR had already resolved.
+and one P2 stale-state claim. Those five findings are repaired: the
+contract-checked Core and Wallet Guard ownership phrases are preserved, the
+policy again explicitly requires the full five-stage gate and all mandatory
+post-merge review families, and the already-resolved stale task-register blocker
+is removed.
 
-Repairs are being made only on the PR #98 docs/control-plane branch. Because the
-head moved, the old failing CI and independent review are historical input, not
-release evidence. PR #98 remains non-Tier-B and must receive green exact-head CI
-plus a fresh distinct exact-head independent review with no unresolved P0/P1/P2
-before merge.
+A second independent review on moved head
+`a5d5ad254400d67999241024126ad222b15f592d` found one additional P2 because the
+active task still described repairs as in progress. The task register now records
+that repair work is complete and the lot is waiting for exact-head gates.
+Canonical CI on that moved head also exposed a separate public-identity contract
+regression caused by the branch's root README rewrite. The README rewrite was
+reverted byte-for-byte to trusted-main content rather than weakening the frozen
+public-identity test.
+
+Because those repairs moved the head, all earlier CI/reviews are historical input,
+not release evidence. PR #98 remains non-Tier-B. Read its actual current head from
+live GitHub; it must receive green CI, a fresh distinct exact-head independent
+review with no unresolved P0/P1/P2, and the exact-head release-owner/five-stage
+gate before merge.
 
 ## DAGR source gate
 
