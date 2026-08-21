@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-21T15:13:33+02:00`
+Updated: `2026-08-21T15:45:20+02:00`
 
 Current trusted main: `0564aecd42cf0794894c12842980969ff59c9f73`
 
@@ -42,15 +42,14 @@ Tier-B PR trusted and did not establish production or real-wallet readiness.
 
 ## PR #97 — durable claim + Core Gate composition
 
-Status: `BLOCKED_UNRESOLVED_PROMISE_DRIFT_P1 / TEST_ONLY_FALSE_PASS_RISK`
+Status: `BLOCKED_EXACT_HEAD_PROMISE_DRIFT_P1 / TEST_ONLY_FALSE_PASS_RISK`
 
 Current exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`.
 
 Exact trusted base/main: `0564aecd42cf0794894c12842980969ff59c9f73`.
 
-Current exact-head CI run `32487036517`, `CI` run 592, is `in_progress` at this
-checkpoint. Its eventual color cannot clear the current technical blocker by
-itself.
+Canonical exact-head CI run `32487036517`, `CI` run 592, completed `success` on
+this exact head. Green CI does not clear the current technical/security blocker.
 
 Current head is one commit ahead of independently blocked parent
 `639b96e7a64fa101432b3afcc3c08aebfcc838cf` and changes only
@@ -61,23 +60,22 @@ Promise-prototype constructor getter never execute to allowing getter execution 
 long as that isolated case records zero authorization and zero sensitive
 forwarding.
 
-The immediately preceding fresh distinct `chatgpt-codex-connector` review on
-`639b96e7...` reported P1 **`Reject Promise drift before entering async layers`**.
-The inner transport validator can detect some drift, but its caller stack is
-itself async. The reviewer reproduced inherited `Promise.prototype.constructor`
-plus `then` poisoning being consulted by outer awaits in `readProviderSnapshot`,
-`sampleStableProviderContext`, `sampleTrustedContext` and `request` before the
-inner rejection reaches its caller. In that reproducer the context became stably
-attacker-controlled, reference authorization ran and a sensitive provider call
-was forwarded.
+A fresh distinct `chatgpt-codex-connector` review now covers exact current head
+`0efb462f0b4b8cff62d664a51d13ad71306b6bbb` and reports P1 **`Reject Promise
+drift before entering async layers`**. The reviewer explicitly states that the
+relaxed assertion hides the still-reachable parent exploit. The exact-head
+reproducer poisons inherited `Promise.prototype.constructor` plus `then`; outer
+awaits in `readProviderSnapshot`, `sampleStableProviderContext`,
+`sampleTrustedContext` and `request` assimilate rejected promises before the
+inner transport rejection reaches its caller. The poisoned continuations can
+substitute stable attacker-controlled context, after which reference
+authorization runs and a sensitive provider call is forwarded.
 
-Because current head does not change that implementation, the security finding
-remains unresolved even though the parent review is moved-head evidence for
-formal exact-head release purposes. A release-owner review is now recorded on
-exact current head `0efb462...` as **BLOCK / NON-INDEPENDENT**, specifically
-because weakening the regression without repairing or independently disproving
-the exploit creates false-PASS risk. A fresh distinct exact-head Codex review has
-been requested and is pending.
+A release-owner review is also recorded on exact current head `0efb462...` as
+**BLOCK / NON-INDEPENDENT**, specifically because weakening the regression without
+repairing or independently disproving the exploit creates false-PASS risk. The
+exact-head independent P1 and owner block therefore override the otherwise green
+CI for release purposes.
 
 The earlier `37b8e699...` finding **`Permit runtime bookkeeping symbols on native
 promises`** is historical after subsequent moves: ordinary native-Promise
@@ -207,7 +205,7 @@ The older PR #97 event-loop, intrinsic-poisoning, Array `map`/decorated-array,
 raw thenable-assimilation, Promise-decoration and native-Promise bookkeeping-symbol
 reports remain valuable review history. Their repairs are not promoted to trusted
 merely because later heads contain code intended to address them. The current
-release blocker is the unresolved Promise-prototype-drift-before-outer-async-layer
-P1 inherited from `639b96e7...`, plus false-PASS risk from test-only head
-`0efb462...`. If a regression is found in any merged property it becomes a
-**new** typed blocker tied to the exact affected SHA.
+release blocker is the exact-current-head Promise-prototype-drift-before-outer-
+async-layer P1 on `0efb462...`, plus false-PASS risk from that test-only head.
+If a regression is found in any merged property it becomes a **new** typed
+blocker tied to the exact affected SHA.
