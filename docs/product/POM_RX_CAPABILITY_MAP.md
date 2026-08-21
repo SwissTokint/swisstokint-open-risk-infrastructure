@@ -81,27 +81,29 @@ atomicity, consensus, crash recovery, Gate consumption or external execution.
 
 A reviewed composition of that durable claim primitive into the common Gate is
 **not on trusted main at this checkpoint**. PR #97 is the active Tier-B candidate
-at exact head `8195c55970be8230f58a5c237430e7371f400dd7`, reconciled to exact
+at exact head `37b8e6998f0867f97ef1efcf3dacab50f4097748`, reconciled to exact
 trusted main `0564aecd42cf0794894c12842980969ff59c9f73`. Its canonical exact-head
-CI run `32482359072` / CI run 577 is `success`, and the release-owner exact-head
-six-lane review is PASS but **NON-INDEPENDENT**.
+CI run `32485543302` / CI run 584 is `failure`, so no earlier green CI or
+release-owner review can be used as current release evidence.
 
-The latest independent P1, `Reject account Proxies before thenable assimilation`,
-was reported on moved head `871cd980...`. The repair is implemented on
-`8195c559...`: the direct provider return is obtained synchronously, classified
-with a module-initialization-captured native `node:util` `types.isPromise`
-without reading result-owned properties, and every direct non-Promise object is
-captured through shared hardened plain-data handling before crossing an
-async/thenable assimilation boundary. A CI-wired Array Proxy `get('then')`
-regression requires zero result-owned traps, zero authorization and zero
-sensitive forwarding. Genuine native Promise transport remains supported; prior
-assimilation already performed internally upstream is an explicit non-claim.
+The current exact-head independent finding is P1 `Permit runtime bookkeeping
+symbols on native promises`. The candidate retains the prior direct-result
+hardening: direct non-Promise objects/functions are captured before async
+thenable assimilation; decorated native Promise `constructor`/`then` attacks and
+post-import Promise-prototype drift are intended to fail closed. However the
+current native-Promise transport validator rejects every own symbol on a genuine
+Promise. Under Node's test runner/promise hooks, ordinary native Promises carry
+runtime bookkeeping symbols such as async/trigger IDs, so valid provider reads
+are rejected and canonical CI is red. Those bookkeeping symbols are not the
+result-owned `constructor`/`then` surface consulted by Promise assimilation.
 
-PR #97 therefore remains **untrusted and blocked for release** until a fresh
-distinct independent skeptical/security review covers exact head `8195c559...`,
-leaves no unresolved P0/P1/P2, and the historical repaired P1 threads are then
-resolved on that exact-head evidence. No capability-map text may treat durable
-Gate composition as merged before exact-merge post-merge assurance PASS.
+PR #97 therefore remains **untrusted and blocked for release** until the
+native-Promise symbol compatibility boundary is repaired narrowly without
+weakening the decorated-Promise, raw Proxy/thenable or Promise-prototype
+hardening; exact-head CI is green; a fresh release-owner review and a fresh
+distinct independent skeptical/security review cover the same final head; and no
+P0/P1/P2 remains unresolved. No capability-map text may treat durable Gate
+composition as merged before exact-merge post-merge assurance PASS.
 
 Production issuance remains unproved because production-grade source/Witness
 trust, operator authorization and trusted-time infrastructure are incomplete.
@@ -264,11 +266,12 @@ authorization.
 Reference simulation evidence is active PR #93 and is **not on trusted main at
 this checkpoint**. Its current live head is
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
-`32465835858` / CI run 541 is green, but the PR base predates current trusted
-main, live mergeability is false, and the latest distinct Codex release evidence
-covers a moved head. PR #93 therefore requires trusted-main reconciliation plus
-fresh exact-head release-owner and independent review after PR #97 dependency
-ordering is safe. Even after simulation evidence eventually merges,
+`32465835858` / CI run 541 is green. Live GitHub currently reports the PR
+mergeable, but its branch base predates current trusted main and the latest
+distinct Codex release evidence covers a moved head. Mergeability is not release
+evidence. PR #93 therefore requires trusted-main reconciliation plus fresh
+exact-head release-owner and independent review after PR #97 dependency ordering
+is safe. Even after simulation evidence eventually merges,
 simulation-to-forwarding atomic binding remains a separate reviewed composition
 requirement.
 
@@ -339,7 +342,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 repaired candidate `8195c559...` is green in CI/owner review but blocked pending fresh distinct independent exact-head validation and unresolved P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 current candidate `37b8e699...` has exact-head CI failure and independent P1 native-Promise bookkeeping-symbol compatibility blocker; requires narrow repair plus fresh exact-head CI/owner/independent gates and unresolved P1-thread closure; production issuer/trusted time; distributed/crash semantics where required |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
