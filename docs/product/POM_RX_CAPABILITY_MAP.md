@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-21
 
-Trusted-main checkpoint: `818718955c9e4136e9e55754a31be2f1c7b610f8`.
+Trusted-main checkpoint: `1abe57f8baea8dd6844cc8ea9e321c05ec01538f`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -149,6 +149,16 @@ Trusted main includes the prospective exact-main CI status publisher introduced
 by PR #96. It publishes `pom-rx/exact-main-ci` for the canonical push CI on the
 exact main SHA. The post-merge assurance gate still requires decision-time
 freshness revalidation; the status alone does not establish a PASS.
+
+### Durable project-control continuity
+
+Trusted main also includes the GitHub-backed cross-chat POM-RX control-plane
+reconciliation from PR #98. Its exact merge SHA is
+`1abe57f8baea8dd6844cc8ea9e321c05ec01538f`; the recorded exact-merge verdict is
+`POST_MERGE_ASSURANCE_PASS`. This is coordination/documentation infrastructure,
+not a protocol, Gate, Witness, Wallet Guard runtime or production-readiness
+capability. Live GitHub remains authoritative when volatile PR/CI/review state
+moves after a versioned checkpoint.
 
 ### Proof transport and anchoring
 
