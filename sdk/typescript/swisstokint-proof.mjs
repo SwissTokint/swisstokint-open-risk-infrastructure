@@ -16,13 +16,14 @@ const MAX_CANONICAL_BYTES = 16 * 1024;
 
 // Canonicalization and SHA-256 commitments are shared trust primitives. Capture
 // the intrinsics they dispatch through once at module initialization so a later
-// same-realm mutation of array classification/sorting, string normalization,
-// object enumeration, JSON serialization, byte counting, or the mutable default
-// node:crypto createHash export cannot rewrite an already-defined commitment.
-// Public canonical form, validation limits and normal-environment digest values
-// remain unchanged. Poisoning before module initialization remains outside this
-// reference-runtime guarantee.
-const CALL = String.prototype.normalize.call.bind(String.prototype.normalize.call);
+// same-realm mutation of array classification/sorting/iteration, string
+// normalization, object enumeration, JSON serialization, byte counting, or the
+// mutable default node:crypto createHash export cannot rewrite an already-defined
+// commitment. Public canonical form, validation limits and normal-environment
+// digest values remain unchanged. Poisoning before module initialization remains
+// outside this reference-runtime guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const REFLECT_GET = Reflect.get;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort.call.bind(Array.prototype.sort);
 const BUFFER_BYTE_LENGTH = Buffer.byteLength;
@@ -32,10 +33,11 @@ const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const OBJECT_ENTRIES = Object.entries;
 const REGEXP_TEST = RegExp.prototype.test.call.bind(RegExp.prototype.test);
 const SET_HAS = Set.prototype.has.call.bind(Set.prototype.has);
-const STRING_CHAR_CODE_AT = String.prototype.charCodeAt.call.bind(String.prototype.charCodeAt);
-const STRING_NORMALIZE_INTRINSIC = String.prototype.normalize;
+const STRING_PROTOTYPE = String.prototype;
+const STRING_CHAR_CODE_AT = STRING_PROTOTYPE.charCodeAt.call.bind(STRING_PROTOTYPE.charCodeAt);
+const STRING_NORMALIZE_INTRINSIC = STRING_PROTOTYPE.normalize;
 const STRING_NORMALIZE = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC);
-const STRING_TO_LOWER_CASE = String.prototype.toLowerCase.call.bind(String.prototype.toLowerCase);
+const STRING_TO_LOWER_CASE = STRING_PROTOTYPE.toLowerCase.call.bind(STRING_PROTOTYPE.toLowerCase);
 const HASH_PROBE = CRYPTO_CREATE_HASH('sha256');
 const HASH_UPDATE = HASH_PROBE.update.call.bind(HASH_PROBE.update);
 const HASH_DIGEST = HASH_PROBE.digest.call.bind(HASH_PROBE.digest);
@@ -53,13 +55,17 @@ function objectEntries(value) {
 }
 
 function normalizeString(value, form) {
-  const liveNormalize = String.prototype.normalize;
+  // Reflect.get against the initialization-time String.prototype with the
+  // original string as receiver is the exact property-lookup shape of
+  // `value.normalize`: an accessor replacement observes the same receiver, and
+  // the property is resolved exactly once. If a post-initialization replacement
+  // is present, invoke that same resolved value for its established side effects
+  // / thrown-error provenance, but discard its return so it cannot rewrite the
+  // canonical commitment. The canonical output always comes from the saved
+  // initialization-time intrinsic below.
+  const liveNormalize = REFLECT_GET(STRING_PROTOTYPE, 'normalize', value);
   if (liveNormalize !== STRING_NORMALIZE_INTRINSIC) {
-    // Preserve the established side effects and exact thrown-error provenance
-    // of one post-initialization replacement lookup/invocation, but never consume
-    // its return value into a commitment. A replacement that returns normally
-    // therefore cannot rewrite or collapse the canonical text computed below.
-    CALL(liveNormalize, value, form);
+    REFLECT_APPLY(liveNormalize, value, [form]);
   }
   return STRING_NORMALIZE(value, form);
 }
@@ -172,7 +178,9 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
   }
 
   if (arrayIsArray(value)) {
-    for (const item of value) validateSafeValue(item, depth + 1, budget);
+    for (let index = 0; index < value.length; index += 1) {
+      validateSafeValue(value[index], depth + 1, budget);
+    }
     return;
   }
 
@@ -181,7 +189,11 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
     'PROOF_E_PAYLOAD_TYPE',
     'Payload contains an unsupported value',
   );
-  for (const [key, nestedValue] of objectEntries(value)) {
+  const entries = objectEntries(value);
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const key = entry[0];
+    const nestedValue = entry[1];
     payloadAssert(
       regexpTest(PAYLOAD_KEY_PATTERN, key),
       'PROOF_E_PAYLOAD_KEY',
@@ -211,11 +223,17 @@ function canonicalizeValue(value) {
   }
 
   const entries = objectEntries(value);
-  sortArray(entries, ([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  sortArray(entries, (leftEntry, rightEntry) => {
+    const left = leftEntry[0];
+    const right = rightEntry[0];
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
   let canonical = '{';
   for (let index = 0; index < entries.length; index += 1) {
     if (index !== 0) canonical += ',';
-    const [key, nestedValue] = entries[index];
+    const entry = entries[index];
+    const key = entry[0];
+    const nestedValue = entry[1];
     canonical += `${jsonStringify(key)}:${canonicalizeValue(nestedValue)}`;
   }
   return `${canonical}}`;
