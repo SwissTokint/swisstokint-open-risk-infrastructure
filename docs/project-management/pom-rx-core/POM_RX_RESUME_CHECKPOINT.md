@@ -172,7 +172,8 @@ The user has standing authorization to merge future POM-RX PRs without per-PR
 approval only after the full five-stage gate is satisfied, all applicable
 technical/security gates pass, exact-head CI is green, and every required
 independent review covers that same exact head with no unresolved P0/P1/P2. The
-independent-review waiver remains limited to PR #60 unless explicitly broadened.
+independent-review waiver remains limited to PR #60 unless explicitly broadened
+by the user.
 
 Release-owner/Prime/self-review is NON-INDEPENDENT. A fresh
 `chatgpt-codex-connector` review may satisfy the independent lane only when it
