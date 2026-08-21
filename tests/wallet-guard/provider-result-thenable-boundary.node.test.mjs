@@ -177,6 +177,111 @@ test('synchronous callable Proxy is rejected before async-return thenable assimi
   assert.equal(sensitiveCalls, 0);
 });
 
+test('decorated native Promise is rejected before constructor or then getters execute', async () => {
+  let accountReads = 0;
+  let constructorGetterCalls = 0;
+  let thenGetterCalls = 0;
+  let authorizationCalls = 0;
+  let sensitiveCalls = 0;
+
+  const hostileTransport = Promise.resolve([ACCOUNT]);
+  Object.defineProperties(hostileTransport, {
+    constructor: {
+      configurable: true,
+      get() {
+        constructorGetterCalls += 1;
+        return function AttackerPromise() {};
+      },
+    },
+    then: {
+      configurable: true,
+      get() {
+        thenGetterCalls += 1;
+        return (resolve) => resolve([ATTACKER]);
+      },
+    },
+  });
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return '0x1';
+      if (request.method === 'eth_accounts') {
+        accountReads += 1;
+        return hostileTransport;
+      }
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const guarded = gateway(provider, () => {
+    authorizationCalls += 1;
+  });
+
+  await assert.rejects(
+    guarded.request(nativeTransfer()),
+    (error) => {
+      assert.ok(error instanceof WalletGuardProviderError);
+      assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID');
+      return true;
+    },
+  );
+
+  assert.equal(accountReads, 1);
+  assert.equal(constructorGetterCalls, 0);
+  assert.equal(thenGetterCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
+
+test('post-import Promise prototype constructor drift is rejected before getter execution', async () => {
+  let constructorGetterCalls = 0;
+  let authorizationCalls = 0;
+  let sensitiveCalls = 0;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'constructor');
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return Promise.resolve('0x1');
+      if (request.method === 'eth_accounts') return Promise.resolve([ACCOUNT]);
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+  const guarded = gateway(provider, () => {
+    authorizationCalls += 1;
+  });
+
+  Object.defineProperty(Promise.prototype, 'constructor', {
+    configurable: true,
+    enumerable: false,
+    get() {
+      constructorGetterCalls += 1;
+      return Promise;
+    },
+  });
+
+  let pending;
+  try {
+    pending = guarded.request(nativeTransfer());
+  } finally {
+    Object.defineProperty(Promise.prototype, 'constructor', originalDescriptor);
+  }
+
+  await assert.rejects(
+    pending,
+    (error) => {
+      assert.ok(error instanceof WalletGuardProviderError);
+      assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID');
+      return true;
+    },
+  );
+
+  assert.equal(constructorGetterCalls, 0);
+  assert.equal(authorizationCalls, 0);
+  assert.equal(sensitiveCalls, 0);
+});
+
 test('ordinary synchronous provider context data remains supported', async () => {
   let authorizationCalls = 0;
   let sensitiveCalls = 0;
@@ -185,6 +290,31 @@ test('ordinary synchronous provider context data remains supported', async () =>
     request(request) {
       if (request.method === 'eth_chainId') return '0x1';
       if (request.method === 'eth_accounts') return [ACCOUNT];
+      sensitiveCalls += 1;
+      return TX_RESULT;
+    },
+  });
+
+  const guarded = gateway(provider, () => {
+    authorizationCalls += 1;
+  });
+  const result = await guarded.request(nativeTransfer());
+
+  assert.equal(result.decision, 'ALLOW');
+  assert.equal(result.forwarded, true);
+  assert.equal(result.provider_result, TX_RESULT);
+  assert.equal(authorizationCalls, 1);
+  assert.equal(sensitiveCalls, 1);
+});
+
+test('ordinary native Promise provider context transport remains supported', async () => {
+  let authorizationCalls = 0;
+  let sensitiveCalls = 0;
+
+  const provider = Object.freeze({
+    request(request) {
+      if (request.method === 'eth_chainId') return Promise.resolve('0x1');
+      if (request.method === 'eth_accounts') return Promise.resolve([ACCOUNT]);
       sensitiveCalls += 1;
       return TX_RESULT;
     },
