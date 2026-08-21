@@ -56,7 +56,7 @@ function callbackResult(input, overrides = {}) {
   };
 }
 
-test('foreign PomRxPlainDataError during callback capture is not downgraded to mismatch', async () => {
+test('post-import Set.has poisoning cannot inject a foreign plain-data capture failure', async () => {
   const rawRequest = request();
   const intent = normalize(rawRequest, 'wg-simulation-provenance-0001');
   const originalSetHas = Set.prototype.has;
@@ -64,9 +64,11 @@ test('foreign PomRxPlainDataError during callback capture is not downgraded to m
     'POMRX_DATA_E_KEY',
     'foreign callback-capture failure',
   );
+  let poisonCalls = 0;
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
       Set.prototype.has = function poisonedSetHas() {
+        poisonCalls += 1;
         Set.prototype.has = originalSetHas;
         throw foreign;
       };
@@ -74,17 +76,18 @@ test('foreign PomRxPlainDataError during callback capture is not downgraded to m
     },
   });
 
+  let evidence;
   try {
-    await assert.rejects(
-      runtime.simulate({ intent, request: rawRequest }),
-      (error) => error === foreign,
-    );
+    evidence = await runtime.simulate({ intent, request: rawRequest });
   } finally {
     Set.prototype.has = originalSetHas;
   }
+
+  assert.equal(poisonCalls, 0);
+  assert.equal(evidence.status, 'pass');
 });
 
-test('matching exported simulation error from a later intrinsic preserves exact provenance', async () => {
+test('post-import RegExp.test poisoning cannot inject a foreign hash-path failure', async () => {
   const rawRequest = request();
   const intent = normalize(rawRequest, 'wg-simulation-provenance-0002');
   const originalRegExpTest = RegExp.prototype.test;
@@ -92,9 +95,11 @@ test('matching exported simulation error from a later intrinsic preserves exact 
     'POMRX_WG_SIM_E_CALLBACK_INVALID',
     'foreign hash-path failure',
   );
+  let poisonCalls = 0;
   const runtime = createWalletGuardReferenceSimulationHarness({
     simulateRequest: async (input) => {
       RegExp.prototype.test = function poisonedRegExpTest() {
+        poisonCalls += 1;
         RegExp.prototype.test = originalRegExpTest;
         throw foreign;
       };
@@ -102,14 +107,15 @@ test('matching exported simulation error from a later intrinsic preserves exact 
     },
   });
 
+  let evidence;
   try {
-    await assert.rejects(
-      runtime.simulate({ intent, request: rawRequest }),
-      (error) => error === foreign,
-    );
+    evidence = await runtime.simulate({ intent, request: rawRequest });
   } finally {
     RegExp.prototype.test = originalRegExpTest;
   }
+
+  assert.equal(poisonCalls, 0);
+  assert.equal(evidence.status, 'pass');
 });
 
 test('genuine invalid callback hashes remain local mismatch evidence', async () => {
