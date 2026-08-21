@@ -42,25 +42,36 @@ Tier-B PR trusted and did not establish production or real-wallet readiness.
 
 ## PR #97 — durable claim + Core Gate composition
 
-Status: `BLOCKED_EXACT_HEAD_P1_NATIVE_PROMISE_SYMBOL_COMPATIBILITY / EXACT_HEAD_CI_FAILURE`
+Status: `BLOCKED_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS / EXACT_HEAD_CI_FAILURE`
 
-Current exact head: `37b8e6998f0867f97ef1efcf3dacab50f4097748`.
+Current exact head: `639b96e7a64fa101432b3afcc3c08aebfcc838cf`.
 
 Exact trusted base/main: `0564aecd42cf0794894c12842980969ff59c9f73`.
 
-Canonical exact-head CI run `32485543302`, `CI` run 584, completed `failure` on
-this exact SHA. The failing global suite rejects ordinary genuine native Promise
-provider context transport as `POMRX_WG_PROVIDER_E_CONTEXT_INVALID`.
+Canonical exact-head CI run `32486243945`, `CI` run 586, completed `failure` on
+this exact SHA. The exact failing regression is
+`post-import Promise prototype constructor drift is rejected before getter execution`:
+the hostile constructor getter is observed four times, while that isolated test
+still records `authorizationCalls: 0` and `sensitiveCalls: 0`.
 
-A fresh distinct `chatgpt-codex-connector` review covers this exact head and
-reports P1 **`Permit runtime bookkeeping symbols on native promises`**. The
-current `validateNativePromiseTransport()` correctly uses captured reflection and
-checks the Promise prototype/constructor surface, but it also rejects every own
-symbol on a native Promise. Under Node's `node --test` runner and promise hooks,
-ordinary native Promises receive runtime bookkeeping symbols such as async and
-trigger IDs. Those symbols are not the result-owned `constructor`/`then` surface
-consulted by Promise assimilation, so the current all-symbol rejection converts a
-legitimate transport into a false reject and makes canonical CI red.
+The previous exact-head P1 on `37b8e699...`, **`Permit runtime bookkeeping
+symbols on native promises`**, is now historical after the head moved. Current
+head permits Node/AsyncHooks bookkeeping symbols sufficiently for the ordinary
+native-Promise provider compatibility regression to pass. That repair is not a
+release verdict because the new exact head has a different current P1.
+
+A fresh distinct `chatgpt-codex-connector` review covers exact head
+`639b96e7...` and reports P1 **`Reject Promise drift before entering async
+layers`**. The current inner transport validator can reject an undecorated native
+Promise when the captured `Promise.prototype.constructor` surface has drifted,
+but the call stack around it is itself async. Fresh stack/reproducer evidence
+shows outer awaits in `readProviderSnapshot`, `sampleStableProviderContext`,
+`sampleTrustedContext` and `request` can consult poisoned inherited Promise
+properties before the inner rejection reaches its caller. With inherited
+`constructor` and `then` poisoned together, the independent reviewer reproduced
+stable attacker-controlled context followed by reference authorization and a
+sensitive provider forward. This is therefore a release-blocking security defect,
+not only a brittle test expectation.
 
 The previous hardening still matters and must not be weakened by the repair:
 
@@ -68,10 +79,12 @@ The previous hardening still matters and must not be weakened by the repair:
   capture boundary before async/thenable assimilation;
 - result-owned `constructor` or `then` decoration on a native Promise must remain
   rejected before attacker-owned dispatch;
-- post-import drift of the load-bearing Promise prototype constructor/thenable
-  surface must remain fail-closed under the documented same-realm threat model;
-- the raw Array Proxy/function-Proxy and decorated-Promise regressions remain
-  security evidence, not compatibility tests to delete.
+- ordinary genuine native Promise transports with inert Node/runtime bookkeeping
+  symbols must remain compatible;
+- rejected hostile Promise/proxy transports must not reach authorization or
+  sensitive forwarding;
+- raw Array Proxy/function-Proxy, decorated-Promise and same-realm intrinsic-drift
+  regressions remain security evidence, not tests to delete.
 
 The last release-owner six-lane PASS covered moved head
 `f91079676aa8a21c0501bee3951bcd0d40c27083`, not the current head. It is stale.
@@ -81,20 +94,23 @@ current candidate.
 
 Required to unblock:
 
-1. make the smallest native-Promise transport correction that permits inert
-   runtime bookkeeping symbols while preserving rejection of dangerous
-   `constructor`/`then` decoration and Promise-prototype drift;
-2. retain or add CI-wired negative tests proving the decorated/native-Promise,
-   Proxy/thenable and post-import drift attacks remain fail-closed, plus a positive
-   compatibility test proving ordinary instrumented native Promises work;
-3. rerun canonical exact-head CI after the repair and require success;
-4. run a fresh release-owner SpecKit/falsification/security/code-quality/
+1. close the Promise-prototype drift boundary before entering any outer async
+   layer whose own Promise assimilation can consult attacker-controlled inherited
+   `constructor`/`then` state;
+2. preserve ordinary native-Promise compatibility, including inert runtime
+   bookkeeping symbols, plus direct non-Promise capture and own Promise-decoration
+   rejection;
+3. retain/add CI-wired negative tests proving hostile Promise prototype drift,
+   decorated native Promises and raw Proxy/thenable results fail before
+   authorization/forwarding, plus positive ordinary-native-Promise compatibility;
+4. rerun canonical exact-head CI after the repair and require success;
+5. run a fresh release-owner SpecKit/falsification/security/code-quality/
    optimization/integration review on that exact head;
-5. obtain a fresh distinct independent skeptical/security review on the same
+6. obtain a fresh distinct independent skeptical/security review on the same
    exact head and leave no unresolved P0/P1/P2;
-6. only then resolve independently validated historical P1 threads and revalidate
+7. only then resolve independently validated historical P1 threads and revalidate
    exact head + CI before merge;
-7. after any merge run mandatory exact-merge-SHA assurance before treating the
+8. after any merge run mandatory exact-merge-SHA assurance before treating the
    durable composition as trusted.
 
 The durable composition remains reference-only. It does not prove hostile
@@ -180,9 +196,9 @@ revived merely because older Git history mentions them:
   PASS verdicts.
 
 The older PR #97 event-loop, intrinsic-poisoning, Array `map`/decorated-array,
-raw thenable-assimilation and Promise-decoration reports remain valuable review
-history. Their repairs are not promoted to trusted merely because later heads
-contain code intended to address them. The current exact-head blocker is the
-native-Promise bookkeeping-symbol false rejection plus red CI on `37b8e699...`.
-If a regression is found in any merged property it becomes a **new** typed blocker
-tied to the exact affected SHA.
+raw thenable-assimilation, Promise-decoration and native-Promise bookkeeping-symbol
+reports remain valuable review history. Their repairs are not promoted to trusted
+merely because later heads contain code intended to address them. The current
+exact-head blocker is the Promise-prototype-drift-before-outer-async-layer P1 plus
+red CI on `639b96e7...`. If a regression is found in any merged property it
+becomes a **new** typed blocker tied to the exact affected SHA.
