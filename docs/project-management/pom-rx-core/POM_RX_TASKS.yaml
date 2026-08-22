@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T02:10:44+02:00",
-  "current_main": "dc926bcc006255825c1598c9699264af3476c363",
+  "updated_at": "2026-08-22T03:26:20+02:00",
+  "current_main": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -14,18 +14,18 @@
     ]
   },
   "trusted_main": {
-    "sha": "dc926bcc006255825c1598c9699264af3476c363",
-    "source_pr": 110,
-    "source_head": "32fad9b46f281ecb99db1526244f0b187a769714",
-    "tree": "3e8e3d838b649866a0d062618d5245c5bfa9560f",
+    "sha": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
+    "source_pr": 111,
+    "source_head": "bea88015019e3ea2cf28abf8cdc0eea7006f611c",
+    "tree": "e49008df989865b2b56b10e738d6b16571715daa",
     "candidate_ci": {
-      "run_id": 32529119685,
-      "run_number": 658,
+      "run_id": 32539681161,
+      "run_number": 668,
       "conclusion": "success"
     },
     "exact_main_ci": {
-      "run_id": 32531945294,
-      "run_number": 659,
+      "run_id": 32542680297,
+      "run_number": 669,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
@@ -38,27 +38,14 @@
     "scope": "coordination_only_non_tier_b"
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-110-CHECKPOINT-20260822",
-    "pr": 111,
-    "title": "Reconcile canonical control plane after trusted PR 110",
+    "id": "CONTROL-PLANE-POST-111-CHECKPOINT-20260822",
+    "pr": 112,
+    "title": "Reconcile canonical control plane after trusted PR 111",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "OPEN_REPAIR_HEAD_MOVING_FRESH_EXACT_HEAD_GATES_REQUIRED",
-    "base_sha": "dc926bcc006255825c1598c9699264af3476c363",
-    "branch": "docs/pom-rx-checkpoint-after-110-20260822",
-    "prior_head": "9cfa19cd0dfd1c237caf709c367874ad215c877e",
-    "prior_ci": {
-      "run_id": 32533068576,
-      "run_number": 664,
-      "conclusion": "success_but_stale_after_repair_head_move"
-    },
-    "prior_owner_gate": "PASS_NON_INDEPENDENT",
-    "prior_independent_gate": "BLOCK_TWO_P2_MERGEABILITY_SNAPSHOT_INCONSISTENCIES",
-    "prior_independent_findings": [
-      "Reconcile PR #97 mergeability across canonical surfaces",
-      "Reconcile PR #93 mergeability across canonical surfaces"
-    ],
-    "repair_state": "SYNCHRONIZE_PR97_AND_PR93_VOLATILE_MERGEABILITY_SNAPSHOTS_TO_LIVE_REVALIDATED_TRUE_WHILE_RETAINING_NON_EVIDENTIARY_RULE_AND_PRIOR_PR93_CANONICALIZATION_HASH_BLOCKER",
-    "exact_current_head_rule": "Read PR #111 live; do not self-embed a moving exact head because doing so would move it again.",
+    "status": "OPEN_HEAD_MOVING_FRESH_EXACT_HEAD_GATES_REQUIRED",
+    "base_sha": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
+    "branch": "docs/pom-rx-checkpoint-after-111-20260822",
+    "exact_current_head_rule": "Read PR #112 live; do not self-embed a moving exact head because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -66,9 +53,9 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 110 exact merge and POST_MERGE_ASSURANCE_PASS",
+      "checkpoint trusted PR 111 exact merge and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
-      "use one revalidated volatile mergeability snapshot consistently across detailed canonical surfaces, while retaining live-GitHub-wins and non-release-evidence rules",
+      "treat mergeability as volatile conflict metadata only and never release evidence",
       "retain PR 93 shared proof canonicalization and SHA-256/hash hardening findings until a repaired exact head is independently validated",
       "preserve shared Core versus Wallet Guard application ownership",
       "preserve the PR 97 durable-claim-before-observer/downstream ordering, fail-closed replay and one-winner invariants",
@@ -76,9 +63,9 @@
       "preserve the PR-60-only independent-review waiver",
       "preserve production and real-wallet non-claims",
       "change no runtime, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
-      "run fresh exact-head CI and scoped release-owner review after the repair head move",
+      "run fresh exact-head CI and scoped release-owner review after the four-file diff is frozen",
       "obtain fresh distinct exact-head independent review before merge",
-      "resolve P2 threads only after validated evidence with zero unresolved P0/P1/P2",
+      "resolve review threads only after validated exact-head evidence with zero unresolved P0/P1/P2",
       "after merge run exact-merge post-merge assurance"
     ]
   },
@@ -90,6 +77,8 @@
       "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
       "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
+      "trusted_main_required": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa_or_later_trusted_main",
+      "mergeable_snapshot": "true_volatile_non_evidentiary",
       "ci": {
         "run_id": 32487036517,
         "run_number": 592,
@@ -101,9 +90,9 @@
         "runtime implementation unchanged on exact head while the security regression was relaxed",
         "inherited Promise.prototype.constructor plus then poisoning can cross outer async awaits and reach stable attacker context, authorization and sensitive forwarding",
         "current exact-head and earlier P1 review threads remain unresolved",
-        "historical branch base is not reconciled to trusted main dc926bcc006255825c1598c9699264af3476c363"
+        "historical branch base is not reconciled to trusted main 89816f2bfcc97a77cd4cbc67cd3b2968800938fa"
       ],
-      "next_safe_action": "After PR #111 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #112 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -112,6 +101,8 @@
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
+      "trusted_main_required": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa_or_later_trusted_main",
+      "mergeable_snapshot": "true_volatile_non_evidentiary",
       "ci": {
         "run_id": 32465835858,
         "run_number": 541,
@@ -120,10 +111,14 @@
       "owner_gate": "NO_FRESH_EXACT_CURRENT_HEAD_RELEASE_REVIEW_FOUND",
       "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
       "blockers": [
-        "trusted-main reconciliation required from dc926bcc006255825c1598c9699264af3476c363 or later trusted main",
+        "trusted-main reconciliation required from 89816f2bfcc97a77cd4cbc67cd3b2968800938fa or later trusted main",
         "fresh exact-head release-owner review required",
         "fresh distinct exact-head independent skeptical/security review required",
         "unresolved current/non-outdated P1/P2 review threads remain",
+        "exact negative-zero identity remains unresolved until repaired exact-head validation",
+        "typed-data wrapper normalization remains unresolved until repaired exact-head validation",
+        "generic-signature exact-value commitment remains unresolved until repaired exact-head validation",
+        "nested payload capture through saved reflection intrinsics remains unresolved until repaired exact-head validation",
         "shared proof canonicalization and SHA-256/hash hardening findings remain unresolved until a repaired exact head is independently validated",
         "overlapping shared regression/package surfaces keep ordering after trusted PR 97 dependency"
       ],
