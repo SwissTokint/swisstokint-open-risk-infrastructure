@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T12:20:00+02:00`
+Updated: `2026-08-22T13:24:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -78,18 +78,28 @@ repaired scope carries PR #118's terminal facts only while simultaneously
 advancing the next useful task: the fresh trusted-main repair of the PR #97
 Promise-drift security boundary.
 
+A later distinct exact-head Codex review of repaired head
+`ae856bdb2d0389b4fa3aefc962a072d093fac050` raised a second P2:
+`Restore the five-stage standing-authorization prerequisite`. The finding was
+valid: the machine-readable `merge_rules.standing_authorization` wording had
+stopped explicitly stating that standing merge authority depends on completion
+of the mandatory five-stage pre-merge gate. Repair commit
+`0590362a3682049aac6ab5f80a3bc31af3326854` restores that explicit prerequisite
+without changing runtime/tests or weakening any other gate.
+
 Current transition vehicle:
 
 - PR: `#119`;
 - branch: `docs/pom-rx-checkpoint-after-118-20260822`;
 - base: exact trusted main `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
 - class: `NON_TIER_B_DOCUMENTATION_CONTROL_PLANE`;
-- old reviewed head: `1bdb53bad6f0b88046358f4ec7912c86a0469a7c`;
-- old exact-head CI: `32564477324` / CI 710, `success`;
-- old release-owner gate: review `4999836109`, `PASS / NON-INDEPENDENT`;
-- old distinct exact-head review: `chatgpt-codex-connector`, with unresolved P2
-  thread `PRRT_kwDOTiNyWc6bX2ey`;
-- all evidence on `1bdb53bad...` is stale after this repair moves the head.
+- historical reviewed head `1bdb53bad...`: CI 710 success, owner PASS/non-
+  independent, Codex P2 terminal-rule finding;
+- historical reviewed head `ae856bdb...`: CI 714 success, owner PASS/non-
+  independent, Codex P2 five-stage-prerequisite finding;
+- both P2 classes are repaired in the moving branch but remain unresolved until a
+  fresh genuinely distinct exact-head review validates the final frozen head;
+- all exact-head CI/review evidence on any earlier head is stale after a move.
 
 The repaired final PR #119 head is intentionally not self-embedded in these
 moving files. Read the live PR head, CI, reviews and threads after the final
@@ -173,25 +183,30 @@ does not authorize forwarding or prove external state/effect truth.
 
 1. `PR119_EXACT_HEAD_P2_TERMINAL_RULE_REPAIR_REQUIRES_FRESH_REVIEW` — moved-head
    repair of Codex P2 `Honor PR #118's terminal rule instead of creating PR #119`;
-   stale CI/review on `1bdb53bad...` cannot release the repaired head.
-2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
-3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
-4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
-5. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR118`.
-6. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
-7. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
-8. `DAGR_SOURCE_DOCUMENT_MISSING`.
-9. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
+   stale exact-head evidence cannot release the final repaired head.
+2. `PR119_EXACT_HEAD_P2_FIVE_STAGE_PREREQUISITE_REPAIR_REQUIRES_FRESH_REVIEW` —
+   Codex P2 on `ae856bdb...` found that machine-readable standing authorization no
+   longer explicitly depended on the mandatory five-stage pre-merge gate;
+   `0590362a...` restores that prerequisite, but a fresh exact-head independent
+   review is still required before thread resolution or merge.
+3. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
+4. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
+5. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
+6. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR118`.
+7. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
+8. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
+9. `DAGR_SOURCE_DOCUMENT_MISSING`.
+10. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
 ## merge_authorization_and_review_rules
 
 Standing authorization permits a POM-RX merge without per-PR confirmation only
-after the full five-stage pre-merge gate, every applicable technical/security
-gate, exact-head CI, and every required distinct exact-head independent review
-pass with no unresolved P0/P1/P2. The five stages remain: review pass 1; control
-pass 1; skeptical challenge; exact-head review pass 2; exact-head control pass 2 /
-release gate. The independent-review waiver remains limited to PR #60 unless
-explicitly broadened.
+after the **mandatory full five-stage pre-merge gate**, every applicable
+technical/security gate, exact-head CI, and every required distinct exact-head
+independent review pass with no unresolved P0/P1/P2. The five stages remain:
+review pass 1; control pass 1; skeptical challenge; exact-head review pass 2;
+exact-head control pass 2 / release gate. The independent-review waiver remains
+limited to PR #60 unless explicitly broadened.
 
 Release-owner/Prime/self-review is NON-INDEPENDENT. A fresh
 `chatgpt-codex-connector` review may satisfy the independent lane only when it
@@ -207,15 +222,14 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Finish the four-file PR #119 repair that converts the self-recreating
-   checkpoint into a transition carrying PR #118 terminal state plus activation
-   of the fresh PR #97-line repair.
-2. Freeze the repaired exact head and require fresh canonical exact-head CI,
-   release-owner five-stage control, fresh distinct exact-head independent review
-   and zero unresolved P0/P1/P2 on that same SHA.
-3. Resolve the existing P2 thread only after exact-head independent validation of
-   the repair, then revalidate unchanged base/head/CI/reviews/threads before any
-   merge.
+1. Freeze the repaired four-file PR #119 transition head after recording both
+   historical P2 repair classes.
+2. Require fresh canonical exact-head CI, release-owner five-stage control, fresh
+   distinct exact-head independent review and zero unresolved P0/P1/P2 on that
+   same SHA.
+3. Resolve both historical P2 threads only after exact-head independent
+   validation of the final repair, then revalidate unchanged
+   base/head/CI/reviews/threads before any merge.
 4. After a merge, require exact-main CI and exact-merge
    `POST_MERGE_ASSURANCE_PASS`; do **not** create another documentation-only
    checkpoint for PR #119.
