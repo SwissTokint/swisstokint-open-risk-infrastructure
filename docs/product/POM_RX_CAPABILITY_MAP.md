@@ -62,7 +62,7 @@ single-use Gate and a separate filesystem durable claim-store reference
 primitive. A reviewed composition of the durable claim primitive with the common
 Gate is **not** on trusted main at this checkpoint.
 
-PR #97 remains the blocked historical Tier-B candidate:
+Historical PR #97 remains blocked and is not a merge candidate:
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
@@ -76,17 +76,24 @@ async awaits before a transport rejection reaches its caller, substitute stable
 attacker-controlled context, then permit reference authorization and sensitive
 forwarding. The green CI result does not override the reproducer.
 
-The eventual repair must start from then-current trusted main rather than
-reviving or merging the stale branch wholesale. It must prevent Promise-prototype
-drift before outer async assimilation, restore/replace the exact exploit
-regression, require the durable capability claim to succeed before observer or
-downstream work, preserve fail-closed replay and durable one-winner behavior,
-retain ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility,
-preserve hardened direct non-Promise capture and own-decorated Promise rejection,
-and require **zero authorization/forwarding for hostile rejected transports**.
-Only then may it proceed through exact-head CI, release-owner review, fresh
-distinct exact-head independent skeptical/security review and zero unresolved
-P0/P1/P2.
+The next useful Tier-B task is a **fresh trusted-main repair** of this PR #97-line
+security boundary. It must start on a new bounded branch/PR from then-current
+trusted `main`, not by merging, rebasing, reviving or wholesale-copying the stale
+PR #97 branch. The repair must:
+
+- prevent Promise-prototype drift before outer async assimilation;
+- restore or replace the exact exploit regression without weakening hostile-
+  dispatch expectations;
+- require durable capability claim success before observer/downstream work;
+- preserve fail-closed replay and durable one-winner behavior;
+- retain ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility;
+- preserve hardened direct non-Promise capture and own-decorated Promise rejection;
+- require **zero authorization and zero sensitive forwarding for hostile rejected
+  transports**.
+
+Only a repaired exact head with canonical CI success, release-owner review, a
+fresh genuinely distinct exact-head independent skeptical/security review and
+zero unresolved P0/P1/P2 may become a merge candidate.
 
 ### Witness
 
@@ -129,30 +136,32 @@ merge is one merge commit with `files: []`.
 Its exact-head CI `32559785310` / CI 704 passed. The final release-owner exact-head
 gate passed in review `4999506623` as `PASS / NON-INDEPENDENT`; distinct exact-head
 `chatgpt-codex-connector` issue comment `5379054811` reviewed `dacc2efde7` and
-reported no major issues. The prior continuation P2 threads were resolved only
-after that exact-head validation. Exact-main push CI `32561596467` / CI 705
-attempt 1 completed successfully on the exact merge SHA, decision-time
+reported no major issues. Exact-main push CI `32561596467` / CI 705 attempt 1
+completed successfully on the exact merge SHA, decision-time
 `pom-rx/exact-main-ci` targeted that same run, and exact-merge SpecKit,
 skeptical/falsification, security, code-quality, optimization and
 integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
 #118 issue comment `5379219612`.
 
-PR #118 is terminal trusted coordination evidence and must not be recreated. It
-changed no runtime/security semantics and does not make PR #97 or PR #93 trusted.
+PR #118 is terminal trusted coordination evidence. Its terminal rule prevents a
+new documentation-only checkpoint from being created merely to restate that
+terminal state.
 
-Because the four continuation files merged by PR #118 necessarily contained its
-pre-merge state, the bounded post-PR118 live-state reconciliation is active as PR
-#119 on branch `docs/pom-rx-checkpoint-after-118-20260822` from exact trusted main.
-PR #119 changes only the four canonical continuation surfaces and is the permanent
-identity of this reconciliation; it must not recreate itself after merge or
-closure. Its final moving exact head, CI, reviews and threads must be read live
-after the final owned-file commit rather than self-embedded in these files.
+PR #119 is therefore treated only as a **transition vehicle**: it carries PR
+#118's terminal facts while promoting the next useful task, the fresh PR #97-line
+Promise-drift repair, into the active delivery slot. The earlier exact PR #119
+head `1bdb53bad6...` had CI 710 success and owner PASS/non-independent, but the
+fresh distinct Codex review raised P2 `Honor PR #118's terminal rule instead of
+creating PR #119`. That P2 is accepted; all old exact-head evidence becomes stale
+after the repair moves the branch.
 
-No Tier-B readiness/dependency decision may rely on stale pre-merge PR #118 state.
-PR #119 cannot merge until its frozen exact head has canonical CI success,
-release-owner five-stage PASS, a genuinely distinct exact-head independent review
-and zero unresolved P0/P1/P2. After merge, exact-merge post-merge assurance is
-mandatory again.
+The repaired PR #119 head must be read live after the final owned-file commit and
+cannot merge until that same SHA has canonical CI success, release-owner
+five-stage PASS, a fresh genuinely distinct exact-head independent review, and
+zero unresolved P0/P1/P2. If it merges and receives exact-merge
+`POST_MERGE_ASSURANCE_PASS`, no post-PR119 docs-only successor should be opened;
+the next action is the fresh PR #97-line runtime branch from the new trusted
+`main`.
 
 ### Proof transport and anchoring
 
@@ -247,13 +256,14 @@ PR #93 current live state at this checkpoint:
   commitment, nested payload capture with saved reflection intrinsics, and shared
   proof canonicalization/SHA-256/hash hardening.
 
-PR #93 remains ordered after trusted #97 unless a separately reviewed dependency
-change is recorded. Even after simulation evidence eventually merges,
-simulation-to-forwarding atomic binding remains a separate reviewed requirement.
-The first success criterion remains a deterministic controlled fixture in which
-a dangerous approval/signature is denied before forwarding while one explicitly
-allowed control request is forwarded exactly once and reconciled. That does not
-prove universal browser/wallet/dApp/chain protection.
+PR #93 remains ordered after the trusted fresh PR #97-line repair unless a
+separately reviewed dependency change is recorded. Even after simulation
+evidence eventually merges, simulation-to-forwarding atomic binding remains a
+separate reviewed requirement. The first success criterion remains a
+deterministic controlled fixture in which a dangerous approval/signature is
+denied before forwarding while one explicitly allowed control request is
+forwarded exactly once and reconciled. That does not prove universal
+browser/wallet/dApp/chain protection.
 
 ## 5. Integration and adapter block
 
@@ -310,7 +320,7 @@ review.
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
 | Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | production trust/time, distributed semantics, production-independent observation and external effect truth |
-| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | PR #97 blocked by exact-head Promise-drift P1; fresh repair from trusted main required with zero authorization/forwarding for hostile rejected transports |
+| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | fresh PR #97-line Promise-drift repair is next; stale PR #97 remains blocked and must not merge |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
