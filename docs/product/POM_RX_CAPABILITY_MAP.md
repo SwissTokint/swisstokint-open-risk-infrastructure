@@ -71,12 +71,13 @@ Historical PR #97 remains blocked and is not a merge candidate:
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - exact-head P1: `Reject Promise drift before entering async layers`.
 
-Fresh PR #120 is now the active prerequisite repair from exact trusted main:
+Fresh PR #120 is the active prerequisite repair from exact trusted main:
 
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`;
+- current live class/state before the final control-plane write: `OPEN /
+  READY_FOR_REVIEW / NOT_TRUSTED`;
 - exact final head, CI and review state: read live after the last owned-file
   commit; self-embedding the moving SHA into this moving file is intentionally
   avoided.
@@ -84,11 +85,33 @@ Fresh PR #120 is now the active prerequisite repair from exact trusted main:
 The bounded PR #120 contract is to close inherited
 `Promise.prototype.constructor` + `then` substitution before reference
 authorization or sensitive forwarding while preserving prior provider-boundary
-hardening. Its CI-wired evidence must cover rejected-context substitution,
+hardening. Its CI-wired evidence covers rejected-context substitution,
 own-decorated native Promises, synchronous Proxy/callable thenables, ordinary
-synchronous/native-Promise context and own-symbol native-Promise bookkeeping.
-For hostile rejected context transports the required security result is **zero
-reference authorization and zero sensitive forwarding**.
+synchronous/native-Promise context, own-symbol native-Promise bookkeeping,
+strict rejection of scalar policy-list values and inherited Array-index
+substitution attacks against policy/account bridges.
+
+A distinct Codex review on moved head
+`5885da291d7d6b3e4541e5c00c160ffb481828b8` found an additional P1: a rejected
+native Promise with own string metadata or a non-standard prototype could be
+structurally rejected before a rejection reaction was attached, leaving a
+process-level unhandled rejection. The repair now drains such invalid rejected
+transports through captured Promise/Object intrinsics before returning the
+fail-closed context error and adds strict-unhandled-rejection child-process
+regressions requiring zero authorization, zero continued account sampling and
+zero sensitive forwarding. Pre-control-plane repair head
+`9b52474a2def9df2c75649eda4b81a0ca128658a` passed canonical CI 739, but the
+control-plane reconciliation moves the head; release evidence must therefore be
+re-established on the final frozen SHA.
+
+The historical Codex P1 thread remains unresolved until a fresh genuinely
+distinct exact-head review validates the repair. That fresh skeptic must also
+challenge non-extensible/non-configurable rejected Promise variants and any path
+where draining itself can fail before attaching a rejection reaction or dispatch
+attacker-controlled code.
+
+For all hostile rejected context transports the required bounded security result
+remains **zero reference authorization and zero sensitive forwarding**.
 
 PR #120 intentionally does **not** import or claim the historical durable Gate
 composition. Once PR #120 is trusted, durable claim-before-observer/downstream
@@ -237,8 +260,8 @@ PR #93 current live state at this checkpoint:
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
   identity, typed-data wrapper normalization, generic-signature exact-value
-  commitment, nested payload capture with saved reflection intrinsics, and shared
-  proof canonicalization/SHA-256/hash hardening.
+  commitment, nested saved-reflection capture with saved reflection intrinsics,
+  and shared proof canonicalization/SHA-256/hash hardening.
 
 PR #93 remains ordered after trusted PR #120 and the required shared-Core
 dependency work unless a separately reviewed dependency change is recorded. Even
@@ -303,12 +326,12 @@ review.
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise-boundary repair is active/untrusted; durable Gate composition still requires a later bounded reviewed lot; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise/provider-boundary repair is active/untrusted; durable Gate composition still requires a later bounded reviewed lot; production trust/time, distributed semantics and external effect truth remain missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 blocked; fresh PR #120 is active prerequisite; durable claim-before-observer/downstream composition remains untrusted |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 Promise-boundary repair active/untrusted; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 Promise/provider-boundary repair active/untrusted with rejected-invalid-Promise P1 awaiting fresh exact-head independent validation; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
