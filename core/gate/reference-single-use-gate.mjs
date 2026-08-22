@@ -17,11 +17,107 @@ const OBSERVED_KEYS = Object.freeze([
   'context_commitment',
   'prepared_execution',
 ]);
+const OBSERVED_SORTED_KEYS = Object.freeze([
+  'action_commitment',
+  'binding_profile',
+  'context_commitment',
+  'prepared_execution',
+]);
 const HARNESS_KEYS = Object.freeze([
   'executeDownstream',
   'observeBinding',
   'trustedClock',
 ]);
+const HARNESS_SORTED_KEYS = Object.freeze([
+  'executeDownstream',
+  'observeBinding',
+  'trustedClock',
+]);
+
+// The Gate's local provenance and exact-object boundary are security-critical.
+// Capture the constructors/reflection primitives used by the factory once at
+// module initialization so post-import replacement cannot substitute capability
+// state, rewrite detached bootstrap/observer snapshots, widen their shape, or
+// redirect sorting. Security-sensitive iteration over the module-owned key sets
+// is index-based rather than delegated to the mutable shared Array iterator.
+// Poisoning before module initialization remains outside this reference guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
+const OBJECT_CREATE = Object.create;
+const OBJECT_FREEZE = Object.freeze;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_KEYS = Object.keys;
+const OBJECT_PROTOTYPE = Object.prototype;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const WEAK_MAP_CONSTRUCTOR = WeakMap;
+const WEAK_MAP_GET = WeakMap.prototype.get;
+const WEAK_MAP_SET = WeakMap.prototype.set;
+const CRYPTO_RANDOM_BYTES = crypto.randomBytes;
+const BUFFER_TO_STRING = Buffer.prototype.toString.call.bind(Buffer.prototype.toString);
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function sortArray(value) {
+  return REFLECT_APPLY(ARRAY_SORT, value, []);
+}
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function objectKeys(value) {
+  return REFLECT_APPLY(OBJECT_KEYS, Object, [value]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function weakMapGet(map, key) {
+  return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
+function weakMapSet(map, key, value) {
+  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function exactSortedKeys(value) {
+  return sortArray(objectKeys(value));
+}
+
+function sameSortedKeys(actual, expected) {
+  if (actual.length !== expected.length) return false;
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== expected[index]) return false;
+  }
+  return true;
+}
 
 export class PomRxGateError extends Error {
   constructor(code, message) {
@@ -35,69 +131,69 @@ function gateError(code, message) {
   return new PomRxGateError(code, message);
 }
 
-function snapshotExactReferences(value, expectedKeys, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || utilTypes.isProxy(value)) {
+function snapshotExactReferences(value, expectedKeys, expectedSortedKeys, label) {
+  if (!value || typeof value !== 'object' || arrayIsArray(value) || isProxy(value)) {
     throw new TypeError(`${label} must be an exact plain data object`);
   }
 
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     throw new TypeError(`${label} must use Object.prototype or a null prototype`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     throw new TypeError(`${label} cannot contain symbol keys`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const expected = [...expectedKeys].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const actual = exactSortedKeys(descriptors);
+  if (!sameSortedKeys(actual, expectedSortedKeys)) {
     throw new TypeError(`${label} has missing, hidden or unknown fields`);
   }
 
-  const snapshot = Object.create(null);
-  for (const key of expectedKeys) {
+  const snapshot = createObject(null);
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (!descriptor
       || descriptor.enumerable !== true
       || typeof descriptor.get === 'function'
       || typeof descriptor.set === 'function'
-      || !Object.hasOwn(descriptor, 'value')) {
+      || !objectHasOwn(descriptor, 'value')) {
       throw new TypeError(`${label} fields must be enumerable data properties`);
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return freezeValue(snapshot);
 }
 
 function snapshotObservedRecord(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || utilTypes.isProxy(value)) {
+  if (!value || typeof value !== 'object' || arrayIsArray(value) || isProxy(value)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
   }
 
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer record must be plain data');
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer record cannot contain symbol keys');
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const expected = [...OBSERVED_KEYS].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const actual = exactSortedKeys(descriptors);
+  if (!sameSortedKeys(actual, OBSERVED_SORTED_KEYS)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
   }
 
-  const snapshot = Object.create(null);
-  for (const key of OBSERVED_KEYS) {
+  const snapshot = createObject(null);
+  for (let index = 0; index < OBSERVED_KEYS.length; index += 1) {
+    const key = OBSERVED_KEYS[index];
     const descriptor = descriptors[key];
     if (!descriptor
       || descriptor.enumerable !== true
       || typeof descriptor.get === 'function'
       || typeof descriptor.set === 'function'
-      || !Object.hasOwn(descriptor, 'value')) {
+      || !objectHasOwn(descriptor, 'value')) {
       throw gateError(
         'POMRX_GATE_E_OBSERVER_FAILED',
         'Trusted binding observer fields must be enumerable data properties',
@@ -105,7 +201,7 @@ function snapshotObservedRecord(value) {
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return freezeValue(snapshot);
 }
 
 function canonicalClockInstant(value) {
@@ -138,10 +234,12 @@ function validateObservedBinding(value) {
     || !PROFILE_PATTERN.test(snapshot.binding_profile)) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid profile');
   }
-  for (const field of ['action_commitment', 'context_commitment']) {
-    if (typeof snapshot[field] !== 'string' || !HASH_PATTERN.test(snapshot[field])) {
-      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
-    }
+
+  if (typeof snapshot.action_commitment !== 'string'
+      || !HASH_PATTERN.test(snapshot.action_commitment)
+      || typeof snapshot.context_commitment !== 'string'
+      || !HASH_PATTERN.test(snapshot.context_commitment)) {
+    throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid commitment');
   }
 
   let preparedExecution;
@@ -160,7 +258,7 @@ function validateObservedBinding(value) {
     );
   }
 
-  return Object.freeze({
+  return freezeValue({
     binding_profile: snapshot.binding_profile,
     action_commitment: snapshot.action_commitment,
     context_commitment: snapshot.context_commitment,
@@ -201,6 +299,7 @@ export function createReferenceSingleUseGateHarness(options) {
   const bootstrap = snapshotExactReferences(
     options,
     HARNESS_KEYS,
+    HARNESS_SORTED_KEYS,
     'Reference Gate harness bootstrap',
   );
   const {
@@ -215,8 +314,10 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   // Capability lifecycle is private and bound to this Gate instance. A capability
-  // created by another reference Gate cannot be consumed here.
-  const capabilityState = new WeakMap();
+  // created by another reference Gate cannot be consumed here. The constructor
+  // and get/set dispatch are captured at module initialization so a later global
+  // WeakMap replacement cannot rewrite the authorization binding stored here.
+  const capabilityState = new WEAK_MAP_CONSTRUCTOR();
   let lastTrustedTimeMs = null;
 
   function sampleGateClock() {
@@ -230,25 +331,25 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function issueReferenceAuthorizationForTest(bindingInput, { witnessValidUntil } = {}) {
-    const capabilityId = `cap-${crypto.randomBytes(16).toString('hex')}`;
+    const capabilityId = `cap-${BUFFER_TO_STRING(CRYPTO_RANDOM_BYTES(16), 'hex')}`;
     const prepared = prepareReferenceExactAuthorizationRecord(bindingInput, {
       witnessValidUntil,
       capabilityId,
     });
-    const capability = Object.freeze(Object.create(null));
-    capabilityState.set(capability, {
+    const capability = freezeValue(createObject(null));
+    weakMapSet(capabilityState, capability, {
       state: 'AVAILABLE',
       binding: prepared.binding,
     });
-    return Object.freeze({ capability, evidence: prepared.evidence });
+    return freezeValue({ capability, evidence: prepared.evidence });
   }
 
   function inspectCapabilityStateForTest(capability) {
-    return capabilityState.get(capability)?.state ?? null;
+    return weakMapGet(capabilityState, capability)?.state ?? null;
   }
 
   function reserveCapability(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record) {
       throw gateError('POMRX_GATE_E_CAPABILITY_REQUIRED', 'A capability from this reference Gate is required');
     }
@@ -260,7 +361,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function rejectCapability(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'VALIDATING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot be rejected from its current state');
     }
@@ -268,7 +369,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function beginConsumption(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'VALIDATING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot begin consumption');
     }
@@ -276,7 +377,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function completeConsumption(capability, success) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'CONSUMING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is not consuming');
     }
@@ -340,11 +441,11 @@ export function createReferenceSingleUseGateHarness(options) {
     }
   }
 
-  const gate = Object.freeze({ consume });
-  const testAuthority = Object.freeze({
+  const gate = freezeValue({ consume });
+  const testAuthority = freezeValue({
     issueReferenceAuthorizationForTest,
     inspectCapabilityStateForTest,
   });
 
-  return Object.freeze({ gate, testAuthority });
+  return freezeValue({ gate, testAuthority });
 }
