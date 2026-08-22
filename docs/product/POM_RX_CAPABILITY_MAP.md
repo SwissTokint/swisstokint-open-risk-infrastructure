@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
+Trusted-main checkpoint: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,34 +66,39 @@ Historical PR #97 remains blocked and is not a merge candidate:
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
+- current trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
-- current exact-head P1: `Reject Promise drift before entering async layers`.
+- exact-head P1: `Reject Promise drift before entering async layers`.
 
-Inherited `Promise.prototype.constructor` plus `then` poisoning can cross outer
-async awaits before a transport rejection reaches its caller, substitute stable
-attacker-controlled context, then permit reference authorization and sensitive
-forwarding. The green CI result does not override the reproducer.
+Fresh PR #120 is now the active prerequisite repair from exact trusted main:
 
-The next useful Tier-B task is a **fresh trusted-main repair** of this PR #97-line
-security boundary. It must start on a new bounded branch/PR from then-current
-trusted `main`, not by merging, rebasing, reviving or wholesale-copying the stale
-PR #97 branch. The repair must:
+- branch: `automation/pom-rx-promise-drift-repair-20260822`;
+- first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
+- class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
+- state: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`;
+- exact final head, CI and review state: read live after the last owned-file
+  commit; self-embedding the moving SHA into this moving file is intentionally
+  avoided.
 
-- prevent Promise-prototype drift before outer async assimilation;
-- restore or replace the exact exploit regression without weakening hostile-
-  dispatch expectations;
-- require durable capability claim success before observer/downstream work;
-- preserve fail-closed replay and durable one-winner behavior;
-- retain ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility;
-- preserve hardened direct non-Promise capture and own-decorated Promise rejection;
-- require **zero authorization and zero sensitive forwarding for hostile rejected
-  transports**.
+The bounded PR #120 contract is to close inherited
+`Promise.prototype.constructor` + `then` substitution before reference
+authorization or sensitive forwarding while preserving prior provider-boundary
+hardening. Its CI-wired evidence must cover rejected-context substitution,
+own-decorated native Promises, synchronous Proxy/callable thenables, ordinary
+synchronous/native-Promise context and own-symbol native-Promise bookkeeping.
+For hostile rejected context transports the required security result is **zero
+reference authorization and zero sensitive forwarding**.
 
-Only a repaired exact head with canonical CI success, release-owner review, a
-fresh genuinely distinct exact-head independent skeptical/security review and
-zero unresolved P0/P1/P2 may become a merge candidate.
+PR #120 intentionally does **not** import or claim the historical durable Gate
+composition. Once PR #120 is trusted, durable claim-before-observer/downstream
+composition must be reconstructed as its own bounded Tier-B Core lot, preserving
+fail-closed replay and durable one-winner behavior.
+
+Only a frozen PR #120 exact head with canonical CI success, release-owner
+five-stage PASS, a fresh genuinely distinct exact-head independent
+skeptical/security review and zero unresolved P0/P1/P2 may merge. Any head move
+invalidates exact-head evidence.
 
 ### Witness
 
@@ -127,49 +132,18 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #118 exact source head `dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab`
-merged as exact main SHA `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
-Source-head and merge trees are identical at
-`4eb5d22f763d158f95c86501368de3d68af89104`, and the compare from source head to
-merge is one merge commit with `files: []`.
+PR #119 exact source head `057b225783b24c97568dbcd733ca4c821f889c7a`
+merged as exact main SHA `e5aead150a2ed5f390593cc2d9d307defdd79bdc`.
+Its frozen candidate CI passed, release-owner exact-head gate passed
+non-independently, and a distinct exact-head `chatgpt-codex-connector` review
+reported no major issues. Canonical exact-main push CI `32575110984` / CI 720
+passed on the exact merge SHA. Exact-merge SpecKit, skeptical/falsification,
+security, code-quality, optimization and integration/regression checks are
+recorded as `POST_MERGE_ASSURANCE_PASS` in PR #119 issue comment `5380609307`.
 
-Its exact-head CI `32559785310` / CI 704 passed. The final release-owner exact-head
-gate passed in review `4999506623` as `PASS / NON-INDEPENDENT`; distinct exact-head
-`chatgpt-codex-connector` issue comment `5379054811` reviewed `dacc2efde7` and
-reported no major issues. Exact-main push CI `32561596467` / CI 705 attempt 1
-completed successfully on the exact merge SHA, decision-time
-`pom-rx/exact-main-ci` targeted that same run, and exact-merge SpecKit,
-skeptical/falsification, security, code-quality, optimization and
-integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
-#118 issue comment `5379219612`.
-
-PR #118 is terminal trusted coordination evidence. Its terminal rule prevents a
-new documentation-only checkpoint from being created merely to restate that
-terminal state.
-
-PR #119 is treated only as a **transition vehicle**: it carries PR #118's
-terminal facts while promoting the next useful task, the fresh PR #97-line
-Promise-drift repair, into the active delivery slot. Two historical exact-head
-Codex P2 findings govern the moving repair:
-
-- on `1bdb53bad6...`: `Honor PR #118's terminal rule instead of creating PR #119`;
-- on `ae856bdb2d...`: `Restore the five-stage standing-authorization prerequisite`.
-
-The first repair prevents a self-recreating documentation-only checkpoint loop and
-forbids a post-PR119 docs-only successor after trusted merge. The second repair
-restores the machine-readable requirement that standing merge authorization is
-available only after the mandatory five-stage pre-merge gate, applicable
-technical/security gates, exact-head CI, required distinct exact-head review and
-zero unresolved P0/P1/P2. Both findings remain historical until the final frozen
-PR #119 head is independently re-reviewed; moved-head CI/review evidence is stale.
-
-The repaired PR #119 head must be read live after the final owned-file commit and
-cannot merge until that same SHA has canonical CI success, release-owner
-five-stage PASS, a fresh genuinely distinct exact-head independent review, and
-zero unresolved P0/P1/P2. If it merges and receives exact-merge
-`POST_MERGE_ASSURANCE_PASS`, no post-PR119 docs-only successor should be opened;
-the next action is the fresh PR #97-line runtime branch from the new trusted
-`main`.
+PR #119 is terminal coordination evidence. Its terminal rule forbids a new
+documentation-only successor merely to restate completion; materially changed
+continuation state is carried by useful runtime work such as PR #120.
 
 ### Proof transport and anchoring
 
@@ -249,14 +223,16 @@ controlled dApp
 
 Trusted main contains JSON/intent/effect/policy/controller/preflight,
 Core-verified Witness adapter, provider/Gate integration and a controlled
-in-memory host. Reference simulation evidence remains active PR #93 and is **not
+in-memory host. PR #120 changes the provider Promise/inert-data boundary only; it
+is not trusted until all exact-head gates pass and the merge receives exact-merge
+post-merge PASS. Reference simulation evidence remains active PR #93 and is **not
 on trusted main**.
 
 PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
+- current trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
@@ -264,13 +240,13 @@ PR #93 current live state at this checkpoint:
   commitment, nested payload capture with saved reflection intrinsics, and shared
   proof canonicalization/SHA-256/hash hardening.
 
-PR #93 remains ordered after the trusted fresh PR #97-line repair unless a
-separately reviewed dependency change is recorded. Even after simulation
-evidence eventually merges, simulation-to-forwarding atomic binding remains a
-separate reviewed requirement. The first success criterion remains a
-deterministic controlled fixture in which a dangerous approval/signature is
-denied before forwarding while one explicitly allowed control request is
-forwarded exactly once and reconciled. That does not prove universal
+PR #93 remains ordered after trusted PR #120 and the required shared-Core
+dependency work unless a separately reviewed dependency change is recorded. Even
+after simulation evidence eventually merges, simulation-to-forwarding atomic
+binding remains a separate reviewed requirement. The first success criterion
+remains a deterministic controlled fixture in which a dangerous approval or
+signature is denied before forwarding while one explicitly allowed control
+request is forwarded exactly once and reconciled. That does not prove universal
 browser/wallet/dApp/chain protection.
 
 ## 5. Integration and adapter block
@@ -327,12 +303,12 @@ review.
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | production trust/time, distributed semantics, production-independent observation and external effect truth |
-| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | fresh PR #97-line Promise-drift repair is next; stale PR #97 remains blocked and must not merge |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise-boundary repair is active/untrusted; durable Gate composition still requires a later bounded reviewed lot; production trust/time, distributed semantics and external effect truth remain missing |
+| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 blocked; fresh PR #120 is active prerequisite; durable claim-before-observer/downstream composition remains untrusted |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #93 simulation evidence blocked by dependency + exact-head P1/P2 review classes; simulation-to-forwarding binding remains separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 Promise-boundary repair active/untrusted; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
