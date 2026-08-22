@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
+Trusted-main checkpoint: `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -62,11 +62,11 @@ single-use Gate and a separate filesystem durable claim-store reference
 primitive. A reviewed composition of the durable claim primitive with the common
 Gate is **not** on trusted main at this checkpoint.
 
-PR #97 is the blocked historical Tier-B candidate:
+PR #97 remains the blocked historical Tier-B candidate:
 
-- exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
+- exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
+- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,40 +120,39 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #117 exact source head `a8a4f4de83cea0c1527a03a89c71a41471679be1`
-merged as exact main SHA `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
+PR #118 exact source head `dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab`
+merged as exact main SHA `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
 Source-head and merge trees are identical at
-`999643ca3dab6bdf59401e38cb2dd8ae42bb11bd`.
+`4eb5d22f763d158f95c86501368de3d68af89104`, and the compare from source head to
+merge is one merge commit with `files: []`.
 
-Its exact-head CI `32556575389` / CI 696 passed. The final release-owner exact-head
-gate passed in review `4999301185` as `PASS / NON-INDEPENDENT`; distinct exact-head
-`chatgpt-codex-connector` issue comment `5378410224` reviewed `a8a4f4de83` and
-reported no major issues, with zero review threads at the merge decision.
-Exact-main push CI `32558808262` / CI 697 attempt 1 completed successfully on the
-exact merge SHA, and decision-time `pom-rx/exact-main-ci` is `success` targeting
-that run. Exact-merge SpecKit, skeptical/falsification, security, code-quality,
-optimization and integration/regression checks are recorded as
-`POST_MERGE_ASSURANCE_PASS` in PR #117 issue comment `5378949128` for the bounded
-documentation/control-plane scope.
+Its exact-head CI `32559785310` / CI 704 passed. The final release-owner exact-head
+gate passed in review `4999506623` as `PASS / NON-INDEPENDENT`; distinct exact-head
+`chatgpt-codex-connector` issue comment `5379054811` reviewed `dacc2efde7` and
+reported no major issues. The prior continuation P2 threads were resolved only
+after that exact-head validation. Exact-main push CI `32561596467` / CI 705
+attempt 1 completed successfully on the exact merge SHA, decision-time
+`pom-rx/exact-main-ci` targeted that same run, and exact-merge SpecKit,
+skeptical/falsification, security, code-quality, optimization and
+integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
+#118 issue comment `5379219612`.
 
-PR #117 changed no runtime/security semantics. The bounded post-PR117
-reconciliation is active as PR #118 on branch
-`docs/pom-rx-checkpoint-after-117-20260822` from exact trusted main. Its first
-candidate head `84220a2ec54b8e886a45b472daa9330b0eb847bb` failed canonical CI
-`32559140330` / CI 699 at `npm test` because paragraph reflow split the stable
-repository-tested phrase `Blockchain and digital assets`. This documentation-only
-repair restores the phrase and does not weaken or edit the test. Independent
-review request comment `5378995887` targeted that first head, while distinct
-`chatgpt-codex-connector` comment `5379001143` reported a usage-limit exhaustion;
-there is therefore no independent approval on that candidate, and the evidence
-is stale after the repair moves the head.
+PR #118 is terminal trusted coordination evidence and must not be recreated. It
+changed no runtime/security semantics and does not make PR #97 or PR #93 trusted.
 
-The repaired current/final PR #118 exact head, CI, reviews and threads must be
-read live after the final owned-file commit rather than self-embedded in these
-moving canonical files. PR #118 cannot merge until the same frozen exact head has
-canonical CI success, release-owner five-stage PASS, a genuinely distinct
-exact-head independent review and zero unresolved P0/P1/P2. Until then, live
-GitHub remains authoritative for volatile state.
+Because the four continuation files merged by PR #118 necessarily contained its
+pre-merge state, the bounded post-PR118 live-state reconciliation is active as PR
+#119 on branch `docs/pom-rx-checkpoint-after-118-20260822` from exact trusted main.
+PR #119 changes only the four canonical continuation surfaces and is the permanent
+identity of this reconciliation; it must not recreate itself after merge or
+closure. Its final moving exact head, CI, reviews and threads must be read live
+after the final owned-file commit rather than self-embedded in these files.
+
+No Tier-B readiness/dependency decision may rely on stale pre-merge PR #118 state.
+PR #119 cannot merge until its frozen exact head has canonical CI success,
+release-owner five-stage PASS, a genuinely distinct exact-head independent review
+and zero unresolved P0/P1/P2. After merge, exact-merge post-merge assurance is
+mandatory again.
 
 ### Proof transport and anchoring
 
@@ -240,7 +239,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
+- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
