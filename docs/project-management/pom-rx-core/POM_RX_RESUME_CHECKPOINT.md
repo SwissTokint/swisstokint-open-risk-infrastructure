@@ -64,6 +64,24 @@ are not proved.
 
 ## open_prs
 
+### PR #112 — post-PR111 control-plane reconciliation
+
+- state: `OPEN / NOT_MERGED / HEAD_MOVING / FRESH_EXACT_HEAD_GATES_REQUIRED`;
+- base/trusted main: `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`;
+- branch: `docs/pom-rx-checkpoint-after-111-20260822`;
+- scope: exactly four canonical documentation/control-plane surfaces;
+- runtime/security semantics changed: none;
+- exact current head: **read live PR #112**. The checkpoint deliberately does not
+  self-embed its own moving head because committing that value would create a new
+  head; the final exact-head SHA, CI and review state must be recorded in the PR
+  conversation and revalidated live before merge;
+- current release state: no merge authorization until the frozen final exact head
+  has fresh canonical CI, release-owner five-stage control, fresh distinct
+  exact-head independent review and zero unresolved P0/P1/P2.
+
+This PR reconciles the unavoidable post-merge lag left by PR #111. It must remain
+coordination-only and cannot be used to weaken any Tier-B blocker.
+
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
 - state: `OPEN / NOT_MERGED / BLOCKED_EXACT_HEAD_SECURITY_P1 /
@@ -135,12 +153,11 @@ authorize forwarding or prove external state/effect truth.
 
 ## current control-plane reconciliation lot
 
-A bounded post-PR #111 reconciliation is being prepared on branch
-`docs/pom-rx-checkpoint-after-111-20260822` because the canonical files merged by
-PR #111 necessarily described the pre-merge state. Live GitHub already proves
-PR #111 merged and received exact-merge `POST_MERGE_ASSURANCE_PASS`; until this
-new reconciliation lot itself passes its gates and merges, live GitHub remains
-authoritative over this branch's moving PR/head/CI/review state.
+PR #112 is the bounded post-PR #111 reconciliation on branch
+`docs/pom-rx-checkpoint-after-111-20260822`. The canonical files merged by PR #111
+necessarily described the pre-merge state; PR #112 brings the durable control
+plane to trusted main `89816f2b...`. Live GitHub remains authoritative over its
+moving exact head, CI, review, thread and merge state.
 
 Owned surfaces are exactly:
 
@@ -157,9 +174,8 @@ proof canonicalization/hash repair class.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR111_RECONCILIATION_REQUIRED` — the new bounded docs lot
-   must become trusted before its embedded state is used as dependency/readiness
-   evidence.
+1. `CONTROL_PLANE_POST_PR111_RECONCILIATION_REQUIRED` — PR #112 must become
+   trusted before its embedded state is used as dependency/readiness evidence.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
@@ -193,19 +209,19 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Finish the bounded post-PR #111 four-file control-plane reconciliation from
-   exact trusted main `89816f2b...`; open/update one scoped PR only.
+1. Freeze PR #112's four-file diff and revalidate live main/head/CI/review/thread
+   state.
 2. Require fresh exact-head canonical CI, release-owner five-stage control and a
    genuinely distinct exact-head independent review with zero unresolved
-   P0/P1/P2 before merging that reconciliation.
+   P0/P1/P2 before merging PR #112.
 3. After its merge, immediately run exact-merge-SHA post-merge assurance before
    using it as trusted coordination evidence.
 4. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592
    as a security repair.
-5. Once the post-PR111 checkpoint is trusted, create the smallest fresh #97
-   runtime repair from then-current trusted main for Promise-prototype drift
-   before outer async assimilation, while preserving durable claim before
-   observer/downstream and fail-closed durable one-winner semantics.
+5. Once PR #112 is trusted, create the smallest fresh #97 runtime repair from
+   then-current trusted main for Promise-prototype drift before outer async
+   assimilation, while preserving durable claim before observer/downstream and
+   fail-closed durable one-winner semantics.
 6. Restore/replace the exact exploit regression, rerun exact-head CI, owner
    six-lane review and fresh distinct independent review, and resolve only
    findings validated on that exact head.
