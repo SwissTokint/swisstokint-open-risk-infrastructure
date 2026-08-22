@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T03:26:20+02:00",
-  "current_main": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
+  "updated_at": "2026-08-22T04:15:00+02:00",
+  "current_main": "64af83ce302e767bb0bf95a44418f191cacf536e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -14,18 +14,18 @@
     ]
   },
   "trusted_main": {
-    "sha": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
-    "source_pr": 111,
-    "source_head": "bea88015019e3ea2cf28abf8cdc0eea7006f611c",
-    "tree": "e49008df989865b2b56b10e738d6b16571715daa",
+    "sha": "64af83ce302e767bb0bf95a44418f191cacf536e",
+    "source_pr": 112,
+    "source_head": "5b66e330f7b23c8447b83e4c902bf12f31509d25",
+    "tree": "e11e94995412ae7023612d2450dbf88848000876",
     "candidate_ci": {
-      "run_id": 32539681161,
-      "run_number": 668,
+      "run_id": 32543800387,
+      "run_number": 674,
       "conclusion": "success"
     },
     "exact_main_ci": {
-      "run_id": 32542680297,
-      "run_number": 669,
+      "run_id": 32545528591,
+      "run_number": 675,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
@@ -38,14 +38,14 @@
     "scope": "coordination_only_non_tier_b"
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-111-CHECKPOINT-20260822",
-    "pr": 112,
-    "title": "Reconcile canonical control plane after trusted PR 111",
+    "id": "CONTROL-PLANE-POST-112-CHECKPOINT-20260822",
+    "pr": 113,
+    "title": "Reconcile canonical control plane after trusted PR 112",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "OPEN_HEAD_MOVING_FRESH_EXACT_HEAD_GATES_REQUIRED",
-    "base_sha": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa",
-    "branch": "docs/pom-rx-checkpoint-after-111-20260822",
-    "exact_current_head_rule": "Read PR #112 live; do not self-embed a moving exact head because doing so would move it again.",
+    "base_sha": "64af83ce302e767bb0bf95a44418f191cacf536e",
+    "branch": "docs/pom-rx-checkpoint-after-112-20260822",
+    "exact_current_head_rule": "Read PR #113 live; do not self-embed a moving exact head because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -53,7 +53,7 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 111 exact merge and POST_MERGE_ASSURANCE_PASS",
+      "checkpoint trusted PR 112 exact merge and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "treat mergeability as volatile conflict metadata only and never release evidence",
       "retain PR 93 shared proof canonicalization and SHA-256/hash hardening findings until a repaired exact head is independently validated",
@@ -77,8 +77,8 @@
       "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
       "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "trusted_main_required": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa_or_later_trusted_main",
-      "mergeable_snapshot": "true_volatile_non_evidentiary",
+      "trusted_main_required": "64af83ce302e767bb0bf95a44418f191cacf536e_or_later_trusted_main",
+      "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32487036517,
         "run_number": 592,
@@ -90,9 +90,9 @@
         "runtime implementation unchanged on exact head while the security regression was relaxed",
         "inherited Promise.prototype.constructor plus then poisoning can cross outer async awaits and reach stable attacker context, authorization and sensitive forwarding",
         "current exact-head and earlier P1 review threads remain unresolved",
-        "historical branch base is not reconciled to trusted main 89816f2bfcc97a77cd4cbc67cd3b2968800938fa"
+        "historical branch base is not reconciled to trusted main 64af83ce302e767bb0bf95a44418f191cacf536e"
       ],
-      "next_safe_action": "After PR #112 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #113 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired independent sensitive-forwarding exploit regression, require the durable capability claim to succeed before any observer or downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -101,8 +101,8 @@
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "89816f2bfcc97a77cd4cbc67cd3b2968800938fa_or_later_trusted_main",
-      "mergeable_snapshot": "true_volatile_non_evidentiary",
+      "trusted_main_required": "64af83ce302e767bb0bf95a44418f191cacf536e_or_later_trusted_main",
+      "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32465835858,
         "run_number": 541,
@@ -111,7 +111,7 @@
       "owner_gate": "NO_FRESH_EXACT_CURRENT_HEAD_RELEASE_REVIEW_FOUND",
       "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
       "blockers": [
-        "trusted-main reconciliation required from 89816f2bfcc97a77cd4cbc67cd3b2968800938fa or later trusted main",
+        "trusted-main reconciliation required from 64af83ce302e767bb0bf95a44418f191cacf536e or later trusted main",
         "fresh exact-head release-owner review required",
         "fresh distinct exact-head independent skeptical/security review required",
         "unresolved current/non-outdated P1/P2 review threads remain",
