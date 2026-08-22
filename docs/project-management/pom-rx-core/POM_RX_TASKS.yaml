@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T06:07:30+02:00",
+  "updated_at": "2026-08-22T06:17:24+02:00",
   "current_main": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -39,12 +39,19 @@
   },
   "active_task": {
     "id": "CONTROL-PLANE-POST-113-CHECKPOINT-20260822",
+    "pr": 114,
     "title": "Reconcile canonical control plane after trusted PR 113",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "IN_PROGRESS_FRESH_EXACT_HEAD_GATES_REQUIRED",
+    "status": "OPEN_FRESH_EXACT_HEAD_GATES_REQUIRED",
     "base_sha": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
     "branch": "docs/pom-rx-checkpoint-after-113-20260822",
-    "exact_current_head_rule": "Read the live branch/PR head after the final four-file commit; do not self-embed a moving exact head because doing so would move it again.",
+    "creation_head": "b98f9c0e80e25c4203784b99cc99061bba5ac6d5",
+    "creation_ci": {
+      "run_id": 32551305996,
+      "run_number": 678,
+      "state": "historical_after_head_move"
+    },
+    "exact_current_head_rule": "Read PR #114 live after the final four-file commit; do not self-embed a moving exact head because doing so would move it again. Any CI/review on an earlier head is stale.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -91,7 +98,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After the post-PR113 control-plane reconciliation is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #114 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
