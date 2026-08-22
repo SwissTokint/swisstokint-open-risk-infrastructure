@@ -336,7 +336,7 @@ function samePromiseDescriptor(current, baseline, expectedValue) {
     && current.set === baseline.set;
 }
 
-function assertPromisePrototypeIntegrity(method) {
+function hasPromisePrototypeIntegrity() {
   const constructorDescriptor = REFLECT_APPLY(
     OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
     Object,
@@ -347,11 +347,15 @@ function assertPromisePrototypeIntegrity(method) {
     Object,
     [PROMISE_PROTOTYPE, 'then'],
   );
-  if (!samePromiseDescriptor(
+  return samePromiseDescriptor(
     constructorDescriptor,
     PROMISE_CONSTRUCTOR_DESCRIPTOR,
     PROMISE_CONSTRUCTOR,
-  ) || !samePromiseDescriptor(thenDescriptor, PROMISE_THEN_DESCRIPTOR, PROMISE_THEN)) {
+  ) && samePromiseDescriptor(thenDescriptor, PROMISE_THEN_DESCRIPTOR, PROMISE_THEN);
+}
+
+function assertPromisePrototypeIntegrity(method) {
+  if (!hasPromisePrototypeIntegrity()) {
     fail(
       'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
       `provider ${method} Promise runtime drifted after initialization`,
@@ -359,13 +363,17 @@ function assertPromisePrototypeIntegrity(method) {
   }
 }
 
-function immutablePromiseDataDescriptor(value) {
+function promiseDataDescriptor(value, configurable = false) {
   const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
   descriptor.value = value;
   descriptor.enumerable = false;
   descriptor.writable = false;
-  descriptor.configurable = false;
+  descriptor.configurable = configurable;
   return descriptor;
+}
+
+function immutablePromiseDataDescriptor(value) {
+  return promiseDataDescriptor(value);
 }
 
 function pinInternalPromise(value, label) {
@@ -394,6 +402,32 @@ function pinInternalPromise(value, label) {
   return value;
 }
 
+function drainPromiseTransportBeforeIntegrityFailure(value, method) {
+  try {
+    REFLECT_APPLY(
+      OBJECT_DEFINE_PROPERTY,
+      Object,
+      [value, 'constructor', promiseDataDescriptor(undefined, true)],
+    );
+    REFLECT_APPLY(PROMISE_THEN, value, [undefined, () => undefined]);
+    REFLECT_APPLY(
+      OBJECT_DEFINE_PROPERTY,
+      Object,
+      [value, 'constructor', immutablePromiseDataDescriptor(PROMISE_CONSTRUCTOR)],
+    );
+    REFLECT_APPLY(
+      OBJECT_DEFINE_PROPERTY,
+      Object,
+      [value, 'then', immutablePromiseDataDescriptor(PROMISE_THEN)],
+    );
+  } catch {
+    fail(
+      'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
+      `provider ${method} Promise transport could not be safely pinned after runtime drift`,
+    );
+  }
+}
+
 function validateNativePromiseTransport(value, method) {
   const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
   const ownNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
@@ -403,7 +437,13 @@ function validateNativePromiseTransport(value, method) {
       `provider ${method} must return an undecorated native Promise transport`,
     );
   }
-  assertPromisePrototypeIntegrity(method);
+  if (!hasPromisePrototypeIntegrity()) {
+    drainPromiseTransportBeforeIntegrityFailure(value, method);
+    fail(
+      'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
+      `provider ${method} Promise runtime drifted after initialization`,
+    );
+  }
 }
 
 async function providerRead(provider, method) {
