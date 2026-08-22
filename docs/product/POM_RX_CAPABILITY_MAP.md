@@ -242,8 +242,7 @@ contract-level Risk Gates, exact authorization for approvals/permits/transfers,
 on-chain commitment anchoring and chain-specific observation/reconciliation
 adapters.
 
-Wallet Guard's primary product home is Blockchain and digital assets, while its
-defensive control model also overlaps the Cybersecurity block.
+Wallet Guard's primary product home is Blockchain and digital assets, while its defensive control model also overlaps the Cybersecurity block.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
