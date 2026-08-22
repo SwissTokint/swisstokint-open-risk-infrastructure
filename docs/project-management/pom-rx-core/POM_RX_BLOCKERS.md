@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T12:22:00+02:00`
+Updated: `2026-08-22T13:27:00+02:00`
 
 Current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`
 
@@ -38,30 +38,35 @@ runtime/security semantics and does not make PR #97 or PR #93 trusted. Its
 terminal rule is authoritative: do not create another documentation-only
 checkpoint merely to record PR #118 as done.
 
-## `PR119_EXACT_HEAD_P2_TERMINAL_RULE_REPAIR_REQUIRES_FRESH_REVIEW`
+## `PR119_EXACT_HEAD_P2_REPAIRS_REQUIRE_FRESH_REVIEW`
 
 PR #119 is the current non-Tier-B transition vehicle from exact trusted main
-`a22198bf...`. Its earlier exact head
-`1bdb53bad6f0b88046358f4ec7912c86a0469a7c` had:
+`a22198bf...`. It is not a recurrent post-merge checkpoint task. It carries PR
+#118's terminal fact while advancing the next useful work item: the fresh
+trusted-main PR #97-line Promise-drift runtime repair.
 
-- canonical CI `32564477324` / CI 710: `success`;
-- release-owner review `4999836109`: `PASS / NON-INDEPENDENT`;
-- fresh distinct `chatgpt-codex-connector` review on that same SHA;
-- one unresolved exact-head P2 thread `PRRT_kwDOTiNyWc6bX2ey`:
-  `Honor PR #118's terminal rule instead of creating PR #119`.
+Two distinct exact-head Codex P2 findings are historical blockers that have been
+repaired in the moving branch but still require fresh exact-head validation:
 
-The P2 is valid. The repair moves the head and changes the control-plane model:
-PR #119 is no longer treated as another permanent post-merge checkpoint task.
-Instead, it carries PR #118's terminal facts only while advancing the next useful
-work item: the fresh trusted-main PR #97-line Promise-drift runtime repair. After
-successful PR #119 merge plus exact-merge `POST_MERGE_ASSURANCE_PASS`, no
-post-PR119 documentation-only successor is permitted.
+1. on `1bdb53bad6f0b88046358f4ec7912c86a0469a7c`, thread
+   `PRRT_kwDOTiNyWc6bX2ey`: `Honor PR #118's terminal rule instead of creating PR
+   #119`;
+2. on `ae856bdb2d0389b4fa3aefc962a072d093fac050`, thread
+   `PRRT_kwDOTiNyWc6bYFVT`: `Restore the five-stage standing-authorization
+   prerequisite`.
 
-All CI/review evidence on `1bdb53bad...` is stale after the repair. Do not merge
-PR #119 until its repaired exact head has fresh canonical CI success, a fresh
+The first repair makes PR #119 a one-time transition vehicle and explicitly
+forbids a post-PR119 documentation-only successor after trusted merge. The second
+repair, commit `0590362a3682049aac6ab5f80a3bc31af3326854`, restores the machine-
+readable requirement that standing merge authorization depends on the mandatory
+five-stage pre-merge gate in addition to technical/security gates, exact-head CI,
+required distinct exact-head review and zero unresolved P0/P1/P2.
+
+All CI/review evidence on earlier heads is stale after any move. Do not merge PR
+#119 until its final repaired exact head has fresh canonical CI success,
 release-owner five-stage PASS, a genuinely distinct exact-head independent review
-with no unresolved P0/P1/P2, and the existing P2 thread is resolved only after
-that exact-head validation.
+with no P0/P1/P2, and both historical P2 threads are resolved only after that
+exact-head validation. After merge, exact-merge post-merge assurance is mandatory.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
