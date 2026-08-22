@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T21:07:34+02:00`
+Updated: `2026-08-22T22:22:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -52,7 +52,7 @@ remain unproved. Maximum claim remains
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state: `OPEN / NOT_TRUSTED / FOLLOWUP_P1_REPAIR_IMPLEMENTED / CAPABILITY_MAP_FORMAT_REPAIRED / FRESH_EXACT_HEAD_GATES_PENDING`.
+- state: `OPEN / NOT_TRUSTED / FOLLOWUP_P1_REPAIR_IMPLEMENTED / CAPABILITY_MAP_REGEX_BOUNDARY_REPAIRED / FRESH_EXACT_HEAD_GATES_PENDING`.
 
 The final moving SHA is intentionally **not** embedded in this moving file. Read
 PR #120 live after this checkpoint commit and bind all CI/review evidence to that
@@ -64,41 +64,43 @@ Current follow-up repair commits on the branch include:
   prototype-chain drain classification;
 - `a7bf527e8766b74e2717d7fd26a45add87a0958c` — strict non-extensible/nonstandard-
   prototype rejection regressions;
-- `27becec03b853428464799f610d283fa44f689f2` — restores the capability-map
-  product-home sentence but used Markdown emphasis that did not satisfy the
-  repository's exact regex invariant;
+- `27becec03b853428464799f610d283fa44f689f2` — first restoration of the
+  capability-map product-home sentence, but with Markdown emphasis incompatible
+  with the repository invariant;
 - `5422739a998827634747d6a4d417fc85501fec2b` — task-state reconciliation;
 - `9e403bdbd680fb7faa615b1ff2bf4016bca5c9a1` — blocker reconciliation;
-- `1d85ec6089092282d6cf7f097deda510648336ca` — removes the Markdown emphasis so
-  the tested sentence is exactly `Wallet Guard's primary product home is
-  Blockchain and digital assets, while its defensive control model also overlaps
-  the Cybersecurity block.` without weakening the test.
+- `1d85ec6089092282d6cf7f097deda510648336ca` — removes the Markdown emphasis;
+- `22b99cb6d53145c6d38efb32caa5cd1dea95d5d9` — fixes the remaining literal
+  regex mismatch by keeping `while its defensive control model` contiguous on
+  one line, without changing or weakening the test.
 
-### Exact-head CI diagnosis before the latest formatting repair
+### Latest exact-head CI diagnosis before this checkpoint move
 
-Moved candidate `7deba0bbe755b4ff1090d82c17e0370522ed95c1` is **not** a release
+Moved candidate `3d8d1ed98cfb6fea5e5c0c39f13629084927b090` is **not** a release
 candidate anymore.
 
-- live canonical workflow run `32590681329`, CI run number 766: `failure`;
-- the failing step was `npm test` and the only diagnosed failing assertion was
-  `tests/pom-rx-capability-map.node.test.mjs` expecting the exact unformatted
-  product-home sentence;
-- PR #120 had `**Blockchain and digital assets**`, so the regex did not match;
-- the test itself was not weakened;
-- importantly, the Wallet Guard provider/security suite reached and passed the
-  strict rejected-transport regressions on this moved head, including decorated,
-  non-extensible, non-configurable-constructor, nonstandard-prototype,
-  null-prototype/non-extensible, benign alternate-prototype/data-constructor and
-  inherited Promise constructor/then poisoning cases;
-- therefore CI 766 is historical red evidence of the control-plane formatting
-  defect, not release evidence and not evidence that the runtime P1 repair is
-  trusted.
+- canonical workflow run `32592966519`, CI run number 768: `failure`;
+- the failing job was `test`, step `npm test`;
+- all Wallet Guard provider/security regressions in the log passed, including the
+  strict rejected-transport cases for decorated, non-extensible,
+  non-configurable-constructor, nonstandard-prototype, null-prototype,
+  benign alternate-prototype/data-constructor and inherited Promise
+  constructor/then poisoning paths;
+- the sole diagnosed failure was
+  `tests/pom-rx-capability-map.node.test.mjs`;
+- the repository regex requires the literal substring
+  `primary product home is\s+Blockchain and digital assets, while its defensive control model also overlaps\s+the Cybersecurity block`;
+- the capability map on `3d8d1ed...` wrapped a newline specifically between
+  `its` and `defensive`; that position is a literal space in the regex, so the
+  assertion correctly failed even though Markdown emphasis had already been
+  removed;
+- the test itself was not weakened.
 
-Commit `1d85ec6089092282d6cf7f097deda510648336ca` repairs only that exact
-capability-map formatting mismatch. This checkpoint commit moves the head again,
-so all CI/review evidence on `7deba0...` and `1d85ec...` is historical for release.
-Fresh canonical CI and fresh exact-head reviews are mandatory on the resulting
-live head.
+Commit `22b99cb6d53145c6d38efb32caa5cd1dea95d5d9` repairs only that remaining
+line-break mismatch by writing the complete tested product-position sentence on
+one line. This checkpoint commit moves the head again, so CI/review evidence on
+`3d8d1ed...` and `22b99...` is historical for release. Fresh canonical CI and
+fresh exact-head reviews are mandatory on the resulting live head.
 
 ### Historical exact-head security evidence
 
@@ -172,18 +174,18 @@ non-independent and cannot substitute for that gate.
 
 ### PR #97 — stale historical durable Gate candidate
 
-Live GitHub currently exposes an old open PR body/head lineage that predates the
-fresh trusted-main repair. It remains `OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_PROMISE_REPAIR_BY_PR120`.
-Read its exact live head and CI from GitHub each run; do not use its body as
-readiness evidence.
+Live GitHub head is `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Its body/base lineage is
+stale relative to trusted main `e5aead...`, so it remains
+`OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_PROMISE_REPAIR_BY_PR120`. Do not use its
+historical green CI or body as readiness evidence and do not merge the branch
+wholesale.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-Live GitHub exposes an old open PR lineage with stale moved-head release evidence
-and unresolved P1/P2 classes. It remains
+Live GitHub head is `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Its body/base lineage and
+release evidence are stale relative to trusted main. It remains
 `OPEN / NOT_MERGED / UNTRUSTED / ORDERED_AFTER_TRUSTED_PR120` unless a separately
-reviewed dependency decision changes that order. Read its exact live head and CI
-from GitHub each run rather than relying on historical checkpoint hashes.
+reviewed dependency decision changes that order.
 
 ## next_safe_actions
 
