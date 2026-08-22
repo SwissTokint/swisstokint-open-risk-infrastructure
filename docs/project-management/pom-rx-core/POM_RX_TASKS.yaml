@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T06:19:24+02:00",
-  "current_main": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
+  "updated_at": "2026-08-22T06:31:00+02:00",
+  "current_main": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -14,45 +14,45 @@
     ]
   },
   "trusted_main": {
-    "sha": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
-    "source_pr": 113,
-    "source_head": "f28bea5bdddce9413b7bfc882999d8b9fab1196e",
-    "tree": "0fdaa90c0355cf741ca7af81b485cd6da806b22a",
+    "sha": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e",
+    "source_pr": 114,
+    "source_head": "9b71dec8d30bb249c73d61030638209b41fb03c6",
+    "tree": "08c90ed4456bb857f140935c1447f53e54dbba1d",
     "candidate_ci": {
-      "run_id": 32545840351,
-      "run_number": 676,
+      "run_id": 32551501314,
+      "run_number": 686,
       "conclusion": "success"
     },
     "exact_main_ci": {
-      "run_id": 32548199260,
-      "run_number": 677,
+      "run_id": 32551645921,
+      "run_number": 687,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
       "status": "success"
     },
     "release_owner_gate": "PASS_NON_INDEPENDENT",
-    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES",
+    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5377850957",
     "unresolved_release_threads": 0,
     "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS",
     "scope": "coordination_only_non_tier_b"
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-113-CHECKPOINT-20260822",
-    "pr": 114,
-    "title": "Reconcile canonical control plane after trusted PR 113",
+    "id": "CONTROL-PLANE-POST-114-CHECKPOINT-20260822",
+    "pr": 115,
+    "title": "Reconcile canonical control plane after trusted PR 114",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "OPEN_FRESH_EXACT_HEAD_GATES_REQUIRED",
-    "base_sha": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
-    "branch": "docs/pom-rx-checkpoint-after-113-20260822",
-    "creation_head": "b98f9c0e80e25c4203784b99cc99061bba5ac6d5",
+    "base_sha": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e",
+    "branch": "docs/pom-rx-checkpoint-after-114-20260822",
+    "creation_head": "9a09b4e5b45733079d60bd964185b72c71dd7872",
     "creation_ci": {
-      "run_id": 32551305996,
-      "run_number": 678,
+      "run_id": 32551871797,
+      "run_number": 688,
       "state": "historical_after_head_move"
     },
-    "creation_head_review": "P2_PRESERVE_ZERO_AUTHORIZATION_AND_FORWARDING_FOR_HOSTILE_REJECTED_TRANSPORTS_REPAIRED_ON_LATER_HEAD_PENDING_FRESH_EXACT_HEAD_REVIEW",
-    "exact_current_head_rule": "Read PR #114 live after the final four-file commit; do not self-embed a moving exact head because doing so would move it again. Any CI/review on an earlier head is stale.",
+    "creation_head_review": "REQUESTED_CHATGPT_CODEX_CONNECTOR_EXACT_CREATION_HEAD_HISTORICAL_AFTER_HEAD_MOVE",
+    "exact_current_head_rule": "Read PR #115 live after the final four-file commit; do not self-embed a moving exact head because doing so would move it again. Any CI/review on an earlier head is stale.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -60,7 +60,7 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 113 exact merge ecc25e3e3f2991482e925fbe307058a91276c0bc and POST_MERGE_ASSURANCE_PASS",
+      "checkpoint trusted PR 114 exact merge 903bdb5cb26bf4069039ed114c1e6e59366bcd4e and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "treat mergeability as volatile conflict metadata only and never release evidence",
       "retain PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
@@ -84,7 +84,7 @@
       "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
       "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "trusted_main_required": "ecc25e3e3f2991482e925fbe307058a91276c0bc_or_later_trusted_main",
+      "trusted_main_required": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32487036517,
@@ -99,7 +99,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After PR #114 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #115 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -108,7 +108,7 @@
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "ecc25e3e3f2991482e925fbe307058a91276c0bc_or_later_trusted_main",
+      "trusted_main_required": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32465835858,

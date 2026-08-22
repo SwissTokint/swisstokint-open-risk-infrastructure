@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T06:19:24+02:00`
+Updated: `2026-08-22T06:31:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -10,28 +10,30 @@ checkpoint.
 
 ## trusted_main
 
-`ecc25e3e3f2991482e925fbe307058a91276c0bc`
+`903bdb5cb26bf4069039ed114c1e6e59366bcd4e`
 
-Latest trusted merge: PR #113 — bounded non-Tier-B documentation/control-plane
-reconciliation after PR #112.
+Latest trusted merge: PR #114 — bounded non-Tier-B documentation/control-plane
+reconciliation after PR #113.
 
-- source head: `f28bea5bdddce9413b7bfc882999d8b9fab1196e`;
-- exact merge/main SHA: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
-- source-head and merge tree: `0fdaa90c0355cf741ca7af81b485cd6da806b22a`;
-- exact-head candidate CI: run `32545840351`, CI 676, `success`;
+- exact source head: `9b71dec8d30bb249c73d61030638209b41fb03c6`;
+- exact merge/main SHA: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
+- source-head and merge tree: `08c90ed4456bb857f140935c1447f53e54dbba1d`;
+- exact-head candidate CI: run `32551501314`, CI 686, `success`;
 - final release-owner gate: `PASS / NON-INDEPENDENT`, 0 owner P0/P1/P2;
 - distinct exact-head `chatgpt-codex-connector` evidence: issue comment
-  `5377337358`, reviewed `f28bea5bdd`, no major issues;
-- unresolved release threads at merge: zero;
-- canonical exact-main push CI: run `32548199260`, CI 677 attempt 1,
+  `5377850957`, reviewed `9b71dec8d3`, no major issues;
+- moved-head P2 `Preserve the no-forwarding closure invariant` was repaired
+  across all four canonical surfaces and its review thread was resolved only
+  after exact-head validation;
+- canonical exact-main push CI: run `32551645921`, CI 687 attempt 1,
   `completed / success` on exact merge SHA;
-- decision-time `pom-rx/exact-main-ci`: `success`, targeting run 677;
+- decision-time `pom-rx/exact-main-ci`: `success`, targeting run 687;
 - exact-merge SpecKit reconciliation, skeptical/falsification, security, code
   quality, optimization and integration/regression: PASS for the bounded
   documentation/control-plane scope;
-- recorded final exact-merge verdict on PR #113: `POST_MERGE_ASSURANCE_PASS`.
+- recorded final exact-merge verdict on PR #114: `POST_MERGE_ASSURANCE_PASS`.
 
-PR #113 changed no runtime, protocol, Gate, Witness, verifier, Wallet Guard,
+PR #114 changed no runtime, protocol, Gate, Witness, verifier, Wallet Guard,
 provider, wallet, network, public-site/Vercel or financial-execution semantics.
 It is trusted coordination evidence only. It does **not** make PR #97 or PR #93
 trusted dependencies.
@@ -58,25 +60,26 @@ are not proved.
 
 ## open_prs
 
-### PR #114 — post-PR113 control-plane reconciliation
+### PR #115 — post-PR114 control-plane reconciliation
 
 - state: `OPEN / NOT_MERGED / FRESH_EXACT_HEAD_GATES_REQUIRED`;
-- trusted base/main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
-- branch: `docs/pom-rx-checkpoint-after-113-20260822`;
+- trusted base/main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
+- branch: `docs/pom-rx-checkpoint-after-114-20260822`;
 - scope: exactly four canonical documentation/control-plane surfaces;
 - runtime/security semantics changed: none;
-- exact current head: **read live PR #114**. The checkpoint deliberately does not
-  self-embed its own moving exact head because committing that value would move it;
+- exact current head: **read live PR #115**. This checkpoint deliberately does
+  not self-embed its own moving exact head because committing that value would
+  move it again;
 - release rule: no merge authorization until the frozen final exact head has
   fresh canonical CI, release-owner five-stage control, a genuinely distinct
   exact-head independent review and zero unresolved P0/P1/P2.
 
-At PR creation the branch head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
-and CI 678 (`32551305996`) entered the queue. That head received an independent
-P2 asking to preserve the explicit no-authorization/no-forwarding closure for
-hostile rejected transports. This lot now restores that invariant across the
-canonical surfaces. All creation-head CI/review evidence is historical after the
-repair commits; read the final head and its fresh CI/review live.
+At PR creation the branch head was `9a09b4e5b45733079d60bd964185b72c71dd7872`
+and exact-head CI 688 (`32551871797`) entered `in_progress`. A fresh distinct
+`@codex review` was requested for that exact creation head. This checkpoint bind
+commit moves the head, so creation-head CI/review evidence is historical only;
+read the final head and fresh CI/review live after the four canonical surfaces
+finish the PR-number reconciliation.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
@@ -84,7 +87,7 @@ repair commits; read the final head and its fresh CI/review live.
   FRESH_TRUSTED_MAIN_REPAIR_REQUIRED`;
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
+- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
 - exact-head canonical CI: run `32487036517`, CI 592, `success` but not
   security/release evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
@@ -118,7 +121,7 @@ before merge.
   RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`;
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
+- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
 - exact-head canonical CI: run `32465835858`, CI 541, `success` but not release
   evidence;
 - latest release-owner and distinct review evidence remains on moved head
@@ -135,8 +138,8 @@ prove external state/effect truth.
 
 ## active_control_plane_lot
 
-PR #114 is the bounded post-PR113 reconciliation from trusted main `ecc25e3...`
-on branch `docs/pom-rx-checkpoint-after-113-20260822`.
+PR #115 is the bounded post-PR114 reconciliation from trusted main `903bdb5...`
+on branch `docs/pom-rx-checkpoint-after-114-20260822`.
 
 Owned files are exactly:
 
@@ -154,12 +157,12 @@ post-merge assurance is mandatory again.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR113_RECONCILIATION_REQUIRED` — PR #114 must become
-   trusted before Tier-B work uses the reconciled coordination state.
+1. `CONTROL_PLANE_POST_PR114_RECONCILIATION_REQUIRED` — PR #115 must become
+   trusted before Tier-B work uses the newly reconciled coordination state.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
-5. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR113`.
+5. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR114`.
 6. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
 7. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
 8. `DAGR_SOURCE_DOCUMENT_MISSING`.
@@ -189,16 +192,16 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Freeze PR #114's four-file diff and revalidate live main/head/CI/review/thread
+1. Freeze PR #115's four-file diff and revalidate live main/head/CI/review/thread
    state.
 2. Require fresh exact-head canonical CI, release-owner five-stage control and a
    genuinely distinct exact-head independent review with zero unresolved
-   P0/P1/P2 before merging PR #114.
+   P0/P1/P2 before merging PR #115.
 3. After its merge, immediately run exact-merge-SHA post-merge assurance before
    using the new merge as trusted coordination evidence.
 4. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592 as
    a security repair.
-5. Once PR #114 is trusted, create the smallest fresh #97 runtime repair from
+5. Once PR #115 is trusted, create the smallest fresh #97 runtime repair from
    then-current trusted main for Promise-prototype drift before outer async
    assimilation, preserving durable claim-before-observer/downstream, fail-closed
    durable one-winner behavior and zero authorization/forwarding for hostile
