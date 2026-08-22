@@ -46,8 +46,8 @@ exact authorization, the process-local single-use Gate, the filesystem durable
 claim primitive, execution evidence and observation/reconciliation are shared
 Core capabilities according to their merged reviewed scope.
 
-Application blocks may add adapters, profiles, fixtures and tests. They must not
-duplicate or fork Core canonicalization, hashing, verifier, Witness or Gate
+Application blocks may add adapters, profiles, fixtures and tests. They must not duplicate
+or fork Core canonicalization, hashing, verifier, Witness or Gate
 semantics. Shared reference-data, exact authorization, execution-evidence and
 observation/reconciliation semantics also remain Core-owned.
 
