@@ -131,6 +131,12 @@ function canonicalOrigin(value) {
 }
 
 function copyFrozenArray(values) {
+  if (!REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [values])) {
+    fail(
+      'POMRX_WG_HOST_E_INVALID',
+      'controlled host array snapshot must remain an array',
+    );
+  }
   const output = new Array(values.length);
   for (let index = 0; index < values.length; index += 1) {
     output[index] = values[index];
