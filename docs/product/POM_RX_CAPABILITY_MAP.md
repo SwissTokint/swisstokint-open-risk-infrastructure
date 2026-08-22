@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`.
+Trusted-main checkpoint: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,7 +66,7 @@ PR #97 is the blocked historical Tier-B candidate:
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
+- current trusted main: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,29 +120,32 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #114 exact source head `9b71dec8d30bb249c73d61030638209b41fb03c6`
-merged as exact main SHA `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`.
+PR #115 exact source head `9bd156b5630e2b326465e09eb581a0bc14972e4c`
+merged as exact main SHA `16dcf4bafb151b1c042c62fc323b9006f1b6c777`.
 Source-head and merge trees are identical at
-`08c90ed4456bb857f140935c1447f53e54dbba1d`.
+`90148e1150332443adc0d35bf6a0cfd0304e07b9`.
 
-Its exact-head CI `32551501314` / CI 686 passed. The final release-owner five-stage
-gate passed; distinct exact-head `chatgpt-codex-connector` issue comment
-`5377850957` reviewed `9b71dec8d3` and reported no major issues. The moved-head P2
-`Preserve the no-forwarding closure invariant` was repaired across the canonical
-control plane and resolved only after exact-head validation. Exact-main push CI
-`32551645921` / CI 687 attempt 1 completed successfully on the merge SHA, and
-decision-time `pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge
-SpecKit, skeptical/falsification, security, code-quality, optimization and
-integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` for the
-bounded documentation/control-plane scope.
+Its exact-head CI `32553624413` / CI 692 passed. The final release-owner exact-head
+gate passed in review `4999145705` as `PASS / NON-INDEPENDENT`; distinct exact-head
+`chatgpt-codex-connector` issue comment `5378120247` reviewed `9bd156b563` and
+reported no major issues. Exact-head P2 `Identify the already-open PR #115` was
+repaired in the capability map and its thread was resolved only after exact-head
+CI and distinct validation. Exact-main push CI `32553780401` / CI 693 attempt 1
+completed successfully on the exact merge SHA, and decision-time
+`pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge SpecKit,
+skeptical/falsification, security, code-quality, optimization and
+integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
+#115 issue comment `5378146812` for the bounded documentation/control-plane scope.
 
-PR #114 changed no runtime/security semantics. PR #115 on branch
-`docs/pom-rx-checkpoint-after-114-20260822` is the current four-file non-Tier-B
-reconciliation because a merged checkpoint cannot self-describe its own future
-merge SHA. PR #115 is already open; do not create a duplicate. Read PR #115 live
-for its final exact head, CI, reviews and threads. Until that reconciliation
-passes its own exact-head gates and post-merge assurance, live GitHub remains
-authoritative for volatile state.
+PR #115 changed no runtime/security semantics. A bounded post-PR115 reconciliation
+is prepared from exact trusted main on branch
+`docs/pom-rx-checkpoint-after-115-20260822` because a merged checkpoint cannot
+self-describe its own future merge SHA. To avoid duplicate pull requests, inspect
+live GitHub for an open PR whose exact head branch is that branch and create one
+only if none exists. Do not self-embed its moving exact head in these canonical
+files; read its final exact head, CI, reviews and threads live after the final
+owned-file commit. Until that reconciliation passes its own exact-head gates and
+post-merge assurance, live GitHub remains authoritative for volatile state.
 
 ### Proof transport and anchoring
 
@@ -229,7 +232,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
+- current trusted main: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
