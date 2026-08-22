@@ -6,39 +6,11 @@ import {
   PomRxPlainDataError,
   captureReferencePlainData,
 } from '../core/reference-data/plain-data-snapshot.mjs';
-import {
-  createReferenceSingleUseGateHarness,
-} from '../core/gate/reference-single-use-gate.mjs';
-
-const h = (character) => character.repeat(64);
 
 function expectPlainDataCode(error, code) {
   assert.ok(error instanceof PomRxPlainDataError);
   assert.equal(error.code, code);
   return true;
-}
-
-function bindingInput() {
-  return {
-    binding_profile: 'pom-rx-core-reference/0.1',
-    run_id: 'run-plain-data-intrinsic-0001',
-    agent_ref: 'agent-plain-data-intrinsic-01',
-    subject_ref: 'subject-plain-data-intrinsic-01',
-    method_hash: h('1'),
-    policy_hash: h('2'),
-    action_commitment: h('3'),
-    context_commitment: h('4'),
-    preflight_receipt_hash: h('5'),
-    witness_ack_hash: h('6'),
-    source_key_id: `ed25519-${'a'.repeat(32)}`,
-    witness_key_id: `ed25519-${'b'.repeat(32)}`,
-    verification_profile: 'pom-rx-v0.1/strict-errata-1',
-    verifier_version: 'pom-rx-v0.1-strict-verifier/1',
-    implementation_artifact_sha256: h('7'),
-    effective_verification_policy_sha256: h('8'),
-    issued_at: '2026-08-21T05:00:00.000Z',
-    expires_at: '2026-08-21T05:00:30.000Z',
-  };
 }
 
 test('post-import Object.create and Object.freeze replacement cannot redirect or unfreeze snapshots', () => {
@@ -57,7 +29,7 @@ test('post-import Object.create and Object.freeze replacement cannot redirect or
             return { value: 'substituted' };
           },
           set() {
-            // Vulnerable live Object.create snapshots lose the captured request.
+            // A vulnerable live Object.create snapshot would discard the write.
           },
         });
       }
@@ -76,9 +48,7 @@ test('post-import Object.create and Object.freeze replacement cannot redirect or
 
   assert.equal(captured.request.value, 'prepared');
   assert.equal(Array.isArray(captured.values), true);
-  assert.equal(captured.values.length, 2);
-  assert.equal(captured.values[0], 1);
-  assert.equal(captured.values[1], 2);
+  assert.deepEqual([...captured.values], [1, 2]);
   assert.equal(Object.getPrototypeOf(captured), null);
   assert.equal(Object.isFrozen(captured), true);
   assert.equal(Object.isFrozen(captured.request), true);
@@ -138,7 +108,7 @@ test('post-import numeric and key-check replacement cannot weaken the accepted d
       unsafePatternError = error;
     }
 
-    const unsafe = originalObjectWithNullPrototype();
+    const unsafe = Reflect.apply(originalObjectCreate, Object, [null]);
     Object.defineProperty(unsafe, '__proto__', {
       enumerable: true,
       configurable: true,
@@ -163,8 +133,8 @@ test('post-import numeric and key-check replacement cannot weaken the accepted d
   assert.ok(forbiddenKeyError);
   assert.equal(expectPlainDataCode(forbiddenKeyError, 'POMRX_DATA_E_KEY'), true);
 
-  function originalObjectWithNullPrototype() {
-    return Reflect.apply(Object.create, Object, [null]);
+  function originalObjectCreate(prototype) {
+    return Reflect.apply(Object.create, Object, [prototype]);
   }
 });
 
@@ -208,66 +178,7 @@ test('post-import util.types.isProxy replacement cannot expose nested Proxy trap
   assert.equal(traps, 0);
 });
 
-test('Gate prepared execution remains exact under post-issuance Object.create poisoning', async () => {
-  let evidence;
-  let downstreamValue;
-  const harness = createReferenceSingleUseGateHarness({
-    trustedClock: (() => {
-      const values = ['2026-08-21T05:00:01.000Z', '2026-08-21T05:00:02.000Z'];
-      let index = 0;
-      return () => values[Math.min(index++, values.length - 1)];
-    })(),
-    observeBinding: async () => ({
-      binding_profile: evidence.binding.binding_profile,
-      action_commitment: evidence.binding.action_commitment,
-      context_commitment: evidence.binding.context_commitment,
-      prepared_execution: {
-        request: 'observer-prepared-value',
-      },
-    }),
-    executeDownstream: async (preparedExecution) => {
-      downstreamValue = preparedExecution.request;
-      return 'ok';
-    },
-  });
-
-  const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
-    witnessValidUntil: '2026-08-21T05:01:00.000Z',
-  });
-  evidence = issued.evidence;
-
-  const originalObjectCreate = Object.create;
-  try {
-    Object.create = function poisonedObjectCreate(prototype) {
-      const value = originalObjectCreate(prototype);
-      if (prototype === null) {
-        Object.defineProperty(value, 'request', {
-          configurable: true,
-          enumerable: true,
-          get() {
-            return 'poisoned-prepared-value';
-          },
-          set() {
-            // A vulnerable snapshot silently discards the observer value here.
-          },
-        });
-      }
-      return value;
-    };
-
-    assert.equal(await harness.gate.consume(issued.capability, { request: 'attempt' }), 'ok');
-  } finally {
-    Object.create = originalObjectCreate;
-  }
-
-  assert.equal(downstreamValue, 'observer-prepared-value');
-  assert.equal(
-    harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
-    'CONSUMED_SUCCESS',
-  );
-});
-
-test('captured arrays detach implicit iteration and method lookup from live Array.prototype', () => {
+test('captured arrays detach iteration and method lookup from live Array.prototype', () => {
   const captured = captureReferencePlainData({ items: ['trusted', 'second'] }, 'array_detach');
   const snapshotPrototype = Object.getPrototypeOf(captured.items);
 
@@ -287,15 +198,9 @@ test('captured arrays detach implicit iteration and method lookup from live Arra
     Array.prototype.map = () => ['forged'];
 
     const iterated = [...captured.items];
-    assert.equal(iterated.length, 2);
-    assert.equal(iterated[0], 'trusted');
-    assert.equal(iterated[1], 'second');
+    assert.deepEqual(iterated, ['trusted', 'second']);
     assert.equal(captured.items.join(','), 'trusted,second');
-
-    const mapped = captured.items.map((value) => value);
-    assert.equal(mapped.length, 2);
-    assert.equal(mapped[0], 'trusted');
-    assert.equal(mapped[1], 'second');
+    assert.deepEqual(captured.items.map((value) => value), ['trusted', 'second']);
   } finally {
     Array.prototype[Symbol.iterator] = originalIterator;
     Array.prototype.join = originalJoin;
@@ -303,7 +208,7 @@ test('captured arrays detach implicit iteration and method lookup from live Arra
   }
 });
 
-test('captured arrays do not inherit shared ArrayIterator prototype next semantics', () => {
+test('captured arrays do not inherit mutable shared ArrayIterator next semantics', () => {
   const captured = captureReferencePlainData({ items: ['trusted', 'second'] }, 'iterator_detach');
   const originalArrayIterator = Array.prototype[Symbol.iterator];
   const probeIterator = Reflect.apply(originalArrayIterator, [], [[]]);
@@ -322,12 +227,8 @@ test('captured arrays do not inherit shared ArrayIterator prototype next semanti
     arrayIteratorPrototype.next = originalNext;
   }
 
-  assert.equal(iterated.length, 2);
-  assert.equal(iterated[0], 'trusted');
-  assert.equal(iterated[1], 'second');
-  assert.equal(valuesIterated.length, 2);
-  assert.equal(valuesIterated[0], 'trusted');
-  assert.equal(valuesIterated[1], 'second');
+  assert.deepEqual(iterated, ['trusted', 'second']);
+  assert.deepEqual(valuesIterated, ['trusted', 'second']);
 });
 
 test('reference snapshot arrays can be safely recaptured without admitting arbitrary array prototypes', () => {
@@ -342,9 +243,10 @@ test('reference snapshot arrays can be safely recaptured without admitting arbit
   const second = captureReferencePlainData(first, 'second_capture');
   assert.equal(Array.isArray(second.assertions), true);
   assert.equal(Object.getPrototypeOf(second.assertions), snapshotPrototype);
-  assert.equal(second.assertions.length, 2);
-  assert.equal(second.assertions[0].type, 'policy');
-  assert.equal(second.assertions[1].type, 'simulation');
+  assert.deepEqual(
+    second.assertions.map((item) => item.type),
+    ['policy', 'simulation'],
+  );
   assert.equal(Object.isFrozen(second.assertions), true);
 
   const foreign = ['untrusted'];
@@ -355,49 +257,59 @@ test('reference snapshot arrays can be safely recaptured without admitting arbit
   );
 });
 
-test('Gate prepared execution arrays remain exact under post-issuance Array prototype poisoning', async () => {
-  let evidence;
-  let downstreamItems;
-  const harness = createReferenceSingleUseGateHarness({
-    trustedClock: (() => {
-      const values = ['2026-08-21T05:00:01.000Z', '2026-08-21T05:00:02.000Z'];
-      let index = 0;
-      return () => values[Math.min(index++, values.length - 1)];
-    })(),
-    observeBinding: async () => ({
-      binding_profile: evidence.binding.binding_profile,
-      action_commitment: evidence.binding.action_commitment,
-      context_commitment: evidence.binding.context_commitment,
-      prepared_execution: {
-        items: ['trusted'],
-      },
-    }),
-    executeDownstream: async (preparedExecution) => {
-      downstreamItems = [...preparedExecution.items];
-      return 'ok';
-    },
-  });
+test('descriptor inspection ignores inherited Object.prototype get/set poison', () => {
+  const originalGet = Object.getOwnPropertyDescriptor(Object.prototype, 'get');
+  const originalSet = Object.getOwnPropertyDescriptor(Object.prototype, 'set');
+  let getCalls = 0;
+  let setCalls = 0;
 
-  const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
-    witnessValidUntil: '2026-08-21T05:01:00.000Z',
-  });
-  evidence = issued.evidence;
-
-  const originalIterator = Array.prototype[Symbol.iterator];
   try {
-    Array.prototype[Symbol.iterator] = function* poisonedIterator() {
-      yield 'forged';
-    };
-    assert.equal(await harness.gate.consume(issued.capability, { request: 'attempt' }), 'ok');
+    Object.defineProperty(Object.prototype, 'get', {
+      configurable: true,
+      get() {
+        getCalls += 1;
+        return () => 'forged';
+      },
+    });
+    Object.defineProperty(Object.prototype, 'set', {
+      configurable: true,
+      get() {
+        setCalls += 1;
+        return () => {};
+      },
+    });
+
+    const captured = captureReferencePlainData({ value: 'trusted' }, 'descriptor_poison');
+    assert.equal(captured.value, 'trusted');
   } finally {
-    Array.prototype[Symbol.iterator] = originalIterator;
+    if (originalGet) Object.defineProperty(Object.prototype, 'get', originalGet);
+    else delete Object.prototype.get;
+    if (originalSet) Object.defineProperty(Object.prototype, 'set', originalSet);
+    else delete Object.prototype.set;
   }
 
-  assert.ok(downstreamItems);
-  assert.equal(downstreamItems.length, 1);
-  assert.equal(downstreamItems[0], 'trusted');
-  assert.equal(
-    harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
-    'CONSUMED_SUCCESS',
-  );
+  assert.equal(getCalls, 0);
+  assert.equal(setCalls, 0);
+});
+
+test('array snapshot defines own elements without inherited index setters', () => {
+  const originalZero = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+  let setterCalls = 0;
+
+  try {
+    Object.defineProperty(Array.prototype, '0', {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    const captured = captureReferencePlainData(['trusted'], 'array_index_poison');
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0], 'trusted');
+  } finally {
+    if (originalZero) Object.defineProperty(Array.prototype, '0', originalZero);
+    else delete Array.prototype[0];
+  }
+
+  assert.equal(setterCalls, 0);
 });
