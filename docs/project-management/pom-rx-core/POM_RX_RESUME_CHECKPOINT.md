@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T19:05:00+02:00`
+Updated: `2026-08-22T20:32:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -51,88 +51,97 @@ remain unproved. Maximum claim remains
 - PR: `#120`;
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
-- first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
-- runtime drain repair commit: `9e7a151b4eb8da0e7595e8ebee540319273a7fab`;
-- bounded non-shadowable-accessor regression commit:
-  `d0c4175f12086bbbb2f4ccceb7cd947203e3f6fc`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state: `OPEN / NOT_TRUSTED / RUNTIME_REPAIR_IMPLEMENTED / FINAL_EXACT_HEAD_GATES_PENDING`.
+- state: `OPEN / NOT_TRUSTED / FOLLOWUP_P1_REPAIR_IMPLEMENTED / FRESH_EXACT_HEAD_GATES_PENDING`.
 
 The final moving SHA is intentionally **not** embedded in this moving file. Read
 PR #120 live after this checkpoint commit and bind all CI/review evidence to that
 exact head.
 
-### Review history that still governs release
+Current follow-up repair commits on the branch:
 
-- `2f081956dff590359fec5a95dc8eb0c547ac4174`: CI 733 passed but owner review
-  found P1 inherited `Array.prototype[0]` setter substitution through the
-  compatibility bridge; moved-head repairs replaced inherited `[[Set]]` writes
-  with captured construction + own data-property definitions and CI-wired policy/
-  account substitution attacks;
-- `5885da291d7d6b3e4541e5c00c160ffb481828b8`: CI 737 passed and a genuinely
-  distinct `chatgpt-codex-connector` review opened P1 thread
-  `PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promise
-  transports could fail validation before any rejection reaction was attached;
-- `b7576f8e94b3379c7427a51e4113960f396ac7e8`: fresh dedicated Codex review
-  opened P1 thread `PRRT_kwDOTiNyWc6bZ6tx`: the first drain fix still performed a
-  fallible own-`constructor` `defineProperty` before attaching the rejection
-  reaction, leaving non-extensible metadata and non-configurable data-constructor
-  cases vulnerable to orphaned strict unhandled rejection;
-- the same review opened P2 thread `PRRT_kwDOTiNyWc6bZ6tz`: the rejected-
-  transport test file was not reached by canonical `npm test`;
-- pre-repair exact head `b243a95094cfeeb31a7de94c5df0c93f6d711938`
-  had canonical CI `32585329838` / CI 754 `failure`, with exactly the newly wired
-  `metadata-nonextensible` and `constructor-nonconfigurable` strict child cases
-  failing as expected. This converted the prior false-PASS into explicit red
-  evidence before production repair.
+- `52225ae28d85afb4d6e4280d560f10098f19c935` — bounded effective-constructor
+  prototype-chain drain classification;
+- `a7bf527e8766b74e2717d7fd26a45add87a0958c` — strict non-extensible/nonstandard-
+  prototype rejection regressions;
+- `27becec03b853428464799f610d283fa44f689f2` — capability-map repair and product-
+  home invariant restoration;
+- `5422739a998827634747d6a4d417fc85501fec2b` — task-state reconciliation;
+- `9e403bdbd680fb7faa615b1ff2bf4016bca5c9a1` — blocker reconciliation.
 
-All moved-head CI/review evidence above is historical only for release.
+### Historical exact-head evidence that triggered this follow-up
 
-### Runtime repair now implemented
+Historical candidate `738e807e19fc0b2b4daf53eb4102ae1449f4aae9` is **not** a release
+candidate anymore.
 
-Commit `9e7a151b4eb8da0e7595e8ebee540319273a7fab` changes
-`provider.mjs` so a claimed rejected transport no longer requires a fallible
-mutation before its rejection reaction when its effective constructor path is
-already safe:
+- canonical run `32586321394`, CI 760: `failure`;
+- CI 760 failed `tests/pom-rx-capability-map.node.test.mjs` because the branch had
+  lost the tested Wallet Guard primary-product-home sentence;
+- exact-head distinct `chatgpt-codex-connector` review opened P1
+  `PRRT_kwDOTiNyWc6baFkR`: a non-extensible rejected same-realm native Promise
+  with a nonstandard prototype could reach fallback constructor shadowing before
+  a rejection reaction was attached;
+- the capability-map defect is tracked as P1 `PRRT_kwDOTiNyWc6baIxZ`;
+- prior historical release threads remain
+  `PRRT_kwDOTiNyWc6bZjxp` (P1), `PRRT_kwDOTiNyWc6bZ6tx` (P1), and
+  `PRRT_kwDOTiNyWc6bZ6tz` (P2).
 
-- captured reflection inspects own/prototype constructor descriptors without
-  reading attacker accessors;
-- `Promise[Symbol.species]` descriptor is captured at module initialization and
-  included in Promise runtime integrity because native `then` performs species
-  construction before `PerformPromiseThen`;
-- safe data-only constructor/species paths use the captured
-  `Promise.prototype.then` reaction directly, which covers the CI-wired
-  non-extensible metadata case and non-configurable own data constructor equal to
-  the captured Promise constructor;
-- unsafe-but-configurable constructor paths are shadowed with own `undefined`
-  before the captured `then`, avoiding getter dispatch;
-- post-drain constructor/then pinning was removed because invalid transports are
-  rejected immediately and do not need to be reused.
+Any CI/release-owner approval on `738e...` is historical only and must not be
+reused after the head move.
 
-The canonical regression file remains wired into
-`test:pom-rx:wallet-guard-provider-gate` and full `npm test`.
+### Follow-up runtime repair now implemented
 
-### Explicit bounded non-claim
+The follow-up drain classifier walks the effective `constructor` lookup path with
+captured `Object.getOwnPropertyDescriptor`, captured `Object.getPrototypeOf` and
+captured `util.types.isProxy`, bounded to a finite chain length. It attaches the
+captured native `Promise.prototype.then` rejection reaction without a preceding
+mutation when constructor lookup is provably data-only safe:
 
-A native rejected Promise carrying a **non-configurable own constructor accessor**
-cannot be safely shadowed with standard ECMAScript intrinsics, while invoking
-native `Promise.prototype.then` would read that accessor through species
-construction. PR #120 therefore does **not** claim gateway-owned internal draining
-for that arbitrary decorated transport class and does not execute the hostile
-accessor merely to suppress rejection.
+- the first effective constructor is `undefined`;
+- the first effective constructor is the captured native `Promise` and captured
+  species integrity still holds; or
+- constructor lookup terminates at `null`.
 
-Commit `d0c4175f12086bbbb2f4ccceb7cd947203e3f6fc` adds a strict child regression
-that first gives the deliberately unsupported provider transport its own
-rejection handling, then proves Wallet Guard fails closed with zero constructor
-getter execution, zero reference authorization and zero sensitive forwarding.
-This is an explicit unsupported-transport boundary, not a silent false-PASS.
+Prototype Proxies are rejected from the internal-drain classifier before their
+property traps can be consulted, and constructor accessors are not invoked merely
+to mark a rejection handled. Unsafe configurable paths may still be shadowed with
+an own `undefined` constructor. Non-shadowable hostile accessor/Proxy paths remain
+explicitly outside the gateway-owned internal-drain guarantee.
+
+The strict CI-wired rejected-transport suite retains all previous cases and now
+also covers:
+
+- `Object.setPrototypeOf(rejectedPromise, null)` followed by
+  `Object.preventExtensions(rejectedPromise)`;
+- a non-extensible rejected native Promise with a benign alternate prototype
+  carrying a native data `constructor: Promise`.
+
+Each supported hostile transport case must fail closed with zero reference
+authorization, zero account continuation and zero sensitive forwarding. The
+accessor boundary regression also requires zero hostile constructor-getter
+execution.
+
+### Capability-map repair
+
+The branch again states the repository-tested non-normative positioning invariant:
+Wallet Guard's primary product home is **Blockchain and digital assets**, while
+its defensive control model also overlaps the Cybersecurity block. The canonical
+capability-map test was not weakened.
+
+### Writer / independent-review routing
+
+The Prime lane is the **single implementation writer** for this current follow-up.
+A Codex-writer instruction was explicitly superseded before any Codex-authored
+commit or reaction. `chatgpt-codex-connector` is therefore reserved as a
+**read-only genuinely distinct exact-head reviewer** for the frozen candidate.
+Release-owner/assistant review remains non-independent.
 
 ### Current release blockers
 
-1. `PR120_FINAL_EXACT_HEAD_CANONICAL_CI_REQUIRED`.
+1. `PR120_FRESH_EXACT_HEAD_CANONICAL_CI_REQUIRED`.
 2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED`.
-3. `PR120_NEW_DISTINCT_EXACT_HEAD_CODEX_REVIEW_REQUIRED`.
-4. `PR120_THREADS_ZJXP_Z6TX_Z6TZ_MUST_REMAIN_UNRESOLVED_UNTIL_EXACT_HEAD_VALIDATION`.
+3. `PR120_NEW_DISTINCT_READ_ONLY_EXACT_HEAD_CODEX_REVIEW_REQUIRED`.
+4. `PR120_THREADS_ZJXP_Z6TX_Z6TZ_BAFKR_BAIXZ_MUST_REMAIN_UNRESOLVED_UNTIL_EXACT_HEAD_VALIDATION`.
 5. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
 6. `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`.
 7. `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_TRUSTED_PR120`.
@@ -158,18 +167,19 @@ This is an explicit unsupported-transport boundary, not a silent false-PASS.
 
 ## next_safe_actions
 
-1. Re-read live PR #120 head after this checkpoint write and freeze that exact
-   candidate.
-2. Require canonical exact-head CI success with the strict rejected-transport
-   suite actually executed; do not weaken/delete the non-extensible or
-   non-configurable cases.
-3. Run the release-owner mandatory five-stage gate on the same exact head,
-   including SpecKit/architecture, skeptical attack hypotheses, security,
+1. Read live PR #120 after this checkpoint commit and freeze the resulting exact
+   head.
+2. Require fresh canonical exact-head CI success with both
+   `provider-invalid-rejected-transport.node.test.mjs` and
+   `pom-rx-capability-map.node.test.mjs` actually executed.
+3. Run the release-owner mandatory five-stage gate on the **same exact head**,
+   covering SpecKit/architecture, concrete skeptical attack hypotheses, security,
    code-quality/optimization and integration/regression evidence.
-4. Request a **new genuinely distinct exact-head `chatgpt-codex-connector`
-   skeptical/security review** only for that frozen SHA.
-5. Resolve threads `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx` and
-   `PRRT_kwDOTiNyWc6bZ6tz` only if the fresh exact-head evidence validates their
+4. Request a **new genuinely distinct read-only exact-head
+   `chatgpt-codex-connector` skeptical/security review** for that frozen SHA.
+5. Resolve `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`,
+   `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR` and
+   `PRRT_kwDOTiNyWc6baIxZ` only if fresh exact-head CI/review validates their
    repairs and leaves zero P0/P1/P2.
 6. Merge only then under standing authorization and immediately run exact-merge
    post-merge assurance before trusting PR #120.
