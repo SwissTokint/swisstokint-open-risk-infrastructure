@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T09:12:00+02:00`
+Updated: `2026-08-22T09:24:00+02:00`
 
 Current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`
 
@@ -35,11 +35,11 @@ Release/post-merge evidence for PR #117:
 PR #117 is trusted coordination evidence only. It changed no runtime/security
 semantics and does not make PR #97 or PR #93 trusted.
 
-## `CONTROL_PLANE_POST_PR117_RECONCILIATION_REQUIRED`
+## `CONTROL_PLANE_PR118_EXACT_HEAD_GATES_PENDING`
 
 The four canonical files merged by PR #117 necessarily describe the pre-merge
-state. A smallest bounded non-Tier-B reconciliation now exists from exact trusted
-main `e7bcc15a9cfa...` on branch:
+state. The smallest bounded non-Tier-B reconciliation is active as **PR #118**
+from exact trusted main `e7bcc15a9cfa...` on branch:
 
 `docs/pom-rx-checkpoint-after-117-20260822`
 
@@ -50,14 +50,24 @@ Owned surfaces are exactly:
 - `POM_RX_BLOCKERS.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-To avoid duplicate pull requests, these canonical files do not self-embed a
-future PR number or moving candidate head. Inspect live GitHub for an open PR
-whose exact head branch is the branch above and create one only if none exists.
-Read its final exact head, CI, reviews and threads live after the final owned-file
-commit.
+PR #118 first-candidate evidence is historical and blocked:
 
-No Tier-B dependency/readiness claim may rely on stale embedded pre-PR117 state.
-The reconciliation remains coordination-only and must pass fresh exact-head CI,
+- initial exact head `84220a2ec54b8e886a45b472daa9330b0eb847bb`;
+- canonical CI `32559140330` / CI 699: `failure` at `npm test`;
+- root cause: capability-map paragraph reflow split the repository-tested stable
+  phrase `Blockchain and digital assets`; the bounded repair restores that phrase
+  in documentation and does **not** weaken or edit the test;
+- independent review request issue comment `5378995887` targeted that initial
+  head, but distinct `chatgpt-codex-connector` issue comment `5379001143`
+  reported its usage limit exhausted, so **no independent approval exists**;
+- every branch move invalidates the initial head's CI/review evidence.
+
+The repaired current/final exact PR #118 head is deliberately not self-embedded
+in these moving files; read it live after the final owned-file commit. Do not
+create a duplicate PR while #118 is open.
+
+No Tier-B dependency/readiness claim may rely on stale pre-PR117 or failed
+initial-#118 state. PR #118 must pass fresh canonical exact-head CI,
 release-owner five-stage control, a genuinely distinct exact-head independent
 review and zero unresolved P0/P1/P2 before merge. Any head move invalidates
 exact-head release evidence. After merge, exact-merge post-merge assurance is
