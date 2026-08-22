@@ -1,122 +1,148 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T13:31:00+02:00",
-  "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+  "updated_at": "2026-08-22T22:18:49+02:00",
+  "current_main": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
     "compact_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run.",
-    "source_of_truth_order": ["live_github", "canonical_control_plane", "repository_architecture_and_specs"]
+    "source_of_truth_order": [
+      "live_github",
+      "canonical_control_plane",
+      "repository_architecture_and_specs"
+    ]
   },
   "trusted_main": {
-    "sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "source_pr": 118,
-    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
-    "tree": "4eb5d22f763d158f95c86501368de3d68af89104",
-    "source_to_merge": "one_merge_commit_files_empty",
-    "candidate_ci": {"run_id": 32559785310, "run_number": 704, "conclusion": "success"},
+    "sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
+    "source_pr": 119,
+    "source_head": "057b225783b24c97568dbcd733ca4c821f889c7a",
     "exact_main_ci": {
-      "run_id": 32561596467,
-      "run_number": 705,
+      "run_id": 32575110984,
+      "run_number": 720,
       "run_attempt": 1,
-      "conclusion": "success",
-      "status_context": "pom-rx/exact-main-ci",
-      "status": "success"
+      "conclusion": "success"
     },
-    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999506623",
-    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5379054811",
-    "unresolved_release_threads": 0,
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5379219612",
-    "scope": "coordination_only_non_tier_b"
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5380609307",
+    "scope": "bounded_non_tier_b_control_plane_transition"
   },
-  "completed_control_plane": {
-    "id": "CONTROL-PLANE-POST-117-CHECKPOINT-20260822",
-    "pr": 118,
-    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
-    "merge_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "status": "TERMINAL_TRUSTED_POST_MERGE_ASSURANCE_PASS",
-    "terminal_rule": "PR 118 is terminal. Do not create a new documentation-only checkpoint merely to record its terminal state; carry that fact with useful follow-on work."
-  },
-  "transition_pr": {
-    "pr": 119,
-    "branch": "docs/pom-rx-checkpoint-after-118-20260822",
-    "base_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+  "control_plane_reconciliation": {
+    "id": "LIVE-GITHUB-RECONCILIATION-AFTER-PR119-20260822",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "purpose": "Carry trusted PR 118 terminal facts while advancing the next useful task: the fresh PR97-line Promise-drift runtime repair.",
-    "not_a_recurrent_checkpoint_task": true,
-    "independent_review_history": {
-      "first_finding": {
-        "reviewed_head": "1bdb53bad6f0b88046358f4ec7912c86a0469a7c",
-        "reviewer": "chatgpt-codex-connector",
-        "finding": "P2_HONOR_PR118_TERMINAL_RULE_INSTEAD_OF_SELF_RECREATING_CHECKPOINT",
-        "thread_id": "PRRT_kwDOTiNyWc6bX2ey",
-        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
-      },
-      "second_finding": {
-        "reviewed_head": "ae856bdb2d0389b4fa3aefc962a072d093fac050",
-        "reviewer": "chatgpt-codex-connector",
-        "finding": "P2_RESTORE_FIVE_STAGE_STANDING_AUTHORIZATION_PREREQUISITE",
-        "thread_id": "PRRT_kwDOTiNyWc6bYFVT",
-        "repair_commit": "0590362a3682049aac6ab5f80a3bc31af3326854",
-        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
-      }
-    },
-    "exact_current_head_rule": "Read PR 119 live after the final owned-file commit; do not self-embed the moving final SHA into the moving control-plane files.",
-    "merge_rule": "PR 119 may merge only after its repaired exact head has canonical CI success, release-owner five-stage PASS, fresh distinct exact-head review, and zero unresolved P0/P1/P2. Resolve historical P2 threads only after exact-head validation. After merge, run exact-merge assurance; do not open a post-PR119 documentation-only successor."
+    "branch": "docs/pom-rx-live-state-reconcile-20260822",
+    "status": "IN_PROGRESS",
+    "reason": "Canonical main still described pre-PR119 trusted state while live GitHub advanced to e5aead and PR120 acquired a fresh exact-head P1.",
+    "owned_files": [
+      "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
+      "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
+      "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
+      "docs/product/POM_RX_CAPABILITY_MAP.md"
+    ],
+    "runtime_semantics_changed": false,
+    "exact_head_rule": "Read the reconciliation PR live after the final owned-file write; any head move invalidates exact-head CI/review evidence.",
+    "release_requirements": [
+      "canonical exact-head CI success",
+      "release-owner five-stage exact-head PASS_NON_INDEPENDENT",
+      "fresh genuinely distinct exact-head independent review where required",
+      "zero unresolved P0/P1/P2",
+      "decision-time unchanged main/base/head/CI/review/thread state",
+      "exact-merge post-merge assurance after merge"
+    ]
   },
   "active_task": {
-    "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
-    "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
+    "id": "PR120-PROMISE-TRANSPORT-SPECIES-PATH-REPAIR",
+    "title": "Close the remaining rejected native-Promise species-path drain boundary",
     "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-    "status": "READY_TO_START_AFTER_TRANSITION_PR119_TRUSTED",
-    "historical_pr": 97,
-    "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-    "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-    "fresh_branch_rule": "Start from then-current trusted main on a new bounded branch/PR. Do not merge, rebase, revive, or wholesale-copy the stale PR97 branch.",
-    "known_exact_head_ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_false_pass_for_security_property"},
-    "historical_owner_gate": "BLOCK_NON_INDEPENDENT",
-    "historical_independent_gate": "BLOCK_P1_REJECT_PROMISE_DRIFT_BEFORE_ENTERING_ASYNC_LAYERS",
+    "status": "BLOCKED_PENDING_CONTROL_PLANE_RECONCILIATION_THEN_BOUNDED_REPAIR",
+    "pr": 120,
+    "branch": "automation/pom-rx-promise-drift-repair-20260822",
+    "base_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
+    "exact_head": "30e9c0399804f17cbadbc076eed4d1d48614610d",
+    "current_ci": {
+      "run_id": 32596104896,
+      "run_number": 770,
+      "conclusion": "success_but_not_release_evidence_for_fresh_p1"
+    },
+    "current_owner_gate": "BLOCK_NON_INDEPENDENT_P1_SPECIES_PATH",
+    "current_independent_gate": "PENDING_ON_FUTURE_REPAIRED_EXACT_HEAD",
+    "merge": "BLOCKED",
+    "fresh_owner_finding": {
+      "severity": "P1",
+      "reviewed_head": "30e9c0399804f17cbadbc076eed4d1d48614610d",
+      "finding": "A non-extensible rejected native Promise with a benign alternate data constructor can fall into a failed own-constructor mutation before a rejection reaction is attached because the effective constructor Symbol.species path is not yet proven safe.",
+      "release_effect": "CI770 is a false PASS for this attack family and cannot release PR120."
+    },
     "repair_contract": [
-      "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
-      "restore or replace a CI-wired regression that reproduces the sensitive-forwarding exploit without weakening hostile-dispatch expectations",
-      "require durable capability claim success before observer or downstream work",
-      "preserve fail-closed replay and durable one-winner semantics",
-      "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
-      "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
-      "require zero authorization and zero sensitive forwarding for hostile rejected transports",
+      "extend bounded captured-reflection classification to the effective constructor Symbol.species lookup path",
+      "allow internal drain only when the species path is data-only and non-Proxy and resolves to absent/null/undefined or the captured native Promise",
+      "keep primitive constructors, accessors, Proxies and attacker-selected species constructors outside the internally-drainable claim unless separately proven safe",
+      "add a CI-wired strict non-extensible benign alternate-data-constructor regression",
+      "add a prehandled hostile species-accessor boundary regression requiring zero accessor execution, zero reference authorization and zero sensitive forwarding",
+      "preserve all existing rejected-transport regressions and the capability-map product-position invariant",
       "preserve shared Core ownership; Wallet Guard remains an application profile"
     ],
-    "release_requirements": [
-      "targeted expected-red and negative regression evidence",
-      "relevant full regression/compatibility checks",
-      "exact-head canonical CI success",
-      "release-owner six-lane PASS on exact head",
-      "fresh genuinely distinct exact-head independent skeptical/security review",
-      "zero unresolved P0/P1/P2",
-      "mandatory exact-merge post-merge assurance after merge"
+    "historical_review_threads": [
+      {
+        "id": "PRRT_kwDOTiNyWc6bZjxp",
+        "severity": "P1",
+        "state": "UNRESOLVED"
+      },
+      {
+        "id": "PRRT_kwDOTiNyWc6bZ6tx",
+        "severity": "P1",
+        "state": "UNRESOLVED"
+      },
+      {
+        "id": "PRRT_kwDOTiNyWc6bZ6tz",
+        "severity": "P2",
+        "state": "UNRESOLVED"
+      },
+      {
+        "id": "PRRT_kwDOTiNyWc6baFkR",
+        "severity": "P1",
+        "state": "UNRESOLVED"
+      },
+      {
+        "id": "PRRT_kwDOTiNyWc6baIxZ",
+        "severity": "P1",
+        "state": "UNRESOLVED"
+      }
     ],
-    "next_safe_action": "After PR 119 is trusted, create the smallest fresh runtime branch from the then-current trusted main and implement only the Promise-drift boundary repair plus the minimum CI-wired exploit regression needed to prove zero authorization/forwarding for hostile rejected transports."
+    "release_requirements": [
+      "repair by exactly one writer after control-plane reconciliation is trusted",
+      "fresh canonical exact-head CI success after the repair moves the head",
+      "mandatory five-stage release-owner exact-head review",
+      "fresh genuinely distinct read-only chatgpt-codex-connector skeptical/security review on the exact repaired head",
+      "zero unresolved P0/P1/P2",
+      "mandatory exact-merge post-merge assurance"
+    ],
+    "next_safe_action": "Complete the scoped four-file control-plane reconciliation. Then implement only the PR120 species-path P1 and its two CI-wired strict regressions; freeze the new head and rerun all exact-head gates."
   },
   "queue": [
+    {
+      "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
+      "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
+      "status": "BLOCKED_ON_TRUSTED_PR120",
+      "historical_source_pr": 97,
+      "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
+      "historical_ci": {
+        "run_id": 32487036517,
+        "run_number": 592,
+        "conclusion": "success_but_false_pass_for_security_property"
+      },
+      "rule": "Do not merge/revive stale PR97. Reconstruct durable claim-before-observer/downstream composition from then-current trusted main after PR120 is trusted."
+    },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
       "pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
-      "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
+      "status": "BLOCKED_DEPENDENCY_AND_FRESH_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
-      "ci": {"run_id": 32465835858, "run_number": 541, "conclusion": "success_but_not_release_evidence"},
-      "owner_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "blockers": [
-        "fresh trusted-main reconciliation required",
-        "fresh exact-head release-owner review required",
-        "fresh distinct exact-head independent skeptical/security review required",
-        "unresolved exact negative-zero identity, typed-data wrapper normalization, generic exact-value commitment, nested saved-reflection capture and shared proof canonicalization/SHA-256/hash hardening classes remain",
-        "ordering remains after trusted completion of the fresh PR97-line repair unless separately reviewed"
-      ]
+      "historical_ci": {
+        "run_id": 32465835858,
+        "run_number": 541,
+        "conclusion": "success_but_not_release_evidence"
+      }
     },
     {
       "id": "DAGR-SOURCE-GATE",
@@ -127,13 +153,7 @@
     {
       "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
       "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
-      "status": "BLOCKED",
-      "blockers": [
-        "production trusted time/issuer/operator authorization unproved",
-        "production Witness/KMS/HSM and distributed trust unproved",
-        "external execution/effect truth unproved",
-        "real or funded wallet execution not authorized"
-      ]
+      "status": "BLOCKED"
     }
   ],
   "merge_rules": {
