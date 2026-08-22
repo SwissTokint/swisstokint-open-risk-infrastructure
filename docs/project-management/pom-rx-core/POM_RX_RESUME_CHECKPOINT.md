@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T20:32:00+02:00`
+Updated: `2026-08-22T21:07:34+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -52,32 +52,60 @@ remain unproved. Maximum claim remains
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state: `OPEN / NOT_TRUSTED / FOLLOWUP_P1_REPAIR_IMPLEMENTED / FRESH_EXACT_HEAD_GATES_PENDING`.
+- state: `OPEN / NOT_TRUSTED / FOLLOWUP_P1_REPAIR_IMPLEMENTED / CAPABILITY_MAP_FORMAT_REPAIRED / FRESH_EXACT_HEAD_GATES_PENDING`.
 
 The final moving SHA is intentionally **not** embedded in this moving file. Read
 PR #120 live after this checkpoint commit and bind all CI/review evidence to that
 exact head.
 
-Current follow-up repair commits on the branch:
+Current follow-up repair commits on the branch include:
 
 - `52225ae28d85afb4d6e4280d560f10098f19c935` — bounded effective-constructor
   prototype-chain drain classification;
 - `a7bf527e8766b74e2717d7fd26a45add87a0958c` — strict non-extensible/nonstandard-
   prototype rejection regressions;
-- `27becec03b853428464799f610d283fa44f689f2` — capability-map repair and product-
-  home invariant restoration;
+- `27becec03b853428464799f610d283fa44f689f2` — restores the capability-map
+  product-home sentence but used Markdown emphasis that did not satisfy the
+  repository's exact regex invariant;
 - `5422739a998827634747d6a4d417fc85501fec2b` — task-state reconciliation;
-- `9e403bdbd680fb7faa615b1ff2bf4016bca5c9a1` — blocker reconciliation.
+- `9e403bdbd680fb7faa615b1ff2bf4016bca5c9a1` — blocker reconciliation;
+- `1d85ec6089092282d6cf7f097deda510648336ca` — removes the Markdown emphasis so
+  the tested sentence is exactly `Wallet Guard's primary product home is
+  Blockchain and digital assets, while its defensive control model also overlaps
+  the Cybersecurity block.` without weakening the test.
 
-### Historical exact-head evidence that triggered this follow-up
+### Exact-head CI diagnosis before the latest formatting repair
 
-Historical candidate `738e807e19fc0b2b4daf53eb4102ae1449f4aae9` is **not** a release
+Moved candidate `7deba0bbe755b4ff1090d82c17e0370522ed95c1` is **not** a release
 candidate anymore.
 
-- canonical run `32586321394`, CI 760: `failure`;
-- CI 760 failed `tests/pom-rx-capability-map.node.test.mjs` because the branch had
-  lost the tested Wallet Guard primary-product-home sentence;
-- exact-head distinct `chatgpt-codex-connector` review opened P1
+- live canonical workflow run `32590681329`, CI run number 766: `failure`;
+- the failing step was `npm test` and the only diagnosed failing assertion was
+  `tests/pom-rx-capability-map.node.test.mjs` expecting the exact unformatted
+  product-home sentence;
+- PR #120 had `**Blockchain and digital assets**`, so the regex did not match;
+- the test itself was not weakened;
+- importantly, the Wallet Guard provider/security suite reached and passed the
+  strict rejected-transport regressions on this moved head, including decorated,
+  non-extensible, non-configurable-constructor, nonstandard-prototype,
+  null-prototype/non-extensible, benign alternate-prototype/data-constructor and
+  inherited Promise constructor/then poisoning cases;
+- therefore CI 766 is historical red evidence of the control-plane formatting
+  defect, not release evidence and not evidence that the runtime P1 repair is
+  trusted.
+
+Commit `1d85ec6089092282d6cf7f097deda510648336ca` repairs only that exact
+capability-map formatting mismatch. This checkpoint commit moves the head again,
+so all CI/review evidence on `7deba0...` and `1d85ec...` is historical for release.
+Fresh canonical CI and fresh exact-head reviews are mandatory on the resulting
+live head.
+
+### Historical exact-head security evidence
+
+Historical candidate `738e807e19fc0b2b4daf53eb4102ae1449f4aae9` is not a release
+candidate.
+
+- distinct `chatgpt-codex-connector` review opened P1
   `PRRT_kwDOTiNyWc6baFkR`: a non-extensible rejected same-realm native Promise
   with a nonstandard prototype could reach fallback constructor shadowing before
   a rejection reaction was attached;
@@ -86,8 +114,8 @@ candidate anymore.
   `PRRT_kwDOTiNyWc6bZjxp` (P1), `PRRT_kwDOTiNyWc6bZ6tx` (P1), and
   `PRRT_kwDOTiNyWc6bZ6tz` (P2).
 
-Any CI/release-owner approval on `738e...` is historical only and must not be
-reused after the head move.
+All five threads remain unresolved until a fresh genuinely distinct exact-head
+review validates the final candidate. Moved-head reviews are attack history only.
 
 ### Follow-up runtime repair now implemented
 
@@ -108,8 +136,8 @@ to mark a rejection handled. Unsafe configurable paths may still be shadowed wit
 an own `undefined` constructor. Non-shadowable hostile accessor/Proxy paths remain
 explicitly outside the gateway-owned internal-drain guarantee.
 
-The strict CI-wired rejected-transport suite retains all previous cases and now
-also covers:
+The strict CI-wired rejected-transport suite retains all previous cases and also
+covers:
 
 - `Object.setPrototypeOf(rejectedPromise, null)` followed by
   `Object.preventExtensions(rejectedPromise)`;
@@ -121,25 +149,17 @@ authorization, zero account continuation and zero sensitive forwarding. The
 accessor boundary regression also requires zero hostile constructor-getter
 execution.
 
-### Capability-map repair
-
-The branch again states the repository-tested non-normative positioning invariant:
-Wallet Guard's primary product home is **Blockchain and digital assets**, while
-its defensive control model also overlaps the Cybersecurity block. The canonical
-capability-map test was not weakened.
-
 ### Writer / independent-review routing
 
 The Prime lane is the **single implementation writer** for this current follow-up.
-A Codex-writer instruction was explicitly superseded before any Codex-authored
-commit or reaction. `chatgpt-codex-connector` is therefore reserved as a
-**read-only genuinely distinct exact-head reviewer** for the frozen candidate.
-Release-owner/assistant review remains non-independent.
+`chatgpt-codex-connector` remains reserved as a **read-only genuinely distinct
+exact-head reviewer** for the frozen candidate. Release-owner/assistant review is
+non-independent and cannot substitute for that gate.
 
 ### Current release blockers
 
-1. `PR120_FRESH_EXACT_HEAD_CANONICAL_CI_REQUIRED`.
-2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED`.
+1. `PR120_FRESH_EXACT_HEAD_CANONICAL_CI_REQUIRED_AFTER_HEAD_MOVE`.
+2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED_ON_FINAL_EXACT_HEAD`.
 3. `PR120_NEW_DISTINCT_READ_ONLY_EXACT_HEAD_CODEX_REVIEW_REQUIRED`.
 4. `PR120_THREADS_ZJXP_Z6TX_Z6TZ_BAFKR_BAIXZ_MUST_REMAIN_UNRESOLVED_UNTIL_EXACT_HEAD_VALIDATION`.
 5. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
@@ -152,18 +172,18 @@ Release-owner/assistant review remains non-independent.
 
 ### PR #97 — stale historical durable Gate candidate
 
-- exact live head at this checkpoint family: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
-- CI 592: `success` but false-PASS for the Promise-drift property;
-- status: `OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_PROMISE_REPAIR_BY_PR120`.
+Live GitHub currently exposes an old open PR body/head lineage that predates the
+fresh trusted-main repair. It remains `OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_PROMISE_REPAIR_BY_PR120`.
+Read its exact live head and CI from GitHub each run; do not use its body as
+readiness evidence.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- exact live head at this checkpoint family:
-  `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
-- CI 541: `success` but not release evidence;
-- unresolved P1/P2 classes remain;
-- status: `OPEN / NOT_MERGED / UNTRUSTED / ORDERED_AFTER_TRUSTED_PR120` unless a
-  separately reviewed dependency decision changes that order.
+Live GitHub exposes an old open PR lineage with stale moved-head release evidence
+and unresolved P1/P2 classes. It remains
+`OPEN / NOT_MERGED / UNTRUSTED / ORDERED_AFTER_TRUSTED_PR120` unless a separately
+reviewed dependency decision changes that order. Read its exact live head and CI
+from GitHub each run rather than relying on historical checkpoint hashes.
 
 ## next_safe_actions
 
@@ -181,9 +201,10 @@ Release-owner/assistant review remains non-independent.
    `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR` and
    `PRRT_kwDOTiNyWc6baIxZ` only if fresh exact-head CI/review validates their
    repairs and leaves zero P0/P1/P2.
-6. Merge only then under standing authorization and immediately run exact-merge
+6. Revalidate unchanged main/base/head/CI/reviews/threads at decision time.
+7. Merge only then under standing authorization and immediately run exact-merge
    post-merge assurance before trusting PR #120.
-7. Reconstruct durable claim-before-observer/downstream composition only after
+8. Reconstruct durable claim-before-observer/downstream composition only after
    PR #120 is trusted; reconcile PR #93 afterwards unless ordering is separately
    reviewed.
 
