@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T16:58:00+02:00`
+Updated: `2026-08-22T17:08:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -89,9 +89,20 @@ remain unproved. Maximum claim remains
   keeps both security properties intact. `controlled-host.mjs` first captures the
   complete caller policy through the shared Core inert-data boundary, then bridges
   only the known Wallet Guard policy-list fields back to ordinary frozen arrays
-  before invoking the historical strict policy validator. It does not weaken Core
-  capture, does not admit arbitrary custom-prototype arrays at the public policy
-  boundary, and does not add a second generic recursive capture system;
+  before invoking the historical strict policy validator. CI 729 on this code
+  completed the full `npm test` step successfully, proving the controlled-host
+  integration regression was closed before later bookkeeping/security edits;
+- skeptical false-PASS review found that an empty scalar such as
+  `require_simulation_for: ''` could otherwise be converted by the compatibility
+  bridge into `[]`, turning an invalid policy into a valid policy with no required
+  simulation. Commit `830b73f8d7bb29a9f8e5dc163fefee7933f5ae03`
+  makes every bridge copy require an actual array, and commit
+  `315ba35db28a2ce265968f4c9ae603961de5f209` adds CI-wired negative cases for
+  `require_simulation_for` and `allowed_spenders` scalar coercion;
+- the compatibility bridge therefore does not weaken Core capture, does not admit
+  arbitrary custom-prototype arrays at the public policy boundary, does not add a
+  second generic recursive capture system, and now fails closed before any scalar
+  policy-list coercion;
 - canonical exact-head CI: `PENDING` after this control-plane commit; all CI/review
   evidence on intermediate heads is stale for release after head movement;
 - release-owner five-stage gate: `PENDING`;
@@ -120,6 +131,8 @@ PR #120 starts from trusted main rather than merging/rebasing/reviving stale PR
   shared Core primitive;
 - preserve controlled-host compatibility without relaxing either the hardened
   Core snapshot prototype or the Wallet Guard public policy-array boundary;
+- fail closed when invalid scalar policy-list values reach the compatibility
+  bridge rather than silently normalizing them to empty arrays;
 - require the exploit regression to show **zero reference authorization and zero
   sensitive forwarding** for hostile rejected context transports.
 
@@ -135,12 +148,14 @@ Skeptical hypotheses mapped to CI-wired evidence:
 3. synchronous Array/Object/callable Proxies can dispatch `then`/reflection traps
    before the inert-data boundary;
 4. hardening Core snapshot-array prototypes can accidentally break application
-   composition and tempt a fail-open relaxation of the public policy boundary.
+   composition and tempt a fail-open relaxation of the public policy boundary;
+5. a representation bridge can coerce invalid scalar list values into semantically
+   valid empty arrays and silently reduce required policy controls.
 
 The negative gates require fail-closed behavior before authorization/forwarding;
 compatibility controls require ordinary synchronous/native-Promise context,
-own-symbol Promise bookkeeping, strict custom-prototype policy rejection and the
-controlled-host path to remain supported.
+own-symbol Promise bookkeeping, strict custom-prototype policy rejection,
+non-array policy-list rejection and the controlled-host path to remain supported.
 
 ## blocked_historical_prs
 
@@ -169,7 +184,7 @@ controlled-host path to remain supported.
 
 ## current_blockers
 
-1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_CONTROLLED_HOST_COMPATIBILITY_REPAIR`.
+1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_SCALAR_POLICY_BRIDGE_FALSE_PASS_REPAIR`.
 2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_PENDING`.
 3. `PR120_DISTINCT_EXACT_HEAD_INDEPENDENT_REVIEW_PENDING`.
 4. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
@@ -199,8 +214,8 @@ integration/regression assurance with one final verdict:
    frozen candidate; do not move it for bookkeeping-only SHA self-reference.
 2. Run/read canonical exact-head CI on that SHA. Required evidence includes the
    23/23 provider-gate pass with zero exploit counters, 19/19 shared plain-data
-   intrinsic-hardening pass, restored controlled-host integration, and full
-   workflow success.
+   intrinsic-hardening pass, restored controlled-host integration including the
+   scalar-list false-PASS negatives, and full workflow success.
 3. If CI is green, run the release-owner five-stage gate and obtain a fresh
    genuinely distinct exact-head skeptical/security review; direct assignment
    failure is not independent evidence.
