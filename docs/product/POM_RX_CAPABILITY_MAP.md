@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `dc926bcc006255825c1598c9699264af3476c363`.
+Trusted-main checkpoint: `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -84,8 +84,8 @@ A reviewed composition of that durable claim primitive into the common Gate is
 Tier-B historical candidate at exact head
 `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, with historical PR base
 `0564aecd42cf0794894c12842980969ff59c9f73`. Trusted main is now
-`dc926bcc006255825c1598c9699264af3476c363` after trusted coordination-only PR
-#110. Live GitHub revalidation at this checkpoint reports `mergeable=true`; that
+`89816f2bfcc97a77cd4cbc67cd3b2968800938fa` after trusted coordination-only PR
+#111. Live GitHub revalidation at this checkpoint reports `mergeable=true`; that
 is volatile conflict metadata only and does not establish trusted-main
 reconciliation, security correctness or release readiness.
 
@@ -183,29 +183,29 @@ revalidation; the status alone is not a production-readiness signal.
 ### Durable project-control continuity
 
 Trusted main includes the GitHub-backed cross-chat control plane from PR #98 and
-subsequent bounded reconciliation merges. Most recently, PR #110 source head
-`32fad9b46f281ecb99db1526244f0b187a769714` merged as exact main SHA
-`dc926bcc006255825c1598c9699264af3476c363`; source-head and merge trees are
-identical at `3e8e3d838b649866a0d062618d5245c5bfa9560f`.
+subsequent bounded reconciliation merges. Most recently, PR #111 source head
+`bea88015019e3ea2cf28abf8cdc0eea7006f611c` merged as exact main SHA
+`89816f2bfcc97a77cd4cbc67cd3b2968800938fa`; source-head and merge trees are
+identical at `e49008df989865b2b56b10e738d6b16571715daa`.
 
-PR #110 exact-head candidate CI run `32529119685` / CI run 658 completed
-`success`. Canonical exact-main push CI run `32531945294` / CI run 659 attempt 1
+PR #111 exact-head candidate CI run `32539681161` / CI run 668 completed
+`success`. Canonical exact-main push CI run `32542680297` / CI run 669 attempt 1
 completed `success` on the exact merge SHA, and decision-time
-`pom-rx/exact-main-ci` was `success` targeting that run. PR #110 had final
+`pom-rx/exact-main-ci` is `success` targeting that run. PR #111 had final
 release-owner `PASS / NON-INDEPENDENT`, a fresh distinct exact-head Codex review
-explicitly on `32fad9b46f` that found no major issues, zero review threads, and a
-recorded exact-merge `POST_MERGE_ASSURANCE_PASS` across SpecKit,
-skeptical/falsification, security, code quality, optimization and
-integration/regression.
+that found no major issues, zero unresolved release threads, and a recorded
+exact-merge `POST_MERGE_ASSURANCE_PASS` across SpecKit, skeptical/falsification,
+security, code quality, optimization and integration/regression.
 
-PR #110 was documentation/control-plane only and changed no runtime, protocol,
+PR #111 was documentation/control-plane only and changed no runtime, protocol,
 Gate, Witness, verifier, Wallet Guard or execution semantics. These are
 coordination properties, not production-readiness capabilities.
 
 Because a merged checkpoint cannot self-describe its future merge SHA, the
-current post-PR #110 synchronization is a bounded non-Tier-B docs lot on branch
-`docs/pom-rx-checkpoint-after-110-20260822`. Live GitHub remains authoritative
-for that branch's moving PR/head/CI/review state.
+current post-PR #111 synchronization is bounded non-Tier-B docs PR #112 on branch
+`docs/pom-rx-checkpoint-after-111-20260822`. Live GitHub remains authoritative
+for that branch's moving head, CI, review and merge state until it is itself
+trusted through exact-head gates and exact-merge post-merge assurance.
 
 ### Proof transport and anchoring
 
@@ -300,7 +300,7 @@ this checkpoint**. Its current live head is
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`; exact-head CI run
 `32465835858` / CI run 541 completed `success`. Its historical base remains
 `818718955c9e4136e9e55754a31be2f1c7b610f8`, while trusted main is now
-`dc926bcc...`. Live GitHub revalidation at this checkpoint reports
+`89816f2b...`. Live GitHub revalidation at this checkpoint reports
 `mergeable=true`; that is volatile conflict metadata only and does not establish
 reconciliation or release readiness.
 
@@ -387,7 +387,7 @@ review.
 | Block | Current state on trusted main | What is still missing / active |
 | --- | --- | --- |
 | Shared Core | strict five-invariant profile activated; historical verifier preserved; exact policy/runtime/artifact binding; process-local reference Gate; bounded hostile-object capture; process-local Witness trust; durable local claim primitive; reference execution evidence; reference observation/reconciliation; exact-main CI status surface | production issuer/trusted time/trust service; production-independent observation; production execution/effect truth |
-| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is blocked by exact-head P1 Promise drift before async layers; owner verdict BLOCK and CI 592 SUCCESS do not override the exploit. Historical base `0564aecd...` trails trusted main `dc926bcc...`; current checkpoint `mergeable=true` is volatile metadata only. Requires a fresh repaired candidate from trusted main, durable claim before observer/downstream, runtime repair, exact-head CI, owner PASS, distinct independent PASS, zero unresolved P0/P1/P2 and exact-merge post-merge PASS |
+| Exact authorization / Gate | ratified common contract plus process-local reference single-use Gate and separate durable claim primitive | PR #97 exact head `0efb462...` is blocked by exact-head P1 Promise drift before async layers; owner verdict BLOCK and CI 592 SUCCESS do not override the exploit. Historical base `0564aecd...` trails trusted main `89816f2b...`; current checkpoint `mergeable=true` is volatile metadata only. Requires a fresh repaired candidate from trusted main, durable claim before observer/downstream, runtime repair, exact-head CI, owner PASS, distinct independent PASS, zero unresolved P0/P1/P2 and exact-merge post-merge PASS |
 | Witness | signed source/Witness primitives, process-local enrollment/revocation/rotation/recovery and Wallet Guard Core-verification adapter | durable operator-authorized trust service, KMS/HSM, distributed revocation, production trusted time/attestation |
 | Execution evidence | bounded reference recorder binds exact authorization to recorder chronology and adapter-reported outcomes/effects | actual Gate-forwarding composition, native execution timing and independently observed external effects |
 | Observation / reconciliation | shared bounded one-shot reference observation and reconciliation | production observer independence/liveness, host/RPC attestation, finality and external-world truth |
