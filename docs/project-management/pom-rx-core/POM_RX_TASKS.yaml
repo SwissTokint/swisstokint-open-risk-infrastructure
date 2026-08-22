@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T06:17:24+02:00",
+  "updated_at": "2026-08-22T06:19:24+02:00",
   "current_main": "ecc25e3e3f2991482e925fbe307058a91276c0bc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -51,6 +51,7 @@
       "run_number": 678,
       "state": "historical_after_head_move"
     },
+    "creation_head_review": "P2_PRESERVE_ZERO_AUTHORIZATION_AND_FORWARDING_FOR_HOSTILE_REJECTED_TRANSPORTS_REPAIRED_ON_LATER_HEAD_PENDING_FRESH_EXACT_HEAD_REVIEW",
     "exact_current_head_rule": "Read PR #114 live after the final four-file commit; do not self-embed a moving exact head because doing so would move it again. Any CI/review on an earlier head is stale.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -64,7 +65,7 @@
       "treat mergeability as volatile conflict metadata only and never release evidence",
       "retain PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
       "preserve shared Core versus Wallet Guard application ownership",
-      "preserve PR 97 durable-claim-before-observer/downstream, fail-closed replay and durable one-winner invariants",
+      "preserve PR 97 durable-claim-before-observer/downstream, fail-closed replay, durable one-winner invariants and zero authorization/forwarding for hostile rejected transports",
       "preserve mandatory five-stage pre-merge gate and moved-head invalidation",
       "preserve PR-60-only independent-review waiver",
       "preserve production and real-wallet non-claims",
@@ -98,7 +99,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After PR #114 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay and durable one-winner behavior plus native-Promise compatibility, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #114 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
