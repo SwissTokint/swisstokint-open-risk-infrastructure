@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T09:31:00+02:00",
-  "current_main": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
+  "updated_at": "2026-08-22T11:18:00+02:00",
+  "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,62 +10,45 @@
     "source_of_truth_order": ["live_github", "canonical_control_plane", "repository_architecture_and_specs"]
   },
   "trusted_main": {
-    "sha": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
-    "source_pr": 117,
-    "source_head": "a8a4f4de83cea0c1527a03a89c71a41471679be1",
-    "tree": "999643ca3dab6bdf59401e38cb2dd8ae42bb11bd",
-    "candidate_ci": {"run_id": 32556575389, "run_number": 696, "conclusion": "success"},
+    "sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+    "source_pr": 118,
+    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
+    "tree": "4eb5d22f763d158f95c86501368de3d68af89104",
+    "source_to_merge": "one_merge_commit_files_empty",
+    "candidate_ci": {"run_id": 32559785310, "run_number": 704, "conclusion": "success"},
     "exact_main_ci": {
-      "run_id": 32558808262,
-      "run_number": 697,
+      "run_id": 32561596467,
+      "run_number": 705,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
       "status": "success"
     },
-    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999301185",
-    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5378410224",
+    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999506623",
+    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5379054811",
     "unresolved_release_threads": 0,
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5378949128",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5379219612",
     "scope": "coordination_only_non_tier_b"
   },
-  "active_task": {
+  "completed_control_plane": {
     "id": "CONTROL-PLANE-POST-117-CHECKPOINT-20260822",
-    "title": "Reconcile canonical control plane after trusted PR 117",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "ACTIVE_EXACT_HEAD_REPAIR_AND_GATES_PENDING",
     "pr": 118,
-    "base_sha": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
-    "branch": "docs/pom-rx-checkpoint-after-117-20260822",
-    "initial_head": "84220a2ec54b8e886a45b472daa9330b0eb847bb",
-    "initial_ci": {
-      "run_id": 32559140330,
-      "run_number": 699,
-      "conclusion": "failure",
-      "failed_stage": "npm test",
-      "cause": "capability-map paragraph reflow split the repository-tested stable phrase Blockchain and digital assets",
-      "repair_rule": "restore the stable phrase in documentation only; do not weaken or edit the test"
-    },
-    "initial_independent_review": {
-      "review_id": 4999478108,
-      "reviewed_head": "84220a2ec54b8e886a45b472daa9330b0eb847bb",
-      "finding_comment": 3835499861,
-      "finding": "P2_STOP_RECREATING_THE_MERGED_RECONCILIATION_TASK",
-      "status": "BLOCK_FINDING_ADDRESSED_IN_LATER_HEAD_REQUIRES_FRESH_EXACT_HEAD_REVIEW"
-    },
-    "quota_signal": {
-      "comment": 5378967144,
-      "status": "CODEX_SECURITY_REVIEW_USAGE_LIMIT_REACHED",
-      "rule": "Quota/unavailability is not independent approval and must not be treated as a waiver."
-    },
-    "latest_independent_request": {
-      "comment": 5379014199,
-      "requested_head": "7f5e83f14061bc15578dd387dad43b5ba511e384",
-      "status": "HISTORICAL_AFTER_ANY_LATER_HEAD_MOVE"
-    },
-    "pr_identity_rule": "PR 118 is the permanent identity of this post-117 reconciliation. Never create a second PR for this reconciliation regardless of whether PR 118 is open, closed or merged.",
-    "terminal_rule": "Read PR 118 live. If it is merged, validate the exact merge SHA with mandatory post-merge assurance; after POST_MERGE_ASSURANCE_PASS, interpret this task as terminal and advance to the next safe queued task. If PR 118 is closed without merge, treat this reconciliation as explicitly closed and do not recreate it automatically. A terminal PR 118 state does not require another self-reconciliation PR merely to record its own terminal state; persist the terminal fact in the next scoped control-plane update associated with useful follow-on work.",
-    "exact_current_head_rule": "While PR 118 remains open, read its head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
+    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
+    "merge_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+    "status": "TERMINAL_TRUSTED_POST_MERGE_ASSURANCE_PASS",
+    "terminal_rule": "PR 118 is the permanent identity of the post-117 reconciliation. Never recreate it after merge or closure."
+  },
+  "active_task": {
+    "id": "CONTROL-PLANE-POST-118-CHECKPOINT-20260822",
+    "title": "Reconcile canonical control plane after trusted PR 118",
+    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
+    "status": "ACTIVE_FINAL_EXACT_HEAD_GATES_PENDING",
+    "pr": 119,
+    "base_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+    "branch": "docs/pom-rx-checkpoint-after-118-20260822",
+    "pr_identity_rule": "PR 119 is the permanent identity of this post-118 reconciliation. Never create a second PR for this reconciliation regardless of whether PR 119 is open, closed or merged.",
+    "terminal_rule": "Read PR 119 live. If merged, validate the exact merge SHA with mandatory post-merge assurance; after POST_MERGE_ASSURANCE_PASS, interpret this task as terminal and advance to the next safe queued task. If PR 119 is closed without merge, treat this reconciliation as explicitly closed and do not recreate it automatically. A terminal PR 119 state does not require a self-referential follow-up merely to record itself; persist its terminal fact in the next useful scoped control-plane update.",
+    "exact_current_head_rule": "While PR 119 remains open, read its head, CI, reviews and threads live after the final owned-file commit. Do not self-embed the moving exact head in these owned files because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -73,21 +56,21 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 117 exact merge e7bcc15a9cfa430cf96b4859357790257ec3d39e and POST_MERGE_ASSURANCE_PASS comment 5378949128",
+      "checkpoint trusted PR 118 exact merge a22198bf8065cb7af2f4f7821edaba9c5f749704 and POST_MERGE_ASSURANCE_PASS comment 5379219612",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "treat mergeability as volatile conflict metadata only and never release evidence",
-      "retain PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
       "preserve shared Core versus Wallet Guard application ownership",
-      "preserve PR 97 durable-claim-before-observer/downstream, fail-closed replay, durable one-winner invariants and zero authorization/forwarding for hostile rejected transports",
+      "preserve PR 97 Promise-drift P1 and durable-claim-before-observer/downstream, fail-closed replay, durable one-winner and zero-authorization/forwarding repair requirements",
+      "preserve PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
       "preserve mandatory five-stage pre-merge gate and moved-head invalidation",
       "preserve PR-60-only independent-review waiver",
       "preserve production and real-wallet non-claims",
-      "change no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
-      "restore the capability-map stable phrase without weakening repository tests",
-      "address Codex P2 3835499861 by making PR 118 a permanent identity and preventing automatic recreation after merged/closed state",
-      "run fresh exact-head CI and scoped release-owner review after the four-file diff is frozen",
+      "change no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard, provider, network or public-site semantics",
+      "preserve the capability-map stable phrase Blockchain and digital assets",
+      "make PR 119 a permanent identity with merged/closed terminal semantics so the reconciliation cannot recreate itself",
+      "run fresh exact-head CI and scoped release-owner five-stage review after the four-file diff is frozen",
       "obtain fresh distinct exact-head independent review before merge",
-      "resolve review threads only after validated exact-head evidence with zero unresolved P0/P1/P2",
+      "require zero unresolved P0/P1/P2 before merge",
       "after merge run exact-merge post-merge assurance"
     ],
     "current_gate": "BLOCK_PENDING_FINAL_EXACT_HEAD_CI_OWNER_AND_DISTINCT_INDEPENDENT_REVIEW"
@@ -100,7 +83,7 @@
       "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
       "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "trusted_main_required": "e7bcc15a9cfa430cf96b4859357790257ec3d39e_or_later_trusted_main",
+      "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_not_security_evidence"},
       "owner_gate": "BLOCK_NON_INDEPENDENT",
@@ -111,7 +94,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After PR 118 is trusted or terminally closed per its durable identity rule, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR 119 is trusted or terminally closed per its durable identity rule, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility, direct non-Promise capture, own-decorated Promise rejection and zero authorization/forwarding for hostile rejected transports. Then rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -120,7 +103,7 @@
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "e7bcc15a9cfa430cf96b4859357790257ec3d39e_or_later_trusted_main",
+      "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {"run_id": 32465835858, "run_number": 541, "conclusion": "success_but_not_release_evidence"},
       "owner_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
