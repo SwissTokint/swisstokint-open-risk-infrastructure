@@ -70,8 +70,11 @@ Fresh PR #120 is the active prerequisite repair from exact trusted main:
 
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
+- runtime drain repair commit: `9e7a151b4eb8da0e7595e8ebee540319273a7fab`;
+- bounded non-shadowable accessor regression commit:
+  `d0c4175f12086bbbb2f4ccceb7cd947203e3f6fc`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- current state: `OPEN / READY_FOR_REVIEW / NOT_TRUSTED / BLOCKED_P1`;
+- current state: `OPEN / NOT_TRUSTED / RUNTIME_REPAIR_IMPLEMENTED / FINAL_EXACT_HEAD_GATES_PENDING`;
 - exact live head and volatile CI/review state must be read from GitHub; this
   moving file intentionally does not self-embed its own final SHA.
 
@@ -83,47 +86,46 @@ plain-data capture and the strict Wallet Guard application boundary.
 A genuinely distinct Codex review on moved head
 `5885da291d7d6b3e4541e5c00c160ffb481828b8` opened P1 thread
 `PRRT_kwDOTiNyWc6bZjxp` for structurally invalid rejected native Promise
-transports that could be rejected before a rejection reaction was attached. The
-first repair introduced `drainPromiseTransportBeforeIntegrityFailure()` and
-strict child-process tests for extensible own metadata/non-standard prototype.
-Pre-control-plane head `9b52474a2def9df2c75649eda4b81a0ca128658a`
-then passed CI 739.
+transports that could be rejected before a rejection reaction was attached. A
+later dedicated Codex review on moved head
+`b7576f8e94b3379c7427a51e4113960f396ac7e8` opened P1 thread
+`PRRT_kwDOTiNyWc6bZ6tx` because the first drain repair still performed a fallible
+own-`constructor` mutation before attaching the rejection reaction. The same
+review opened P2 thread `PRRT_kwDOTiNyWc6bZ6tz` because the rejected-transport
+regression was not reached by canonical `npm test`.
 
-A new dedicated Codex review on exact moved head
-`b7576f8e94b3379c7427a51e4113960f396ac7e8` found the remaining **P1** thread
-`PRRT_kwDOTiNyWc6bZ6tx`: the drain performs a fallible own-`constructor`
-`defineProperty` before attaching the rejection reaction, so a rejected Promise
-made non-extensible or carrying a non-configurable own constructor can still
-become an orphaned strict unhandled rejection. Release-owner review `5000574562`
-corroborated the non-extensible metadata variant with a direct Node 22.16
-reproducer. That owner review is non-independent.
-
-The same Codex review found **P2** thread `PRRT_kwDOTiNyWc6bZ6tz`: the new
-rejected-transport regression file had not been reached by canonical `npm test`.
-That implementation defect is now repaired: `package.json` includes
+The P2 implementation defect is repaired: `package.json` includes
 `provider-invalid-rejected-transport.node.test.mjs` in the Wallet Guard provider-
-gate test script, and that script is already part of full `npm test`. The test
-file now adds strict expected-red cases for `metadata-nonextensible` and
-`constructor-nonconfigurable`, so the P1 can no longer hide behind a green CI
-run. Pre-checkpoint branch head `6911eaeeb2a0a89ccefceebeb7b6e03b64c97d15`
-contained this CI wiring and red evidence; no workflow run was yet associated
-with that exact moved head at the decision-time recheck.
+gate test script, and that script is already part of full `npm test`.
 
-PR #120 therefore remains untrusted and must not merge. The next runtime move is
-to make those newly CI-wired strict cases pass by correcting the drain ordering/
-strategy **without deleting or weakening the tests** and without executing hostile
-constructor/then accessors merely to suppress an orphaned rejection. If a
-non-shadowable accessor transport cannot be safely drained with the captured
-standard intrinsics, the claim must be narrowed explicitly and tested rather
-than silently false-PASSing.
+The P1 implementation is now repaired for the **claimed bounded transport
+classes**. `provider.mjs` captures the Promise species descriptor, identifies
+safe data-only constructor/species paths with captured reflection, attaches the
+captured rejection reaction directly when that path is safe, and shadows an
+unsafe-but-configurable constructor path with own `undefined` before the captured
+`then` call. Therefore the CI-wired `metadata-nonextensible` and
+`constructor-nonconfigurable` data-property cases no longer require a fallible
+mutation before the rejection reaction.
 
-Fresh exact-head CI, five-stage owner review, a new genuinely distinct Codex
-skeptical/security review and zero unresolved P0/P1/P2 are required after the
-runtime repair. Threads `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx` and
+The claim is deliberately narrower than “all arbitrarily decorated rejected
+Promises can be internally drained.” A native Promise with a **non-configurable
+own constructor accessor** cannot be shadowed without a failed mutation, while
+native `Promise.prototype.then` would read that accessor through species
+construction. PR #120 does not execute that attacker accessor merely to suppress
+an unhandled rejection and does not claim gateway-owned draining for that
+unsupported class. A strict child regression pre-handles the provider rejection,
+then proves Wallet Guard fails closed with zero accessor calls, zero reference
+authorization and zero sensitive forwarding.
+
+PR #120 remains untrusted until one final frozen head has canonical CI success,
+a release-owner five-stage PASS, a fresh genuinely distinct exact-head Codex
+skeptical/security review, and zero unresolved P0/P1/P2. Threads
+`PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx` and
 `PRRT_kwDOTiNyWc6bZ6tz` remain unresolved until that evidence exists.
 
-For every claimed hostile rejected context transport, the bounded security result
-remains **zero reference authorization and zero sensitive forwarding**.
+For every hostile rejected context transport inside the bounded supported claim,
+the security result remains **zero reference authorization and zero sensitive
+forwarding**.
 
 PR #120 intentionally does **not** import or claim the historical durable Gate
 composition. Once PR #120 is trusted, durable claim-before-observer/downstream
@@ -307,12 +309,12 @@ implementation and are referenced rather than copied.
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise/provider-boundary repair active/untrusted and blocked on CI-visible rejected-Promise drain P1; durable Gate composition still requires later bounded reviewed work; production trust/time, distributed semantics and external effect truth remain missing |
-| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 blocked; PR #120 prerequisite blocked P1; durable claim-before-observer/downstream composition remains untrusted |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise/provider-boundary runtime repair implemented but exact-head CI/review gates pending; durable Gate composition still requires later bounded reviewed work; production trust/time, distributed semantics and external effect truth remain missing |
+| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 blocked; PR #120 prerequisite awaiting exact-head release evidence; durable claim-before-observer/downstream composition remains untrusted |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 active/untrusted with CI-wired non-extensible/non-configurable rejected Promise expected-red; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 runtime repair + strict drain regressions pending final exact-head gates; non-shadowable accessor drain claim explicitly bounded; PR #93 simulation evidence remains blocked; simulation-to-forwarding binding remains separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
