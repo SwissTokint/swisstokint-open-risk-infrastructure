@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T11:18:00+02:00",
+  "updated_at": "2026-08-22T12:18:00+02:00",
   "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -36,66 +36,58 @@
     "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
     "merge_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
     "status": "TERMINAL_TRUSTED_POST_MERGE_ASSURANCE_PASS",
-    "terminal_rule": "PR 118 is the permanent identity of the post-117 reconciliation. Never recreate it after merge or closure."
+    "terminal_rule": "PR 118 is terminal. Do not create a new documentation-only checkpoint merely to record its terminal state; carry that fact with useful follow-on work."
+  },
+  "transition_pr": {
+    "pr": 119,
+    "branch": "docs/pom-rx-checkpoint-after-118-20260822",
+    "base_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
+    "purpose": "Carry trusted PR 118 terminal facts while advancing the next useful task: the fresh PR97-line Promise-drift runtime repair.",
+    "not_a_recurrent_checkpoint_task": true,
+    "independent_review_history": {
+      "reviewed_head": "1bdb53bad6f0b88046358f4ec7912c86a0469a7c",
+      "reviewer": "chatgpt-codex-connector",
+      "finding": "P2_HONOR_PR118_TERMINAL_RULE_INSTEAD_OF_SELF_RECREATING_CHECKPOINT",
+      "thread_id": "PRRT_kwDOTiNyWc6bX2ey",
+      "status": "REPAIR_IN_PROGRESS_HEAD_MOVED_REQUIRES_FRESH_EXACT_HEAD_REVIEW"
+    },
+    "merge_rule": "PR 119 may merge only after its repaired exact head has canonical CI success, release-owner five-stage PASS, fresh distinct exact-head review, and zero unresolved P0/P1/P2. After merge, run exact-merge assurance; do not open a post-PR119 documentation-only successor."
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-118-CHECKPOINT-20260822",
-    "title": "Reconcile canonical control plane after trusted PR 118",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "ACTIVE_FINAL_EXACT_HEAD_GATES_PENDING",
-    "pr": 119,
-    "base_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "branch": "docs/pom-rx-checkpoint-after-118-20260822",
-    "pr_identity_rule": "PR 119 is the permanent identity of this post-118 reconciliation. Never create a second PR for this reconciliation regardless of whether PR 119 is open, closed or merged.",
-    "terminal_rule": "Read PR 119 live. If merged, validate the exact merge SHA with mandatory post-merge assurance; after POST_MERGE_ASSURANCE_PASS, interpret this task as terminal and advance to the next safe queued task. If PR 119 is closed without merge, treat this reconciliation as explicitly closed and do not recreate it automatically. A terminal PR 119 state does not require a self-referential follow-up merely to record itself; persist its terminal fact in the next useful scoped control-plane update.",
-    "exact_current_head_rule": "While PR 119 remains open, read its head, CI, reviews and threads live after the final owned-file commit. Do not self-embed the moving exact head in these owned files because doing so would move it again.",
-    "owned_files": [
-      "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-      "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
-      "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
-      "docs/product/POM_RX_CAPABILITY_MAP.md"
+    "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
+    "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
+    "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
+    "status": "READY_TO_START_AFTER_TRANSITION_PR119_TRUSTED",
+    "historical_pr": 97,
+    "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
+    "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
+    "fresh_branch_rule": "Start from then-current trusted main on a new bounded branch/PR. Do not merge, rebase, revive, or wholesale-copy the stale PR97 branch.",
+    "known_exact_head_ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_false_pass_for_security_property"},
+    "historical_owner_gate": "BLOCK_NON_INDEPENDENT",
+    "historical_independent_gate": "BLOCK_P1_REJECT_PROMISE_DRIFT_BEFORE_ENTERING_ASYNC_LAYERS",
+    "repair_contract": [
+      "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
+      "restore or replace a CI-wired regression that reproduces the sensitive-forwarding exploit without weakening hostile-dispatch expectations",
+      "require durable capability claim success before observer or downstream work",
+      "preserve fail-closed replay and durable one-winner semantics",
+      "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
+      "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
+      "require zero authorization and zero sensitive forwarding for hostile rejected transports",
+      "preserve shared Core ownership; Wallet Guard remains an application profile"
     ],
-    "acceptance": [
-      "checkpoint trusted PR 118 exact merge a22198bf8065cb7af2f4f7821edaba9c5f749704 and POST_MERGE_ASSURANCE_PASS comment 5379219612",
-      "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
-      "treat mergeability as volatile conflict metadata only and never release evidence",
-      "preserve shared Core versus Wallet Guard application ownership",
-      "preserve PR 97 Promise-drift P1 and durable-claim-before-observer/downstream, fail-closed replay, durable one-winner and zero-authorization/forwarding repair requirements",
-      "preserve PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
-      "preserve mandatory five-stage pre-merge gate and moved-head invalidation",
-      "preserve PR-60-only independent-review waiver",
-      "preserve production and real-wallet non-claims",
-      "change no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard, provider, network or public-site semantics",
-      "preserve the capability-map stable phrase Blockchain and digital assets",
-      "make PR 119 a permanent identity with merged/closed terminal semantics so the reconciliation cannot recreate itself",
-      "run fresh exact-head CI and scoped release-owner five-stage review after the four-file diff is frozen",
-      "obtain fresh distinct exact-head independent review before merge",
-      "require zero unresolved P0/P1/P2 before merge",
-      "after merge run exact-merge post-merge assurance"
+    "release_requirements": [
+      "targeted expected-red and negative regression evidence",
+      "relevant full regression/compatibility checks",
+      "exact-head canonical CI success",
+      "release-owner six-lane PASS on exact head",
+      "fresh genuinely distinct exact-head independent skeptical/security review",
+      "zero unresolved P0/P1/P2",
+      "mandatory exact-merge post-merge assurance after merge"
     ],
-    "current_gate": "BLOCK_PENDING_FINAL_EXACT_HEAD_CI_OWNER_AND_DISTINCT_INDEPENDENT_REVIEW"
+    "next_safe_action": "After PR 119 is trusted, create the smallest fresh runtime branch from the then-current trusted main and implement only the Promise-drift boundary repair plus the minimum CI-wired exploit regression needed to prove zero authorization/forwarding for hostile rejected transports."
   },
   "queue": [
-    {
-      "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
-      "pr": 97,
-      "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-      "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
-      "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
-      "mergeable_snapshot": "read_live_volatile_non_evidentiary",
-      "ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_not_security_evidence"},
-      "owner_gate": "BLOCK_NON_INDEPENDENT",
-      "independent_gate": "BLOCK_P1_REJECT_PROMISE_DRIFT_BEFORE_ENTERING_ASYNC_LAYERS",
-      "blockers": [
-        "runtime implementation remains vulnerable on exact head while the security regression was relaxed",
-        "inherited Promise.prototype.constructor plus then poisoning can cross outer async awaits and reach stable attacker context, authorization and sensitive forwarding",
-        "current exact-head and applicable historical P1 review threads remain unresolved",
-        "historical branch base is not reconciled to current trusted main"
-      ],
-      "next_safe_action": "After PR 119 is trusted or terminally closed per its durable identity rule, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility, direct non-Promise capture, own-decorated Promise rejection and zero authorization/forwarding for hostile rejected transports. Then rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
-    },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
       "pr": 93,
@@ -104,30 +96,22 @@
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
       "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
-      "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {"run_id": 32465835858, "run_number": 541, "conclusion": "success_but_not_release_evidence"},
       "owner_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
       "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
       "blockers": [
-        "trusted-main reconciliation required from current or later trusted main",
+        "fresh trusted-main reconciliation required",
         "fresh exact-head release-owner review required",
         "fresh distinct exact-head independent skeptical/security review required",
-        "unresolved current/non-outdated P1/P2 review threads remain",
-        "exact negative-zero identity remains unresolved until repaired exact-head validation",
-        "typed-data wrapper normalization remains unresolved until repaired exact-head validation",
-        "generic-signature exact-value commitment remains unresolved until repaired exact-head validation",
-        "nested payload capture through saved reflection intrinsics remains unresolved until repaired exact-head validation",
-        "shared proof canonicalization and SHA-256/hash hardening findings remain unresolved until repaired exact-head validation",
-        "overlapping shared regression/package surfaces keep ordering after trusted PR 97 dependency"
-      ],
-      "next_safe_action": "Reconcile only after PR 97 dependency ordering is trusted unless a separately reviewed reordering is recorded; preserve the shared proof canonicalization/hash repair class, then rerun all exact-head gates with no unresolved P0/P1/P2."
+        "unresolved exact negative-zero identity, typed-data wrapper normalization, generic exact-value commitment, nested saved-reflection capture and shared proof canonicalization/SHA-256/hash hardening classes remain",
+        "ordering remains after trusted completion of the fresh PR97-line repair unless separately reviewed"
+      ]
     },
     {
       "id": "DAGR-SOURCE-GATE",
       "class": "SOURCE_GATED_NORMATIVE_PROFILE",
       "status": "BLOCKED",
-      "blocker": "DAGR_SOURCE_DOCUMENT_MISSING",
-      "next_safe_action": "Do not invent normative DAGR content; wait for an authorized source."
+      "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
     },
     {
       "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
@@ -143,7 +127,7 @@
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after the mandatory five-stage pre-merge gate, every applicable technical/security gate, exact-head CI, and required distinct exact-head independent review pass with no unresolved P0/P1/P2.",
+    "standing_authorization": "Applicable only after every applicable technical/security gate, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
     "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA SpecKit, skeptical, security, code-quality, optimization and integration/regression assurance before dependent work may trust it."
