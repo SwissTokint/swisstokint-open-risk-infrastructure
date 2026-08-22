@@ -136,13 +136,13 @@ SpecKit, skeptical/falsification, security, code-quality, optimization and
 integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` for the
 bounded documentation/control-plane scope.
 
-PR #114 changed no runtime/security semantics. Branch
+PR #114 changed no runtime/security semantics. PR #115 on branch
 `docs/pom-rx-checkpoint-after-114-20260822` is the current four-file non-Tier-B
 reconciliation because a merged checkpoint cannot self-describe its own future
-merge SHA. Open exactly one scoped PR from that branch, then read its final exact
-head, CI, reviews and threads live. Until that reconciliation passes its own
-exact-head gates and post-merge assurance, live GitHub remains authoritative for
-volatile state.
+merge SHA. PR #115 is already open; do not create a duplicate. Read PR #115 live
+for its final exact head, CI, reviews and threads. Until that reconciliation
+passes its own exact-head gates and post-merge assurance, live GitHub remains
+authoritative for volatile state.
 
 ### Proof transport and anchoring
 
