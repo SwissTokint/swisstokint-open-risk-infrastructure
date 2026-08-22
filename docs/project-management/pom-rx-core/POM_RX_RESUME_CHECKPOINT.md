@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T16:07:45+02:00`
+Updated: `2026-08-22T16:50:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -58,8 +58,25 @@ remain unproved. Maximum claim remains
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
 - state at this checkpoint commit: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`;
+- historical candidate head `7774febbb308a085536fc139e1261d3e61a904f3`
+  failed canonical CI run `32578978161` / CI 726 in the Promise-drift exploit
+  regression;
+- CI 726 diagnosis: authorization/forwarding remained blocked, but immediate
+  `Promise.reject(...)` provider context transports were left without a rejection
+  reaction when Promise-prototype drift was detected synchronously, so Node
+  terminated the child on an unhandled rejection before the regression could
+  observe the intended fail-closed `POMRX_WG_PROVIDER_E_CONTEXT_INVALID` result;
+- repair commit `310bbdb9988df141247f56a2e13f09bd1385effb`
+  safely attaches a captured native-Promise rejection reaction before raising the
+  drift error. It temporarily shadows `constructor` with own `undefined` so
+  `Promise.prototype.then` uses the intrinsic default species without dispatching
+  the poisoned inherited constructor getter, then pins captured own
+  `constructor`/`then` data properties. The existing exploit regression remains
+  strict: zero hostile getter execution, zero reference authorization, zero
+  sensitive forwarding;
 - canonical exact-head CI: `PENDING` after the final owned-file/control-plane
-  commit;
+  commit; CI/review evidence on `7774feb...` and any intermediate repair head is
+  stale after head movement;
 - release-owner five-stage gate: `PENDING`;
 - distinct exact-head independent skeptical/security review: `PENDING`;
 - unresolved current P0/P1/P2 on PR #120: read live before any release decision.
@@ -128,7 +145,7 @@ own-symbol Promise bookkeeping to remain supported.
 
 ## current_blockers
 
-1. `PR120_EXACT_HEAD_CI_PENDING`.
+1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_UNHANDLED_REJECTION_REPAIR`.
 2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_PENDING`.
 3. `PR120_DISTINCT_EXACT_HEAD_INDEPENDENT_REVIEW_PENDING`.
 4. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
@@ -154,13 +171,14 @@ integration/regression assurance with one final verdict:
 
 ## next_safe_actions
 
-1. Freeze PR #120 after the bounded runtime/test/control-plane owned files are
-   complete; record the exact final head in the PR conversation.
-2. Run/read canonical exact-head CI on that SHA and repair any failure through the
-   same single-writer branch.
-3. Run the release-owner five-stage gate and a fresh distinct exact-head
-   skeptical/security review; resolve no P0/P1/P2 thread until the repaired exact
-   head is independently validated.
+1. Freeze PR #120 after this bounded runtime/control-plane repair and record the
+   exact final head in the PR conversation.
+2. Run/read canonical exact-head CI on that SHA. The inherited-Promise exploit
+   regression must now reject cleanly without unhandled-process termination and
+   retain zero getter/auth/forwarding counters.
+3. If CI is green, run the release-owner five-stage gate and obtain a fresh
+   genuinely distinct exact-head skeptical/security review; resolve no P0/P1/P2
+   thread until the repaired exact head is independently validated.
 4. Merge only if all exact-head gates pass unchanged; then run exact-merge
    post-merge assurance before trusting the dependency.
 5. Reconstruct the durable claim-before-observer/downstream composition as a
