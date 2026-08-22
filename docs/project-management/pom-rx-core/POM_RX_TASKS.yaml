@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T06:28:00+02:00",
+  "updated_at": "2026-08-22T06:31:00+02:00",
   "current_main": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -39,12 +39,20 @@
   },
   "active_task": {
     "id": "CONTROL-PLANE-POST-114-CHECKPOINT-20260822",
+    "pr": 115,
     "title": "Reconcile canonical control plane after trusted PR 114",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "IN_PROGRESS_PR_TO_OPEN_FRESH_EXACT_HEAD_GATES_REQUIRED",
+    "status": "OPEN_FRESH_EXACT_HEAD_GATES_REQUIRED",
     "base_sha": "903bdb5cb26bf4069039ed114c1e6e59366bcd4e",
     "branch": "docs/pom-rx-checkpoint-after-114-20260822",
-    "exact_current_head_rule": "Read the live branch/PR head after the final four-file commit; do not self-embed a moving exact head because doing so would move it again.",
+    "creation_head": "9a09b4e5b45733079d60bd964185b72c71dd7872",
+    "creation_ci": {
+      "run_id": 32551871797,
+      "run_number": 688,
+      "state": "historical_after_head_move"
+    },
+    "creation_head_review": "REQUESTED_CHATGPT_CODEX_CONNECTOR_EXACT_CREATION_HEAD_HISTORICAL_AFTER_HEAD_MOVE",
+    "exact_current_head_rule": "Read PR #115 live after the final four-file commit; do not self-embed a moving exact head because doing so would move it again. Any CI/review on an earlier head is stale.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -91,7 +99,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After the post-PR114 control-plane reconciliation is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR #115 is trusted, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
