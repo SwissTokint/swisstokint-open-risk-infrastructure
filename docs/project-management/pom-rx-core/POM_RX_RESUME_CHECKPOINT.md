@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T00:28:00+02:00`
+Updated: `2026-08-22T02:10:44+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -64,29 +64,36 @@ are not proved.
 
 ### PR #111 — post-PR #110 canonical control-plane reconciliation
 
-- state: `OPEN / NOT_MERGED / REPAIR_HEAD_MOVED /
+- state: `OPEN / NOT_MERGED / REPAIR_HEAD_MOVING /
   FRESH_EXACT_HEAD_GATES_REQUIRED`;
 - base/trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
 - branch: `docs/pom-rx-checkpoint-after-110-20260822`;
 - scope: exactly the four established non-Tier-B documentation/control-plane
   surfaces; no runtime/security semantic change;
-- prior exact head `70bc3c19b8f76aff5074cd8d251df74adf9b5454` had canonical
-  CI run `32532398667` / CI 660 `success`;
-- a fresh distinct Codex review on that prior exact head found P2 `Restore the
-  canonicalization/hash blocker` because detailed PR #93 blocker lists omitted
-  the still-unresolved shared proof canonicalization/hash class;
-- the moving repair branch now restores the shared proof canonicalization and
-  SHA-256/hash hardening class wherever PR #93 current/non-outdated findings are
-  detailed, and records that moved-head repair comments are not current release
-  evidence;
-- prior CI/review evidence is stale after the repair head move; read live GitHub
-  for the exact current PR #111 head, CI, review and thread state.
+- prior exact head `9cfa19cd0dfd1c237caf709c367874ad215c877e` had canonical
+  CI run `32533068576` / CI 664 `success` and release-owner final control
+  `PASS / NON-INDEPENDENT`;
+- a fresh distinct `chatgpt-codex-connector` review explicitly covered that exact
+  head and found two current P2s: `Reconcile PR #97 mergeability across canonical
+  surfaces` and `Reconcile PR #93 mergeability across canonical surfaces`;
+- live GitHub revalidation for both PR #97 and PR #93 at this repair decision
+  reports `mergeable=true`; this is volatile conflict metadata only and not
+  security/release evidence;
+- this moving repair synchronizes the detailed canonical snapshots to that same
+  revalidated value while retaining the rule that live GitHub always wins if the
+  signal later changes;
+- the earlier moved-head P2 `Restore the canonicalization/hash blocker` remains
+  materially repaired in all detailed continuation surfaces: PR #93's shared proof
+  canonicalization and SHA-256/hash hardening class remains explicit until a
+  repaired #93 exact head is independently validated;
+- any CI/review evidence from `9cfa19cd...` is stale after this repair head move;
+  read live GitHub for the new exact PR #111 head, CI, review and thread state.
 
 PR #111 remains blocked from merge until the repaired exact head receives fresh
 canonical CI, scoped owner control, a genuinely distinct exact-head review with
-no P0/P1/P2, and the P2 is resolved only on that same validated head. Any merge
-must receive immediate exact-merge-SHA post-merge assurance before this
-checkpoint becomes trusted coordination evidence.
+no unresolved P0/P1/P2, and applicable P2 threads are resolved only on validated
+evidence. Any merge must receive immediate exact-merge-SHA post-merge assurance
+before this checkpoint becomes trusted coordination evidence.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
@@ -95,8 +102,8 @@ checkpoint becomes trusted coordination evidence.
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
 - current trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=true`; conflict metadata is volatile
-  and is not security/release evidence;
+- live GitHub at this checkpoint reports `mergeable=true`; conflict metadata is
+  volatile and is not security/release evidence;
 - exact-head canonical CI: run `32487036517`, `CI` run 592, `success` but not
   security evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
@@ -133,8 +140,8 @@ and zero unresolved P0/P1/P2 before merge.
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
 - current trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=true`; volatile conflict metadata
-  only;
+- live GitHub at this checkpoint reports `mergeable=true`; volatile conflict
+  metadata only;
 - exact-head canonical CI: run `32465835858`, `CI` run 541, `success` but not
   release evidence;
 - latest distinct review evidence is on moved head `03e0201c9f...`, not current
@@ -180,17 +187,17 @@ prior exact-head evidence.
 ## current_blockers
 
 1. `CONTROL_PLANE_POST_PR110_RECONCILIATION_REQUIRED` — PR #111 must become
-   trusted before its embedded state is used as dependency or readiness evidence;
-   its prior exact-head CI/review are stale after the P2 repair head move.
-2. `CONTROL_PLANE_PR111_P2_CANONICALIZATION_HASH_OMISSION_PENDING_EXACT_HEAD_VALIDATION`.
-3. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
-4. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
-5. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
-6. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR110`.
-7. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
-8. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
-9. `DAGR_SOURCE_DOCUMENT_MISSING`.
-10. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
+   trusted before its embedded state is used as dependency or readiness evidence.
+2. `CONTROL_PLANE_PR111_P2_MERGEABILITY_SNAPSHOT_RECONCILIATION_PENDING_EXACT_HEAD_VALIDATION`.
+3. `CONTROL_PLANE_PR111_PRIOR_P2_CANONICALIZATION_HASH_REPAIR_RETAINED_PENDING_FINAL_THREAD_CLOSURE`.
+4. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
+5. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
+6. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
+7. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR110`.
+8. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
+9. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
+10. `DAGR_SOURCE_DOCUMENT_MISSING`.
+11. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
 ## merge_authorization_and_review_rules
 
@@ -216,9 +223,9 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Revalidate live main and PR #111 exact head after the documentation repair.
+1. Revalidate live main and PR #111 after this bounded documentation repair.
    Require fresh exact-head canonical CI, owner control and a distinct exact-head
-   independent review before resolving the P2 or merging.
+   independent review before resolving P2 threads or merging.
 2. If PR #111 reaches zero unresolved P0/P1/P2 with all five pre-merge stages
    PASS, merge under standing authorization and immediately run exact-merge-SHA
    post-merge assurance before treating the checkpoint as trusted.
