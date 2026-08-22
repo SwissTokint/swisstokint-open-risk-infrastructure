@@ -33,46 +33,55 @@
     "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
     "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
     "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-    "status": "PR120_BLOCKED_P1_NONEXTENSIBLE_DECORATED_REJECTED_PROMISE_DRAIN",
+    "status": "PR120_BLOCKED_P1_WITH_CI_WIRED_EXPECTED_RED",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "base_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
     "first_implementation_commit": "f31611139e51cf0f05265c19012e372e06bfc7ae",
     "historical_pr": 97,
     "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-    "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
     "fresh_branch_rule": "Fresh PR120 starts from exact trusted main. Do not merge, rebase, revive, or wholesale-copy stale PR97.",
-    "known_historical_ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_false_pass_for_security_property"},
-    "pre_control_plane_repair_head": "9b52474a2def9df2c75649eda4b81a0ca128658a",
-    "pre_control_plane_ci": {"run_id": 32584166269, "run_number": 739, "conclusion": "success_but_not_release_evidence_after_head_move"},
+    "pre_checkpoint_red_test_head": "6911eaeeb2a0a89ccefceebeb7b6e03b64c97d15",
     "current_candidate_rule": "Read PR120 exact head live after the final owned-file commit; self-embedding the moving SHA in this file would recursively move it.",
-    "current_ci": "REQUIRED_AFTER_RUNTIME_P1_REPAIR_ON_FINAL_EXACT_HEAD",
-    "current_owner_gate": "BLOCK_P1_NONEXTENSIBLE_REJECTED_PROMISE_REVIEW_5000574562_ON_MOVED_HEAD_B7576F8E",
-    "current_independent_gate": "REQUIRED_FRESH_AFTER_RUNTIME_P1_REPAIR; REQUEST_5381422260_ON_B7576F8E_IS_STALE_AFTER_BOOKKEEPING_MOVE",
-    "finding_history": [
+    "current_ci": "EXPECTED_RED_UNTIL_RUNTIME_DRAIN_P1_REPAIR; EXACT_HEAD_CI_REQUIRED_AFTER_REPAIR",
+    "current_owner_gate": "BLOCK_P1_REVIEW_5000574562_ON_MOVED_HEAD_B7576F8E",
+    "current_independent_gate": "BLOCK_P1_AND_P2_REVIEW_ON_MOVED_HEAD_B7576F8E; NEW_EXACT_HEAD_REVIEW_REQUIRED_AFTER_REPAIR",
+    "independent_finding_history": [
       {
         "reviewed_head": "5885da291d7d6b3e4541e5c00c160ffb481828b8",
         "reviewer": "chatgpt-codex-connector",
         "severity": "P1",
         "thread_id": "PRRT_kwDOTiNyWc6bZjxp",
-        "finding": "Drain rejected transports before failing validation so structurally invalid rejected native Promises cannot become orphaned unhandled rejections.",
-        "repair_state": "PARTIAL_REPAIR_ON_MOVED_HEAD; THREAD_REMAINS_UNRESOLVED"
+        "finding": "Drain rejected transports before failing validation.",
+        "state": "UNRESOLVED"
       },
       {
         "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
-        "reviewer": "release_owner_non_independent",
-        "review_id": 5000574562,
+        "reviewer": "chatgpt-codex-connector",
         "severity": "P1",
-        "finding": "A rejected native Promise with own metadata plus Object.preventExtensions causes constructor shadowing to fail before the captured rejection reaction is attached; strict Node then terminates on the orphaned rejection.",
-        "reproducer": "Node 22.16 direct primitive reproduced strict-unhandled-rejection exit 1",
-        "repair_state": "OPEN_BLOCKER"
+        "thread_id": "PRRT_kwDOTiNyWc6bZ6tx",
+        "finding": "Attach the rejection reaction before fallible pinning; non-extensible or non-configurable Promise decoration can still orphan a rejection.",
+        "state": "UNRESOLVED_RUNTIME_REPAIR_REQUIRED"
+      },
+      {
+        "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P2",
+        "thread_id": "PRRT_kwDOTiNyWc6bZ6tz",
+        "finding": "Run provider-invalid-rejected-transport.node.test.mjs in canonical CI.",
+        "state": "IMPLEMENTED_BY_PACKAGE_SCRIPT_WIRING; FRESH_EXACT_HEAD_VALIDATION_REQUIRED"
       }
+    ],
+    "current_red_evidence": [
+      "provider-invalid-rejected-transport.node.test.mjs is now included in test:pom-rx:wallet-guard-provider-gate and full npm test",
+      "metadata-nonextensible strict child case expects safe drain and currently exposes the P1 until runtime repair",
+      "constructor-nonconfigurable strict child case expects safe drain and currently exposes the P1 until runtime repair",
+      "pre-existing metadata and non-standard-prototype strict child cases remain"
     ],
     "repair_contract": [
       "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
-      "restore CI-wired sensitive-forwarding exploit regression without weakening hostile-dispatch expectations",
-      "safely drain claimed structurally invalid rejected native Promise classes before gateway validation failure",
-      "explicitly handle or bound non-extensible/non-shadowable constructor/then cases without hostile accessor execution",
+      "attach or otherwise establish a safe rejection reaction before any fallible mutation for structurally invalid rejected native Promise classes claimed as supported",
+      "make an explicit bounded decision for non-shadowable own constructor/then cases without hostile accessor execution",
       "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
       "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
       "reject scalar policy-list coercion and inherited Array-index substitution in application bridges",
@@ -81,18 +90,15 @@
       "do not claim or import durable Gate composition in this prerequisite lot"
     ],
     "release_requirements": [
-      "new strict-unhandled-rejection regression for non-extensible decorated rejected native Promise",
-      "explicit evidence for non-shadowable own constructor/then behavior",
-      "targeted expected-red/negative exploit regressions",
-      "relevant full regression/compatibility checks",
+      "make newly CI-wired non-extensible/non-configurable strict rejected-Promise regressions green by runtime repair rather than deleting/weakening them",
       "exact-head canonical CI success",
       "release-owner five-stage PASS on exact head",
       "fresh genuinely distinct exact-head independent skeptical/security review",
-      "independent validation of thread PRRT_kwDOTiNyWc6bZjxp repair before resolution",
+      "fresh reviewer validation before resolving threads PRRT_kwDOTiNyWc6bZjxp, PRRT_kwDOTiNyWc6bZ6tx and PRRT_kwDOTiNyWc6bZ6tz",
       "zero unresolved P0/P1/P2",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "Repair the non-extensible decorated rejected-Promise drain path in PR120 and add a strict-unhandled-rejection regression. Make an explicit fail-closed design/evidence decision for non-shadowable constructor/then cases without executing hostile getters. Then freeze the repaired head and rerun exact-head CI, owner five-stage review and a NEW distinct Codex review."
+    "next_safe_action": "Repair provider.mjs drain ordering/strategy against the newly CI-wired metadata-nonextensible and constructor-nonconfigurable strict cases without hostile accessor execution. Then freeze the repaired head, run targeted provider-gate plus canonical CI, owner five-stage review, and a NEW distinct Codex skeptical/security review."
   },
   "queue": [
     {
@@ -107,32 +113,10 @@
       "pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
-      "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "e5aead150a2ed5f390593cc2d9d307defdd79bdc_or_later_trusted_main",
-      "ci": {"run_id": 32465835858, "run_number": 541, "conclusion": "success_but_not_release_evidence"},
-      "owner_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "blockers": [
-        "fresh trusted-main reconciliation required",
-        "fresh exact-head release-owner review required",
-        "fresh distinct exact-head independent skeptical/security review required",
-        "unresolved exact negative-zero identity, typed-data wrapper normalization, generic exact-value commitment, nested saved-reflection capture and shared proof canonicalization/SHA-256/hash hardening classes remain",
-        "ordering remains after trusted PR120 and subsequent required Core composition unless separately reviewed"
-      ]
+      "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7"
     },
     {"id": "DAGR-SOURCE-GATE", "class": "SOURCE_GATED_NORMATIVE_PROFILE", "status": "BLOCKED", "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"},
-    {
-      "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
-      "status": "BLOCKED",
-      "blockers": [
-        "production trusted time/issuer/operator authorization unproved",
-        "production Witness/KMS/HSM and distributed trust unproved",
-        "external execution/effect truth unproved",
-        "real or funded wallet execution not authorized"
-      ]
-    }
+    {"id": "PRODUCTION-TRUST-AND-REAL-WALLET", "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST", "status": "BLOCKED"}
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
