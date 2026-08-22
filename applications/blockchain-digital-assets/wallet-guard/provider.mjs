@@ -39,6 +39,7 @@ const MAX_REQUEST_NODES = 1_000;
 const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
 const MAX_ACCOUNTS = 64;
+const MAX_PROMISE_CONSTRUCTOR_CHAIN_DEPTH = 32;
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_MAP = Array.prototype.map;
@@ -64,6 +65,7 @@ const PROMISE_SPECIES_DESCRIPTOR = Object.getOwnPropertyDescriptor(
   PROMISE_SPECIES_KEY,
 );
 const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
@@ -422,36 +424,30 @@ function pinInternalPromise(value, label) {
 }
 
 function hasSafePromiseConstructorPathForDrain(value) {
-  const ownConstructorDescriptor = REFLECT_APPLY(
-    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
-    Object,
-    [value, 'constructor'],
-  );
-  if (ownConstructorDescriptor) {
-    if (typeof ownConstructorDescriptor.get === 'function') return false;
-    if (ownConstructorDescriptor.value === undefined) return true;
-    return ownConstructorDescriptor.value === PROMISE_CONSTRUCTOR
-      && hasPromiseSpeciesIntegrity();
-  }
+  let current = value;
+  for (let depth = 0; depth < MAX_PROMISE_CONSTRUCTOR_CHAIN_DEPTH; depth += 1) {
+    if (current !== value
+        && REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [current])) {
+      return false;
+    }
 
-  const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
-  if (prototype !== PROMISE_PROTOTYPE) return false;
+    const constructorDescriptor = REFLECT_APPLY(
+      OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+      Object,
+      [current, 'constructor'],
+    );
+    if (constructorDescriptor) {
+      if (typeof constructorDescriptor.get === 'function') return false;
+      if (constructorDescriptor.value === undefined) return true;
+      return constructorDescriptor.value === PROMISE_CONSTRUCTOR
+        && hasPromiseSpeciesIntegrity();
+    }
 
-  const inheritedConstructorDescriptor = REFLECT_APPLY(
-    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
-    Object,
-    [PROMISE_PROTOTYPE, 'constructor'],
-  );
-  if (!inheritedConstructorDescriptor
-      || typeof inheritedConstructorDescriptor.get === 'function') {
-    return false;
+    const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [current]);
+    if (prototype === null) return true;
+    current = prototype;
   }
-  if (inheritedConstructorDescriptor.value === undefined) return true;
-  return samePromiseDescriptor(
-    inheritedConstructorDescriptor,
-    PROMISE_CONSTRUCTOR_DESCRIPTOR,
-    PROMISE_CONSTRUCTOR,
-  ) && hasPromiseSpeciesIntegrity();
+  return false;
 }
 
 function drainPromiseTransportBeforeIntegrityFailure(value, method) {
