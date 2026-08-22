@@ -1,8 +1,8 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T09:24:00+02:00`
+Updated: `2026-08-22T13:27:00+02:00`
 
-Current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`
+Current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`
 
 This file lists **current** blockers only. Historical blockers remain in Git
 history and PR review threads. Live GitHub wins if a PR head, review, CI run,
@@ -10,76 +10,71 @@ review thread, mergeability signal or merge changes after this checkpoint.
 
 ## Trusted coordination state
 
-PR #117 exact source head `a8a4f4de83cea0c1527a03a89c71a41471679be1`
-merged as exact main SHA `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
+PR #118 exact source head `dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab`
+merged as exact main SHA `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
 Source-head and merge trees are identical at
-`999643ca3dab6bdf59401e38cb2dd8ae42bb11bd`.
+`4eb5d22f763d158f95c86501368de3d68af89104`; the source-head to merge comparison
+is one merge commit with `files: []`.
 
-Release/post-merge evidence for PR #117:
+Release/post-merge evidence for PR #118:
 
-- exact-head candidate CI `32556575389` / CI 696: `success`;
-- final release-owner exact-head gate: review `4999301185`,
+- exact-head candidate CI `32559785310` / CI 704: `success`;
+- final release-owner exact-head gate: review `4999506623`,
   `PASS / NON-INDEPENDENT`;
-- distinct exact-head `chatgpt-codex-connector` issue comment `5378410224`:
-  reviewed `a8a4f4de83`, no major issues;
-- exact-head review threads at merge decision: zero;
-- canonical exact-main push CI `32558808262` / CI 697 attempt 1:
+- distinct exact-head `chatgpt-codex-connector` issue comment `5379054811`:
+  reviewed `dacc2efde7`, no major issues;
+- no unresolved P0/P1/P2 remained in the bounded merge scope at merge decision;
+- canonical exact-main push CI `32561596467` / CI 705 attempt 1:
   `completed / success` on exact merge SHA;
-- decision-time `pom-rx/exact-main-ci`: `success`, target run `32558808262`;
+- decision-time `pom-rx/exact-main-ci`: `success`, targeting that canonical run;
 - exact-merge SpecKit, skeptical/falsification, security, code quality,
   optimization and integration/regression: PASS for the bounded docs/control-
   plane scope;
-- final exact-merge verdict: `POST_MERGE_ASSURANCE_PASS`, issue comment
-  `5378949128`.
+- final exact-merge verdict: `POST_MERGE_ASSURANCE_PASS`, PR #118 issue comment
+  `5379219612`.
 
-PR #117 is trusted coordination evidence only. It changed no runtime/security
-semantics and does not make PR #97 or PR #93 trusted.
+PR #118 is terminal trusted coordination evidence only. It changed no
+runtime/security semantics and does not make PR #97 or PR #93 trusted. Its
+terminal rule is authoritative: do not create another documentation-only
+checkpoint merely to record PR #118 as done.
 
-## `CONTROL_PLANE_PR118_EXACT_HEAD_GATES_PENDING`
+## `PR119_EXACT_HEAD_P2_REPAIRS_REQUIRE_FRESH_REVIEW`
 
-The four canonical files merged by PR #117 necessarily describe the pre-merge
-state. The smallest bounded non-Tier-B reconciliation is active as **PR #118**
-from exact trusted main `e7bcc15a9cfa...` on branch:
+PR #119 is the current non-Tier-B transition vehicle from exact trusted main
+`a22198bf...`. It is not a recurrent post-merge checkpoint task. It carries PR
+#118's terminal fact while advancing the next useful work item: the fresh
+trusted-main PR #97-line Promise-drift runtime repair.
 
-`docs/pom-rx-checkpoint-after-117-20260822`
+Two distinct exact-head Codex P2 findings are historical blockers that have been
+repaired in the moving branch but still require fresh exact-head validation:
 
-Owned surfaces are exactly:
+1. on `1bdb53bad6f0b88046358f4ec7912c86a0469a7c`, thread
+   `PRRT_kwDOTiNyWc6bX2ey`: `Honor PR #118's terminal rule instead of creating PR
+   #119`;
+2. on `ae856bdb2d0389b4fa3aefc962a072d093fac050`, thread
+   `PRRT_kwDOTiNyWc6bYFVT`: `Restore the five-stage standing-authorization
+   prerequisite`.
 
-- `POM_RX_RESUME_CHECKPOINT.md`;
-- `POM_RX_TASKS.yaml`;
-- `POM_RX_BLOCKERS.md`;
-- `docs/product/POM_RX_CAPABILITY_MAP.md`.
+The first repair makes PR #119 a one-time transition vehicle and explicitly
+forbids a post-PR119 documentation-only successor after trusted merge. The second
+repair, commit `0590362a3682049aac6ab5f80a3bc31af3326854`, restores the machine-
+readable requirement that standing merge authorization depends on the mandatory
+five-stage pre-merge gate in addition to technical/security gates, exact-head CI,
+required distinct exact-head review and zero unresolved P0/P1/P2.
 
-PR #118 first-candidate evidence is historical and blocked:
-
-- initial exact head `84220a2ec54b8e886a45b472daa9330b0eb847bb`;
-- canonical CI `32559140330` / CI 699: `failure` at `npm test`;
-- root cause: capability-map paragraph reflow split the repository-tested stable
-  phrase `Blockchain and digital assets`; the bounded repair restores that phrase
-  in documentation and does **not** weaken or edit the test;
-- independent review request issue comment `5378995887` targeted that initial
-  head, but distinct `chatgpt-codex-connector` issue comment `5379001143`
-  reported its usage limit exhausted, so **no independent approval exists**;
-- every branch move invalidates the initial head's CI/review evidence.
-
-The repaired current/final exact PR #118 head is deliberately not self-embedded
-in these moving files; read it live after the final owned-file commit. Do not
-create a duplicate PR while #118 is open.
-
-No Tier-B dependency/readiness claim may rely on stale pre-PR117 or failed
-initial-#118 state. PR #118 must pass fresh canonical exact-head CI,
-release-owner five-stage control, a genuinely distinct exact-head independent
-review and zero unresolved P0/P1/P2 before merge. Any head move invalidates
-exact-head release evidence. After merge, exact-merge post-merge assurance is
-mandatory before the merge becomes trusted coordination evidence.
+All CI/review evidence on earlier heads is stale after any move. Do not merge PR
+#119 until its final repaired exact head has fresh canonical CI success,
+release-owner five-stage PASS, a genuinely distinct exact-head independent review
+with no P0/P1/P2, and both historical P2 threads are resolved only after that
+exact-head validation. After merge, exact-merge post-merge assurance is mandatory.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
-PR #97 remains open and **must not merge**.
+Historical PR #97 remains open and **must not merge**.
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
+- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
 - exact-head CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head distinct finding: P1 `Reject Promise drift before entering
@@ -94,23 +89,24 @@ poisoning, outer awaits in `readProviderSnapshot`, `sampleStableProviderContext`
 the transport validator failure reaches its caller, substitute stable attacker-
 controlled context, then permit reference authorization and sensitive forwarding.
 
-Required closure:
+Required closure is a **fresh** bounded branch/PR from then-current trusted main,
+not a merge/rebase/revival of stale PR #97:
 
-- start the smallest runtime repair from then-current trusted main rather than
-  merging/rebasing/reviving the stale historical branch wholesale;
 - prevent hostile Promise-prototype dispatch before outer async assimilation;
 - restore or replace a CI-wired regression reproducing the independent sensitive-
   forwarding exploit without weakening hostile-dispatch expectations merely to
   make CI green;
 - require durable capability claim success before any observer or downstream work
   so losing contenders cannot enter security-sensitive paths;
-- preserve fail-closed replay, durable one-winner behavior, ordinary native-
-  Promise Node/AsyncHooks bookkeeping-symbol compatibility, hardened direct non-
-  Promise object/function capture, own native-Promise-decoration rejection, and
-  **zero authorization/forwarding for hostile rejected transports**;
+- preserve fail-closed replay and durable one-winner behavior;
+- preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
+  compatibility;
+- preserve hardened direct non-Promise object/function capture and own native-
+  Promise-decoration rejection;
+- require **zero authorization and zero sensitive forwarding for hostile rejected
+  transports**;
 - rerun exact-head CI and release-owner six-lane review;
 - obtain a fresh distinct exact-head independent skeptical/security review;
-- resolve only findings whose repair is validated on that same exact head;
 - require zero unresolved P0/P1/P2 before merge.
 
 ## `PR97_FALSE_PASS_GREEN_CI_32487036517`
@@ -125,13 +121,12 @@ reproducer.
 The release-owner exact-head verdict remains `BLOCK / NON-INDEPENDENT`. The stale
 head is not eligible for standing merge authorization.
 
-## `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR117`
+## `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR118`
 
-PR #97's historical base `0564aecd...` trails trusted main `e7bcc15a9cfa...`.
+PR #97's historical base `0564aecd...` trails trusted main `a22198bf...`.
 Mergeability is volatile conflict metadata only and is never proof of architecture
-reconciliation or security correctness. After the post-PR117 control-plane
-reconciliation is safely recorded, the repair must start fresh from then-current
-trusted main.
+reconciliation or security correctness. Once PR #119's transition repair is
+trusted, start the smallest fresh runtime branch from then-current trusted main.
 
 ## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
 
@@ -146,7 +141,7 @@ PR #93 remains open and untrusted.
 
 - exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
+- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
 - exact-head CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner and distinct review evidence found in the PR record covers
   moved head `03e0201c9f...`, not current `c4e40ceb...`;
@@ -156,11 +151,11 @@ PR #93 remains open and untrusted.
   proof canonicalization/SHA-256/hash hardening.
 
 Moved-head fixes are not current release evidence. PR #93 overlaps shared
-regression/package surfaces with PR #97. Keep it ordered after trusted #97 unless
-a separate reviewed dependency-ordering decision is recorded. Then reconcile
-#93 from then-current trusted main, rerun exact-head CI and owner review, obtain a
-fresh distinct exact-head independent skeptical/security review, and require zero
-unresolved P0/P1/P2.
+regression/package surfaces with the PR #97-line work. Keep it ordered after a
+trusted fresh PR #97-line repair unless a separate reviewed dependency-ordering
+decision is recorded. Then reconcile #93 from then-current trusted main, rerun
+exact-head CI and owner review, obtain a fresh distinct exact-head independent
+skeptical/security review, and require zero unresolved P0/P1/P2.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
