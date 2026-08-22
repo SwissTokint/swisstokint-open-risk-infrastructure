@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T13:16:00+02:00",
+  "updated_at": "2026-08-22T13:31:00+02:00",
   "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -46,13 +46,24 @@
     "purpose": "Carry trusted PR 118 terminal facts while advancing the next useful task: the fresh PR97-line Promise-drift runtime repair.",
     "not_a_recurrent_checkpoint_task": true,
     "independent_review_history": {
-      "reviewed_head": "1bdb53bad6f0b88046358f4ec7912c86a0469a7c",
-      "reviewer": "chatgpt-codex-connector",
-      "finding": "P2_HONOR_PR118_TERMINAL_RULE_INSTEAD_OF_SELF_RECREATING_CHECKPOINT",
-      "thread_id": "PRRT_kwDOTiNyWc6bX2ey",
-      "status": "REPAIR_IN_PROGRESS_HEAD_MOVED_REQUIRES_FRESH_EXACT_HEAD_REVIEW"
+      "first_finding": {
+        "reviewed_head": "1bdb53bad6f0b88046358f4ec7912c86a0469a7c",
+        "reviewer": "chatgpt-codex-connector",
+        "finding": "P2_HONOR_PR118_TERMINAL_RULE_INSTEAD_OF_SELF_RECREATING_CHECKPOINT",
+        "thread_id": "PRRT_kwDOTiNyWc6bX2ey",
+        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
+      },
+      "second_finding": {
+        "reviewed_head": "ae856bdb2d0389b4fa3aefc962a072d093fac050",
+        "reviewer": "chatgpt-codex-connector",
+        "finding": "P2_RESTORE_FIVE_STAGE_STANDING_AUTHORIZATION_PREREQUISITE",
+        "thread_id": "PRRT_kwDOTiNyWc6bYFVT",
+        "repair_commit": "0590362a3682049aac6ab5f80a3bc31af3326854",
+        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
+      }
     },
-    "merge_rule": "PR 119 may merge only after its repaired exact head has canonical CI success, release-owner five-stage PASS, fresh distinct exact-head review, and zero unresolved P0/P1/P2. After merge, run exact-merge assurance; do not open a post-PR119 documentation-only successor."
+    "exact_current_head_rule": "Read PR 119 live after the final owned-file commit; do not self-embed the moving final SHA into the moving control-plane files.",
+    "merge_rule": "PR 119 may merge only after its repaired exact head has canonical CI success, release-owner five-stage PASS, fresh distinct exact-head review, and zero unresolved P0/P1/P2. Resolve historical P2 threads only after exact-head validation. After merge, run exact-merge assurance; do not open a post-PR119 documentation-only successor."
   },
   "active_task": {
     "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
