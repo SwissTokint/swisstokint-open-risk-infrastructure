@@ -131,11 +131,15 @@ skeptical/falsification, security, code-quality, optimization and
 integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` for the
 bounded documentation/control-plane scope.
 
-PR #113 changed no runtime/security semantics. The current
-`docs/pom-rx-checkpoint-after-113-20260822` lot exists only because a merged
-checkpoint cannot self-describe its own future merge SHA. Until that four-file
-non-Tier-B reconciliation passes its own exact-head gates and post-merge
-assurance, live GitHub remains authoritative for volatile state.
+PR #113 changed no runtime/security semantics. PR #114 on branch
+`docs/pom-rx-checkpoint-after-113-20260822` is the current four-file non-Tier-B
+reconciliation because a merged checkpoint cannot self-describe its own future
+merge SHA. At PR creation the head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
+and CI 678 (`32551305996`) entered the queue; subsequent reconciliation commits
+moved that head, so creation-time exact-head evidence is stale. Read PR #114 live
+for its final exact head, CI, reviews and threads. Until it passes its own
+exact-head gates and post-merge assurance, live GitHub remains authoritative for
+volatile state.
 
 ### Proof transport and anchoring
 
