@@ -60,6 +60,18 @@ if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
     configurable: true,
   });
   Object.setPrototypeOf(rejectedTransport, alternatePrototype);
+} else if (process.env.POMRX_TRANSPORT_CASE === 'prototype-nonextensible-null') {
+  Object.setPrototypeOf(rejectedTransport, null);
+  Object.preventExtensions(rejectedTransport);
+} else if (process.env.POMRX_TRANSPORT_CASE === 'prototype-nonextensible-data-constructor') {
+  const alternatePrototype = Object.create(Promise.prototype);
+  Object.defineProperty(alternatePrototype, 'constructor', {
+    value: Promise,
+    writable: false,
+    configurable: false,
+  });
+  Object.setPrototypeOf(rejectedTransport, alternatePrototype);
+  Object.preventExtensions(rejectedTransport);
 } else {
   process.exit(10);
 }
@@ -192,4 +204,22 @@ test('rejected native Promise with nonstandard prototype is drained before struc
   const result = runRejectedInvalidTransportCase('prototype');
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype/);
+});
+
+test('non-extensible rejected native Promise with null prototype is drained before structural validation fails', () => {
+  const result = runRejectedInvalidTransportCase('prototype-nonextensible-null');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype-nonextensible-null/,
+  );
+});
+
+test('non-extensible rejected native Promise with benign data constructor chain is drained before structural validation fails', () => {
+  const result = runRejectedInvalidTransportCase('prototype-nonextensible-data-constructor');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype-nonextensible-data-constructor/,
+  );
 });
