@@ -432,6 +432,7 @@ function validateNativePromiseTransport(value, method) {
   const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
   const ownNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
   if (prototype !== PROMISE_PROTOTYPE || ownNames.length !== 0) {
+    drainPromiseTransportBeforeIntegrityFailure(value, method);
     fail(
       'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
       `provider ${method} must return an undecorated native Promise transport`,
