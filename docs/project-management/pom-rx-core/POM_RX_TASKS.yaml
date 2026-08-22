@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T00:28:00+02:00",
+  "updated_at": "2026-08-22T02:10:44+02:00",
   "current_main": "dc926bcc006255825c1598c9699264af3476c363",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -42,17 +42,22 @@
     "pr": 111,
     "title": "Reconcile canonical control plane after trusted PR 110",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "OPEN_REPAIR_HEAD_MOVED_FRESH_EXACT_HEAD_GATES_REQUIRED",
+    "status": "OPEN_REPAIR_HEAD_MOVING_FRESH_EXACT_HEAD_GATES_REQUIRED",
     "base_sha": "dc926bcc006255825c1598c9699264af3476c363",
     "branch": "docs/pom-rx-checkpoint-after-110-20260822",
-    "prior_head": "70bc3c19b8f76aff5074cd8d251df74adf9b5454",
+    "prior_head": "9cfa19cd0dfd1c237caf709c367874ad215c877e",
     "prior_ci": {
-      "run_id": 32532398667,
-      "run_number": 660,
+      "run_id": 32533068576,
+      "run_number": 664,
       "conclusion": "success_but_stale_after_repair_head_move"
     },
-    "prior_independent_gate": "BLOCK_P2_RESTORE_CANONICALIZATION_HASH_BLOCKER",
-    "repair_state": "RESTORE_PR93_SHARED_PROOF_CANONICALIZATION_AND_SHA256_HASH_HARDENING_CLASS_IN_CANONICAL_CONTINUATION_SURFACES",
+    "prior_owner_gate": "PASS_NON_INDEPENDENT",
+    "prior_independent_gate": "BLOCK_TWO_P2_MERGEABILITY_SNAPSHOT_INCONSISTENCIES",
+    "prior_independent_findings": [
+      "Reconcile PR #97 mergeability across canonical surfaces",
+      "Reconcile PR #93 mergeability across canonical surfaces"
+    ],
+    "repair_state": "SYNCHRONIZE_PR97_AND_PR93_VOLATILE_MERGEABILITY_SNAPSHOTS_TO_LIVE_REVALIDATED_TRUE_WHILE_RETAINING_NON_EVIDENTIARY_RULE_AND_PRIOR_PR93_CANONICALIZATION_HASH_BLOCKER",
     "exact_current_head_rule": "Read PR #111 live; do not self-embed a moving exact head because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -63,8 +68,8 @@
     "acceptance": [
       "checkpoint trusted PR 110 exact merge and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
+      "use one revalidated volatile mergeability snapshot consistently across detailed canonical surfaces, while retaining live-GitHub-wins and non-release-evidence rules",
       "retain PR 93 shared proof canonicalization and SHA-256/hash hardening findings until a repaired exact head is independently validated",
-      "do not promote volatile mergeability metadata into release evidence",
       "preserve shared Core versus Wallet Guard application ownership",
       "preserve the PR 97 durable-claim-before-observer/downstream ordering, fail-closed replay and one-winner invariants",
       "preserve the mandatory five-stage pre-merge gate in structured merge authorization rules",
@@ -73,7 +78,7 @@
       "change no runtime, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
       "run fresh exact-head CI and scoped release-owner review after the repair head move",
       "obtain fresh distinct exact-head independent review before merge",
-      "resolve the P2 only after same-head validation with zero unresolved P0/P1/P2",
+      "resolve P2 threads only after validated evidence with zero unresolved P0/P1/P2",
       "after merge run exact-merge post-merge assurance"
     ]
   },
