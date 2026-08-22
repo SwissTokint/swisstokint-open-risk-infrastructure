@@ -21,6 +21,7 @@ const hash = (character) => character.repeat(64);
 let authorizationCalls = 0;
 let sensitiveCalls = 0;
 let accountReads = 0;
+let constructorGetterCalls = 0;
 
 const rejectedTransport = Promise.reject(new Error('provider transport rejected'));
 if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
@@ -40,6 +41,16 @@ if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
     enumerable: false,
     writable: false,
     configurable: false,
+  });
+} else if (process.env.POMRX_TRANSPORT_CASE === 'constructor-nonconfigurable-accessor-prehandled') {
+  Reflect.apply(Promise.prototype.then, rejectedTransport, [undefined, () => undefined]);
+  Object.defineProperty(rejectedTransport, 'constructor', {
+    enumerable: false,
+    configurable: false,
+    get() {
+      constructorGetterCalls += 1;
+      return Promise;
+    },
   });
 } else if (process.env.POMRX_TRANSPORT_CASE === 'prototype') {
   const alternatePrototype = Object.create(Promise.prototype);
@@ -133,6 +144,10 @@ if (authorizationCalls !== 0 || sensitiveCalls !== 0 || accountReads !== 0) {
   console.error(JSON.stringify({ authorizationCalls, sensitiveCalls, accountReads }));
   process.exit(3);
 }
+if (constructorGetterCalls !== 0) {
+  console.error(JSON.stringify({ constructorGetterCalls }));
+  process.exit(4);
+}
 console.log('POMRX_INVALID_REJECTED_TRANSPORT_DRAINED ' + process.env.POMRX_TRANSPORT_CASE);
 `;
 
@@ -162,6 +177,15 @@ test('rejected native Promise with non-configurable own constructor is drained b
   const result = runRejectedInvalidTransportCase('constructor-nonconfigurable');
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED constructor-nonconfigurable/);
+});
+
+test('non-shadowable constructor accessor stays outside the internal-drain claim without getter execution', () => {
+  const result = runRejectedInvalidTransportCase('constructor-nonconfigurable-accessor-prehandled');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED constructor-nonconfigurable-accessor-prehandled/,
+  );
 });
 
 test('rejected native Promise with nonstandard prototype is drained before structural validation fails', () => {
