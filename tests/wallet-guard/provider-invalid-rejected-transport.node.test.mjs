@@ -28,6 +28,19 @@ if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
     value: 1,
     enumerable: true,
   });
+} else if (process.env.POMRX_TRANSPORT_CASE === 'metadata-nonextensible') {
+  Object.defineProperty(rejectedTransport, 'metadata', {
+    value: 1,
+    enumerable: true,
+  });
+  Object.preventExtensions(rejectedTransport);
+} else if (process.env.POMRX_TRANSPORT_CASE === 'constructor-nonconfigurable') {
+  Object.defineProperty(rejectedTransport, 'constructor', {
+    value: Promise,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
 } else if (process.env.POMRX_TRANSPORT_CASE === 'prototype') {
   const alternatePrototype = Object.create(Promise.prototype);
   Object.defineProperty(alternatePrototype, 'constructor', {
@@ -137,6 +150,18 @@ test('rejected native Promise with own metadata is drained before structural val
   const result = runRejectedInvalidTransportCase('metadata');
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED metadata/);
+});
+
+test('non-extensible rejected native Promise with own metadata is drained before structural validation fails', () => {
+  const result = runRejectedInvalidTransportCase('metadata-nonextensible');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED metadata-nonextensible/);
+});
+
+test('rejected native Promise with non-configurable own constructor is drained before structural validation fails', () => {
+  const result = runRejectedInvalidTransportCase('constructor-nonconfigurable');
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED constructor-nonconfigurable/);
 });
 
 test('rejected native Promise with nonstandard prototype is drained before structural validation fails', () => {
