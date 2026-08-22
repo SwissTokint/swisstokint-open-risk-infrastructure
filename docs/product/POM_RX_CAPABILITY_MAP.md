@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `aeb843012c5693088657eb80fc3f2ae0949723b0`.
+Trusted-main checkpoint: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,7 +66,7 @@ PR #97 is the blocked historical Tier-B candidate:
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,24 +120,25 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #116 exact source head `60fa89cae63a70649b32c5b65c67f6d89ed27f1b`
-merged as exact main SHA `aeb843012c5693088657eb80fc3f2ae0949723b0`.
+PR #117 exact source head `a8a4f4de83cea0c1527a03a89c71a41471679be1`
+merged as exact main SHA `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
 Source-head and merge trees are identical at
-`35e0ad4d90771c7df04493c769874c96f4552cc3`.
+`999643ca3dab6bdf59401e38cb2dd8ae42bb11bd`.
 
-Its exact-head CI `32554051879` / CI 694 passed. The final release-owner exact-head
-gate passed in review `4999286553` as `PASS / NON-INDEPENDENT`; distinct exact-head
-`chatgpt-codex-connector` issue comment `5378169346` reviewed `60fa89cae6` and
-reported no major issues. Exact-main push CI `32556325264` / CI 695 attempt 1
-completed successfully on the exact merge SHA, and decision-time
-`pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge SpecKit,
-skeptical/falsification, security, code-quality, optimization and
-integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
-#116 issue comment `5378389794` for the bounded documentation/control-plane scope.
+Its exact-head CI `32556575389` / CI 696 passed. The final release-owner exact-head
+gate passed in review `4999301185` as `PASS / NON-INDEPENDENT`; distinct exact-head
+`chatgpt-codex-connector` issue comment `5378410224` reviewed `a8a4f4de83` and
+reported no major issues, with zero review threads at the merge decision.
+Exact-main push CI `32558808262` / CI 697 attempt 1 completed successfully on the
+exact merge SHA, and decision-time `pom-rx/exact-main-ci` is `success` targeting
+that run. Exact-merge SpecKit, skeptical/falsification, security, code-quality,
+optimization and integration/regression checks are recorded as
+`POST_MERGE_ASSURANCE_PASS` in PR #117 issue comment `5378949128` for the bounded
+documentation/control-plane scope.
 
-PR #116 changed no runtime/security semantics. A bounded post-PR116 reconciliation
+PR #117 changed no runtime/security semantics. A bounded post-PR117 reconciliation
 is prepared from exact trusted main on branch
-`docs/pom-rx-checkpoint-after-116-20260822` because a merged checkpoint cannot
+`docs/pom-rx-checkpoint-after-117-20260822` because a merged checkpoint cannot
 self-describe its own future merge SHA. To avoid duplicate pull requests, inspect
 live GitHub for an open PR whose exact head branch is that branch and create one
 only if none exists. Do not self-embed its moving exact head in these canonical
@@ -199,9 +200,9 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
-or reconciliation semantics. Wallet Guard's primary product home is
-Blockchain and digital assets, while its defensive control model also overlaps
-the Cybersecurity block.
+or reconciliation semantics. Wallet Guard's primary product home is Blockchain
+and digital assets, while its defensive control model also overlaps the
+Cybersecurity block.
 
 ## 4. Wallet Guard position
 
@@ -230,7 +231,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
