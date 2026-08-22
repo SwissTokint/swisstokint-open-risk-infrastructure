@@ -62,14 +62,9 @@ single-use Gate and a separate filesystem durable claim-store reference
 primitive. A reviewed composition of the durable claim primitive with the common
 Gate is **not** on trusted main at this checkpoint.
 
-Historical PR #97 remains blocked and is not a merge candidate:
-
-- exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
-- historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
-- CI `32487036517` / CI 592: `success` but not security evidence;
-- release-owner verdict: `BLOCK / NON-INDEPENDENT`;
-- exact-head P1: `Reject Promise drift before entering async layers`.
+Historical PR #97 remains blocked and is not a merge candidate at live head
+`0efb462f0b4b8cff62d664a51d13ad71306b6bbb`; its historical CI 592 is not
+security/release evidence and it must not be revived or merged wholesale.
 
 Fresh PR #120 is the active prerequisite repair from exact trusted main:
 
@@ -82,42 +77,53 @@ Fresh PR #120 is the active prerequisite repair from exact trusted main:
 
 The bounded PR #120 contract is to close inherited
 `Promise.prototype.constructor` + `then` substitution before reference
-authorization or sensitive forwarding while preserving prior provider-boundary
-hardening. Its CI-wired evidence covers rejected-context substitution,
-own-decorated native Promises, synchronous Proxy/callable thenables, ordinary
-synchronous/native-Promise context, own-symbol native-Promise bookkeeping,
-strict rejection of scalar policy-list values and inherited Array-index
-substitution attacks against policy/account bridges.
+authorization or sensitive forwarding while preserving hardened synchronous
+plain-data capture and the strict Wallet Guard application boundary.
 
 A genuinely distinct Codex review on moved head
-`5885da291d7d6b3e4541e5c00c160ffb481828b8` found P1 thread
-`PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promise transports
-must be drained before the gateway returns its fail-closed validation error or an
-orphaned rejection can terminate Node. The first repair added the drain and
-strict-unhandled-rejection regressions for extensible own-metadata and
-non-standard-prototype transports. Pre-control-plane repair head
-`9b52474a2def9df2c75649eda4b81a0ca128658a` passed CI 739.
+`5885da291d7d6b3e4541e5c00c160ffb481828b8` opened P1 thread
+`PRRT_kwDOTiNyWc6bZjxp` for structurally invalid rejected native Promise
+transports that could be rejected before a rejection reaction was attached. The
+first repair introduced `drainPromiseTransportBeforeIntegrityFailure()` and
+strict child-process tests for extensible own metadata/non-standard prototype.
+Pre-control-plane head `9b52474a2def9df2c75649eda4b81a0ca128658a`
+then passed CI 739.
 
-Release-owner/adversarial review `5000574562` on moved head
-`b7576f8e94b3379c7427a51e4113960f396ac7e8` found a remaining **P1** variant:
-the drain first tries to shadow `constructor` and only afterwards attaches the
-captured rejection reaction. A rejected native Promise carrying ordinary own
-metadata and then made non-extensible causes the first `defineProperty` to fail,
-so the gateway error can be caught while strict Node still terminates on the
-orphaned provider rejection. A direct Node 22.16 reproducer confirmed exit 1.
-The same repair decision must explicitly cover or bound non-shadowable own
-`constructor`/`then` variants without executing hostile accessors.
+A new dedicated Codex review on exact moved head
+`b7576f8e94b3379c7427a51e4113960f396ac7e8` found the remaining **P1** thread
+`PRRT_kwDOTiNyWc6bZ6tx`: the drain performs a fallible own-`constructor`
+`defineProperty` before attaching the rejection reaction, so a rejected Promise
+made non-extensible or carrying a non-configurable own constructor can still
+become an orphaned strict unhandled rejection. Release-owner review `5000574562`
+corroborated the non-extensible metadata variant with a direct Node 22.16
+reproducer. That owner review is non-independent.
+
+The same Codex review found **P2** thread `PRRT_kwDOTiNyWc6bZ6tz`: the new
+rejected-transport regression file had not been reached by canonical `npm test`.
+That implementation defect is now repaired: `package.json` includes
+`provider-invalid-rejected-transport.node.test.mjs` in the Wallet Guard provider-
+gate test script, and that script is already part of full `npm test`. The test
+file now adds strict expected-red cases for `metadata-nonextensible` and
+`constructor-nonconfigurable`, so the P1 can no longer hide behind a green CI
+run. Pre-checkpoint branch head `6911eaeeb2a0a89ccefceebeb7b6e03b64c97d15`
+contained this CI wiring and red evidence; no workflow run was yet associated
+with that exact moved head at the decision-time recheck.
 
 PR #120 therefore remains untrusted and must not merge. The next runtime move is
-a bounded drain repair plus a CI-wired non-extensible rejected-Promise regression,
-followed by fresh exact-head CI, five-stage owner review, a new genuinely distinct
-Codex skeptical/security review and zero unresolved P0/P1/P2. The historical
-Codex thread remains unresolved until that fresh independent validation.
+to make those newly CI-wired strict cases pass by correcting the drain ordering/
+strategy **without deleting or weakening the tests** and without executing hostile
+constructor/then accessors merely to suppress an orphaned rejection. If a
+non-shadowable accessor transport cannot be safely drained with the captured
+standard intrinsics, the claim must be narrowed explicitly and tested rather
+than silently false-PASSing.
 
-For hostile rejected context transports the required bounded security result
-remains **zero reference authorization and zero sensitive forwarding**. This
-prerequisite does not establish a production liveness guarantee and must not hide
-an avoidable gateway-created orphaned rejection as mere compatibility debt.
+Fresh exact-head CI, five-stage owner review, a new genuinely distinct Codex
+skeptical/security review and zero unresolved P0/P1/P2 are required after the
+runtime repair. Threads `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx` and
+`PRRT_kwDOTiNyWc6bZ6tz` remain unresolved until that evidence exists.
+
+For every claimed hostile rejected context transport, the bounded security result
+remains **zero reference authorization and zero sensitive forwarding**.
 
 PR #120 intentionally does **not** import or claim the historical durable Gate
 composition. Once PR #120 is trusted, durable claim-before-observer/downstream
@@ -156,18 +162,11 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #119 exact source head `057b225783b24c97568dbcd733ca4c821f889c7a`
-merged as exact main SHA `e5aead150a2ed5f390593cc2d9d307defdd79bdc`.
-Its frozen candidate CI passed, release-owner exact-head gate passed
-non-independently, and a distinct exact-head `chatgpt-codex-connector` review
-reported no major issues. Canonical exact-main push CI `32575110984` / CI 720
-passed on the exact merge SHA. Exact-merge SpecKit, skeptical/falsification,
-security, code-quality, optimization and integration/regression checks are
-recorded as `POST_MERGE_ASSURANCE_PASS` in PR #119 issue comment `5380609307`.
-
-PR #119 is terminal coordination evidence. Its terminal rule forbids a new
-documentation-only successor merely to restate completion; materially changed
-continuation state is carried by useful runtime work such as PR #120.
+PR #119 source head `057b225783b24c97568dbcd733ca4c821f889c7a` merged as exact main
+`e5aead150a2ed5f390593cc2d9d307defdd79bdc`; exact-main CI 720 passed and
+exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #119 comment
+`5380609307`. PR #119 is terminal coordination evidence: do not create another
+docs-only successor merely to restate completion.
 
 ### Proof transport and anchoring
 
@@ -223,9 +222,7 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
-or reconciliation semantics. Wallet Guard's primary product home is
-Blockchain and digital assets, while its defensive control model also overlaps
-the Cybersecurity block.
+or reconciliation semantics.
 
 ## 4. Wallet Guard position
 
@@ -252,26 +249,11 @@ is not trusted until all exact-head gates pass and the merge receives exact-merg
 post-merge PASS. Reference simulation evidence remains active PR #93 and is **not
 on trusted main**.
 
-PR #93 current live state at this checkpoint:
-
-- exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
-- historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
-- CI `32465835858` / CI 541: `success` but not release evidence;
-- latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
-- unresolved current/non-outdated P1/P2 classes include exact negative-zero
-  identity, typed-data wrapper normalization, generic-signature exact-value
-  commitment, nested payload capture with saved reflection intrinsics, and shared
-  proof canonicalization/SHA-256/hash hardening.
-
-PR #93 remains ordered after trusted PR #120 and the required shared-Core
-dependency work unless a separately reviewed dependency change is recorded. Even
-after simulation evidence eventually merges, simulation-to-forwarding atomic
-binding remains a separate reviewed requirement. The first success criterion
-remains a deterministic controlled fixture in which a dangerous approval or
-signature is denied before forwarding while one explicitly allowed control
-request is forwarded exactly once and reconciled. That does not prove universal
-browser/wallet/dApp/chain protection.
+PR #93 remains open/untrusted at
+`c4e40ceb286f4e59657767661daed15d2b68e9a7`, with historical CI 541 not release
+evidence and unresolved P1/P2 classes. It remains ordered after trusted PR #120
+and required shared-Core dependency work unless a separately reviewed dependency
+change is recorded.
 
 ## 5. Integration and adapter block
 
@@ -319,20 +301,18 @@ compatibility/
 Application folders contain only domain adapters, profiles, fixtures and tests.
 Shared verifier, canonicalization, hashing, Witness, authorization, Gate,
 execution-evidence and observation/reconciliation rules remain common POM-RX
-implementation and are referenced rather than copied. Existing frozen fixture
-paths and public source pins are not relocated without dedicated compatibility
-review.
+implementation and are referenced rather than copied.
 
 ## 7. Current maturity by block
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise/provider-boundary repair active/untrusted and blocked on non-extensible rejected-Promise drain P1; durable Gate composition still requires later bounded reviewed work; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 Promise/provider-boundary repair active/untrusted and blocked on CI-visible rejected-Promise drain P1; durable Gate composition still requires later bounded reviewed work; production trust/time, distributed semantics and external effect truth remain missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 blocked; PR #120 prerequisite blocked P1; durable claim-before-observer/downstream composition remains untrusted |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 active/untrusted with P1 non-extensible decorated rejected Promise drain; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 active/untrusted with CI-wired non-extensible/non-configurable rejected Promise expected-red; PR #93 simulation evidence blocked by dependency + exact-head P1/P2 classes; simulation-to-forwarding binding remains separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
