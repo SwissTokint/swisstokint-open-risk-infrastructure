@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T17:15:10+02:00`
+Updated: `2026-08-22T18:18:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -52,7 +52,9 @@ remain unproved. Maximum claim remains
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state at this checkpoint commit: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`.
+- live state before this control-plane reconciliation: `OPEN / READY_FOR_REVIEW /
+  MERGEABLE / NOT_TRUSTED`;
+- pre-reconciliation repair head: `9b52474a2def9df2c75649eda4b81a0ca128658a`.
 
 ### Repair history and current evidence
 
@@ -73,36 +75,46 @@ remain unproved. Maximum claim remains
   converted into empty arrays. Commits `830b73f8d7bb29a9f8e5dc163fefee7933f5ae03`
   and `315ba35db28a2ce265968f4c9ae603961de5f209` require actual arrays and add
   CI-wired scalar rejection cases;
-- exact head `2f081956dff590359fec5a95dc8eb0c547ac4174` subsequently passed
-  canonical CI run `32580380859` / CI 733, including production dependency audit,
-  strict-verifier reproducibility, full `npm test`, expected-red integrity checks,
-  Stellar tests/build and hardened proof-relay image build;
-- release-owner/security review `5000444583` on exact `2f081956...` nevertheless
-  found **P1**: the newly reused `copyFrozenArray` bridge allocated `new Array(...)`
-  then populated holes through `output[index] = value`, allowing a post-import
-  inherited `Array.prototype[0]` setter to substitute a valid own element before
-  freeze. This could rewrite policy-list data and provider-observed account data,
-  so CI 733 was a false-PASS for that attack family;
+- exact head `2f081956dff590359fec5a95dc8eb0c547ac4174` passed CI 733, but
+  release-owner/security review `5000444583` found **P1** inherited
+  `Array.prototype[0]` setter substitution through `copyFrozenArray`;
 - repair commit `f614ecedfb0e161a7436ba16555ac1859df6fa80` captures the Array
   constructor plus `Object.create`/`Object.defineProperty`, creates bridge and
   account/inspection arrays with captured construction, and defines every element
-  as an own data property rather than using inherited `[[Set]]`; it also pins the
-  historical standard-array prototype comparison to the captured prototype;
-- regression commit `0b66e6c12f8ad446083daf41a6831f7575e727a4` adds explicit
-  post-import `Array.prototype[0]` substitution attacks against both policy bridge
-  data and provider-observed account context;
-- commit `bd404401a1a9a6131f0b4a98ce29dd9dc107b53c` wires that regression into
-  `test:pom-rx:wallet-guard-controlled-host` and therefore full `npm test`.
+  as an own data property rather than inherited `[[Set]]`;
+- regression commit `0b66e6c12f8ad446083daf41a6831f7575e727a4` adds post-import
+  `Array.prototype[0]` substitution attacks against both policy bridge data and
+  provider-observed account context; `bd404401a1a9a6131f0b4a98ce29dd9dc107b53c`
+  wires them into full `npm test`;
+- exact head `5885da291d7d6b3e4541e5c00c160ffb481828b8` then passed canonical
+  CI 737 and owner five-stage technical review, but the genuinely distinct
+  `chatgpt-codex-connector` review found **P1** on unresolved thread
+  `PRRT_kwDOTiNyWc6bZjxp`: a rejected native Promise with own string metadata or
+  a non-standard prototype could be rejected structurally without first attaching
+  a rejection reaction, leaving an orphaned rejection that can terminate Node
+  under strict unhandled-rejection behavior;
+- the repair adds `drainPromiseTransportBeforeIntegrityFailure()` to the invalid
+  structural transport branch before fail-closed rejection, using captured
+  Promise/Object intrinsics, and adds CI-wired
+  `provider-invalid-rejected-transport.node.test.mjs` cases for own metadata and
+  non-standard prototype under `--unhandled-rejections=strict`, requiring the
+  gateway error plus zero authorization, zero account continuation and zero
+  sensitive forwarding;
+- pre-reconciliation repair head `9b52474a2def9df2c75649eda4b81a0ca128658a`
+  passed canonical exact-head CI run `32584166269` / CI 739. That CI proves the
+  repaired code/test state before this control-plane write only; this bookkeeping
+  commit moves the head, so CI 739 and all earlier exact-head review evidence are
+  historical for release.
 
-Canonical exact-head CI after this checkpoint commit is **PENDING**. All CI and
-release-review evidence on `2f081956...` is stale for release because the repair
-moved the head. Release-owner five-stage gate and genuinely distinct exact-head
-independent skeptical/security review are also **PENDING**.
+The Codex P1 thread `PRRT_kwDOTiNyWc6bZjxp` remains intentionally unresolved.
+Resolve it only after a fresh genuinely distinct review validates the **final
+frozen exact head** containing the repair. A release-owner/self review is not
+independent evidence.
 
 The PR #120 exact final head is intentionally not self-embedded in this moving
-file because doing so would create an infinite head-changing loop. Record the
-post-checkpoint frozen candidate SHA, exact-head CI and review state in the PR
-conversation and re-read them live before any release decision.
+file because doing so would create an infinite head-changing loop. Read the live
+PR head, final exact-head CI, reviews and threads after the last control-plane
+commit and record that frozen SHA in the PR conversation.
 
 ### Bounded scope
 
@@ -113,6 +125,9 @@ PR #120 starts from trusted main rather than merging/rebasing/reviving stale PR
   a provider Promise is safely assimilated;
 - pin load-bearing internal async Promises with captured own `constructor`/`then`
   data properties before parent awaits;
+- drain structurally invalid rejected native Promise transports before returning
+  the fail-closed gateway validation error, without trusting hostile inherited
+  Promise dispatch;
 - preserve own-decorated native-Promise rejection without attacker getter
   execution and preserve ordinary own-symbol bookkeeping compatibility;
 - preserve hardened synchronous non-Promise/plain-data capture through shared
@@ -134,14 +149,22 @@ reconstructed/reviewed only after this prerequisite closes.
 1. inherited Promise constructor/then poisoning can convert rejected chain/account
    reads into stable attacker context and reach authorization/forwarding;
 2. own Promise `constructor`/`then` accessors can dispatch during assimilation;
-3. synchronous Array/Object/callable Proxies can dispatch `then`/reflection traps
+3. structurally invalid rejected native Promises can become process-level orphaned
+   rejections before the gateway fails closed;
+4. synchronous Array/Object/callable Proxies can dispatch `then`/reflection traps
    before the inert-data boundary;
-4. hardened Core snapshot-array prototypes can break application composition and
+5. hardened Core snapshot-array prototypes can break application composition and
    tempt a fail-open relaxation of the public policy boundary;
-5. a representation bridge can coerce invalid scalar list values into valid empty
+6. a representation bridge can coerce invalid scalar list values into valid empty
    arrays and silently reduce policy controls;
-6. an inherited Array index setter can rewrite bridge/provider-account elements
+7. an inherited Array index setter can rewrite bridge/provider-account elements
    while still leaving a dense ordinary frozen array that later validators accept.
+
+The fresh exact-head independent skeptic must additionally challenge rejected
+non-extensible/non-configurable native Promise variants and any path where draining
+itself could dispatch attacker-controlled code or fail before a rejection reaction
+is attached. Any plausible unresolved path is a release blocker, not a compatibility
+waiver.
 
 ## blocked_historical_prs
 
@@ -166,9 +189,9 @@ reconstructed/reviewed only after this prerequisite closes.
 
 ## current_blockers
 
-1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_ARRAY_INDEX_SETTER_P1_REPAIR`.
-2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_PENDING_ON_REPAIRED_EXACT_HEAD`.
-3. `PR120_DISTINCT_EXACT_HEAD_INDEPENDENT_REVIEW_PENDING`.
+1. `PR120_FINAL_EXACT_HEAD_CI_REQUIRED_AFTER_CONTROL_PLANE_RECONCILIATION`.
+2. `PR120_REJECTED_INVALID_PROMISE_DRAIN_P1_REQUIRES_FRESH_EXACT_HEAD_INDEPENDENT_VALIDATION`.
+3. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED_ON_FINAL_EXACT_HEAD`.
 4. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
 5. `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`.
 6. `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_PR120`.
@@ -192,20 +215,24 @@ integration/regression assurance with one final verdict:
 
 ## next_safe_actions
 
-1. Freeze the post-checkpoint PR #120 head and record its exact SHA in the PR
-   conversation; do not move it for bookkeeping-only SHA self-reference.
-2. Require canonical CI success on that exact SHA, including the original
-   Promise-drift exploit, shared plain-data hardening, scalar policy-list negative
-   cases, both inherited Array-index-setter regressions and full workflow.
-3. Re-run the release-owner five-stage gate on that exact repaired head.
-4. Obtain a fresh genuinely distinct exact-head skeptical/security review. A
-   failed reviewer assignment or a stale review is not independent evidence.
-5. Merge only if every exact-head gate passes unchanged and zero unresolved
+1. Finish this same useful PR #120 control-plane reconciliation; do not create a
+   separate docs-only successor.
+2. Freeze the resulting exact PR #120 head and record that SHA in the PR
+   conversation.
+3. Require canonical CI success on that exact SHA, including the original
+   Promise-drift exploit, shared plain-data hardening, invalid rejected-Promise
+   drain regression, scalar policy-list negatives, both inherited
+   Array-index-setter regressions and full workflow.
+4. Re-run the release-owner five-stage gate on that exact repaired head.
+5. Obtain a fresh genuinely distinct exact-head skeptical/security review that
+   validates the rejected-transport P1 repair and all prior attack families. Do
+   not resolve the Codex P1 thread before that validation.
+6. Merge only if every exact-head gate passes unchanged and zero unresolved
    P0/P1/P2 remain; immediately run exact-merge post-merge assurance before
    trusting the dependency.
-6. Reconstruct durable claim-before-observer/downstream composition as a separate
+7. Reconstruct durable claim-before-observer/downstream composition as a separate
    bounded Tier-B lot only after PR #120 becomes trusted.
-7. Reconcile PR #93 only after the trusted prerequisite order permits it.
+8. Reconcile PR #93 only after the trusted prerequisite order permits it.
 
 ## safety_boundary
 
