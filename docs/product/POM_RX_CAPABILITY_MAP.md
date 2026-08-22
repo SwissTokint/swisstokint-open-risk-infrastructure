@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `ecc25e3e3f2991482e925fbe307058a91276c0bc`.
+Trusted-main checkpoint: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,7 +66,7 @@ PR #97 is the blocked historical Tier-B candidate:
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
+- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,31 +120,29 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #113 source head `f28bea5bdddce9413b7bfc882999d8b9fab1196e`
-merged as exact main SHA `ecc25e3e3f2991482e925fbe307058a91276c0bc`.
+PR #114 exact source head `9b71dec8d30bb249c73d61030638209b41fb03c6`
+merged as exact main SHA `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`.
 Source-head and merge trees are identical at
-`0fdaa90c0355cf741ca7af81b485cd6da806b22a`.
+`08c90ed4456bb857f140935c1447f53e54dbba1d`.
 
-Its exact-head CI `32545840351` / CI 676 passed. Distinct exact-head
-`chatgpt-codex-connector` evidence reported no major issues, the release-owner
-five-stage gate passed, exact-main push CI `32548199260` / CI 677 attempt 1
-completed successfully on the merge SHA, and decision-time
-`pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge SpecKit,
-skeptical/falsification, security, code-quality, optimization and
+Its exact-head CI `32551501314` / CI 686 passed. The final release-owner five-stage
+gate passed; distinct exact-head `chatgpt-codex-connector` issue comment
+`5377850957` reviewed `9b71dec8d3` and reported no major issues. The moved-head P2
+`Preserve the no-forwarding closure invariant` was repaired across the canonical
+control plane and resolved only after exact-head validation. Exact-main push CI
+`32551645921` / CI 687 attempt 1 completed successfully on the merge SHA, and
+decision-time `pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge
+SpecKit, skeptical/falsification, security, code-quality, optimization and
 integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` for the
 bounded documentation/control-plane scope.
 
-PR #113 changed no runtime/security semantics. PR #114 on branch
-`docs/pom-rx-checkpoint-after-113-20260822` is the current four-file non-Tier-B
+PR #114 changed no runtime/security semantics. Branch
+`docs/pom-rx-checkpoint-after-114-20260822` is the current four-file non-Tier-B
 reconciliation because a merged checkpoint cannot self-describe its own future
-merge SHA. A distinct Codex review on the creation head
-`b98f9c0e80e25c4203784b99cc99061bba5ac6d5` raised P2 `Preserve the
-no-forwarding closure invariant`; the current repair restores explicit zero
-authorization/forwarding for hostile rejected transports across the canonical
-control plane. Creation-head CI/review evidence is stale after the repair commits.
-Read PR #114 live for its final exact head, CI, reviews and threads. Until it
-passes its own exact-head gates and post-merge assurance, live GitHub remains
-authoritative for volatile state.
+merge SHA. Open exactly one scoped PR from that branch, then read its final exact
+head, CI, reviews and threads live. Until that reconciliation passes its own
+exact-head gates and post-merge assurance, live GitHub remains authoritative for
+volatile state.
 
 ### Proof transport and anchoring
 
@@ -231,7 +229,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
+- current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
