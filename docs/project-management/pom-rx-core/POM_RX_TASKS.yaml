@@ -30,20 +30,25 @@
     "id": "PR120-PROMISE-TRANSPORT-SPECIES-PATH-REPAIR",
     "title": "Close the remaining rejected native-Promise effective-constructor species drain boundary",
     "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_BOUNDARY_DEPENDENCY",
-    "status": "IMPLEMENTED_PENDING_FINAL_EXACT_HEAD_GATES",
+    "status": "FIX_COMMITTED_PENDING_FRESH_EXACT_HEAD_CI",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "trusted_main_sha": "06de789768c2cb0d5738161997c6bf104930a174",
     "implementation_commits": [
       "ebaf1c71c903a266ebedad60aa5be4f775f67a84",
-      "e9f7a70668ce0a7314dbcd0a40f90f402389f6e6"
+      "e9f7a70668ce0a7314dbcd0a40f90f402389f6e6",
+      "941814282b98f1dca6bfca484b1c27e9176bcd98"
     ],
-    "exact_head": "READ_LIVE_FROM_PR120_AFTER_FINAL_CHECKPOINT_COMMIT",
-    "previous_blocked_head": "30e9c0399804f17cbadbc076eed4d1d48614610d",
+    "exact_head": "READ_LIVE_FROM_PR120_AFTER_FINAL_CHECKPOINT_WRITE",
+    "previous_blocked_head": "e643299a95f597da1f0226c2d52b6f4fba357b4c",
     "previous_ci": {
-      "run_id": 32596104896,
-      "run_number": 770,
-      "conclusion": "success_but_false_pass_for_species_path_p1"
+      "run_id": 32602076493,
+      "run_number": 773,
+      "run_attempt": 1,
+      "conclusion": "failure",
+      "failing_stage": "npm_test",
+      "exact_failure": "tests/pom-rx-capability-map.node.test.mjs expected /must not duplicate\\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics/s but the capability-map line wrap split 'must not' from 'duplicate'",
+      "runtime_species_regressions": "passed_before_capability_map_failure"
     },
     "repair_state": {
       "effective_constructor_species_classifier": "IMPLEMENTED",
@@ -63,11 +68,12 @@
         "attacker_selected_species_constructor"
       ],
       "strict_nonextensible_benign_alternate_constructor_regression": "IMPLEMENTED_AND_CI_WIRED",
-      "prehandled_hostile_species_accessor_zero_execution_regression": "IMPLEMENTED_AND_CI_WIRED"
+      "prehandled_hostile_species_accessor_zero_execution_regression": "IMPLEMENTED_AND_CI_WIRED",
+      "capability_map_ci_invariant_layout": "REPAIRED_IN_941814282b98f1dca6bfca484b1c27e9176bcd98_WITHOUT_TEST_WEAKENING"
     },
-    "current_ci": "PENDING_ON_FINAL_RECONCILED_EXACT_HEAD",
-    "current_owner_gate": "PENDING_NON_INDEPENDENT",
-    "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_CHATGPT_CODEX_CONNECTOR_REVIEW",
+    "current_ci": "PENDING_ON_FINAL_CHECKPOINT_HEAD_AFTER_CAPABILITY_MAP_LAYOUT_FIX",
+    "current_owner_gate": "PENDING_NON_INDEPENDENT_AFTER_GREEN_CI",
+    "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_CHATGPT_CODEX_CONNECTOR_REVIEW_AFTER_GREEN_CI",
     "merge": "BLOCKED",
     "historical_review_threads": [
       {
@@ -105,7 +111,7 @@
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "Complete the final four-file control-plane reconciliation on PR120, freeze the resulting exact head, then run canonical CI and the exact-head owner plus distinct independent review gates."
+    "next_safe_action": "Freeze the final checkpoint head after the scoped capability-map layout fix, run fresh canonical CI, then perform the exact-head five-stage owner gate and request the distinct Codex review only if CI is green."
   },
   "queue": [
     {
