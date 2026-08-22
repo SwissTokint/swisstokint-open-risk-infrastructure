@@ -22,64 +22,64 @@ integration/regression assurance is recorded as `POST_MERGE_ASSURANCE_PASS` in P
 PR #119 is terminal control-plane transition evidence. Do not create another
 docs-only successor.
 
-## `PR120_FINAL_EXACT_HEAD_CI_REQUIRED_AFTER_CONTROL_PLANE_RECONCILIATION`
+## `PR120_P1_NONEXTENSIBLE_DECORATED_REJECTED_PROMISE_CAN_ORPHAN_REJECTION_BEFORE_DRAIN`
 
-Fresh PR #120 is the active Tier-B Promise-drift/provider-boundary prerequisite
-repair from exact trusted main `e5aead...`.
+PR #120 remains **BLOCKED**.
 
-Before this same-PR control-plane reconciliation, repaired exact head
-`9b52474a2def9df2c75649eda4b81a0ca128658a` passed canonical CI run
-`32584166269` / CI 739. The control-plane updates intentionally move the head, so
-CI 739 is historical and cannot release the final frozen candidate. Read the
-live final PR head after the last owned-file commit and require canonical CI
-success on that same SHA.
+The genuinely distinct Codex review on moved head
+`5885da291d7d6b3e4541e5c00c160ffb481828b8` found P1 thread
+`PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promises must be
+drained before the gateway returns its validation failure or Node can terminate
+on an orphaned rejection.
 
-## `PR120_REJECTED_INVALID_PROMISE_DRAIN_P1_REQUIRES_FRESH_EXACT_HEAD_INDEPENDENT_VALIDATION`
+The first repair correctly added a drain before structural failure and strict-
+unhandled-rejection tests for an extensible Promise with own metadata and an
+extensible non-standard prototype. Pre-control-plane repair head
+`9b52474a2def9df2c75649eda4b81a0ca128658a` passed CI run `32584166269` /
+CI 739.
 
-A genuinely distinct `chatgpt-codex-connector` review on moved head
-`5885da291d7d6b3e4541e5c00c160ffb481828b8` found P1 on thread
-`PRRT_kwDOTiNyWc6bZjxp`: when a provider returned a rejected native Promise with
-own string metadata or a non-standard prototype, structural validation could
-fail before a rejection reaction was attached. The caller could catch the
-expected Wallet Guard validation error while Node later terminated under strict
-unhandled-rejection behavior because the provider rejection was orphaned.
+Release-owner/adversarial review `5000574562` on exact moved head
+`b7576f8e94b3379c7427a51e4113960f396ac7e8` then found a remaining P1 variant:
+`drainPromiseTransportBeforeIntegrityFailure()` attempts to define an own
+`constructor` before it attaches the captured rejection reaction. A rejected
+same-realm native Promise with benign own metadata followed by
+`Object.preventExtensions()` makes that `defineProperty` fail before the
+reaction exists. The caller can catch the Wallet Guard context error, while
+`node --unhandled-rejections=strict` still exits on the orphaned provider
+rejection. A direct Node 22.16 reproducer confirmed the primitive and exit 1.
 
-The moved-head repair calls the captured-intrinsic drain/pinning boundary before
-structural failure and adds `provider-invalid-rejected-transport.node.test.mjs`,
-which exercises own-metadata and non-standard-prototype rejected transports in a
-child process using `--unhandled-rejections=strict`. Required result remains a
-fail-closed Wallet Guard context error, zero authorization, zero continued account
-sampling and zero sensitive forwarding.
+Required closure:
 
-The historical P1 thread remains unresolved. Do not resolve it until a fresh
-genuinely distinct review validates the **final exact candidate head**. The fresh
-skeptic must also challenge rejected non-extensible/non-configurable Promise
-variants and any path where the drain can fail before attaching a rejection
-reaction or dispatch attacker-controlled code.
+- add a CI-wired strict-unhandled-rejection regression for the non-extensible
+  own-metadata rejected Promise;
+- change the drain order/strategy so every structurally invalid transport class
+  the gateway claims to drain receives a safe rejection reaction before failure;
+- make an explicit safe design/evidence decision for own non-configurable or
+  otherwise non-shadowable `constructor`/`then` cases without executing hostile
+  accessors;
+- preserve zero reference authorization and zero sensitive forwarding;
+- rerun exact-head CI, release-owner five-stage review and a **new** genuinely
+  distinct exact-head skeptical/security review after the runtime repair;
+- resolve `PRRT_kwDOTiNyWc6bZjxp` only after that fresh exact-head independent
+  validation establishes zero unresolved P0/P1/P2.
 
-## `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED_ON_FINAL_EXACT_HEAD`
+This control-plane reconciliation moves the head, so review `5000574562`, CI 739
+and Codex request comment `5381422260` are historical only as release evidence.
+The P1 itself remains active until runtime code and regression evidence change.
 
-Owner review on older PR #120 heads is stale after the repair/control-plane
-moves. The mandatory five-stage pre-merge gate must be re-run on the final frozen
-exact head. Release-owner/self evidence is explicitly non-independent and cannot
-substitute for the distinct skeptical/release lane.
+## `PR120_FINAL_EXACT_HEAD_GATES_REQUIRED_AFTER_RUNTIME_REPAIR`
 
-## `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`
+After repairing the P1 above, freeze the resulting exact head and require:
 
-PR #120 remains blocked until exact-head CI, owner review and a genuinely distinct
-exact-head skeptical/security review establish zero unresolved P0/P1/P2. The
-applicable attack families include:
+1. canonical exact-head CI success with all Promise-drift, invalid rejected-
+   transport, plain-data, scalar-list and Array-index substitution regressions;
+2. mandatory five-stage release-owner PASS on that same head;
+3. a fresh genuinely distinct exact-head `chatgpt-codex-connector` skeptical/
+   security review;
+4. zero unresolved P0/P1/P2, including validated resolution of
+   `PRRT_kwDOTiNyWc6bZjxp`.
 
-1. inherited `Promise.prototype.constructor` + `then` substitution before outer
-   async rejection is observed;
-2. own-decorated and structurally invalid rejected native Promise transport
-   handling, including process-level unhandled rejection behavior;
-3. synchronous Proxy/callable thenable dispatch before inert capture;
-4. post-import intrinsic/Array-prototype weakening of shared plain-data capture;
-5. scalar policy-list false-PASS and inherited Array-index substitution through
-   the Wallet Guard compatibility bridge;
-6. any failure path reaching reference authorization or sensitive forwarding;
-7. any accidental claim/import of the still-untrusted durable Gate composition.
+Any head move invalidates that evidence.
 
 ## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
