@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T06:17:24+02:00`
+Updated: `2026-08-22T06:19:24+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -72,9 +72,11 @@ are not proved.
   exact-head independent review and zero unresolved P0/P1/P2.
 
 At PR creation the branch head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
-and CI 678 (`32551305996`) entered the queue. This checkpoint commit moves that
-head, so the creation-time head/CI is historical only; read the final head and its
-fresh CI live after this four-file reconciliation is frozen.
+and CI 678 (`32551305996`) entered the queue. That head received an independent
+P2 asking to preserve the explicit no-authorization/no-forwarding closure for
+hostile rejected transports. This lot now restores that invariant across the
+canonical surfaces. All creation-head CI/review evidence is historical after the
+repair commits; read the final head and its fresh CI/review live.
 
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
@@ -105,9 +107,10 @@ restore or replace the CI-wired sensitive-forwarding exploit regression; require
 the durable capability claim to succeed before any observer or downstream work;
 preserve fail-closed replay, durable one-winner semantics, ordinary native-Promise
 Node/AsyncHooks bookkeeping-symbol compatibility, hardened direct non-Promise
-capture and own-decorated Promise rejection. Then require exact-head CI,
-release-owner six-lane PASS, fresh distinct exact-head independent review and
-zero unresolved P0/P1/P2 before merge.
+capture, own-decorated Promise rejection, and **zero authorization/forwarding for
+hostile rejected transports**. Then require exact-head CI, release-owner six-lane
+PASS, fresh distinct exact-head independent review and zero unresolved P0/P1/P2
+before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -197,8 +200,9 @@ must be repaired through a new PR, never direct `main`.
    a security repair.
 5. Once PR #114 is trusted, create the smallest fresh #97 runtime repair from
    then-current trusted main for Promise-prototype drift before outer async
-   assimilation, preserving durable claim-before-observer/downstream and
-   fail-closed durable one-winner behavior.
+   assimilation, preserving durable claim-before-observer/downstream, fail-closed
+   durable one-winner behavior and zero authorization/forwarding for hostile
+   rejected transports.
 6. Reconcile #93 only after #97 dependency ordering is trusted unless a separate
    reviewed dependency-order change is recorded.
 7. Start no dependent Wallet Guard E2E lot until relevant Tier-B dependencies
