@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T06:28:00+02:00`
+Updated: `2026-08-22T06:31:00+02:00`
 
 Current trusted main: `903bdb5cb26bf4069039ed114c1e6e59366bcd4e`
 
@@ -38,9 +38,10 @@ semantics and does not make PR #97 or PR #93 trusted.
 
 ## `CONTROL_PLANE_POST_PR114_RECONCILIATION_REQUIRED`
 
-Branch `docs/pom-rx-checkpoint-after-114-20260822` is the smallest bounded
-non-Tier-B reconciliation from trusted main `903bdb5...`. It exists because the
-four canonical files merged by PR #114 necessarily described the pre-merge state.
+PR #115 on branch `docs/pom-rx-checkpoint-after-114-20260822` is the smallest
+bounded non-Tier-B reconciliation from trusted main `903bdb5...`. It exists
+because the four canonical files merged by PR #114 necessarily described the
+pre-merge state.
 
 Owned surfaces are exactly:
 
@@ -49,13 +50,19 @@ Owned surfaces are exactly:
 - `POM_RX_BLOCKERS.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-Open exactly one scoped PR from this branch. No Tier-B dependency/readiness claim
-should rely on stale embedded pre-PR114 state. The reconciliation must pass fresh
-exact-head CI, release-owner five-stage control, a genuinely distinct exact-head
-independent review and zero unresolved P0/P1/P2 before merge. Any head move
-invalidates exact-head release evidence. After merge, exact-merge post-merge
-assurance is mandatory before the new merge becomes trusted coordination
-evidence.
+At PR creation the head was `9a09b4e5b45733079d60bd964185b72c71dd7872`
+and exact-head CI 688 (`32551871797`) entered `in_progress`. A fresh distinct
+Codex review was requested on that exact creation head. Subsequent canonical
+PR-number reconciliation commits moved the branch, so creation-head CI/review
+evidence is stale by rule. Read PR #115 live for the final exact head and fresh
+CI/review evidence.
+
+No Tier-B dependency/readiness claim should rely on stale embedded pre-PR114
+state. PR #115 must pass fresh exact-head CI, release-owner five-stage control, a
+genuinely distinct exact-head independent review and zero unresolved P0/P1/P2
+before merge. Any head move invalidates exact-head release evidence. After merge,
+exact-merge post-merge assurance is mandatory before the new merge becomes
+trusted coordination evidence.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -114,9 +121,8 @@ head is not eligible for standing merge authorization.
 
 PR #97's historical base `0564aecd...` trails trusted main `903bdb5...`.
 Mergeability is volatile conflict metadata only and is never proof of architecture
-reconciliation or security correctness. After the post-PR114 control-plane
-reconciliation is trusted, the repair must start fresh from then-current trusted
-main.
+reconciliation or security correctness. After PR #115 is trusted, the repair
+must start fresh from then-current trusted main.
 
 ## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
 
