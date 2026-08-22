@@ -147,13 +147,21 @@ PR #118 is terminal trusted coordination evidence. Its terminal rule prevents a
 new documentation-only checkpoint from being created merely to restate that
 terminal state.
 
-PR #119 is therefore treated only as a **transition vehicle**: it carries PR
-#118's terminal facts while promoting the next useful task, the fresh PR #97-line
-Promise-drift repair, into the active delivery slot. The earlier exact PR #119
-head `1bdb53bad6...` had CI 710 success and owner PASS/non-independent, but the
-fresh distinct Codex review raised P2 `Honor PR #118's terminal rule instead of
-creating PR #119`. That P2 is accepted; all old exact-head evidence becomes stale
-after the repair moves the branch.
+PR #119 is treated only as a **transition vehicle**: it carries PR #118's
+terminal facts while promoting the next useful task, the fresh PR #97-line
+Promise-drift repair, into the active delivery slot. Two historical exact-head
+Codex P2 findings govern the moving repair:
+
+- on `1bdb53bad6...`: `Honor PR #118's terminal rule instead of creating PR #119`;
+- on `ae856bdb2d...`: `Restore the five-stage standing-authorization prerequisite`.
+
+The first repair prevents a self-recreating documentation-only checkpoint loop and
+forbids a post-PR119 docs-only successor after trusted merge. The second repair
+restores the machine-readable requirement that standing merge authorization is
+available only after the mandatory five-stage pre-merge gate, applicable
+technical/security gates, exact-head CI, required distinct exact-head review and
+zero unresolved P0/P1/P2. Both findings remain historical until the final frozen
+PR #119 head is independently re-reviewed; moved-head CI/review evidence is stale.
 
 The repaired PR #119 head must be read live after the final owned-file commit and
 cannot merge until that same SHA has canonical CI success, release-owner
