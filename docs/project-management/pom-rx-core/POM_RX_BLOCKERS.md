@@ -1,8 +1,8 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T02:10:44+02:00`
+Updated: `2026-08-22T03:26:20+02:00`
 
-Current trusted main: `dc926bcc006255825c1598c9699264af3476c363`
+Current trusted main: `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`
 
 This file lists **current** blockers only. Historical blockers remain in Git
 history and must not be mistaken for current architecture. Live GitHub wins if a
@@ -11,65 +11,53 @@ this checkpoint.
 
 ## Control-plane state
 
-PR #110 source head `32fad9b46f281ecb99db1526244f0b187a769714`
-merged as exact main SHA `dc926bcc006255825c1598c9699264af3476c363`.
+PR #111 source head `bea88015019e3ea2cf28abf8cdc0eea7006f611c`
+merged as exact main SHA `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`.
 Source-head and merge trees are identical at
-`3e8e3d838b649866a0d062618d5245c5bfa9560f`.
+`e49008df989865b2b56b10e738d6b16571715daa`.
 
-PR #110 release evidence:
+PR #111 release evidence:
 
-- candidate CI run `32529119685` / CI 658: `success`;
+- candidate CI run `32539681161` / CI 668: `success`;
 - final release-owner gate: `PASS / NON-INDEPENDENT`, 0 P0/P1/P2;
-- fresh distinct `chatgpt-codex-connector` review on exact head `32fad9b46f`:
-  no major issues;
+- fresh distinct `chatgpt-codex-connector` exact-head review: no major issues;
 - unresolved release threads: zero;
-- canonical exact-main push CI run `32531945294` / CI 659 attempt 1: `success` on
+- canonical exact-main push CI run `32542680297` / CI 669 attempt 1: `success` on
   exact merge SHA;
-- decision-time `pom-rx/exact-main-ci`: `success`, target run 659;
+- decision-time `pom-rx/exact-main-ci`: `success`, target run 669;
 - recorded final exact-merge verdict: `POST_MERGE_ASSURANCE_PASS` across SpecKit,
   skeptical/falsification, security, code quality, optimization and
   integration/regression for the bounded documentation/control-plane scope.
 
-PR #110 is trusted coordination evidence only. It changed no runtime/security
+PR #111 is trusted coordination evidence only. It changed no runtime/security
 semantics and does not make PR #97 or PR #93 trusted.
 
-The current post-PR #110 reconciliation is PR #111 on branch
-`docs/pom-rx-checkpoint-after-110-20260822`, intentionally another bounded
+The current post-PR #111 reconciliation is PR #112 on branch
+`docs/pom-rx-checkpoint-after-111-20260822`, intentionally another bounded
 non-Tier-B documentation/control-plane lot. A merged checkpoint cannot
 self-describe its future merge SHA, so live GitHub remains authoritative for
-PR #111's moving exact head, CI and review state until this scoped reconciliation
+PR #112's moving exact head, CI and review state until this scoped reconciliation
 passes its own exact-head gates and exact-merge post-merge assurance.
 
-## `CONTROL_PLANE_POST_PR110_RECONCILIATION_REQUIRED`
+## `CONTROL_PLANE_POST_PR111_RECONCILIATION_REQUIRED`
 
-The canonical files merged by PR #110 checkpointed the state that existed before
-that merge. Live trusted main is now `dc926bcc...`; stale main/PR metadata must not
-be used as readiness or dependency evidence until PR #111 is trusted. This is
-coordination-only and does not invalidate PR #110's recorded post-merge PASS or
+The canonical files merged by PR #111 checkpointed the state that existed before
+that merge. Live trusted main is now `89816f2b...`; stale main/PR metadata must not
+be used as readiness or dependency evidence until PR #112 is trusted. This is
+coordination-only and does not invalidate PR #111's recorded post-merge PASS or
 change runtime/security semantics.
 
-Prior exact head `9cfa19cd0dfd1c237caf709c367874ad215c877e`
-had canonical CI run `32533068576` / CI 664 `success` and final release-owner
-control `PASS / NON-INDEPENDENT`. A fresh distinct exact-head Codex review then
-found two current P2s: `Reconcile PR #97 mergeability across canonical surfaces`
-and `Reconcile PR #93 mergeability across canonical surfaces`. At the repair
-decision, live GitHub revalidation reports `mergeable=true` for both exact
-historical heads. That signal is only volatile conflict metadata and remains
-non-evidentiary, but the canonical point-in-time snapshots must not contradict
-one another. This moving branch synchronizes those detailed snapshots to the same
-revalidated value.
+PR #112 owns exactly four established continuation surfaces:
 
-The earlier moved-head P2 `Restore the canonicalization/hash blocker` remains
-materially repaired: the detailed PR #93 continuation state still records the
-shared proof canonicalization/hash class, including the post-initialization
-canonicalization and SHA-256/hash hardening findings, until a repaired #93 exact
-head is independently validated.
+- `POM_RX_RESUME_CHECKPOINT.md`;
+- `POM_RX_TASKS.yaml`;
+- `POM_RX_BLOCKERS.md`;
+- `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-Because this repair moves PR #111 again, all exact-head CI/review evidence from
-`9cfa19cd...` is stale for release. Do not merge until fresh exact-head CI, owner
-control and a distinct independent review validate the new candidate with zero
-unresolved P0/P1/P2; resolve review threads only on evidence that actually
-validates their repair.
+Do not merge PR #112 until the final exact head receives fresh canonical CI,
+release-owner five-stage control, a genuinely distinct exact-head independent
+review and zero unresolved P0/P1/P2. Any head move invalidates exact-head
+release evidence.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -77,7 +65,7 @@ PR #97 remains open and **must not merge**.
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
+- trusted main: `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`;
 - live GitHub at this checkpoint reports `mergeable=true`; volatile metadata only
   and never security/release evidence;
 - exact-head CI run `32487036517` / CI 592: `success` but not security evidence;
@@ -128,12 +116,12 @@ reproducer.
 The release-owner exact-head verdict remains `BLOCK / NON-INDEPENDENT`. The
 current stale head is not eligible for standing merge authorization.
 
-## `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR110`
+## `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR111`
 
-PR #97's historical base `0564aecd...` trails trusted main `dc926bcc...`.
+PR #97's historical base `0564aecd...` trails trusted main `89816f2b...`.
 `mergeable=true/false` is only GitHub conflict metadata and must never be promoted
 to proof of architecture reconciliation or security correctness. After the
-current post-PR110 control-plane checkpoint is trusted, the repair lot must start
+current post-PR111 control-plane checkpoint is trusted, the repair lot must start
 fresh from then-current trusted main.
 
 ## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
@@ -149,7 +137,7 @@ PR #93 remains open and untrusted.
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
+- trusted main: `89816f2bfcc97a77cd4cbc67cd3b2968800938fa`;
 - live GitHub at this checkpoint reports `mergeable=true`; volatile metadata only;
 - exact-head CI run `32465835858` / CI 541: `success` but not release evidence;
 - latest distinct review evidence found in the PR record covers moved head
