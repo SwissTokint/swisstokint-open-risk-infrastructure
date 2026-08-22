@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T06:17:24+02:00`
+Updated: `2026-08-22T06:19:24+02:00`
 
 Current trusted main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`
 
@@ -48,10 +48,13 @@ Owned surfaces are exactly:
 - `POM_RX_BLOCKERS.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-At PR creation the head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
-and CI 678 (`32551305996`) entered the queue. Later checkpoint reconciliation
-commits moved the head, so creation-time exact-head evidence is stale by rule.
-Read PR #114 live for the final exact head and its fresh CI/review evidence.
+At PR creation the head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`.
+A distinct Codex review on that moved head raised P2 `Preserve the no-forwarding
+closure invariant`: the shortened #97 repair contract had dropped the explicit
+requirement for zero authorization and forwarding on hostile rejected transports.
+The current repair restores that invariant across all four canonical surfaces.
+Creation-head CI/review evidence is stale; read PR #114 live for the final exact
+head and fresh CI/review evidence.
 
 No Tier-B dependency/readiness claim should rely on stale embedded pre-PR113
 state. PR #114 must pass fresh exact-head CI, release-owner five-stage control, a
@@ -94,7 +97,8 @@ Required closure:
   so losing contenders cannot enter security-sensitive paths;
 - preserve fail-closed replay, durable one-winner behavior, ordinary native-
   Promise Node/AsyncHooks bookkeeping-symbol compatibility, hardened direct non-
-  Promise object/function capture and own native-Promise-decoration rejection;
+  Promise object/function capture, own native-Promise-decoration rejection, and
+  **zero authorization/forwarding for hostile rejected transports**;
 - rerun exact-head CI and release-owner six-lane review;
 - obtain a fresh distinct exact-head independent skeptical/security review;
 - resolve only findings whose repair is validated on that same exact head;
