@@ -52,9 +52,7 @@ remain unproved. Maximum claim remains
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- live state before this control-plane reconciliation: `OPEN / READY_FOR_REVIEW /
-  MERGEABLE / NOT_TRUSTED`;
-- pre-reconciliation repair head: `9b52474a2def9df2c75649eda4b81a0ca128658a`.
+- state: `OPEN / READY_FOR_REVIEW / NOT_TRUSTED / BLOCKED_P1`.
 
 ### Repair history and current evidence
 
@@ -93,50 +91,57 @@ remain unproved. Maximum claim remains
   a non-standard prototype could be rejected structurally without first attaching
   a rejection reaction, leaving an orphaned rejection that can terminate Node
   under strict unhandled-rejection behavior;
-- the repair adds `drainPromiseTransportBeforeIntegrityFailure()` to the invalid
-  structural transport branch before fail-closed rejection, using captured
-  Promise/Object intrinsics, and adds CI-wired
-  `provider-invalid-rejected-transport.node.test.mjs` cases for own metadata and
-  non-standard prototype under `--unhandled-rejections=strict`, requiring the
-  gateway error plus zero authorization, zero account continuation and zero
-  sensitive forwarding;
-- pre-reconciliation repair head `9b52474a2def9df2c75649eda4b81a0ca128658a`
-  passed canonical exact-head CI run `32584166269` / CI 739. That CI proves the
-  repaired code/test state before this control-plane write only; this bookkeeping
-  commit moves the head, so CI 739 and all earlier exact-head review evidence are
-  historical for release.
+- the moved-head repair adds `drainPromiseTransportBeforeIntegrityFailure()` to
+  the invalid structural transport branch before fail-closed rejection and adds
+  `provider-invalid-rejected-transport.node.test.mjs` cases for extensible own
+  metadata and an extensible non-standard prototype under
+  `--unhandled-rejections=strict`;
+- pre-control-plane repair head `9b52474a2def9df2c75649eda4b81a0ca128658a`
+  passed canonical exact-head CI run `32584166269` / CI 739. The later
+  control-plane reconciliation moved the head, so CI 739 is historical release
+  evidence only;
+- release-owner/adversarial review `5000574562` on exact head
+  `b7576f8e94b3379c7427a51e4113960f396ac7e8` found a **new P1 variant in the
+  same drain boundary**: `drainPromiseTransportBeforeIntegrityFailure()` first
+  tries to define an own `constructor` and only then attaches the captured
+  rejection reaction. A rejected same-realm native Promise with ordinary own
+  metadata followed by `Object.preventExtensions()` therefore makes that first
+  `defineProperty` throw before any reaction is attached. The gateway error can
+  be caught while `node --unhandled-rejections=strict` still terminates on the
+  orphaned provider rejection. A direct Node 22.16 reproducer confirmed exit 1;
+- the same owner review requires an explicit design/evidence decision for
+  non-shadowable own `constructor`/`then` cases so the implementation does not
+  silently choose between hostile accessor dispatch and an orphaned rejection.
 
-The Codex P1 thread `PRRT_kwDOTiNyWc6bZjxp` remains intentionally unresolved.
-Resolve it only after a fresh genuinely distinct review validates the **final
-frozen exact head** containing the repair. A release-owner/self review is not
-independent evidence.
+The exact `b7576f8e...` owner review is non-independent and this control-plane
+write moves the head, so the review is historical as release evidence; its P1
+finding remains an active blocker because no runtime repair has yet occurred.
+The earlier Codex thread `PRRT_kwDOTiNyWc6bZjxp` also remains intentionally
+unresolved. The fresh Codex request comment `5381422260` targeted `b7576f8e...`
+and likewise becomes stale after this bookkeeping move; do not count any later
+result on that moved SHA as final release evidence.
 
 The PR #120 exact final head is intentionally not self-embedded in this moving
 file because doing so would create an infinite head-changing loop. Read the live
-PR head, final exact-head CI, reviews and threads after the last control-plane
-commit and record that frozen SHA in the PR conversation.
+PR head after the last owned-file commit and record the exact SHA in the PR
+conversation.
 
-### Bounded scope
+### Bounded scope and acceptance
 
 PR #120 starts from trusted main rather than merging/rebasing/reviving stale PR
-#97. The bounded prerequisite scope is:
+#97. The bounded prerequisite must:
 
-- fail closed if inherited `Promise.prototype.constructor` or `then` drift before
-  a provider Promise is safely assimilated;
-- pin load-bearing internal async Promises with captured own `constructor`/`then`
-  data properties before parent awaits;
-- drain structurally invalid rejected native Promise transports before returning
-  the fail-closed gateway validation error, without trusting hostile inherited
-  Promise dispatch;
-- preserve own-decorated native-Promise rejection without attacker getter
-  execution and preserve ordinary own-symbol bookkeeping compatibility;
-- preserve hardened synchronous non-Promise/plain-data capture through shared
-  Core;
-- preserve controlled-host compatibility without relaxing the hardened Core
-  snapshot or historical strict standard-array policy boundary;
-- reject scalar policy-list coercion;
-- prevent inherited Array index setters from substituting bridged policy or
-  provider-account data;
+- fail closed before inherited `Promise.prototype.constructor`/`then` drift can
+  substitute provider context;
+- pin load-bearing internal async Promises with captured own Promise data
+  properties before parent awaits;
+- safely drain every structurally invalid rejected native Promise class that the
+  implementation claims to handle before returning the gateway validation error;
+- preserve zero hostile `constructor`/`then` getter execution for decorated
+  Promise rejection paths;
+- preserve hardened synchronous non-Promise/plain-data capture through Core;
+- preserve controlled-host compatibility without scalar coercion or inherited
+  Array-index substitution;
 - require hostile rejected context transports to yield **zero reference
   authorization and zero sensitive forwarding**.
 
@@ -144,27 +149,20 @@ This lot does **not** establish trusted durable Gate composition. The historical
 PR #97 durable-claim composition remains a separate untrusted dependency to be
 reconstructed/reviewed only after this prerequisite closes.
 
-### Skeptical hypotheses mapped to CI-wired evidence
+### Skeptical hypotheses
 
-1. inherited Promise constructor/then poisoning can convert rejected chain/account
-   reads into stable attacker context and reach authorization/forwarding;
-2. own Promise `constructor`/`then` accessors can dispatch during assimilation;
+1. inherited Promise constructor/then poisoning can convert rejected reads into
+   stable attacker context and reach authorization/forwarding;
+2. own Promise accessors can dispatch during assimilation;
 3. structurally invalid rejected native Promises can become process-level orphaned
-   rejections before the gateway fails closed;
-4. synchronous Array/Object/callable Proxies can dispatch `then`/reflection traps
-   before the inert-data boundary;
-5. hardened Core snapshot-array prototypes can break application composition and
-   tempt a fail-open relaxation of the public policy boundary;
-6. a representation bridge can coerce invalid scalar list values into valid empty
-   arrays and silently reduce policy controls;
-7. an inherited Array index setter can rewrite bridge/provider-account elements
-   while still leaving a dense ordinary frozen array that later validators accept.
-
-The fresh exact-head independent skeptic must additionally challenge rejected
-non-extensible/non-configurable native Promise variants and any path where draining
-itself could dispatch attacker-controlled code or fail before a rejection reaction
-is attached. Any plausible unresolved path is a release blocker, not a compatibility
-waiver.
+   rejections before fail-closed validation, including non-extensible metadata and
+   non-shadowable constructor/then variants;
+4. synchronous Array/Object/callable Proxies can dispatch before inert capture;
+5. shared plain-data hardening can be weakened by post-import intrinsic drift;
+6. policy/account bridges can false-PASS via scalar coercion or inherited Array
+   index setters;
+7. this prerequisite can accidentally overclaim or import durable Gate
+   composition.
 
 ## blocked_historical_prs
 
@@ -178,7 +176,7 @@ waiver.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- exact live head at this checkpoint: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
+- exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - CI 541: `success` but not release evidence;
 - owner/distinct review evidence is stale on an older moved head;
 - unresolved P1/P2 classes include negative-zero identity, typed-data wrapper
@@ -189,14 +187,16 @@ waiver.
 
 ## current_blockers
 
-1. `PR120_FINAL_EXACT_HEAD_CI_REQUIRED_AFTER_CONTROL_PLANE_RECONCILIATION`.
-2. `PR120_REJECTED_INVALID_PROMISE_DRAIN_P1_REQUIRES_FRESH_EXACT_HEAD_INDEPENDENT_VALIDATION`.
-3. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED_ON_FINAL_EXACT_HEAD`.
-4. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
-5. `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`.
-6. `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_PR120`.
-7. `DAGR_SOURCE_DOCUMENT_MISSING`.
-8. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
+1. `PR120_P1_NONEXTENSIBLE_DECORATED_REJECTED_PROMISE_CAN_ORPHAN_REJECTION_BEFORE_DRAIN`.
+2. `PR120_NONSHADOWABLE_PROMISE_CONSTRUCTOR_THEN_DRAIN_BOUNDARY_REQUIRES_EXPLICIT_SAFE_DESIGN`.
+3. `PR120_FINAL_EXACT_HEAD_CI_REQUIRED_AFTER_RUNTIME_REPAIR`.
+4. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_REQUIRED_AFTER_RUNTIME_REPAIR`.
+5. `PR120_DISTINCT_EXACT_HEAD_INDEPENDENT_REVIEW_REQUIRED_AFTER_RUNTIME_REPAIR`.
+6. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_ESTABLISHED`.
+7. `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`.
+8. `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_PR120`.
+9. `DAGR_SOURCE_DOCUMENT_MISSING`.
+10. `PRODUCTION_TRUST_UNPROVED / REAL_WALLET_NOT_AUTHORIZED`.
 
 ## merge_and_post_merge_rules
 
@@ -215,24 +215,23 @@ integration/regression assurance with one final verdict:
 
 ## next_safe_actions
 
-1. Finish this same useful PR #120 control-plane reconciliation; do not create a
-   separate docs-only successor.
-2. Freeze the resulting exact PR #120 head and record that SHA in the PR
-   conversation.
-3. Require canonical CI success on that exact SHA, including the original
-   Promise-drift exploit, shared plain-data hardening, invalid rejected-Promise
-   drain regression, scalar policy-list negatives, both inherited
-   Array-index-setter regressions and full workflow.
-4. Re-run the release-owner five-stage gate on that exact repaired head.
-5. Obtain a fresh genuinely distinct exact-head skeptical/security review that
-   validates the rejected-transport P1 repair and all prior attack families. Do
-   not resolve the Codex P1 thread before that validation.
-6. Merge only if every exact-head gate passes unchanged and zero unresolved
-   P0/P1/P2 remain; immediately run exact-merge post-merge assurance before
-   trusting the dependency.
-7. Reconstruct durable claim-before-observer/downstream composition as a separate
-   bounded Tier-B lot only after PR #120 becomes trusted.
-8. Reconcile PR #93 only after the trusted prerequisite order permits it.
+1. Repair the non-extensible decorated rejected-Promise drain path in the same
+   bounded PR #120 and add a strict-unhandled-rejection regression; explicitly
+   handle or bound non-shadowable own constructor/then cases without executing
+   hostile accessors.
+2. Reconcile this same useful PR's control plane after the runtime/test repair;
+   do not create a docs-only successor.
+3. Freeze the resulting exact head and require canonical exact-head CI.
+4. Re-run the release-owner five-stage gate.
+5. Request a **new** genuinely distinct exact-head Codex skeptical/security
+   review; prior requests/reviews on moved heads are history only.
+6. Resolve `PRRT_kwDOTiNyWc6bZjxp` only after the fresh exact-head independent
+   reviewer validates the final repaired boundary and zero P0/P1/P2 remain.
+7. Merge only if every exact-head gate passes unchanged; immediately run exact-
+   merge post-merge assurance before trusting PR #120.
+8. Reconstruct durable claim-before-observer/downstream composition only after
+   PR #120 is trusted; reconcile PR #93 afterwards unless dependency ordering is
+   separately reviewed.
 
 ## safety_boundary
 
