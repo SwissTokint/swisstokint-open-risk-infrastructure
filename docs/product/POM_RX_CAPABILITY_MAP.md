@@ -136,15 +136,24 @@ optimization and integration/regression checks are recorded as
 `POST_MERGE_ASSURANCE_PASS` in PR #117 issue comment `5378949128` for the bounded
 documentation/control-plane scope.
 
-PR #117 changed no runtime/security semantics. A bounded post-PR117 reconciliation
-is prepared from exact trusted main on branch
-`docs/pom-rx-checkpoint-after-117-20260822` because a merged checkpoint cannot
-self-describe its own future merge SHA. To avoid duplicate pull requests, inspect
-live GitHub for an open PR whose exact head branch is that branch and create one
-only if none exists. Do not self-embed its moving exact head in these canonical
-files; read its final exact head, CI, reviews and threads live after the final
-owned-file commit. Until that reconciliation passes its own exact-head gates and
-post-merge assurance, live GitHub remains authoritative for volatile state.
+PR #117 changed no runtime/security semantics. The bounded post-PR117
+reconciliation is active as PR #118 on branch
+`docs/pom-rx-checkpoint-after-117-20260822` from exact trusted main. Its first
+candidate head `84220a2ec54b8e886a45b472daa9330b0eb847bb` failed canonical CI
+`32559140330` / CI 699 at `npm test` because paragraph reflow split the stable
+repository-tested phrase `Blockchain and digital assets`. This documentation-only
+repair restores the phrase and does not weaken or edit the test. Independent
+review request comment `5378995887` targeted that first head, while distinct
+`chatgpt-codex-connector` comment `5379001143` reported a usage-limit exhaustion;
+there is therefore no independent approval on that candidate, and the evidence
+is stale after the repair moves the head.
+
+The repaired current/final PR #118 exact head, CI, reviews and threads must be
+read live after the final owned-file commit rather than self-embedded in these
+moving canonical files. PR #118 cannot merge until the same frozen exact head has
+canonical CI success, release-owner five-stage PASS, a genuinely distinct
+exact-head independent review and zero unresolved P0/P1/P2. Until then, live
+GitHub remains authoritative for volatile state.
 
 ### Proof transport and anchoring
 
@@ -200,9 +209,9 @@ adapters.
 
 `POM-RX Wallet Guard` is one application profile inside this block. It is not
 POM-RX as a whole and must not replace the shared Core, Witness, Gate, observation
-or reconciliation semantics. Wallet Guard's primary product home is Blockchain
-and digital assets, while its defensive control model also overlaps the
-Cybersecurity block.
+or reconciliation semantics. Wallet Guard's primary product home is
+Blockchain and digital assets, while its defensive control model also overlaps
+ the Cybersecurity block.
 
 ## 4. Wallet Guard position
 
