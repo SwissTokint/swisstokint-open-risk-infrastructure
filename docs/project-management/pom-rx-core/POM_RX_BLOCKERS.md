@@ -15,71 +15,62 @@ merged as exact main SHA `e5aead150a2ed5f390593cc2d9d307defdd79bdc`.
 Its frozen exact-head CI passed, release-owner gate passed non-independently, a
 distinct exact-head `chatgpt-codex-connector` review reported no major issues,
 and exact-main push CI `32575110984` / CI 720 passed on the merge SHA. Exact-
-merge SpecKit, skeptical/falsification, security, code-quality, optimization and
-integration/regression assurance is recorded as `POST_MERGE_ASSURANCE_PASS` in PR
-#119 issue comment `5380609307`.
-
-PR #119 is terminal control-plane transition evidence. Do not create another
+merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #119 comment `5380609307`.
+PR #119 is terminal control-plane transition evidence; do not create another
 docs-only successor.
 
-## `PR120_P1_NONEXTENSIBLE_DECORATED_REJECTED_PROMISE_CAN_ORPHAN_REJECTION_BEFORE_DRAIN`
+## `PR120_P1_ATTACH_REJECTION_REACTION_BEFORE_FALLIBLE_PROMISE_PINNING`
 
-PR #120 remains **BLOCKED**.
+PR #120 is **BLOCKED** on a confirmed Tier-B P1.
 
-The genuinely distinct Codex review on moved head
-`5885da291d7d6b3e4541e5c00c160ffb481828b8` found P1 thread
-`PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promises must be
-drained before the gateway returns its validation failure or Node can terminate
-on an orphaned rejection.
+Distinct Codex review on moved head
+`5885da291d7d6b3e4541e5c00c160ffb481828b8` first opened P1 thread
+`PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promises could be
+rejected before a rejection reaction was attached.
 
-The first repair correctly added a drain before structural failure and strict-
-unhandled-rejection tests for an extensible Promise with own metadata and an
-extensible non-standard prototype. Pre-control-plane repair head
-`9b52474a2def9df2c75649eda4b81a0ca128658a` passed CI run `32584166269` /
-CI 739.
+After the first drain repair, a fresh dedicated Codex review on exact moved head
+`b7576f8e94b3379c7427a51e4113960f396ac7e8` opened P1 thread
+`PRRT_kwDOTiNyWc6bZ6tx`: `drainPromiseTransportBeforeIntegrityFailure()` still
+performs a fallible own-`constructor` `defineProperty` before attaching the
+captured rejection reaction. A rejected native Promise with benign own metadata
+plus `Object.preventExtensions()`, or a non-configurable own constructor, can
+therefore still orphan the provider rejection. Under
+`node --unhandled-rejections=strict` the caller may catch the Wallet Guard error
+but the process still terminates. Release-owner review `5000574562` independently
+reproduced the non-extensible metadata primitive on Node 22.16 and reached the
+same P1 conclusion; that owner evidence is non-independent but corroborating.
 
-Release-owner/adversarial review `5000574562` on exact moved head
-`b7576f8e94b3379c7427a51e4113960f396ac7e8` then found a remaining P1 variant:
-`drainPromiseTransportBeforeIntegrityFailure()` attempts to define an own
-`constructor` before it attaches the captured rejection reaction. A rejected
-same-realm native Promise with benign own metadata followed by
-`Object.preventExtensions()` makes that `defineProperty` fail before the
-reaction exists. The caller can catch the Wallet Guard context error, while
-`node --unhandled-rejections=strict` still exits on the orphaned provider
-rejection. A direct Node 22.16 reproducer confirmed the primitive and exit 1.
+The falsification gap is now CI-visible rather than hidden:
 
-Required closure:
+- `tests/wallet-guard/provider-invalid-rejected-transport.node.test.mjs` contains
+  strict child cases for ordinary own metadata, non-standard prototype,
+  `metadata-nonextensible`, and `constructor-nonconfigurable`;
+- `package.json` now includes that file in
+  `test:pom-rx:wallet-guard-provider-gate`, which is reached by full `npm test`;
+- this repairs Codex P2 thread `PRRT_kwDOTiNyWc6bZ6tz` at the implementation
+  level, but that thread stays unresolved until a fresh exact-head reviewer
+  validates the wiring;
+- pre-checkpoint branch head `6911eaeeb2a0a89ccefceebeb7b6e03b64c97d15`
+  contained the CI wiring + expected-red cases. No workflow run was associated
+  with that exact SHA at the decision-time recheck; this control-plane write moves
+  the head again.
 
-- add a CI-wired strict-unhandled-rejection regression for the non-extensible
-  own-metadata rejected Promise;
-- change the drain order/strategy so every structurally invalid transport class
-  the gateway claims to drain receives a safe rejection reaction before failure;
-- make an explicit safe design/evidence decision for own non-configurable or
-  otherwise non-shadowable `constructor`/`then` cases without executing hostile
-  accessors;
-- preserve zero reference authorization and zero sensitive forwarding;
-- rerun exact-head CI, release-owner five-stage review and a **new** genuinely
-  distinct exact-head skeptical/security review after the runtime repair;
-- resolve `PRRT_kwDOTiNyWc6bZjxp` only after that fresh exact-head independent
-  validation establishes zero unresolved P0/P1/P2.
-
-This control-plane reconciliation moves the head, so review `5000574562`, CI 739
-and Codex request comment `5381422260` are historical only as release evidence.
-The P1 itself remains active until runtime code and regression evidence change.
+Runtime closure still requires changing the drain strategy so the newly wired
+non-extensible/non-configurable cases become green **without deleting or weakening
+the tests**, without executing hostile constructor/then accessors merely to mark
+a transport handled, and with zero authorization/zero sensitive forwarding.
+If a non-shadowable accessor variant cannot be safely drained with the captured
+standard intrinsics, the supported claim must be narrowed explicitly and tested;
+it may not remain an implicit false-PASS.
 
 ## `PR120_FINAL_EXACT_HEAD_GATES_REQUIRED_AFTER_RUNTIME_REPAIR`
 
-After repairing the P1 above, freeze the resulting exact head and require:
-
-1. canonical exact-head CI success with all Promise-drift, invalid rejected-
-   transport, plain-data, scalar-list and Array-index substitution regressions;
-2. mandatory five-stage release-owner PASS on that same head;
-3. a fresh genuinely distinct exact-head `chatgpt-codex-connector` skeptical/
-   security review;
-4. zero unresolved P0/P1/P2, including validated resolution of
-   `PRRT_kwDOTiNyWc6bZjxp`.
-
-Any head move invalidates that evidence.
+After the P1 runtime repair, freeze one exact head and require canonical exact-head
+CI, the mandatory five-stage release-owner gate, a fresh genuinely distinct
+exact-head Codex skeptical/security review, and zero unresolved P0/P1/P2. Only
+then may threads `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx` and
+`PRRT_kwDOTiNyWc6bZ6tz` be resolved. Any head move invalidates the release
+evidence.
 
 ## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
@@ -87,38 +78,26 @@ Historical PR #97 remains open and **must not merge**.
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- exact-head CI `32487036517` / CI 592: `success` but not security evidence;
-- release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
-- exact-head P1: `Reject Promise drift before entering async layers`.
+- exact-head CI 592: `success` but not security evidence;
+- release-owner verdict: `BLOCK / NON-INDEPENDENT`.
 
-Its green CI is a false PASS for the security property. PR #120 supersedes the
-Promise-boundary repair through a fresh trusted-main implementation; PR #97 must
-not be revived, rebased or merged wholesale.
+PR #120 supersedes only the Promise-boundary repair through a fresh trusted-main
+implementation; PR #97 must not be revived, rebased or merged wholesale.
 
 ## `CORE_DURABLE_GATE_COMPOSITION_NOT_YET_TRUSTED`
 
 Trusted main still has a process-local single-use Gate and a **separate**
-filesystem durable claim primitive. A reviewed durable claim-before-observer/
-downstream Gate composition is not trusted yet. PR #120 intentionally closes the
-Promise/provider-boundary prerequisite only. Durable composition must be
-reconstructed as a separately bounded Tier-B lot after PR #120 is trusted,
-preserving fail-closed replay and durable one-winner behavior.
+filesystem durable claim primitive. Reviewed durable claim-before-observer/
+downstream composition is not trusted. Reconstruct it as a separate bounded
+Tier-B lot only after PR #120 is trusted.
 
 ## `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_PR120`
 
-PR #93 remains open and untrusted.
-
-- exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
-- historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- exact-head CI `32465835858` / CI 541: `success` but not release evidence;
-- latest release-owner/distinct evidence is stale on moved head `03e0201c9f...`;
-- unresolved current/non-outdated P1/P2 classes include exact negative-zero
-  identity, typed-data wrapper normalization, generic-signature exact-value
-  commitment, nested saved-reflection capture and shared proof
-  canonicalization/SHA-256/hash hardening.
-
-Keep PR #93 ordered after trusted PR #120 and the required shared-Core dependency
-work unless a separately reviewed dependency decision changes that order.
+PR #93 remains open/untrusted at
+`c4e40ceb286f4e59657767661daed15d2b68e9a7`; historical CI 541 is not release
+evidence and unresolved P1/P2 classes remain. Keep it ordered after trusted PR
+#120 and required shared-Core work unless a separately reviewed dependency
+change is recorded.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
@@ -127,11 +106,10 @@ controls, scores or claims without authorized source material.
 
 ## `PRODUCTION_TRUST_UNPROVED`
 
-Reference components do not prove production issuer/operator authorization,
-trusted time, KMS/HSM custody, distributed revocation/consensus, crash recovery,
-external observer independence, external execution/effect truth or arbitrary
-browser/provider integrity. No production-readiness claim may rely on the current
-reference harness alone.
+Production issuer/operator authorization, trusted time, KMS/HSM custody,
+distributed revocation/consensus, crash recovery, external observer independence,
+external execution/effect truth and arbitrary browser/provider integrity remain
+unproved.
 
 ## `REAL_WALLET_NOT_AUTHORIZED`
 
