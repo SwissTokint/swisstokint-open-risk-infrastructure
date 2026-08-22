@@ -1,7 +1,13 @@
+import { types as utilTypes } from 'node:util';
+
 import {
   canonicalizePayload,
   sha256Hex,
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
+import {
+  REFERENCE_PLAIN_DATA_LIMITS,
+  captureReferencePlainDataOutcome,
+} from '../../../core/reference-data/plain-data-snapshot.mjs';
 import {
   WalletGuardDecoderError,
   decodeTransactionCalldata,
@@ -29,6 +35,77 @@ const NORMALIZE_KEYS = Object.freeze([
 ]);
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
 const normalizedIntentBrand = new WeakSet();
+
+// Intent provenance, request-wrapper reflection and the transaction-field
+// allowlist are security-critical application-profile state. Capture their
+// intrinsics once so later same-realm prototype/global mutation cannot forge
+// local intent provenance, prevent new intents from being branded, turn an
+// accessor/Proxy into accepted request data, hide wrapper decorations, or widen
+// the accepted transaction envelope. Poisoning before module initialization
+// remains outside this scoped guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PROTOTYPE = Array.prototype;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const OBJECT_PROTOTYPE = Object.prototype;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const SET_HAS = Set.prototype.has;
+const WEAK_SET_ADD = WeakSet.prototype.add;
+const WEAK_SET_HAS = WeakSet.prototype.has;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function numberIsSafeInteger(value) {
+  return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function objectGetOwnPropertyDescriptor(value, key) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [value, key]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function weakSetAdd(set, value) {
+  REFLECT_APPLY(WEAK_SET_ADD, set, [value]);
+}
+
+function weakSetHas(set, value) {
+  return REFLECT_APPLY(WEAK_SET_HAS, set, [value]);
+}
 
 export const WALLET_GUARD_INTENT_KEYS = Object.freeze([
   'schema_version',
@@ -65,15 +142,92 @@ function fail(code, message) {
   throw new WalletGuardIntentError(code, message);
 }
 
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
 function assertExactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    fail('POMRX_WG_E_REQUEST_INVALID', `${label} must be an object`);
+  if (!value
+      || typeof value !== 'object'
+      || isProxy(value)
+      || arrayIsArray(value)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} must be a non-Proxy plain object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
-    fail('POMRX_WG_E_REQUEST_INVALID', `${label} has missing or unknown fields`);
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} cannot contain symbol keys`);
+  }
+
+  const names = objectGetOwnPropertyNames(value);
+  if (names.length !== expected.length) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label} has missing, hidden or unknown fields`);
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  for (const key of expected) {
+    if (!objectHasOwn(descriptors, key)
+        || !isOwnEnumerableDataDescriptor(descriptors[key])) {
+      fail('POMRX_WG_E_REQUEST_INVALID', `${label}.${key} must be an enumerable data property`);
+    }
+  }
+}
+
+function validateExactRequestWrapper(request) {
+  const label = 'EIP-1193 request';
+  assertExactKeys(request, REQUEST_KEYS, label);
+  const requestDescriptors = objectGetOwnPropertyDescriptors(request);
+  const params = requestDescriptors.params.value;
+  if (!params
+      || typeof params !== 'object'
+      || isProxy(params)
+      || !arrayIsArray(params)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must be a non-Proxy array`);
+  }
+  if (objectGetPrototypeOf(params) !== ARRAY_PROTOTYPE) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must use Array.prototype`);
+  }
+  if (objectGetOwnPropertySymbols(params).length !== 0) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params cannot contain symbol keys`);
+  }
+
+  const lengthDescriptor = objectGetOwnPropertyDescriptor(params, 'length');
+  if (!lengthDescriptor
+      || !objectHasOwn(lengthDescriptor, 'value')
+      || !numberIsSafeInteger(lengthDescriptor.value)
+      || lengthDescriptor.value < 0
+      || lengthDescriptor.value > REFERENCE_PLAIN_DATA_LIMITS.max_array_length
+      || objectHasOwn(lengthDescriptor, 'get')
+      || objectHasOwn(lengthDescriptor, 'set')) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params has an invalid array length`);
+  }
+
+  const length = lengthDescriptor.value;
+  const paramNames = objectGetOwnPropertyNames(params);
+  if (paramNames.length !== length + 1) {
+    fail('POMRX_WG_E_REQUEST_INVALID', `${label}.params must be dense and undecorated`);
+  }
+  const paramDescriptors = objectGetOwnPropertyDescriptors(params);
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = paramDescriptors[String(index)];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail(
+        'POMRX_WG_E_REQUEST_INVALID',
+        `${label}.params[${index}] must be an enumerable data property`,
+      );
+    }
+  }
+
+  return Object.freeze({
+    method: requestDescriptors.method.value,
+    params,
+  });
 }
 
 function normalizeTrustedOrigin(value) {
@@ -93,12 +247,10 @@ function normalizeTrustedOrigin(value) {
 }
 
 function normalizeRequest(request) {
-  assertExactKeys(request, REQUEST_KEYS, 'EIP-1193 request');
-  if (typeof request.method !== 'string' || !RPC_METHOD_PATTERN.test(request.method)) {
+  const wrapper = validateExactRequestWrapper(request);
+  if (typeof wrapper.method !== 'string'
+      || !RPC_METHOD_PATTERN.test(wrapper.method)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'RPC method is invalid');
-  }
-  if (!Array.isArray(request.params)) {
-    fail('POMRX_WG_E_REQUEST_INVALID', 'RPC params must be an array');
   }
   return request;
 }
@@ -107,16 +259,28 @@ function normalizeSendTransaction(request, trustedAccount) {
   if (request.params.length !== 1) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'eth_sendTransaction requires exactly one transaction object');
   }
-  const tx = request.params[0];
-  if (!tx || typeof tx !== 'object' || Array.isArray(tx)) {
-    fail('POMRX_WG_E_REQUEST_INVALID', 'transaction must be an object');
+
+  // The simulator later treats nested request payload as inert Core reference
+  // data. Cross that same boundary before decoding so a locally normalized
+  // simulation-required transaction cannot retain hidden fields, symbols,
+  // accessors, custom prototypes or nested Proxies that simulation would reject.
+  const txCapture = captureReferencePlainDataOutcome(
+    request.params[0],
+    'Wallet Guard transaction normalization',
+  );
+  if (!txCapture.ok
+      || !txCapture.value
+      || typeof txCapture.value !== 'object'
+      || arrayIsArray(txCapture.value)) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'transaction must be bounded inert plain data');
   }
-  for (const key of Object.keys(tx)) {
-    if (!SEND_TX_KEYS.has(key)) {
+  const tx = txCapture.value;
+  for (const key of objectGetOwnPropertyNames(tx)) {
+    if (!setHas(SEND_TX_KEYS, key)) {
       fail('POMRX_WG_E_REQUEST_INVALID', `unsupported transaction field: ${key}`);
     }
   }
-  if (!Object.hasOwn(tx, 'from') || !Object.hasOwn(tx, 'to')) {
+  if (!objectHasOwn(tx, 'from') || !objectHasOwn(tx, 'to')) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'transaction from and to are required');
   }
 
@@ -156,7 +320,24 @@ function normalizeTypedDataRequest(request, trustedAccount) {
   if (requestedAccount !== trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'typed data account does not match trusted active account');
   }
-  const decoded = decodeTypedData(request.params[1]);
+
+  // Keep the normalization boundary consistent with the simulation boundary for
+  // typed-data payloads. The shared capture rejects hidden/non-enumerable fields,
+  // symbols, custom array prototypes, sparse/decorated arrays, accessors and
+  // Proxies without widening any shared limit. The typed-data payload receives
+  // the same full 1,000-node/depth/string budget as the decoder itself.
+  const typedDataCapture = captureReferencePlainDataOutcome(
+    request.params[1],
+    'Wallet Guard typed data normalization',
+  );
+  if (!typedDataCapture.ok) {
+    fail(
+      'POMRX_WG_E_REQUEST_INVALID',
+      'typed data must be bounded inert plain data',
+    );
+  }
+
+  const decoded = decodeTypedData(typedDataCapture.value);
   if (decoded.request_class === 'permit_eip2612' && decoded.typed_data_owner !== trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'Permit owner does not match trusted active account');
   }
@@ -182,9 +363,23 @@ function normalizeGenericSignature(request) {
   if (request.params.length < 1 || request.params.length > 2) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${request.method} has an unsupported parameter shape`);
   }
+
+  // Preserve the historical generic-signature budget exactly: normalization has
+  // always budgeted the projection `{ params: request.params }`, not the outer
+  // EIP-1193 method wrapper. Capture that same projection through the shared
+  // inert-data boundary before canonicalization. This rejects nested decoration
+  // and Proxies now while retaining the accepted 1,000-node boundary.
+  const payloadCapture = captureReferencePlainDataOutcome(
+    { params: request.params },
+    'Wallet Guard generic signature normalization',
+  );
+  if (!payloadCapture.ok) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'generic signature payload is outside bounded inert form');
+  }
+
   let canonicalParams;
   try {
-    canonicalParams = canonicalizePayload({ params: request.params });
+    canonicalParams = canonicalizePayload(payloadCapture.value);
   } catch {
     fail('POMRX_WG_E_REQUEST_INVALID', 'generic signature payload is outside bounded canonical form');
   }
@@ -207,12 +402,17 @@ function normalizeGenericSignature(request) {
 }
 
 function normalizeUnsupportedRpc(request) {
+  const requestCapture = captureReferencePlainDataOutcome(
+    { method: request.method, params: request.params },
+    'Wallet Guard unsupported RPC normalization',
+  );
+  if (!requestCapture.ok) {
+    fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported RPC payload is outside bounded inert form');
+  }
+
   let canonicalRequest;
   try {
-    canonicalRequest = canonicalizePayload({
-      method: request.method,
-      params: request.params,
-    });
+    canonicalRequest = canonicalizePayload(requestCapture.value);
   } catch {
     fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported RPC payload is outside bounded canonical form');
   }
@@ -316,10 +516,23 @@ export function validateWalletGuardIntent(intent) {
 }
 
 export function isLocallyNormalizedWalletGuardIntent(intent) {
-  return normalizedIntentBrand.has(intent);
+  return weakSetHas(normalizedIntentBrand, intent);
 }
 
-export function normalizeWalletGuardIntent(input) {
+function normalizeWalletGuardAction(request, account) {
+  if (request.method === 'eth_sendTransaction') {
+    return normalizeSendTransaction(request, account);
+  }
+  if (request.method === 'eth_signTypedData_v4') {
+    return normalizeTypedDataRequest(request, account);
+  }
+  if (request.method === 'personal_sign' || request.method === 'eth_sign') {
+    return normalizeGenericSignature(request);
+  }
+  return normalizeUnsupportedRpc(request);
+}
+
+function normalizeWalletGuardIntentInternal(input, translateDecoderErrors) {
   assertExactKeys(input, NORMALIZE_KEYS, 'Wallet Guard normalization input');
   if (typeof input.requestId !== 'string' || !REQUEST_ID_PATTERN.test(input.requestId)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'requestId has an invalid format');
@@ -331,21 +544,22 @@ export function normalizeWalletGuardIntent(input) {
   const request = normalizeRequest(input.request);
 
   let action;
-  try {
-    if (request.method === 'eth_sendTransaction') {
-      action = normalizeSendTransaction(request, account);
-    } else if (request.method === 'eth_signTypedData_v4') {
-      action = normalizeTypedDataRequest(request, account);
-    } else if (request.method === 'personal_sign' || request.method === 'eth_sign') {
-      action = normalizeGenericSignature(request);
-    } else {
-      action = normalizeUnsupportedRpc(request);
+  if (translateDecoderErrors) {
+    try {
+      action = normalizeWalletGuardAction(request, account);
+    } catch (error) {
+      if (error instanceof WalletGuardDecoderError) {
+        fail(error.code, error.message);
+      }
+      throw error;
     }
-  } catch (error) {
-    if (error instanceof WalletGuardDecoderError) {
-      fail(error.code, error.message);
-    }
-    throw error;
+  } else {
+    // Replay is an internal provenance-sensitive validation path. Do not classify
+    // a foreign same-class decoder error as a local WalletGuardIntentError. A
+    // genuine decoder rejection therefore also keeps its exact decoder provenance
+    // here; callers may distinguish semantic mismatch only after a successful
+    // replay produces a different normalized commitment.
+    action = normalizeWalletGuardAction(request, account);
   }
 
   const intent = freezeIntent({
@@ -370,8 +584,16 @@ export function normalizeWalletGuardIntent(input) {
     simulation_required: action.simulation_required,
   });
   validateWalletGuardIntent(intent);
-  normalizedIntentBrand.add(intent);
+  weakSetAdd(normalizedIntentBrand, intent);
   return intent;
+}
+
+export function normalizeWalletGuardIntent(input) {
+  return normalizeWalletGuardIntentInternal(input, true);
+}
+
+export function normalizeWalletGuardIntentForReplay(input) {
+  return normalizeWalletGuardIntentInternal(input, false);
 }
 
 export function commitWalletGuardIntent(intent) {

@@ -14,6 +14,89 @@ const MAX_DEPTH = 8;
 const MAX_STRING_LENGTH = 2_048;
 const MAX_CANONICAL_BYTES = 16 * 1024;
 
+// Canonicalization and SHA-256 commitments are shared trust primitives. Capture
+// the intrinsics they dispatch through once at module initialization so a later
+// same-realm mutation of array classification/sorting/iteration, string
+// normalization, object enumeration, JSON serialization, byte counting, or the
+// mutable default node:crypto createHash export cannot rewrite an already-defined
+// commitment. Public canonical form, validation limits and normal-environment
+// digest values remain unchanged. Poisoning before module initialization remains
+// outside this reference-runtime guarantee.
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort.call.bind(Array.prototype.sort);
+const BUFFER_BYTE_LENGTH = Buffer.byteLength;
+const CRYPTO_CREATE_HASH = crypto.createHash;
+const JSON_STRINGIFY = JSON.stringify;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const OBJECT_ENTRIES = Object.entries;
+const REGEXP_TEST = RegExp.prototype.test.call.bind(RegExp.prototype.test);
+const SET_HAS = Set.prototype.has.call.bind(Set.prototype.has);
+const STRING_PROTOTYPE = String.prototype;
+const STRING_CHAR_CODE_AT = STRING_PROTOTYPE.charCodeAt.call.bind(STRING_PROTOTYPE.charCodeAt);
+const STRING_NORMALIZE_INTRINSIC = STRING_PROTOTYPE.normalize;
+const CALL = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC.call);
+const STRING_NORMALIZE = STRING_NORMALIZE_INTRINSIC.call.bind(STRING_NORMALIZE_INTRINSIC);
+const STRING_TO_LOWER_CASE = STRING_PROTOTYPE.toLowerCase.call.bind(STRING_PROTOTYPE.toLowerCase);
+const HASH_PROBE = CRYPTO_CREATE_HASH('sha256');
+const HASH_UPDATE = HASH_PROBE.update.call.bind(HASH_PROBE.update);
+const HASH_DIGEST = HASH_PROBE.digest.call.bind(HASH_PROBE.digest);
+
+function arrayIsArray(value) {
+  return ARRAY_IS_ARRAY(value);
+}
+
+function sortArray(value, compare) {
+  return ARRAY_SORT(value, compare);
+}
+
+function objectEntries(value) {
+  return OBJECT_ENTRIES(value);
+}
+
+function normalizeString(value, form) {
+  // Resolve the live property exactly as `value.normalize` would: this preserves
+  // the established getter receiver, lookup count and thrown-error provenance.
+  // If a post-initialization replacement is present, invoke that exact value once
+  // with the original primitive receiver for its established side effects, but
+  // discard its return so it cannot rewrite the commitment. The canonical output
+  // always comes from the saved initialization-time intrinsic below. This direct
+  // property lookup intentionally avoids Reflect/Function globals forbidden by
+  // the strict verifier artifact closure.
+  const liveNormalize = value.normalize;
+  if (liveNormalize !== STRING_NORMALIZE_INTRINSIC) {
+    CALL(liveNormalize, value, form);
+  }
+  return STRING_NORMALIZE(value, form);
+}
+
+function lowercaseString(value) {
+  return STRING_TO_LOWER_CASE(value);
+}
+
+function charCodeAt(value, index) {
+  return STRING_CHAR_CODE_AT(value, index);
+}
+
+function jsonStringify(value) {
+  return JSON_STRINGIFY(value);
+}
+
+function numberIsSafeInteger(value) {
+  return NUMBER_IS_SAFE_INTEGER(value);
+}
+
+function regexpTest(pattern, value) {
+  return REGEXP_TEST(pattern, value);
+}
+
+function setHas(set, value) {
+  return SET_HAS(set, value);
+}
+
+function bufferByteLength(value, encoding) {
+  return BUFFER_BYTE_LENGTH(value, encoding);
+}
+
 const sensitivePayloadKeys = new Set([
   'apikey',
   'apisecret',
@@ -54,7 +137,15 @@ function payloadAssert(condition, code, message) {
 }
 
 function normalizedSensitiveKey(key) {
-  return key.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normalized = lowercaseString(normalizeString(key, 'NFKC'));
+  let safe = '';
+  for (let index = 0; index < normalized.length; index += 1) {
+    const codeUnit = charCodeAt(normalized, index);
+    if ((codeUnit >= 48 && codeUnit <= 57) || (codeUnit >= 97 && codeUnit <= 122)) {
+      safe += normalized[index];
+    }
+  }
+  return safe;
 }
 
 function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
@@ -78,15 +169,17 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
 
   if (typeof value === 'number') {
     payloadAssert(
-      Number.isSafeInteger(value),
+      numberIsSafeInteger(value),
       'PROOF_E_PAYLOAD_NUMBER',
       'Payload numbers must be safe integers',
     );
     return;
   }
 
-  if (Array.isArray(value)) {
-    for (const item of value) validateSafeValue(item, depth + 1, budget);
+  if (arrayIsArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      validateSafeValue(value[index], depth + 1, budget);
+    }
     return;
   }
 
@@ -95,14 +188,18 @@ function validateSafeValue(value, depth = 0, budget = { remaining: 1_000 }) {
     'PROOF_E_PAYLOAD_TYPE',
     'Payload contains an unsupported value',
   );
-  for (const [key, nestedValue] of Object.entries(value)) {
+  const entries = objectEntries(value);
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const key = entry[0];
+    const nestedValue = entry[1];
     payloadAssert(
-      PAYLOAD_KEY_PATTERN.test(key),
+      regexpTest(PAYLOAD_KEY_PATTERN, key),
       'PROOF_E_PAYLOAD_KEY',
       `Unsafe payload key: ${key}`,
     );
     payloadAssert(
-      !sensitivePayloadKeys.has(normalizedSensitiveKey(key)),
+      !setHas(sensitivePayloadKeys, normalizedSensitiveKey(key)),
       'PROOF_E_PAYLOAD_SENSITIVE_KEY',
       `Sensitive payload key: ${key}`,
     );
@@ -114,29 +211,49 @@ function canonicalizeValue(value) {
   if (value === null) return 'null';
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return JSON.stringify(value.normalize('NFC'));
-  if (Array.isArray(value)) return `[${value.map(canonicalizeValue).join(',')}]`;
+  if (typeof value === 'string') return jsonStringify(normalizeString(value, 'NFC'));
+  if (arrayIsArray(value)) {
+    let canonical = '[';
+    for (let index = 0; index < value.length; index += 1) {
+      if (index !== 0) canonical += ',';
+      canonical += canonicalizeValue(value[index]);
+    }
+    return `${canonical}]`;
+  }
 
-  return `{${Object.entries(value)
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, nestedValue]) => `${JSON.stringify(key)}:${canonicalizeValue(nestedValue)}`)
-    .join(',')}}`;
+  const entries = objectEntries(value);
+  sortArray(entries, (leftEntry, rightEntry) => {
+    const left = leftEntry[0];
+    const right = rightEntry[0];
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+  let canonical = '{';
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index !== 0) canonical += ',';
+    const entry = entries[index];
+    const key = entry[0];
+    const nestedValue = entry[1];
+    canonical += `${jsonStringify(key)}:${canonicalizeValue(nestedValue)}`;
+  }
+  return `${canonical}}`;
 }
 
 export function sha256Hex(value) {
-  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+  const hash = CRYPTO_CREATE_HASH('sha256');
+  HASH_UPDATE(hash, value, 'utf8');
+  return HASH_DIGEST(hash, 'hex');
 }
 
 export function canonicalizePayload(payload) {
   payloadAssert(
-    payload && typeof payload === 'object' && !Array.isArray(payload),
+    payload && typeof payload === 'object' && !arrayIsArray(payload),
     'PROOF_E_PAYLOAD_SHAPE',
     'Payload must be a JSON object',
   );
   validateSafeValue(payload);
   const canonical = canonicalizeValue(payload);
   payloadAssert(
-    Buffer.byteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES,
+    bufferByteLength(canonical, 'utf8') <= MAX_CANONICAL_BYTES,
     'PROOF_E_PAYLOAD_CANONICAL_BYTES',
     'Canonical payload exceeds 16 KiB',
   );

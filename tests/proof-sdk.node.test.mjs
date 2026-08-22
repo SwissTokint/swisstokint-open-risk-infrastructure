@@ -74,18 +74,54 @@ test('canonical payload validation errors are positively branded with stable cod
 });
 
 test('canonicalizer runtime TypeError provenance is not converted by matching message text', () => {
-  const originalNormalize = String.prototype.normalize;
   const sentinel = new TypeError('Payload exceeds the maximum depth');
-  try {
-    String.prototype.normalize = function poisonedNormalize() {
+  const payload = new Proxy({ note: 'safe' }, {
+    ownKeys() {
       throw sentinel;
-    };
+    },
+  });
+  assert.throws(
+    () => canonicalizePayload(payload),
+    (error) => error === sentinel && !(error instanceof ProofPayloadValidationError),
+  );
+});
+
+test('replacement String.normalize accessor is resolved once with the original string receiver before exact foreign invocation', () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+  const invokedSentinel = new TypeError('replacement normalizer invoked');
+  const secondLookupSentinel = new TypeError('replacement normalizer resolved twice');
+  let getterCalls = 0;
+  let functionCalls = 0;
+  let getterReceiver = null;
+  let functionReceiver = null;
+
+  Object.defineProperty(String.prototype, 'normalize', {
+    configurable: true,
+    get() {
+      'use strict';
+      getterCalls += 1;
+      getterReceiver = this;
+      if (getterCalls > 1) throw secondLookupSentinel;
+      return function replacementNormalize() {
+        'use strict';
+        functionCalls += 1;
+        functionReceiver = this;
+        throw invokedSentinel;
+      };
+    },
+  });
+
+  try {
     assert.throws(
-      () => canonicalizePayload({ note: 'safe' }),
-      (error) => error === sentinel && !(error instanceof ProofPayloadValidationError),
+      () => canonicalizePayload({ note: 'clean' }),
+      (error) => error === invokedSentinel,
     );
+    assert.equal(getterCalls, 1);
+    assert.equal(functionCalls, 1);
+    assert.equal(getterReceiver, 'note');
+    assert.equal(functionReceiver, 'note');
   } finally {
-    String.prototype.normalize = originalNormalize;
+    Object.defineProperty(String.prototype, 'normalize', originalDescriptor);
   }
 });
 
