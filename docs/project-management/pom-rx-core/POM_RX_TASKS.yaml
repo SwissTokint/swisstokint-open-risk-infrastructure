@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T07:16:00+02:00",
-  "current_main": "16dcf4bafb151b1c042c62fc323b9006f1b6c777",
+  "updated_at": "2026-08-22T08:15:00+02:00",
+  "current_main": "aeb843012c5693088657eb80fc3f2ae0949723b0",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -14,38 +14,37 @@
     ]
   },
   "trusted_main": {
-    "sha": "16dcf4bafb151b1c042c62fc323b9006f1b6c777",
-    "source_pr": 115,
-    "source_head": "9bd156b5630e2b326465e09eb581a0bc14972e4c",
-    "tree": "90148e1150332443adc0d35bf6a0cfd0304e07b9",
+    "sha": "aeb843012c5693088657eb80fc3f2ae0949723b0",
+    "source_pr": 116,
+    "source_head": "60fa89cae63a70649b32c5b65c67f6d89ed27f1b",
+    "tree": "35e0ad4d90771c7df04493c769874c96f4552cc3",
     "candidate_ci": {
-      "run_id": 32553624413,
-      "run_number": 692,
+      "run_id": 32554051879,
+      "run_number": 694,
       "conclusion": "success"
     },
     "exact_main_ci": {
-      "run_id": 32553780401,
-      "run_number": 693,
+      "run_id": 32556325264,
+      "run_number": 695,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci",
       "status": "success"
     },
-    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999145705",
-    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5378120247",
-    "resolved_exact_head_finding": "P2_IDENTIFY_ALREADY_OPEN_PR_115",
+    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999286553",
+    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5378169346",
     "unresolved_release_threads": 0,
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5378146812",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5378389794",
     "scope": "coordination_only_non_tier_b"
   },
   "active_task": {
-    "id": "CONTROL-PLANE-POST-115-CHECKPOINT-20260822",
-    "title": "Reconcile canonical control plane after trusted PR 115",
+    "id": "CONTROL-PLANE-POST-116-CHECKPOINT-20260822",
+    "title": "Reconcile canonical control plane after trusted PR 116",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "ACTIVE_READ_LIVE_BY_BRANCH",
-    "base_sha": "16dcf4bafb151b1c042c62fc323b9006f1b6c777",
-    "branch": "docs/pom-rx-checkpoint-after-115-20260822",
-    "pr_lookup_rule": "Inspect live GitHub for an open PR whose exact head branch is docs/pom-rx-checkpoint-after-115-20260822. Create one only if none exists; never create a duplicate merely because this file does not embed a PR number.",
+    "base_sha": "aeb843012c5693088657eb80fc3f2ae0949723b0",
+    "branch": "docs/pom-rx-checkpoint-after-116-20260822",
+    "pr_lookup_rule": "Inspect live GitHub for an open PR whose exact head branch is docs/pom-rx-checkpoint-after-116-20260822. Create one only if none exists; never create a duplicate merely because this file does not embed a PR number.",
     "exact_current_head_rule": "Read the branch/PR head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -54,7 +53,7 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "acceptance": [
-      "checkpoint trusted PR 115 exact merge 16dcf4bafb151b1c042c62fc323b9006f1b6c777 and POST_MERGE_ASSURANCE_PASS",
+      "checkpoint trusted PR 116 exact merge aeb843012c5693088657eb80fc3f2ae0949723b0 and POST_MERGE_ASSURANCE_PASS",
       "preserve exact live PR 97 and PR 93 heads, CI and review blockers",
       "treat mergeability as volatile conflict metadata only and never release evidence",
       "retain PR 93 exact-value, wrapper, nested-reflection and shared proof canonicalization/SHA-256/hash findings until repaired exact-head validation",
@@ -78,7 +77,7 @@
       "status": "BLOCKED_CURRENT_HEAD_DO_NOT_MERGE",
       "exact_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
       "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-      "trusted_main_required": "16dcf4bafb151b1c042c62fc323b9006f1b6c777_or_later_trusted_main",
+      "trusted_main_required": "aeb843012c5693088657eb80fc3f2ae0949723b0_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32487036517,
@@ -93,7 +92,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After the post-PR115 control-plane reconciliation is safely recorded, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After the post-PR116 control-plane reconciliation is safely recorded, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
@@ -102,7 +101,7 @@
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
       "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
       "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "16dcf4bafb151b1c042c62fc323b9006f1b6c777_or_later_trusted_main",
+      "trusted_main_required": "aeb843012c5693088657eb80fc3f2ae0949723b0_or_later_trusted_main",
       "mergeable_snapshot": "read_live_volatile_non_evidentiary",
       "ci": {
         "run_id": 32465835858,
