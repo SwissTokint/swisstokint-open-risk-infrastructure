@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T11:18:00+02:00`
+Updated: `2026-08-22T12:22:00+02:00`
 
 Current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`
 
@@ -23,8 +23,7 @@ Release/post-merge evidence for PR #118:
   `PASS / NON-INDEPENDENT`;
 - distinct exact-head `chatgpt-codex-connector` issue comment `5379054811`:
   reviewed `dacc2efde7`, no major issues;
-- the prior continuation P2 threads were resolved only after exact-head
-  validation; no unresolved P0/P1/P2 remained in the bounded merge scope;
+- no unresolved P0/P1/P2 remained in the bounded merge scope at merge decision;
 - canonical exact-main push CI `32561596467` / CI 705 attempt 1:
   `completed / success` on exact merge SHA;
 - decision-time `pom-rx/exact-main-ci`: `success`, targeting that canonical run;
@@ -35,40 +34,38 @@ Release/post-merge evidence for PR #118:
   `5379219612`.
 
 PR #118 is terminal trusted coordination evidence only. It changed no
-runtime/security semantics and does not make PR #97 or PR #93 trusted.
+runtime/security semantics and does not make PR #97 or PR #93 trusted. Its
+terminal rule is authoritative: do not create another documentation-only
+checkpoint merely to record PR #118 as done.
 
-## `CONTROL_PLANE_POST_PR118_LIVE_STATE_RECONCILIATION_PENDING`
+## `PR119_EXACT_HEAD_P2_TERMINAL_RULE_REPAIR_REQUIRES_FRESH_REVIEW`
 
-The canonical files merged by PR #118 necessarily encode its pre-merge state.
-Live GitHub now records PR #118 as merged/trusted, so the smallest bounded
-non-Tier-B reconciliation is active as **PR #119** from exact trusted main
-`a22198bf8065cb7af2f4f7821edaba9c5f749704` on branch:
+PR #119 is the current non-Tier-B transition vehicle from exact trusted main
+`a22198bf...`. Its earlier exact head
+`1bdb53bad6f0b88046358f4ec7912c86a0469a7c` had:
 
-`docs/pom-rx-checkpoint-after-118-20260822`
+- canonical CI `32564477324` / CI 710: `success`;
+- release-owner review `4999836109`: `PASS / NON-INDEPENDENT`;
+- fresh distinct `chatgpt-codex-connector` review on that same SHA;
+- one unresolved exact-head P2 thread `PRRT_kwDOTiNyWc6bX2ey`:
+  `Honor PR #118's terminal rule instead of creating PR #119`.
 
-Owned surfaces are exactly:
+The P2 is valid. The repair moves the head and changes the control-plane model:
+PR #119 is no longer treated as another permanent post-merge checkpoint task.
+Instead, it carries PR #118's terminal facts only while advancing the next useful
+work item: the fresh trusted-main PR #97-line Promise-drift runtime repair. After
+successful PR #119 merge plus exact-merge `POST_MERGE_ASSURANCE_PASS`, no
+post-PR119 documentation-only successor is permitted.
 
-- `POM_RX_RESUME_CHECKPOINT.md`;
-- `POM_RX_TASKS.yaml`;
-- `POM_RX_BLOCKERS.md`;
-- `docs/product/POM_RX_CAPABILITY_MAP.md`.
-
-This is a post-PR118 live-state reconciliation and is **not** a recreation of the
-terminal post-117 reconciliation in PR #118. PR #119 is the permanent identity
-of this task. Never create a second PR for it after PR #119 is merged or closed.
-
-The final exact PR #119 head is deliberately not self-embedded in these moving
-files. Read it live after the last owned-file commit. No Tier-B dependency or
-readiness claim may rely on stale pre-merge #118 state. PR #119 must pass fresh
-canonical exact-head CI, release-owner five-stage control, a genuinely distinct
-exact-head independent review and zero unresolved P0/P1/P2 before merge. Any
-head move invalidates exact-head release evidence. After merge, exact-merge
-post-merge assurance is mandatory before the merge becomes trusted coordination
-evidence.
+All CI/review evidence on `1bdb53bad...` is stale after the repair. Do not merge
+PR #119 until its repaired exact head has fresh canonical CI success, a fresh
+release-owner five-stage PASS, a genuinely distinct exact-head independent review
+with no unresolved P0/P1/P2, and the existing P2 thread is resolved only after
+that exact-head validation.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
-PR #97 remains open and **must not merge**.
+Historical PR #97 remains open and **must not merge**.
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
@@ -87,24 +84,24 @@ poisoning, outer awaits in `readProviderSnapshot`, `sampleStableProviderContext`
 the transport validator failure reaches its caller, substitute stable attacker-
 controlled context, then permit reference authorization and sensitive forwarding.
 
-Required closure:
+Required closure is a **fresh** bounded branch/PR from then-current trusted main,
+not a merge/rebase/revival of stale PR #97:
 
-- after PR #119 is trusted, start the smallest runtime repair from then-current
-  trusted main rather than merging/rebasing/reviving the stale historical branch
-  wholesale;
 - prevent hostile Promise-prototype dispatch before outer async assimilation;
 - restore or replace a CI-wired regression reproducing the independent sensitive-
   forwarding exploit without weakening hostile-dispatch expectations merely to
   make CI green;
 - require durable capability claim success before any observer or downstream work
   so losing contenders cannot enter security-sensitive paths;
-- preserve fail-closed replay, durable one-winner behavior, ordinary native-
-  Promise Node/AsyncHooks bookkeeping-symbol compatibility, hardened direct non-
-  Promise object/function capture, own native-Promise-decoration rejection, and
-  **zero authorization/forwarding for hostile rejected transports**;
+- preserve fail-closed replay and durable one-winner behavior;
+- preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
+  compatibility;
+- preserve hardened direct non-Promise object/function capture and own native-
+  Promise-decoration rejection;
+- require **zero authorization and zero sensitive forwarding for hostile rejected
+  transports**;
 - rerun exact-head CI and release-owner six-lane review;
 - obtain a fresh distinct exact-head independent skeptical/security review;
-- resolve only findings whose repair is validated on that same exact head;
 - require zero unresolved P0/P1/P2 before merge.
 
 ## `PR97_FALSE_PASS_GREEN_CI_32487036517`
@@ -123,8 +120,8 @@ head is not eligible for standing merge authorization.
 
 PR #97's historical base `0564aecd...` trails trusted main `a22198bf...`.
 Mergeability is volatile conflict metadata only and is never proof of architecture
-reconciliation or security correctness. After PR #119 safely reconciles the live
-control plane, the repair must start fresh from then-current trusted main.
+reconciliation or security correctness. Once PR #119's transition repair is
+trusted, start the smallest fresh runtime branch from then-current trusted main.
 
 ## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
 
@@ -149,11 +146,11 @@ PR #93 remains open and untrusted.
   proof canonicalization/SHA-256/hash hardening.
 
 Moved-head fixes are not current release evidence. PR #93 overlaps shared
-regression/package surfaces with PR #97. Keep it ordered after trusted #97 unless
-a separate reviewed dependency-ordering decision is recorded. Then reconcile
-#93 from then-current trusted main, rerun exact-head CI and owner review, obtain a
-fresh distinct exact-head independent skeptical/security review, and require zero
-unresolved P0/P1/P2.
+regression/package surfaces with the PR #97-line work. Keep it ordered after a
+trusted fresh PR #97-line repair unless a separate reviewed dependency-ordering
+decision is recorded. Then reconcile #93 from then-current trusted main, rerun
+exact-head CI and owner review, obtain a fresh distinct exact-head independent
+skeptical/security review, and require zero unresolved P0/P1/P2.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
