@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`.
+Trusted-main checkpoint: `aeb843012c5693088657eb80fc3f2ae0949723b0`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,7 +66,7 @@ PR #97 is the blocked historical Tier-B candidate:
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`;
+- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,26 +120,24 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #115 exact source head `9bd156b5630e2b326465e09eb581a0bc14972e4c`
-merged as exact main SHA `16dcf4bafb151b1c042c62fc323b9006f1b6c777`.
+PR #116 exact source head `60fa89cae63a70649b32c5b65c67f6d89ed27f1b`
+merged as exact main SHA `aeb843012c5693088657eb80fc3f2ae0949723b0`.
 Source-head and merge trees are identical at
-`90148e1150332443adc0d35bf6a0cfd0304e07b9`.
+`35e0ad4d90771c7df04493c769874c96f4552cc3`.
 
-Its exact-head CI `32553624413` / CI 692 passed. The final release-owner exact-head
-gate passed in review `4999145705` as `PASS / NON-INDEPENDENT`; distinct exact-head
-`chatgpt-codex-connector` issue comment `5378120247` reviewed `9bd156b563` and
-reported no major issues. Exact-head P2 `Identify the already-open PR #115` was
-repaired in the capability map and its thread was resolved only after exact-head
-CI and distinct validation. Exact-main push CI `32553780401` / CI 693 attempt 1
+Its exact-head CI `32554051879` / CI 694 passed. The final release-owner exact-head
+gate passed in review `4999286553` as `PASS / NON-INDEPENDENT`; distinct exact-head
+`chatgpt-codex-connector` issue comment `5378169346` reviewed `60fa89cae6` and
+reported no major issues. Exact-main push CI `32556325264` / CI 695 attempt 1
 completed successfully on the exact merge SHA, and decision-time
 `pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge SpecKit,
 skeptical/falsification, security, code-quality, optimization and
 integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
-#115 issue comment `5378146812` for the bounded documentation/control-plane scope.
+#116 issue comment `5378389794` for the bounded documentation/control-plane scope.
 
-PR #115 changed no runtime/security semantics. A bounded post-PR115 reconciliation
+PR #116 changed no runtime/security semantics. A bounded post-PR116 reconciliation
 is prepared from exact trusted main on branch
-`docs/pom-rx-checkpoint-after-115-20260822` because a merged checkpoint cannot
+`docs/pom-rx-checkpoint-after-116-20260822` because a merged checkpoint cannot
 self-describe its own future merge SHA. To avoid duplicate pull requests, inspect
 live GitHub for an open PR whose exact head branch is that branch and create one
 only if none exists. Do not self-embed its moving exact head in these canonical
@@ -232,7 +230,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `16dcf4bafb151b1c042c62fc323b9006f1b6c777`;
+- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
