@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T08:15:00+02:00`
+Updated: `2026-08-22T09:24:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -10,32 +10,33 @@ checkpoint.
 
 ## trusted_main
 
-`aeb843012c5693088657eb80fc3f2ae0949723b0`
+`e7bcc15a9cfa430cf96b4859357790257ec3d39e`
 
-Latest trusted merge: PR #116 — bounded non-Tier-B documentation/control-plane
-reconciliation after PR #115.
+Latest trusted merge: PR #117 — bounded non-Tier-B documentation/control-plane
+reconciliation after PR #116.
 
-- exact source head: `60fa89cae63a70649b32c5b65c67f6d89ed27f1b`;
-- exact merge/main SHA: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
-- source-head and merge tree: `35e0ad4d90771c7df04493c769874c96f4552cc3`;
-- exact-head candidate CI: run `32554051879`, CI 694, `success`;
-- final release-owner exact-head gate: review `4999286553`,
+- exact source head: `a8a4f4de83cea0c1527a03a89c71a41471679be1`;
+- exact merge/main SHA: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
+- source-head and merge tree: `999643ca3dab6bdf59401e38cb2dd8ae42bb11bd`;
+- exact-head candidate CI: run `32556575389`, CI 696, `success`;
+- final release-owner exact-head gate: review `4999301185`,
   `PASS / NON-INDEPENDENT`;
 - distinct exact-head `chatgpt-codex-connector` evidence: issue comment
-  `5378169346`, reviewed `60fa89cae6`, no major issues;
-- canonical exact-main push CI: run `32556325264`, CI 695 attempt 1,
+  `5378410224`, reviewed `a8a4f4de83`, no major issues;
+- exact-head review threads at merge decision: zero;
+- canonical exact-main push CI: run `32558808262`, CI 697 attempt 1,
   `completed / success` on the exact merge SHA;
-- decision-time `pom-rx/exact-main-ci`: `success`, targeting CI 695;
+- decision-time `pom-rx/exact-main-ci`: `success`, targeting run `32558808262`;
 - exact-merge SpecKit reconciliation, skeptical/falsification, security,
   code-quality, optimization and integration/regression: PASS for the bounded
   documentation/control-plane scope;
-- final exact-merge verdict on PR #116: `POST_MERGE_ASSURANCE_PASS`, recorded in
-  issue comment `5378389794`.
+- final exact-merge verdict on PR #117: `POST_MERGE_ASSURANCE_PASS`, recorded in
+  issue comment `5378949128`.
 
-PR #116 changed no runtime, protocol, Gate, Witness, verifier, Wallet Guard,
-provider, wallet, network, public-site/Vercel or financial-execution semantics.
-It is trusted coordination evidence only. It does **not** make PR #97 or PR #93
-trusted dependencies.
+PR #117 changed exactly the four canonical continuation surfaces and no runtime,
+protocol, Gate, Witness, verifier, Wallet Guard, provider, wallet, network,
+public-site/Vercel or financial-execution semantics. It is trusted coordination
+evidence only. It does **not** make PR #97 or PR #93 trusted dependencies.
 
 ## repository architecture present on trusted main
 
@@ -59,11 +60,11 @@ are not proved.
 
 ## active_control_plane_reconciliation
 
-Trusted main necessarily contains the pre-merge checkpoint embedded by PR #116.
-A bounded non-Tier-B reconciliation is therefore prepared from exact trusted main
-`aeb843012c5693088657eb80fc3f2ae0949723b0` on branch:
+Trusted main necessarily contains the pre-merge checkpoint embedded by PR #117.
+The bounded non-Tier-B reconciliation is now active as **PR #118** from exact
+trusted main `e7bcc15a9cfa430cf96b4859357790257ec3d39e` on branch:
 
-`docs/pom-rx-checkpoint-after-116-20260822`
+`docs/pom-rx-checkpoint-after-117-20260822`
 
 Owned files are exactly:
 
@@ -72,16 +73,30 @@ Owned files are exactly:
 - `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-The branch/PR lookup rule is intentionally non-self-referential: **inspect live
-GitHub for an open PR whose head branch is exactly the branch above. Create one
-only if none exists.** Do not embed that PR's moving exact head in these four
-files; read it live after the final owned-file commit. This avoids duplicate PRs
-and avoids moving the candidate merely to record its own SHA.
+Historical evidence from PR #118's first frozen candidate:
 
-This reconciliation changes no runtime/security semantics. Its frozen final exact
-head still requires canonical CI, release-owner five-stage control, a genuinely
-distinct exact-head independent review and zero unresolved P0/P1/P2 before merge.
-After any merge, exact-merge post-merge assurance is mandatory again.
+- initial exact head: `84220a2ec54b8e886a45b472daa9330b0eb847bb`;
+- canonical CI run `32559140330`, CI 699: `failure` at `npm test`;
+- the bounded failure was caused by capability-map paragraph reflow splitting the
+  repository-tested stable phrase `Blockchain and digital assets`; the repair is
+  documentation-only and restores the tested phrase without weakening or editing
+  the test;
+- distinct review request issue comment `5378995887` targeted that exact initial
+  head, but `chatgpt-codex-connector` issue comment `5379001143` reported its
+  usage limit exhausted; therefore **no independent approval exists**;
+- after any branch move, all exact-head CI/review evidence on `84220a2...` is
+  historical only and cannot release the changed candidate.
+
+The current/final PR #118 head is intentionally **not self-embedded** in these
+four moving files. Read PR #118 live after the final owned-file commit for its
+exact head, CI, reviews and threads; creating another PR for this branch is
+forbidden while #118 is open.
+
+PR #118 remains `BLOCK/PENDING` until its frozen final exact head has canonical
+CI success, release-owner five-stage control, a genuinely distinct exact-head
+independent review and zero unresolved P0/P1/P2. A moved head invalidates all
+exact-head evidence. After any merge, exact-merge post-merge assurance is
+mandatory again.
 
 ## open_runtime_prs
 
@@ -91,7 +106,7 @@ After any merge, exact-merge post-merge assurance is mandatory again.
   FRESH_TRUSTED_MAIN_REPAIR_REQUIRED`;
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - exact-head canonical CI: run `32487036517`, CI 592, `success` but not
   security/release evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
@@ -125,7 +140,7 @@ before merge.
   RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`;
 - exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - exact-head canonical CI: run `32465835858`, CI 541, `success` but not release
   evidence;
 - latest release-owner and distinct review evidence remains on moved head
@@ -142,13 +157,15 @@ prove external state/effect truth.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR116_RECONCILIATION_REQUIRED` — the four canonical
-   surfaces must reconcile exact trusted merge `aeb843012...` before stale embedded
-   pre-merge entries are used as dependency/readiness evidence.
+1. `CONTROL_PLANE_PR118_EXACT_HEAD_GATES_PENDING` — PR #118 is open. Its initial
+   head `84220a2...` failed CI 699 because of a documentation reflow regression;
+   that head's independent-review request also produced no approval because the
+   distinct reviewer was quota-unavailable. The repaired final head must be read
+   live and pass every exact-head gate before merge.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
-5. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR116`.
+5. `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR117`.
 6. `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`.
 7. `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`.
 8. `DAGR_SOURCE_DOCUMENT_MISSING`.
@@ -178,24 +195,25 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Complete the four-file post-PR116 control-plane reconciliation on branch
-   `docs/pom-rx-checkpoint-after-116-20260822`; look up the sole PR for that branch
-   live and create one only if absent.
-2. Freeze its final exact head, then require canonical exact-head CI,
-   release-owner five-stage control, a genuinely distinct exact-head independent
-   review and zero unresolved P0/P1/P2 before merge.
-3. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592 as
+1. Finish the bounded four-file documentation repair on PR #118 without changing
+   runtime/tests, freeze its final exact head, and read that head live.
+2. Require fresh canonical exact-head CI, release-owner five-stage control, a
+   genuinely distinct exact-head independent review and zero unresolved P0/P1/P2
+   on that same head. The failed/ unavailable evidence on initial head
+   `84220a2...` cannot be reused.
+3. Do **not** merge PR #118 while the independent lane is unavailable or stale.
+4. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592 as
    a security repair.
-4. After the control-plane reconciliation is safely recorded, start the smallest
+5. After the control-plane reconciliation is safely recorded, start the smallest
    fresh #97 runtime repair from then-current trusted main for Promise-prototype
    drift before outer async assimilation, preserving durable
    claim-before-observer/downstream, fail-closed durable one-winner behavior and
    zero authorization/forwarding for hostile rejected transports.
-5. Reconcile #93 only after #97 dependency ordering is trusted unless a separate
+6. Reconcile #93 only after #97 dependency ordering is trusted unless a separate
    reviewed dependency-order change is recorded.
-6. Start no dependent Wallet Guard E2E lot until relevant Tier-B dependencies
+7. Start no dependent Wallet Guard E2E lot until relevant Tier-B dependencies
    have trusted exact-merge post-merge PASS evidence.
-7. Do not begin burner/local-testnet execution without separate explicit human
+8. Do not begin burner/local-testnet execution without separate explicit human
    authorization.
 
 ## safety_boundary

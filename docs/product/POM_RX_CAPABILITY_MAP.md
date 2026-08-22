@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-22
 
-Trusted-main checkpoint: `aeb843012c5693088657eb80fc3f2ae0949723b0`.
+Trusted-main checkpoint: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -66,7 +66,7 @@ PR #97 is the blocked historical Tier-B candidate:
 
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - CI `32487036517` / CI 592: `success` but not security evidence;
 - release-owner verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head P1: `Reject Promise drift before entering async layers`.
@@ -120,30 +120,40 @@ revalidation; the status alone is not a production-readiness signal.
 
 ### Durable project-control continuity
 
-PR #116 exact source head `60fa89cae63a70649b32c5b65c67f6d89ed27f1b`
-merged as exact main SHA `aeb843012c5693088657eb80fc3f2ae0949723b0`.
+PR #117 exact source head `a8a4f4de83cea0c1527a03a89c71a41471679be1`
+merged as exact main SHA `e7bcc15a9cfa430cf96b4859357790257ec3d39e`.
 Source-head and merge trees are identical at
-`35e0ad4d90771c7df04493c769874c96f4552cc3`.
+`999643ca3dab6bdf59401e38cb2dd8ae42bb11bd`.
 
-Its exact-head CI `32554051879` / CI 694 passed. The final release-owner exact-head
-gate passed in review `4999286553` as `PASS / NON-INDEPENDENT`; distinct exact-head
-`chatgpt-codex-connector` issue comment `5378169346` reviewed `60fa89cae6` and
-reported no major issues. Exact-main push CI `32556325264` / CI 695 attempt 1
-completed successfully on the exact merge SHA, and decision-time
-`pom-rx/exact-main-ci` is `success` targeting that run. Exact-merge SpecKit,
-skeptical/falsification, security, code-quality, optimization and
-integration/regression checks are recorded as `POST_MERGE_ASSURANCE_PASS` in PR
-#116 issue comment `5378389794` for the bounded documentation/control-plane scope.
+Its exact-head CI `32556575389` / CI 696 passed. The final release-owner exact-head
+gate passed in review `4999301185` as `PASS / NON-INDEPENDENT`; distinct exact-head
+`chatgpt-codex-connector` issue comment `5378410224` reviewed `a8a4f4de83` and
+reported no major issues, with zero review threads at the merge decision.
+Exact-main push CI `32558808262` / CI 697 attempt 1 completed successfully on the
+exact merge SHA, and decision-time `pom-rx/exact-main-ci` is `success` targeting
+that run. Exact-merge SpecKit, skeptical/falsification, security, code-quality,
+optimization and integration/regression checks are recorded as
+`POST_MERGE_ASSURANCE_PASS` in PR #117 issue comment `5378949128` for the bounded
+documentation/control-plane scope.
 
-PR #116 changed no runtime/security semantics. A bounded post-PR116 reconciliation
-is prepared from exact trusted main on branch
-`docs/pom-rx-checkpoint-after-116-20260822` because a merged checkpoint cannot
-self-describe its own future merge SHA. To avoid duplicate pull requests, inspect
-live GitHub for an open PR whose exact head branch is that branch and create one
-only if none exists. Do not self-embed its moving exact head in these canonical
-files; read its final exact head, CI, reviews and threads live after the final
-owned-file commit. Until that reconciliation passes its own exact-head gates and
-post-merge assurance, live GitHub remains authoritative for volatile state.
+PR #117 changed no runtime/security semantics. The bounded post-PR117
+reconciliation is active as PR #118 on branch
+`docs/pom-rx-checkpoint-after-117-20260822` from exact trusted main. Its first
+candidate head `84220a2ec54b8e886a45b472daa9330b0eb847bb` failed canonical CI
+`32559140330` / CI 699 at `npm test` because paragraph reflow split the stable
+repository-tested phrase `Blockchain and digital assets`. This documentation-only
+repair restores the phrase and does not weaken or edit the test. Independent
+review request comment `5378995887` targeted that first head, while distinct
+`chatgpt-codex-connector` comment `5379001143` reported a usage-limit exhaustion;
+there is therefore no independent approval on that candidate, and the evidence
+is stale after the repair moves the head.
+
+The repaired current/final PR #118 exact head, CI, reviews and threads must be
+read live after the final owned-file commit rather than self-embedded in these
+moving canonical files. PR #118 cannot merge until the same frozen exact head has
+canonical CI success, release-owner five-stage PASS, a genuinely distinct
+exact-head independent review and zero unresolved P0/P1/P2. Until then, live
+GitHub remains authoritative for volatile state.
 
 ### Proof transport and anchoring
 
@@ -230,7 +240,7 @@ PR #93 current live state at this checkpoint:
 
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `aeb843012c5693088657eb80fc3f2ae0949723b0`;
+- current trusted main: `e7bcc15a9cfa430cf96b4859357790257ec3d39e`;
 - CI `32465835858` / CI 541: `success` but not release evidence;
 - latest release-owner/distinct review evidence is on moved head `03e0201c9f...`;
 - unresolved current/non-outdated P1/P2 classes include exact negative-zero
