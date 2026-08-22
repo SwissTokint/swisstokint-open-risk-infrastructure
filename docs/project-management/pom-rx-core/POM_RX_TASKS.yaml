@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T18:18:00+02:00",
+  "updated_at": "2026-08-22T19:02:00+02:00",
   "current_main": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -33,19 +33,21 @@
     "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
     "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
     "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-    "status": "PR120_BLOCKED_P1_WITH_CI_WIRED_EXPECTED_RED",
+    "status": "PR120_RUNTIME_REPAIR_IMPLEMENTED_PENDING_EXACT_HEAD_GATES",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "base_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
     "first_implementation_commit": "f31611139e51cf0f05265c19012e372e06bfc7ae",
+    "runtime_drain_repair_commit": "9e7a151b4eb8da0e7595e8ebee540319273a7fab",
+    "bounded_nonshadowable_accessor_test_commit": "d0c4175f12086bbbb2f4ccceb7cd947203e3f6fc",
     "historical_pr": 97,
     "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
     "fresh_branch_rule": "Fresh PR120 starts from exact trusted main. Do not merge, rebase, revive, or wholesale-copy stale PR97.",
-    "pre_checkpoint_red_test_head": "6911eaeeb2a0a89ccefceebeb7b6e03b64c97d15",
+    "pre_repair_expected_red_head": "b243a95094cfeeb31a7de94c5df0c93f6d711938",
     "current_candidate_rule": "Read PR120 exact head live after the final owned-file commit; self-embedding the moving SHA in this file would recursively move it.",
-    "current_ci": "EXPECTED_RED_UNTIL_RUNTIME_DRAIN_P1_REPAIR; EXACT_HEAD_CI_REQUIRED_AFTER_REPAIR",
-    "current_owner_gate": "BLOCK_P1_REVIEW_5000574562_ON_MOVED_HEAD_B7576F8E",
-    "current_independent_gate": "BLOCK_P1_AND_P2_REVIEW_ON_MOVED_HEAD_B7576F8E; NEW_EXACT_HEAD_REVIEW_REQUIRED_AFTER_REPAIR",
+    "current_ci": "PENDING_FINAL_EXACT_HEAD_CANONICAL_CI_AFTER_RUNTIME_AND_CONTROL_PLANE_REPAIR",
+    "current_owner_gate": "PENDING_FINAL_EXACT_HEAD_FIVE_STAGE_REVIEW",
+    "current_independent_gate": "PENDING_NEW_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_REVIEW",
     "independent_finding_history": [
       {
         "reviewed_head": "5885da291d7d6b3e4541e5c00c160ffb481828b8",
@@ -53,7 +55,7 @@
         "severity": "P1",
         "thread_id": "PRRT_kwDOTiNyWc6bZjxp",
         "finding": "Drain rejected transports before failing validation.",
-        "state": "UNRESOLVED"
+        "state": "UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
       },
       {
         "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
@@ -61,7 +63,7 @@
         "severity": "P1",
         "thread_id": "PRRT_kwDOTiNyWc6bZ6tx",
         "finding": "Attach the rejection reaction before fallible pinning; non-extensible or non-configurable Promise decoration can still orphan a rejection.",
-        "state": "UNRESOLVED_RUNTIME_REPAIR_REQUIRED"
+        "state": "IMPLEMENTED_BY_RUNTIME_REPAIR; UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
       },
       {
         "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
@@ -69,19 +71,22 @@
         "severity": "P2",
         "thread_id": "PRRT_kwDOTiNyWc6bZ6tz",
         "finding": "Run provider-invalid-rejected-transport.node.test.mjs in canonical CI.",
-        "state": "IMPLEMENTED_BY_PACKAGE_SCRIPT_WIRING; FRESH_EXACT_HEAD_VALIDATION_REQUIRED"
+        "state": "IMPLEMENTED_BY_PACKAGE_SCRIPT_WIRING; UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
       }
     ],
-    "current_red_evidence": [
-      "provider-invalid-rejected-transport.node.test.mjs is now included in test:pom-rx:wallet-guard-provider-gate and full npm test",
-      "metadata-nonextensible strict child case expects safe drain and currently exposes the P1 until runtime repair",
-      "constructor-nonconfigurable strict child case expects safe drain and currently exposes the P1 until runtime repair",
-      "pre-existing metadata and non-standard-prototype strict child cases remain"
+    "repair_evidence": [
+      "provider-invalid-rejected-transport.node.test.mjs remains included in test:pom-rx:wallet-guard-provider-gate and full npm test",
+      "metadata-nonextensible and constructor-nonconfigurable strict child regressions remain present and unweakened",
+      "runtime drain repair uses captured descriptors to identify safe constructor/species paths and attaches the captured Promise rejection reaction without a preceding fallible mutation for the claimed non-extensible/non-configurable data-property cases",
+      "unsafe configurable constructor paths are shadowed with an own undefined constructor before the captured then call, avoiding hostile getter execution",
+      "Promise Symbol.species descriptor integrity is now captured and included in Promise runtime integrity checks",
+      "a non-configurable own constructor accessor is explicitly outside the gateway-owned internal-drain guarantee; a prehandled strict child regression proves the gateway rejects it without executing the accessor and without authorization/forwarding"
     ],
+    "bounded_nonclaim": "PR120 does not claim the gateway can internally mark every arbitrarily decorated rejected native Promise as handled. A non-configurable own constructor accessor that cannot be shadowed without executing attacker code is rejected fail-closed but remains outside the gateway-owned strict-unhandled-rejection drain guarantee; provider-owned rejection handling is required for that deliberately unsupported transport class.",
     "repair_contract": [
       "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
       "attach or otherwise establish a safe rejection reaction before any fallible mutation for structurally invalid rejected native Promise classes claimed as supported",
-      "make an explicit bounded decision for non-shadowable own constructor/then cases without hostile accessor execution",
+      "keep non-shadowable own constructor accessor cases outside the internal-drain claim unless a standard-intrinsic-safe mechanism is proved; never execute the accessor merely to suppress rejection",
       "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
       "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
       "reject scalar policy-list coercion and inherited Array-index substitution in application bridges",
@@ -90,15 +95,14 @@
       "do not claim or import durable Gate composition in this prerequisite lot"
     ],
     "release_requirements": [
-      "make newly CI-wired non-extensible/non-configurable strict rejected-Promise regressions green by runtime repair rather than deleting/weakening them",
-      "exact-head canonical CI success",
+      "final exact-head targeted provider-gate and canonical CI success with the non-extensible/non-configurable regressions wired",
       "release-owner five-stage PASS on exact head",
       "fresh genuinely distinct exact-head independent skeptical/security review",
       "fresh reviewer validation before resolving threads PRRT_kwDOTiNyWc6bZjxp, PRRT_kwDOTiNyWc6bZ6tx and PRRT_kwDOTiNyWc6bZ6tz",
       "zero unresolved P0/P1/P2",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "Repair provider.mjs drain ordering/strategy against the newly CI-wired metadata-nonextensible and constructor-nonconfigurable strict cases without hostile accessor execution. Then freeze the repaired head, run targeted provider-gate plus canonical CI, owner five-stage review, and a NEW distinct Codex skeptical/security review."
+    "next_safe_action": "Freeze the post-control-plane PR120 head, require canonical exact-head CI success, perform the release-owner five-stage review, request a NEW distinct Codex skeptical/security review, and resolve the three historical review threads only if that exact head establishes zero unresolved P0/P1/P2."
   },
   "queue": [
     {
