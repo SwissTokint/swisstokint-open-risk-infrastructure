@@ -175,7 +175,36 @@ function canonicalAccounts(value) {
 }
 
 function capturePolicy(value) {
-  return captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  const captured = captureReferencePlainData(
+    value,
+    'Wallet Guard controlled host policy',
+  );
+
+  // Core plain-data arrays intentionally use a frozen reference-owned prototype
+  // so post-import Array.prototype drift cannot rewrite their traversal. The
+  // historical Wallet Guard policy boundary is deliberately stricter and accepts
+  // only ordinary Array.prototype policy lists. Bridge those two already-safe
+  // representations explicitly at the application schema boundary instead of
+  // weakening either generic Core capture or the public policy validator.
+  return freeze({
+    schema_version: captured.schema_version,
+    policy_id: captured.policy_id,
+    enabled: captured.enabled,
+    kill_switch: captured.kill_switch,
+    expected_chain_id: captured.expected_chain_id,
+    allowed_origins: copyFrozenArray(captured.allowed_origins),
+    allowed_targets: copyFrozenArray(captured.allowed_targets),
+    allowed_recipients: copyFrozenArray(captured.allowed_recipients),
+    allowed_spenders: copyFrozenArray(captured.allowed_spenders),
+    allowed_typed_data_verifying_contracts: copyFrozenArray(
+      captured.allowed_typed_data_verifying_contracts,
+    ),
+    max_native_value: captured.max_native_value,
+    max_token_amount: captured.max_token_amount,
+    deny_unlimited_allowance: captured.deny_unlimited_allowance,
+    deny_operator_approval: captured.deny_operator_approval,
+    require_simulation_for: copyFrozenArray(captured.require_simulation_for),
+  });
 }
 
 function capturePageRequest(value) {
