@@ -50,6 +50,7 @@ const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_PROTOTYPE = Promise.prototype;
 const PROMISE_THEN = Promise.prototype.then;
+const PROMISE_SPECIES_KEY = Symbol.species;
 const PROMISE_CONSTRUCTOR_DESCRIPTOR = Object.getOwnPropertyDescriptor(
   PROMISE_PROTOTYPE,
   'constructor',
@@ -57,6 +58,10 @@ const PROMISE_CONSTRUCTOR_DESCRIPTOR = Object.getOwnPropertyDescriptor(
 const PROMISE_THEN_DESCRIPTOR = Object.getOwnPropertyDescriptor(
   PROMISE_PROTOTYPE,
   'then',
+);
+const PROMISE_SPECIES_DESCRIPTOR = Object.getOwnPropertyDescriptor(
+  PROMISE_CONSTRUCTOR,
+  PROMISE_SPECIES_KEY,
 );
 const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -324,16 +329,29 @@ function isNativePromise(value) {
   return REFLECT_APPLY(UTIL_TYPES_IS_PROMISE, utilTypes, [value]);
 }
 
-function samePromiseDescriptor(current, baseline, expectedValue) {
+function samePropertyDescriptor(current, baseline) {
   return Boolean(current)
     && Boolean(baseline)
-    && current.value === expectedValue
     && current.value === baseline.value
     && current.writable === baseline.writable
     && current.enumerable === baseline.enumerable
     && current.configurable === baseline.configurable
     && current.get === baseline.get
     && current.set === baseline.set;
+}
+
+function samePromiseDescriptor(current, baseline, expectedValue) {
+  return samePropertyDescriptor(current, baseline)
+    && current.value === expectedValue;
+}
+
+function hasPromiseSpeciesIntegrity() {
+  const speciesDescriptor = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    Object,
+    [PROMISE_CONSTRUCTOR, PROMISE_SPECIES_KEY],
+  );
+  return samePropertyDescriptor(speciesDescriptor, PROMISE_SPECIES_DESCRIPTOR);
 }
 
 function hasPromisePrototypeIntegrity() {
@@ -351,7 +369,8 @@ function hasPromisePrototypeIntegrity() {
     constructorDescriptor,
     PROMISE_CONSTRUCTOR_DESCRIPTOR,
     PROMISE_CONSTRUCTOR,
-  ) && samePromiseDescriptor(thenDescriptor, PROMISE_THEN_DESCRIPTOR, PROMISE_THEN);
+  ) && samePromiseDescriptor(thenDescriptor, PROMISE_THEN_DESCRIPTOR, PROMISE_THEN)
+    && hasPromiseSpeciesIntegrity();
 }
 
 function assertPromisePrototypeIntegrity(method) {
@@ -402,28 +421,53 @@ function pinInternalPromise(value, label) {
   return value;
 }
 
+function hasSafePromiseConstructorPathForDrain(value) {
+  const ownConstructorDescriptor = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    Object,
+    [value, 'constructor'],
+  );
+  if (ownConstructorDescriptor) {
+    if (typeof ownConstructorDescriptor.get === 'function') return false;
+    if (ownConstructorDescriptor.value === undefined) return true;
+    return ownConstructorDescriptor.value === PROMISE_CONSTRUCTOR
+      && hasPromiseSpeciesIntegrity();
+  }
+
+  const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+  if (prototype !== PROMISE_PROTOTYPE) return false;
+
+  const inheritedConstructorDescriptor = REFLECT_APPLY(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    Object,
+    [PROMISE_PROTOTYPE, 'constructor'],
+  );
+  if (!inheritedConstructorDescriptor
+      || typeof inheritedConstructorDescriptor.get === 'function') {
+    return false;
+  }
+  if (inheritedConstructorDescriptor.value === undefined) return true;
+  return samePromiseDescriptor(
+    inheritedConstructorDescriptor,
+    PROMISE_CONSTRUCTOR_DESCRIPTOR,
+    PROMISE_CONSTRUCTOR,
+  ) && hasPromiseSpeciesIntegrity();
+}
+
 function drainPromiseTransportBeforeIntegrityFailure(value, method) {
   try {
-    REFLECT_APPLY(
-      OBJECT_DEFINE_PROPERTY,
-      Object,
-      [value, 'constructor', promiseDataDescriptor(undefined, true)],
-    );
+    if (!hasSafePromiseConstructorPathForDrain(value)) {
+      REFLECT_APPLY(
+        OBJECT_DEFINE_PROPERTY,
+        Object,
+        [value, 'constructor', promiseDataDescriptor(undefined, true)],
+      );
+    }
     REFLECT_APPLY(PROMISE_THEN, value, [undefined, () => undefined]);
-    REFLECT_APPLY(
-      OBJECT_DEFINE_PROPERTY,
-      Object,
-      [value, 'constructor', immutablePromiseDataDescriptor(PROMISE_CONSTRUCTOR)],
-    );
-    REFLECT_APPLY(
-      OBJECT_DEFINE_PROPERTY,
-      Object,
-      [value, 'then', immutablePromiseDataDescriptor(PROMISE_THEN)],
-    );
   } catch {
     fail(
       'POMRX_WG_PROVIDER_E_CONTEXT_INVALID',
-      `provider ${method} Promise transport could not be safely pinned after runtime drift`,
+      `provider ${method} Promise transport could not be safely drained before integrity failure`,
     );
   }
 }
