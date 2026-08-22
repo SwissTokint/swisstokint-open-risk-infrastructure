@@ -1,8 +1,8 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T13:27:00+02:00`
+Updated: `2026-08-22T20:30:00+02:00`
 
-Current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`
+Current trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`
 
 This file lists **current** blockers only. Historical blockers remain in Git
 history and PR review threads. Live GitHub wins if a PR head, review, CI run,
@@ -10,152 +10,131 @@ review thread, mergeability signal or merge changes after this checkpoint.
 
 ## Trusted coordination state
 
-PR #118 exact source head `dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab`
-merged as exact main SHA `a22198bf8065cb7af2f4f7821edaba9c5f749704`.
-Source-head and merge trees are identical at
-`4eb5d22f763d158f95c86501368de3d68af89104`; the source-head to merge comparison
-is one merge commit with `files: []`.
+PR #119 exact source head `057b225783b24c97568dbcd733ca4c821f889c7a`
+merged as exact main SHA `e5aead150a2ed5f390593cc2d9d307defdd79bdc`.
+Its frozen exact-head CI passed, release-owner gate passed non-independently, a
+distinct exact-head `chatgpt-codex-connector` review reported no major issues,
+and exact-main push CI `32575110984` / CI 720 passed on the merge SHA. Exact-
+merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #119 comment `5380609307`.
+PR #119 is terminal control-plane transition evidence; do not create another
+docs-only successor.
 
-Release/post-merge evidence for PR #118:
+## `PR120_FOLLOWUP_PROMISE_DRAIN_P1_REPAIRED_PENDING_EXACT_HEAD_VALIDATION`
 
-- exact-head candidate CI `32559785310` / CI 704: `success`;
-- final release-owner exact-head gate: review `4999506623`,
-  `PASS / NON-INDEPENDENT`;
-- distinct exact-head `chatgpt-codex-connector` issue comment `5379054811`:
-  reviewed `dacc2efde7`, no major issues;
-- no unresolved P0/P1/P2 remained in the bounded merge scope at merge decision;
-- canonical exact-main push CI `32561596467` / CI 705 attempt 1:
-  `completed / success` on exact merge SHA;
-- decision-time `pom-rx/exact-main-ci`: `success`, targeting that canonical run;
-- exact-merge SpecKit, skeptical/falsification, security, code quality,
-  optimization and integration/regression: PASS for the bounded docs/control-
-  plane scope;
-- final exact-merge verdict: `POST_MERGE_ASSURANCE_PASS`, PR #118 issue comment
-  `5379219612`.
+PR #120 is **OPEN / NOT TRUSTED / NOT MERGEABLE BY POLICY**. The current
+follow-up implementation addresses the latest exact-head rejected-Promise P1,
+but implementation is not release evidence.
 
-PR #118 is terminal trusted coordination evidence only. It changed no
-runtime/security semantics and does not make PR #97 or PR #93 trusted. Its
-terminal rule is authoritative: do not create another documentation-only
-checkpoint merely to record PR #118 as done.
+Historical distinct Codex reviews opened:
 
-## `PR119_EXACT_HEAD_P2_REPAIRS_REQUIRE_FRESH_REVIEW`
+- P1 `PRRT_kwDOTiNyWc6bZjxp`: structurally invalid rejected native Promises could
+  fail validation before any rejection reaction was attached;
+- P1 `PRRT_kwDOTiNyWc6bZ6tx`: the first drain repair still performed a fallible
+  own-`constructor` mutation before attaching the reaction;
+- P2 `PRRT_kwDOTiNyWc6bZ6tz`: the strict rejected-transport regression was not
+  reached by canonical `npm test`;
+- exact-head P1 `PRRT_kwDOTiNyWc6baFkR` on
+  `738e807e19fc0b2b4daf53eb4102ae1449f4aae9`: a rejected same-realm native
+  Promise that is both non-extensible and given a nonstandard prototype could
+  still reach fallback constructor shadowing before a rejection reaction was
+  attached.
 
-PR #119 is the current non-Tier-B transition vehicle from exact trusted main
-`a22198bf...`. It is not a recurrent post-merge checkpoint task. It carries PR
-#118's terminal fact while advancing the next useful work item: the fresh
-trusted-main PR #97-line Promise-drift runtime repair.
+Follow-up runtime commit `52225ae28d85afb4d6e4280d560f10098f19c935`
+now classifies the effective constructor path by a bounded prototype-chain walk
+using captured `getOwnPropertyDescriptor`, captured `getPrototypeOf` and captured
+`util.types.isProxy`. The drain accepts only paths whose first effective
+`constructor` is data-only `undefined` or the captured native `Promise` with
+intact species semantics, or whose lookup terminates at `null`. This allows the
+captured native rejection reaction to attach without a preceding mutation for
+the supported non-extensible/nonstandard-prototype classes.
 
-Two distinct exact-head Codex P2 findings are historical blockers that have been
-repaired in the moving branch but still require fresh exact-head validation:
+Proxy prototypes and constructor accessors are not executed merely to drain.
+Unsafe configurable paths may still be shadowed with an own `undefined`
+constructor; non-shadowable hostile accessor/Proxy paths remain explicitly
+outside the gateway-owned strict-unhandled-rejection drain guarantee.
 
-1. on `1bdb53bad6f0b88046358f4ec7912c86a0469a7c`, thread
-   `PRRT_kwDOTiNyWc6bX2ey`: `Honor PR #118's terminal rule instead of creating PR
-   #119`;
-2. on `ae856bdb2d0389b4fa3aefc962a072d093fac050`, thread
-   `PRRT_kwDOTiNyWc6bYFVT`: `Restore the five-stage standing-authorization
-   prerequisite`.
+Strict regression commit `a7bf527e8766b74e2717d7fd26a45add87a0958c`
+keeps all previous cases and adds both:
 
-The first repair makes PR #119 a one-time transition vehicle and explicitly
-forbids a post-PR119 documentation-only successor after trusted merge. The second
-repair, commit `0590362a3682049aac6ab5f80a3bc31af3326854`, restores the machine-
-readable requirement that standing merge authorization depends on the mandatory
-five-stage pre-merge gate in addition to technical/security gates, exact-head CI,
-required distinct exact-head review and zero unresolved P0/P1/P2.
+- exact `Object.setPrototypeOf(p, null)` + `Object.preventExtensions(p)` rejected
+  transport;
+- non-extensible rejected transport with a benign alternate prototype carrying a
+  native data `constructor: Promise`.
 
-All CI/review evidence on earlier heads is stale after any move. Do not merge PR
-#119 until its final repaired exact head has fresh canonical CI success,
-release-owner five-stage PASS, a genuinely distinct exact-head independent review
-with no P0/P1/P2, and both historical P2 threads are resolved only after that
-exact-head validation. After merge, exact-merge post-merge assurance is mandatory.
+The strict child still requires zero reference authorization, zero account
+continuation, zero sensitive forwarding and zero hostile constructor-getter
+execution. The historical/current P1/P2 threads remain unresolved until a fresh
+exact-head distinct review validates the final candidate.
 
-## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
+## `PR120_CAPABILITY_MAP_P1_REPAIRED_PENDING_EXACT_HEAD_VALIDATION`
+
+Canonical CI run `32586321394` / CI 760 failed on historical head
+`738e807e19fc0b2b4daf53eb4102ae1449f4aae9` because the branch capability map
+lost the repository-tested Wallet Guard positioning invariant. That red run is
+historical evidence and must not be reused as success.
+
+P1 thread `PRRT_kwDOTiNyWc6baIxZ` tracks the same control-plane defect. Commit
+`27becec03b853428464799f610d283fa44f689f2` restores the tested statement that
+Wallet Guard's primary product home is **Blockchain and digital assets**, while
+its defensive control model also overlaps Cybersecurity. The test is not weakened.
+The thread remains unresolved pending fresh exact-head CI/review.
+
+## `PR120_CI_WIRING_P2_PENDING_EXACT_HEAD_VALIDATION`
+
+P2 `PRRT_kwDOTiNyWc6bZ6tz` remains historically relevant. `package.json` includes
+`tests/wallet-guard/provider-invalid-rejected-transport.node.test.mjs` in
+`test:pom-rx:wallet-guard-provider-gate`, which is part of full `npm test`. The
+implementation defect is repaired, but closure requires the final frozen head to
+show green canonical CI actually executing the suite plus fresh distinct review.
+
+## `PR120_FINAL_EXACT_HEAD_GATES_REQUIRED`
+
+The Prime lane is the **single implementation writer** for the current follow-up
+repair. The earlier Codex-writer routing was superseded before any Codex-authored
+commit so that `chatgpt-codex-connector` can remain a genuinely distinct,
+read-only independent reviewer of the resulting candidate.
+
+PR #120 cannot merge until one frozen exact head has all of the following:
+
+- canonical exact-head CI `success`, including the strict rejected-Promise and
+  capability-map tests;
+- release-owner mandatory five-stage PASS on that exact head;
+- a fresh genuinely distinct **read-only** `chatgpt-codex-connector`
+  skeptical/security review on the same exact head;
+- zero unresolved P0/P1/P2, including valid closure of
+  `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`,
+  `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR` and
+  `PRRT_kwDOTiNyWc6baIxZ`.
+
+Any head move invalidates exact-head CI/review evidence. The independent-review
+waiver remains PR #60 only.
+
+## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
 Historical PR #97 remains open and **must not merge**.
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
-- exact-head CI `32487036517` / CI 592: `success` but not security evidence;
-- release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
-- current exact-head distinct finding: P1 `Reject Promise drift before entering
-  async layers`;
-- current exact-head and applicable historical P1 threads remain unresolved.
+- exact-head CI 592: `success` but not security evidence;
+- release-owner verdict: `BLOCK / NON-INDEPENDENT`.
 
-The exact head is a test-only move from independently blocked parent
-`639b96e7...`; provider/runtime implementation is not repaired and the regression
-was relaxed. With inherited `Promise.prototype.constructor` plus `then`
-poisoning, outer awaits in `readProviderSnapshot`, `sampleStableProviderContext`,
-`sampleTrustedContext` and `request` can assimilate rejected provider reads before
-the transport validator failure reaches its caller, substitute stable attacker-
-controlled context, then permit reference authorization and sensitive forwarding.
+PR #120 supersedes only the Promise-boundary repair through a fresh trusted-main
+implementation; PR #97 must not be revived, rebased or merged wholesale.
 
-Required closure is a **fresh** bounded branch/PR from then-current trusted main,
-not a merge/rebase/revival of stale PR #97:
+## `CORE_DURABLE_GATE_COMPOSITION_NOT_YET_TRUSTED`
 
-- prevent hostile Promise-prototype dispatch before outer async assimilation;
-- restore or replace a CI-wired regression reproducing the independent sensitive-
-  forwarding exploit without weakening hostile-dispatch expectations merely to
-  make CI green;
-- require durable capability claim success before any observer or downstream work
-  so losing contenders cannot enter security-sensitive paths;
-- preserve fail-closed replay and durable one-winner behavior;
-- preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
-  compatibility;
-- preserve hardened direct non-Promise object/function capture and own native-
-  Promise-decoration rejection;
-- require **zero authorization and zero sensitive forwarding for hostile rejected
-  transports**;
-- rerun exact-head CI and release-owner six-lane review;
-- obtain a fresh distinct exact-head independent skeptical/security review;
-- require zero unresolved P0/P1/P2 before merge.
+Trusted main still has a process-local single-use Gate and a **separate**
+filesystem durable claim primitive. Reviewed durable claim-before-observer/
+downstream composition is not trusted. Reconstruct it as a separate bounded
+Tier-B lot only after PR #120 is trusted.
 
-## `PR97_FALSE_PASS_GREEN_CI_32487036517`
+## `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_AFTER_PR120`
 
-CI 592 is green on `0efb462...`, but it is not release evidence for the Promise
-drift property because runtime behavior remains vulnerable and the exact-head
-independent P1 is unresolved. Green CI never overrides a concrete security
-reproducer.
-
-## `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`
-
-The release-owner exact-head verdict remains `BLOCK / NON-INDEPENDENT`. The stale
-head is not eligible for standing merge authorization.
-
-## `PR97_FRESH_TRUSTED_MAIN_REPAIR_REQUIRED_AFTER_PR118`
-
-PR #97's historical base `0564aecd...` trails trusted main `a22198bf...`.
-Mergeability is volatile conflict metadata only and is never proof of architecture
-reconciliation or security correctness. Once PR #119's transition repair is
-trusted, start the smallest fresh runtime branch from then-current trusted main.
-
-## `PR97_HISTORICAL_P1_THREADS_PENDING_VALIDATED_RESOLUTION`
-
-Earlier unresolved P1 threads remain useful attack history but do not release a
-later SHA. A final repaired exact head needs distinct independent validation
-before applicable historical threads can be resolved without creating false-PASS
-evidence.
-
-## `PR93_TRUSTED_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED`
-
-PR #93 remains open and untrusted.
-
-- exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
-- historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- current trusted main: `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
-- exact-head CI `32465835858` / CI 541: `success` but not release evidence;
-- latest release-owner and distinct review evidence found in the PR record covers
-  moved head `03e0201c9f...`, not current `c4e40ceb...`;
-- unresolved current/non-outdated P1/P2 classes include exact negative-zero
-  identity, typed-data wrapper normalization, generic-signature exact-value
-  commitment, nested payload capture with saved reflection intrinsics, and shared
-  proof canonicalization/SHA-256/hash hardening.
-
-Moved-head fixes are not current release evidence. PR #93 overlaps shared
-regression/package surfaces with the PR #97-line work. Keep it ordered after a
-trusted fresh PR #97-line repair unless a separate reviewed dependency-ordering
-decision is recorded. Then reconcile #93 from then-current trusted main, rerun
-exact-head CI and owner review, obtain a fresh distinct exact-head independent
-skeptical/security review, and require zero unresolved P0/P1/P2.
+PR #93 remains open/untrusted at
+`c4e40ceb286f4e59657767661daed15d2b68e9a7`; historical CI 541 is not release
+evidence and unresolved P1/P2 classes remain. Keep it ordered after trusted PR
+#120 and required shared-Core work unless a separately reviewed dependency
+change is recorded.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
@@ -164,11 +143,10 @@ controls, scores or claims without authorized source material.
 
 ## `PRODUCTION_TRUST_UNPROVED`
 
-Reference components do not prove production issuer/operator authorization,
-trusted time, KMS/HSM custody, distributed revocation/consensus, crash recovery,
-external observer independence, external execution/effect truth or arbitrary
-browser/provider integrity. No production-readiness claim may rely on the current
-reference harness alone.
+Production issuer/operator authorization, trusted time, KMS/HSM custody,
+distributed revocation/consensus, crash recovery, external observer independence,
+external execution/effect truth and arbitrary browser/provider integrity remain
+unproved.
 
 ## `REAL_WALLET_NOT_AUTHORIZED`
 
@@ -178,10 +156,11 @@ also remains behind a separate explicit human authorization gate.
 
 ## Current dependency rule
 
-PR #97 and PR #93 are not trusted dependencies merely because their branches,
-mergeability signals or CI exist. A dependency is trusted only after the full
-five-stage pre-merge gate and all applicable exact-head gates pass, the PR merges,
-and the exact merge receives `POST_MERGE_ASSURANCE_PASS`.
+A dependency becomes trusted only after the mandatory five-stage pre-merge gate,
+all applicable exact-head technical/security gates, canonical exact-head CI, the
+required genuinely distinct exact-head independent review, zero unresolved
+P0/P1/P2, merge, exact-main CI and exact-merge
+`POST_MERGE_ASSURANCE_PASS`.
 
 Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`:
 local, deterministic, synthetic and bounded — not production readiness, audit,

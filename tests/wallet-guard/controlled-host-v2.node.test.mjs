@@ -385,6 +385,17 @@ test('nested account and policy accessors fail without executing getter bodies',
   assert.equal(policyGetterCalls, 0);
 });
 
+test('policy bridge rejects scalar list fields instead of coercing them to empty policy lists', () => {
+  assert.throws(
+    () => createHost({ policy: policy({ require_simulation_for: '' }) }),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_INVALID'),
+  );
+  assert.throws(
+    () => createHost({ policy: policy({ allowed_spenders: '' }) }),
+    (error) => expectHostCode(error, 'POMRX_WG_HOST_E_INVALID'),
+  );
+});
+
 test('bootstrap validates canonical origin, accounts and deterministic fake result', () => {
   assert.throws(
     () => createHost({ trustedOrigin: `${ORIGIN}/` }),

@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T13:31:00+02:00",
-  "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
+  "updated_at": "2026-08-22T20:28:00+02:00",
+  "current_main": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,131 +10,143 @@
     "source_of_truth_order": ["live_github", "canonical_control_plane", "repository_architecture_and_specs"]
   },
   "trusted_main": {
-    "sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "source_pr": 118,
-    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
-    "tree": "4eb5d22f763d158f95c86501368de3d68af89104",
-    "source_to_merge": "one_merge_commit_files_empty",
-    "candidate_ci": {"run_id": 32559785310, "run_number": 704, "conclusion": "success"},
-    "exact_main_ci": {
-      "run_id": 32561596467,
-      "run_number": 705,
-      "run_attempt": 1,
-      "conclusion": "success",
-      "status_context": "pom-rx/exact-main-ci",
-      "status": "success"
-    },
-    "release_owner_gate": "PASS_NON_INDEPENDENT_REVIEW_4999506623",
-    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES_COMMENT_5379054811",
+    "sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
+    "source_pr": 119,
+    "source_head": "057b225783b24c97568dbcd733ca4c821f889c7a",
+    "candidate_ci": {"run_number": 719, "conclusion": "success"},
+    "exact_main_ci": {"run_id": 32575110984, "run_number": 720, "conclusion": "success"},
+    "release_owner_gate": "PASS_NON_INDEPENDENT",
+    "independent_gate": "PASS_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_NO_MAJOR_ISSUES",
     "unresolved_release_threads": 0,
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5379219612",
-    "scope": "coordination_only_non_tier_b"
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5380609307",
+    "scope": "transition_control_plane_to_useful_runtime_lot"
   },
   "completed_control_plane": {
-    "id": "CONTROL-PLANE-POST-117-CHECKPOINT-20260822",
-    "pr": 118,
-    "source_head": "dacc2efde7cf5c0f283a1eb8e2a1458e94aa04ab",
-    "merge_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "status": "TERMINAL_TRUSTED_POST_MERGE_ASSURANCE_PASS",
-    "terminal_rule": "PR 118 is terminal. Do not create a new documentation-only checkpoint merely to record its terminal state; carry that fact with useful follow-on work."
-  },
-  "transition_pr": {
+    "id": "CONTROL-PLANE-TRANSITION-AFTER-PR118-20260822",
     "pr": 119,
-    "branch": "docs/pom-rx-checkpoint-after-118-20260822",
-    "base_sha": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "purpose": "Carry trusted PR 118 terminal facts while advancing the next useful task: the fresh PR97-line Promise-drift runtime repair.",
-    "not_a_recurrent_checkpoint_task": true,
-    "independent_review_history": {
-      "first_finding": {
-        "reviewed_head": "1bdb53bad6f0b88046358f4ec7912c86a0469a7c",
-        "reviewer": "chatgpt-codex-connector",
-        "finding": "P2_HONOR_PR118_TERMINAL_RULE_INSTEAD_OF_SELF_RECREATING_CHECKPOINT",
-        "thread_id": "PRRT_kwDOTiNyWc6bX2ey",
-        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
-      },
-      "second_finding": {
-        "reviewed_head": "ae856bdb2d0389b4fa3aefc962a072d093fac050",
-        "reviewer": "chatgpt-codex-connector",
-        "finding": "P2_RESTORE_FIVE_STAGE_STANDING_AUTHORIZATION_PREREQUISITE",
-        "thread_id": "PRRT_kwDOTiNyWc6bYFVT",
-        "repair_commit": "0590362a3682049aac6ab5f80a3bc31af3326854",
-        "status": "REPAIRED_IN_MOVING_BRANCH_REQUIRES_FRESH_EXACT_HEAD_VALIDATION"
-      }
-    },
-    "exact_current_head_rule": "Read PR 119 live after the final owned-file commit; do not self-embed the moving final SHA into the moving control-plane files.",
-    "merge_rule": "PR 119 may merge only after its repaired exact head has canonical CI success, release-owner five-stage PASS, fresh distinct exact-head review, and zero unresolved P0/P1/P2. Resolve historical P2 threads only after exact-head validation. After merge, run exact-merge assurance; do not open a post-PR119 documentation-only successor."
+    "source_head": "057b225783b24c97568dbcd733ca4c821f889c7a",
+    "merge_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
+    "status": "TERMINAL_TRUSTED_POST_MERGE_ASSURANCE_PASS",
+    "terminal_rule": "Do not create a post-PR119 documentation-only successor; carry materially changed continuation state with useful runtime work."
   },
   "active_task": {
     "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
     "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
     "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-    "status": "READY_TO_START_AFTER_TRANSITION_PR119_TRUSTED",
+    "status": "PR120_FOLLOWUP_P1_REPAIR_IMPLEMENTED_PENDING_FRESH_EXACT_HEAD_GATES",
+    "pr": 120,
+    "branch": "automation/pom-rx-promise-drift-repair-20260822",
+    "base_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
+    "first_implementation_commit": "f31611139e51cf0f05265c19012e372e06bfc7ae",
+    "runtime_drain_repair_commit": "9e7a151b4eb8da0e7595e8ebee540319273a7fab",
+    "bounded_nonshadowable_accessor_test_commit": "d0c4175f12086bbbb2f4ccceb7cd947203e3f6fc",
+    "followup_constructor_chain_repair_commit": "52225ae28d85afb4d6e4280d560f10098f19c935",
+    "followup_strict_regression_commit": "a7bf527e8766b74e2717d7fd26a45add87a0958c",
+    "capability_map_repair_commit": "27becec03b853428464799f610d283fa44f689f2",
     "historical_pr": 97,
     "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-    "historical_base": "0564aecd42cf0794894c12842980969ff59c9f73",
-    "fresh_branch_rule": "Start from then-current trusted main on a new bounded branch/PR. Do not merge, rebase, revive, or wholesale-copy the stale PR97 branch.",
-    "known_exact_head_ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_false_pass_for_security_property"},
-    "historical_owner_gate": "BLOCK_NON_INDEPENDENT",
-    "historical_independent_gate": "BLOCK_P1_REJECT_PROMISE_DRIFT_BEFORE_ENTERING_ASYNC_LAYERS",
+    "fresh_branch_rule": "Fresh PR120 starts from exact trusted main. Do not merge, rebase, revive, or wholesale-copy stale PR97.",
+    "pre_repair_expected_red_head": "b243a95094cfeeb31a7de94c5df0c93f6d711938",
+    "historical_red_head": "738e807e19fc0b2b4daf53eb4102ae1449f4aae9",
+    "historical_red_ci": {"run_id": 32586321394, "run_number": 760, "conclusion": "failure", "reason": "capability_map_wallet_guard_product_home_invariant_missing"},
+    "current_candidate_rule": "Read PR120 exact head live after the final owned-file commit; self-embedding the moving SHA in this file would recursively move it.",
+    "current_ci": "PENDING_FRESH_EXACT_HEAD_CANONICAL_CI_AFTER_FOLLOWUP_RUNTIME_TEST_MAP_AND_CONTROL_PLANE_REPAIR",
+    "current_owner_gate": "PENDING_FRESH_EXACT_HEAD_FIVE_STAGE_REVIEW",
+    "current_independent_gate": "PENDING_NEW_CHATGPT_CODEX_CONNECTOR_EXACT_HEAD_REVIEW_READ_ONLY",
+    "writer_routing": "PRIME_SINGLE_IMPLEMENTATION_WRITER_FOR_CURRENT_FOLLOWUP; CHATGPT_CODEX_CONNECTOR_READ_ONLY_INDEPENDENT_REVIEWER",
+    "independent_finding_history": [
+      {
+        "reviewed_head": "5885da291d7d6b3e4541e5c00c160ffb481828b8",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P1",
+        "thread_id": "PRRT_kwDOTiNyWc6bZjxp",
+        "finding": "Drain rejected transports before failing validation.",
+        "state": "UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
+      },
+      {
+        "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P1",
+        "thread_id": "PRRT_kwDOTiNyWc6bZ6tx",
+        "finding": "Attach the rejection reaction before fallible pinning; non-extensible or non-configurable Promise decoration can still orphan a rejection.",
+        "state": "IMPLEMENTED_ON_MOVED_HEAD; UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
+      },
+      {
+        "reviewed_head": "b7576f8e94b3379c7427a51e4113960f396ac7e8",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P2",
+        "thread_id": "PRRT_kwDOTiNyWc6bZ6tz",
+        "finding": "Run provider-invalid-rejected-transport.node.test.mjs in canonical CI.",
+        "state": "IMPLEMENTED_BY_PACKAGE_SCRIPT_WIRING; UNRESOLVED_PENDING_FINAL_EXACT_HEAD_VALIDATION"
+      },
+      {
+        "reviewed_head": "738e807e19fc0b2b4daf53eb4102ae1449f4aae9",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P1",
+        "thread_id": "PRRT_kwDOTiNyWc6baFkR",
+        "finding": "A non-extensible rejected native Promise with a nonstandard prototype can reach fallible constructor shadowing before a rejection reaction is attached.",
+        "state": "IMPLEMENTED_BY_52225AE_PLUS_A7BF527; UNRESOLVED_PENDING_FRESH_EXACT_HEAD_VALIDATION"
+      },
+      {
+        "reviewed_head": "738e807e19fc0b2b4daf53eb4102ae1449f4aae9",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P1",
+        "thread_id": "PRRT_kwDOTiNyWc6baIxZ",
+        "finding": "Restore the tested Wallet Guard Blockchain-and-digital-assets primary product-home invariant in the capability map.",
+        "state": "IMPLEMENTED_BY_27BECEC; UNRESOLVED_PENDING_FRESH_EXACT_HEAD_VALIDATION"
+      }
+    ],
+    "repair_evidence": [
+      "provider-invalid-rejected-transport.node.test.mjs remains included in test:pom-rx:wallet-guard-provider-gate and full npm test",
+      "metadata-nonextensible and constructor-nonconfigurable strict child regressions remain present and unweakened",
+      "follow-up runtime repair walks a bounded effective constructor prototype chain with captured getOwnPropertyDescriptor/getPrototypeOf and captured util.types.isProxy",
+      "null-terminated constructor lookup and data-only native Promise constructor paths can attach the captured rejection reaction without preceding mutation, including non-extensible rejected transports",
+      "Proxy prototypes and constructor accessors are not executed merely to drain; unsafe configurable paths may still be shadowed with own undefined, while non-shadowable hostile paths remain explicitly unsupported",
+      "strict regressions cover Object.setPrototypeOf(p, null) plus Object.preventExtensions(p), and a non-extensible benign alternate prototype carrying a native data constructor",
+      "zero reference authorization, zero account continuation, zero sensitive forwarding, and zero hostile constructor-getter execution remain asserted",
+      "capability map restores Wallet Guard's primary product home as Blockchain and digital assets while noting Cybersecurity overlap",
+      "historical CI760 on 738e is retained as red evidence and is not reused as release success"
+    ],
+    "bounded_nonclaim": "PR120 does not claim the gateway can internally mark every arbitrarily decorated rejected native Promise as handled. Non-shadowable hostile constructor/accessor or Proxy-based effective-constructor paths that cannot be proven safe without attacker dispatch remain outside the gateway-owned strict-unhandled-rejection drain guarantee.",
     "repair_contract": [
       "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
-      "restore or replace a CI-wired regression that reproduces the sensitive-forwarding exploit without weakening hostile-dispatch expectations",
-      "require durable capability claim success before observer or downstream work",
-      "preserve fail-closed replay and durable one-winner semantics",
+      "attach or otherwise establish a safe rejection reaction before any fallible mutation for structurally invalid rejected native Promise classes claimed as supported",
+      "support non-extensible nonstandard-prototype rejected transports when effective constructor lookup can be proven data-only or null-terminated without Proxy/accessor dispatch",
+      "keep non-shadowable hostile constructor/accessor/Proxy paths outside the internal-drain claim unless a standard-intrinsic-safe mechanism is proved; never execute attacker code merely to suppress rejection",
       "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
       "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
-      "require zero authorization and zero sensitive forwarding for hostile rejected transports",
-      "preserve shared Core ownership; Wallet Guard remains an application profile"
+      "reject scalar policy-list coercion and inherited Array-index substitution in application bridges",
+      "require zero authorization and zero sensitive forwarding for hostile rejected context transports",
+      "preserve shared Core ownership; Wallet Guard remains an application profile",
+      "do not claim or import durable Gate composition in this prerequisite lot"
     ],
     "release_requirements": [
-      "targeted expected-red and negative regression evidence",
-      "relevant full regression/compatibility checks",
-      "exact-head canonical CI success",
-      "release-owner six-lane PASS on exact head",
-      "fresh genuinely distinct exact-head independent skeptical/security review",
+      "fresh exact-head canonical CI success with strict rejected-transport and capability-map tests executed",
+      "release-owner five-stage PASS on the same exact head",
+      "fresh genuinely distinct exact-head chatgpt-codex-connector skeptical/security review in read-only mode",
+      "fresh reviewer validation before resolving threads PRRT_kwDOTiNyWc6bZjxp, PRRT_kwDOTiNyWc6bZ6tx, PRRT_kwDOTiNyWc6bZ6tz, PRRT_kwDOTiNyWc6baFkR and PRRT_kwDOTiNyWc6baIxZ",
       "zero unresolved P0/P1/P2",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "After PR 119 is trusted, create the smallest fresh runtime branch from the then-current trusted main and implement only the Promise-drift boundary repair plus the minimum CI-wired exploit regression needed to prove zero authorization/forwarding for hostile rejected transports."
+    "next_safe_action": "Finish the owned control-plane reconciliation without changing runtime scope, freeze the resulting exact PR120 head, require fresh canonical CI success, perform the release-owner five-stage review, request a NEW distinct read-only Codex skeptical/security review, and resolve historical/current threads only if that exact head establishes zero unresolved P0/P1/P2."
   },
   "queue": [
+    {
+      "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
+      "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
+      "status": "BLOCKED_ON_TRUSTED_PR120",
+      "historical_source_pr": 97,
+      "requirement": "Reconstruct durable claim-before-observer/downstream composition from then-current trusted main as a separately bounded reviewed lot. Preserve fail-closed replay and durable one-winner semantics."
+    },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
       "pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
       "status": "BLOCKED_DEPENDENCY_AND_EXACT_HEAD_REVIEW",
-      "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "historical_base": "818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "trusted_main_required": "a22198bf8065cb7af2f4f7821edaba9c5f749704_or_later_trusted_main",
-      "ci": {"run_id": 32465835858, "run_number": 541, "conclusion": "success_but_not_release_evidence"},
-      "owner_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "independent_gate": "STALE_MOVED_HEAD_EVIDENCE_ONLY",
-      "blockers": [
-        "fresh trusted-main reconciliation required",
-        "fresh exact-head release-owner review required",
-        "fresh distinct exact-head independent skeptical/security review required",
-        "unresolved exact negative-zero identity, typed-data wrapper normalization, generic exact-value commitment, nested saved-reflection capture and shared proof canonicalization/SHA-256/hash hardening classes remain",
-        "ordering remains after trusted completion of the fresh PR97-line repair unless separately reviewed"
-      ]
+      "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7"
     },
-    {
-      "id": "DAGR-SOURCE-GATE",
-      "class": "SOURCE_GATED_NORMATIVE_PROFILE",
-      "status": "BLOCKED",
-      "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
-    },
-    {
-      "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
-      "status": "BLOCKED",
-      "blockers": [
-        "production trusted time/issuer/operator authorization unproved",
-        "production Witness/KMS/HSM and distributed trust unproved",
-        "external execution/effect truth unproved",
-        "real or funded wallet execution not authorized"
-      ]
-    }
+    {"id": "DAGR-SOURCE-GATE", "class": "SOURCE_GATED_NORMATIVE_PROFILE", "status": "BLOCKED", "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"},
+    {"id": "PRODUCTION-TRUST-AND-REAL-WALLET", "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST", "status": "BLOCKED"}
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",

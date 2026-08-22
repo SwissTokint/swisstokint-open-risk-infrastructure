@@ -12,13 +12,17 @@ import {
 } from './provider.mjs';
 
 const REFLECT_APPLY = Reflect.apply;
+const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
+const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PROTOTYPE = Array.prototype;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
@@ -130,10 +134,29 @@ function canonicalOrigin(value) {
   return url.origin;
 }
 
+function defineOwnArrayElement(output, index, value) {
+  const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  REFLECT_APPLY(
+    OBJECT_DEFINE_PROPERTY,
+    Object,
+    [output, `${index}`, descriptor],
+  );
+}
+
 function copyFrozenArray(values) {
-  const output = new Array(values.length);
+  if (!REFLECT_APPLY(ARRAY_IS_ARRAY, ARRAY_CONSTRUCTOR, [values])) {
+    fail(
+      'POMRX_WG_HOST_E_INVALID',
+      'controlled host array snapshot must remain an array',
+    );
+  }
+  const output = new ARRAY_CONSTRUCTOR(values.length);
   for (let index = 0; index < values.length; index += 1) {
-    output[index] = values[index];
+    defineOwnArrayElement(output, index, values[index]);
   }
   return freeze(output);
 }
@@ -141,7 +164,7 @@ function copyFrozenArray(values) {
 function canonicalAccounts(value) {
   if (!ARRAY_IS_ARRAY(value)
       || REFLECT_APPLY(IS_PROXY, utilTypes, [value])
-      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== Array.prototype) {
+      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== ARRAY_PROTOTYPE) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a standard non-Proxy array');
   }
   if (value.length < 1 || value.length > MAX_ACCOUNTS) {
@@ -156,7 +179,7 @@ function canonicalAccounts(value) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a dense undecorated array');
   }
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const normalized = new Array(value.length);
+  const normalized = new ARRAY_CONSTRUCTOR(value.length);
   const seen = new Set();
   for (let index = 0; index < value.length; index += 1) {
     const key = String(index);
@@ -169,13 +192,42 @@ function canonicalAccounts(value) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain duplicates');
     }
     setAdd(seen, account);
-    normalized[index] = account;
+    defineOwnArrayElement(normalized, index, account);
   }
   return freeze(normalized);
 }
 
 function capturePolicy(value) {
-  return captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  const captured = captureReferencePlainData(
+    value,
+    'Wallet Guard controlled host policy',
+  );
+
+  // Core plain-data arrays intentionally use a frozen reference-owned prototype
+  // so post-import Array.prototype drift cannot rewrite their traversal. The
+  // historical Wallet Guard policy boundary is deliberately stricter and accepts
+  // only ordinary Array.prototype policy lists. Bridge those two already-safe
+  // representations explicitly at the application schema boundary instead of
+  // weakening either generic Core capture or the public policy validator.
+  return freeze({
+    schema_version: captured.schema_version,
+    policy_id: captured.policy_id,
+    enabled: captured.enabled,
+    kill_switch: captured.kill_switch,
+    expected_chain_id: captured.expected_chain_id,
+    allowed_origins: copyFrozenArray(captured.allowed_origins),
+    allowed_targets: copyFrozenArray(captured.allowed_targets),
+    allowed_recipients: copyFrozenArray(captured.allowed_recipients),
+    allowed_spenders: copyFrozenArray(captured.allowed_spenders),
+    allowed_typed_data_verifying_contracts: copyFrozenArray(
+      captured.allowed_typed_data_verifying_contracts,
+    ),
+    max_native_value: captured.max_native_value,
+    max_token_amount: captured.max_token_amount,
+    deny_unlimited_allowance: captured.deny_unlimited_allowance,
+    deny_operator_approval: captured.deny_operator_approval,
+    require_simulation_for: copyFrozenArray(captured.require_simulation_for),
+  });
 }
 
 function capturePageRequest(value) {
@@ -187,11 +239,15 @@ function captureSensitiveRequest(value) {
 }
 
 function inspectSensitiveCalls(calls) {
-  const output = new Array(calls.length);
+  const output = new ARRAY_CONSTRUCTOR(calls.length);
   for (let index = 0; index < calls.length; index += 1) {
-    output[index] = captureReferencePlainData(
-      calls[index],
-      'Wallet Guard controlled provider recorded request',
+    defineOwnArrayElement(
+      output,
+      index,
+      captureReferencePlainData(
+        calls[index],
+        'Wallet Guard controlled provider recorded request',
+      ),
     );
   }
   return freeze(output);
