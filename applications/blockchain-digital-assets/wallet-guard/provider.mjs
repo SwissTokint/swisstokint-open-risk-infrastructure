@@ -48,6 +48,7 @@ const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN_PROPERTY = Object.prototype.hasOwnProperty;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_PROTOTYPE = Promise.prototype;
 const PROMISE_THEN = Promise.prototype.then;
@@ -423,6 +424,45 @@ function pinInternalPromise(value, label) {
   return value;
 }
 
+function descriptorHasDataValue(descriptor) {
+  return Boolean(descriptor)
+    && REFLECT_APPLY(OBJECT_HAS_OWN_PROPERTY, descriptor, ['value']);
+}
+
+function hasSafePromiseSpeciesPathForDrain(constructorValue) {
+  if (constructorValue === PROMISE_CONSTRUCTOR) {
+    return hasPromiseSpeciesIntegrity();
+  }
+  if ((typeof constructorValue !== 'object' || constructorValue === null)
+      && typeof constructorValue !== 'function') {
+    return false;
+  }
+
+  let current = constructorValue;
+  for (let depth = 0; depth < MAX_PROMISE_CONSTRUCTOR_CHAIN_DEPTH; depth += 1) {
+    if (REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [current])) {
+      return false;
+    }
+
+    const speciesDescriptor = REFLECT_APPLY(
+      OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+      Object,
+      [current, PROMISE_SPECIES_KEY],
+    );
+    if (speciesDescriptor) {
+      if (!descriptorHasDataValue(speciesDescriptor)) return false;
+      const species = speciesDescriptor.value;
+      if (species === undefined || species === null) return true;
+      return species === PROMISE_CONSTRUCTOR && hasPromiseSpeciesIntegrity();
+    }
+
+    const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [current]);
+    if (prototype === null) return true;
+    current = prototype;
+  }
+  return false;
+}
+
 function hasSafePromiseConstructorPathForDrain(value) {
   let current = value;
   for (let depth = 0; depth < MAX_PROMISE_CONSTRUCTOR_CHAIN_DEPTH; depth += 1) {
@@ -437,10 +477,9 @@ function hasSafePromiseConstructorPathForDrain(value) {
       [current, 'constructor'],
     );
     if (constructorDescriptor) {
-      if (typeof constructorDescriptor.get === 'function') return false;
+      if (!descriptorHasDataValue(constructorDescriptor)) return false;
       if (constructorDescriptor.value === undefined) return true;
-      return constructorDescriptor.value === PROMISE_CONSTRUCTOR
-        && hasPromiseSpeciesIntegrity();
+      return hasSafePromiseSpeciesPathForDrain(constructorDescriptor.value);
     }
 
     const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [current]);
