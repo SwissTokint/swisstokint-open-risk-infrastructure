@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T17:08:00+02:00`
+Updated: `2026-08-22T17:15:10+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -12,25 +12,20 @@ checkpoint.
 
 `e5aead150a2ed5f390593cc2d9d307defdd79bdc`
 
-Latest trusted merge: PR #119 — transition from the terminal documentation
-checkpoint to the fresh PR #97-line runtime repair.
+Latest trusted merge: PR #119 — terminal coordination transition into useful
+runtime work.
 
 - exact source head: `057b225783b24c97568dbcd733ca4c821f889c7a`;
 - exact merge/main SHA: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
-- exact-head CI: CI 719, `success`;
+- exact-head CI 719: `success`;
 - release-owner exact-head gate: `PASS / NON-INDEPENDENT`;
-- distinct exact-head `chatgpt-codex-connector` review: no major issues on the
-  frozen candidate;
-- canonical exact-main push CI: run `32575110984`, CI 720, `success` on the exact
-  merge SHA;
-- exact-merge SpecKit, skeptical/falsification, security, code-quality,
-  optimization and integration/regression: PASS for the bounded control-plane
-  scope;
-- final exact-merge verdict: `POST_MERGE_ASSURANCE_PASS`, PR #119 issue comment
-  `5380609307`.
+- distinct exact-head `chatgpt-codex-connector` review: no major issues;
+- canonical exact-main push CI: run `32575110984`, CI 720, `success`;
+- exact-merge post-merge assurance: `POST_MERGE_ASSURANCE_PASS`, PR #119 issue
+  comment `5380609307`.
 
 PR #119 is terminal coordination evidence. Do **not** create another docs-only
-successor. Material continuation is carried by the useful runtime lot below.
+successor. Carry materially changed continuation state with useful runtime work.
 
 ## architecture_and_claim_boundary
 
@@ -57,105 +52,96 @@ remain unproved. Maximum claim remains
 - exact base/trusted main: `e5aead150a2ed5f390593cc2d9d307defdd79bdc`;
 - first implementation commit: `f31611139e51cf0f05265c19012e372e06bfc7ae`;
 - class: `TIER_B_SHARED_SECURITY_SEMANTICS`;
-- state at this checkpoint commit: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`;
-- historical candidate head `7774febbb308a085536fc139e1261d3e61a904f3`
-  failed canonical CI run `32578978161` / CI 726 in the Promise-drift exploit
-  regression;
-- CI 726 diagnosis: authorization/forwarding remained blocked, but immediate
-  `Promise.reject(...)` provider context transports were left without a rejection
-  reaction when Promise-prototype drift was detected synchronously, so Node
-  terminated the child on an unhandled rejection before the regression could
-  observe the intended fail-closed `POMRX_WG_PROVIDER_E_CONTEXT_INVALID` result;
-- repair commit `310bbdb9988df141247f56a2e13f09bd1385effb`
-  safely attaches a captured native-Promise rejection reaction before raising the
-  drift error. It temporarily shadows `constructor` with own `undefined` so
-  `Promise.prototype.then` uses the intrinsic default species without dispatching
-  the poisoned inherited constructor getter, then pins captured own
-  `constructor`/`then` data properties;
-- intermediate exact head `3a58736cc581d92936cb460ed7ac0239243fc18d`
-  ran canonical CI `32579737013` / CI 728. The Wallet Guard provider-gate suite
-  passed 23/23, including the inherited Promise constructor/then substitution
-  exploit with zero hostile getter execution, zero reference authorization and
-  zero sensitive forwarding. The shared plain-data intrinsic-hardening suite also
-  passed 19/19;
-- CI 728 nevertheless failed integration in
-  `test:pom-rx:wallet-guard-controlled-host`: the newly hardened shared Core
-  capture correctly returns frozen arrays on a reference-owned prototype, while
-  the historical Wallet Guard public policy boundary correctly accepts only
-  ordinary `Array.prototype` policy lists. Ten of thirteen controlled-host tests
-  therefore failed during bootstrap with
-  `POMRX_WG_POLICY_E_INVALID: require_simulation_for must use the standard Array prototype`;
-- compatibility repair commit `7839526c4843c11c41225b42340defc9b998852d`
-  keeps both security properties intact. `controlled-host.mjs` first captures the
-  complete caller policy through the shared Core inert-data boundary, then bridges
-  only the known Wallet Guard policy-list fields back to ordinary frozen arrays
-  before invoking the historical strict policy validator. CI 729 on this code
-  completed the full `npm test` step successfully, proving the controlled-host
-  integration regression was closed before later bookkeeping/security edits;
-- skeptical false-PASS review found that an empty scalar such as
-  `require_simulation_for: ''` could otherwise be converted by the compatibility
-  bridge into `[]`, turning an invalid policy into a valid policy with no required
-  simulation. Commit `830b73f8d7bb29a9f8e5dc163fefee7933f5ae03`
-  makes every bridge copy require an actual array, and commit
-  `315ba35db28a2ce265968f4c9ae603961de5f209` adds CI-wired negative cases for
-  `require_simulation_for` and `allowed_spenders` scalar coercion;
-- the compatibility bridge therefore does not weaken Core capture, does not admit
-  arbitrary custom-prototype arrays at the public policy boundary, does not add a
-  second generic recursive capture system, and now fails closed before any scalar
-  policy-list coercion;
-- canonical exact-head CI: `PENDING` after this control-plane commit; all CI/review
-  evidence on intermediate heads is stale for release after head movement;
-- release-owner five-stage gate: `PENDING`;
-- distinct exact-head independent skeptical/security review: `PENDING`; direct
-  reviewer assignment to `chatgpt-codex-connector` returned GitHub 422 ineligible,
-  so no independent approval may be inferred;
-- unresolved current P0/P1/P2 on PR #120: read live before any release decision.
+- state at this checkpoint commit: `OPEN / DRAFT / IN_PROGRESS / NOT_TRUSTED`.
+
+### Repair history and current evidence
+
+- historical candidate `7774febbb308a085536fc139e1261d3e61a904f3`
+  failed CI 726 because a rejected provider Promise could remain without a
+  rejection reaction when prototype drift was rejected synchronously;
+- commit `310bbdb9988df141247f56a2e13f09bd1385effb` attached a captured
+  native-Promise rejection reaction without dispatching poisoned inherited
+  `constructor`/`then`, then pinned captured own Promise data properties;
+- intermediate `3a58736cc581d92936cb460ed7ac0239243fc18d` / CI 728 proved the
+  provider-gate attack regression and shared plain-data hardening, but exposed a
+  controlled-host compatibility failure because hardened Core snapshot arrays no
+  longer use ordinary `Array.prototype`;
+- commit `7839526c4843c11c41225b42340defc9b998852d` added the narrow
+  application bridge from hardened Core policy snapshots to ordinary frozen
+  policy-list arrays; CI 729 completed full `npm test` successfully;
+- skeptical false-PASS review then found scalar policy-list values could be
+  converted into empty arrays. Commits `830b73f8d7bb29a9f8e5dc163fefee7933f5ae03`
+  and `315ba35db28a2ce265968f4c9ae603961de5f209` require actual arrays and add
+  CI-wired scalar rejection cases;
+- exact head `2f081956dff590359fec5a95dc8eb0c547ac4174` subsequently passed
+  canonical CI run `32580380859` / CI 733, including production dependency audit,
+  strict-verifier reproducibility, full `npm test`, expected-red integrity checks,
+  Stellar tests/build and hardened proof-relay image build;
+- release-owner/security review `5000444583` on exact `2f081956...` nevertheless
+  found **P1**: the newly reused `copyFrozenArray` bridge allocated `new Array(...)`
+  then populated holes through `output[index] = value`, allowing a post-import
+  inherited `Array.prototype[0]` setter to substitute a valid own element before
+  freeze. This could rewrite policy-list data and provider-observed account data,
+  so CI 733 was a false-PASS for that attack family;
+- repair commit `f614ecedfb0e161a7436ba16555ac1859df6fa80` captures the Array
+  constructor plus `Object.create`/`Object.defineProperty`, creates bridge and
+  account/inspection arrays with captured construction, and defines every element
+  as an own data property rather than using inherited `[[Set]]`; it also pins the
+  historical standard-array prototype comparison to the captured prototype;
+- regression commit `0b66e6c12f8ad446083daf41a6831f7575e727a4` adds explicit
+  post-import `Array.prototype[0]` substitution attacks against both policy bridge
+  data and provider-observed account context;
+- commit `bd404401a1a9a6131f0b4a98ce29dd9dc107b53c` wires that regression into
+  `test:pom-rx:wallet-guard-controlled-host` and therefore full `npm test`.
+
+Canonical exact-head CI after this checkpoint commit is **PENDING**. All CI and
+release-review evidence on `2f081956...` is stale for release because the repair
+moved the head. Release-owner five-stage gate and genuinely distinct exact-head
+independent skeptical/security review are also **PENDING**.
 
 The PR #120 exact final head is intentionally not self-embedded in this moving
-file because doing so would create an infinite head-changing loop. The exact
-candidate SHA, CI and review state must be recorded in the PR conversation after
-the final owned-file commit and read live at the start of the next run.
+file because doing so would create an infinite head-changing loop. Record the
+post-checkpoint frozen candidate SHA, exact-head CI and review state in the PR
+conversation and re-read them live before any release decision.
+
+### Bounded scope
 
 PR #120 starts from trusted main rather than merging/rebasing/reviving stale PR
-#97. Its bounded implementation scope is:
+#97. The bounded prerequisite scope is:
 
-- fail closed if inherited `Promise.prototype.constructor` or `then` drift from
-  the module-initialization descriptors before a provider Promise is assimilated;
+- fail closed if inherited `Promise.prototype.constructor` or `then` drift before
+  a provider Promise is safely assimilated;
 - pin load-bearing internal async Promises with captured own `constructor`/`then`
-  data properties before parent awaits so rejected inner transports cannot be
-  converted to attacker-controlled context by inherited Promise poisoning;
+  data properties before parent awaits;
 - preserve own-decorated native-Promise rejection without attacker getter
-  execution;
-- preserve ordinary native-Promise own-symbol bookkeeping compatibility;
-- preserve hardened synchronous non-Promise/plain-data capture through the
-  shared Core primitive;
-- preserve controlled-host compatibility without relaxing either the hardened
-  Core snapshot prototype or the Wallet Guard public policy-array boundary;
-- fail closed when invalid scalar policy-list values reach the compatibility
-  bridge rather than silently normalizing them to empty arrays;
-- require the exploit regression to show **zero reference authorization and zero
-  sensitive forwarding** for hostile rejected context transports.
+  execution and preserve ordinary own-symbol bookkeeping compatibility;
+- preserve hardened synchronous non-Promise/plain-data capture through shared
+  Core;
+- preserve controlled-host compatibility without relaxing the hardened Core
+  snapshot or historical strict standard-array policy boundary;
+- reject scalar policy-list coercion;
+- prevent inherited Array index setters from substituting bridged policy or
+  provider-account data;
+- require hostile rejected context transports to yield **zero reference
+  authorization and zero sensitive forwarding**.
 
 This lot does **not** establish trusted durable Gate composition. The historical
 PR #97 durable-claim composition remains a separate untrusted dependency to be
 reconstructed/reviewed only after this prerequisite closes.
 
-Skeptical hypotheses mapped to CI-wired evidence:
+### Skeptical hypotheses mapped to CI-wired evidence
 
-1. inherited Promise constructor/then poisoning can turn rejected chain/account
+1. inherited Promise constructor/then poisoning can convert rejected chain/account
    reads into stable attacker context and reach authorization/forwarding;
 2. own Promise `constructor`/`then` accessors can dispatch during assimilation;
 3. synchronous Array/Object/callable Proxies can dispatch `then`/reflection traps
    before the inert-data boundary;
-4. hardening Core snapshot-array prototypes can accidentally break application
-   composition and tempt a fail-open relaxation of the public policy boundary;
-5. a representation bridge can coerce invalid scalar list values into semantically
-   valid empty arrays and silently reduce required policy controls.
-
-The negative gates require fail-closed behavior before authorization/forwarding;
-compatibility controls require ordinary synchronous/native-Promise context,
-own-symbol Promise bookkeeping, strict custom-prototype policy rejection,
-non-array policy-list rejection and the controlled-host path to remain supported.
+4. hardened Core snapshot-array prototypes can break application composition and
+   tempt a fail-open relaxation of the public policy boundary;
+5. a representation bridge can coerce invalid scalar list values into valid empty
+   arrays and silently reduce policy controls;
+6. an inherited Array index setter can rewrite bridge/provider-account elements
+   while still leaving a dense ordinary frozen array that later validators accept.
 
 ## blocked_historical_prs
 
@@ -163,29 +149,25 @@ non-array policy-list rejection and the controlled-host path to remain supported
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
-- exact-head CI: run `32487036517`, CI 592, `success` but **not** security/release
-  evidence;
-- release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
-- current exact-head P1: `Reject Promise drift before entering async layers`;
-- status: `OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_REPAIR_BY_FRESH_PR120`.
+- CI 592: `success` but false-PASS for the Promise-drift property;
+- release-owner verdict: `BLOCK / NON-INDEPENDENT`;
+- status: `OPEN / MUST_NOT_MERGE / SUPERSEDED_FOR_PROMISE_REPAIR_BY_PR120`.
 
 ### PR #93 — Wallet Guard simulation evidence
 
-- exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
-- historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
-- exact-head CI: run `32465835858`, CI 541, `success` but not release evidence;
-- latest owner/distinct release evidence is stale on moved head `03e0201c9f...`;
-- unresolved current/non-outdated P1/P2 classes include negative-zero identity,
-  typed-data wrapper normalization, generic-signature exact-value commitment,
-  nested payload capture/saved-reflection hardening, and shared proof
-  canonicalization/SHA-256/hash hardening;
+- exact live head at this checkpoint: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
+- CI 541: `success` but not release evidence;
+- owner/distinct review evidence is stale on an older moved head;
+- unresolved P1/P2 classes include negative-zero identity, typed-data wrapper
+  normalization, generic-signature exact-value commitment, nested saved-reflection
+  capture and shared proof canonicalization/SHA-256/hash hardening;
 - status: `OPEN / NOT_MERGED / UNTRUSTED / ORDERED_AFTER_TRUSTED_PR120` unless a
   separately reviewed dependency decision changes that order.
 
 ## current_blockers
 
-1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_SCALAR_POLICY_BRIDGE_FALSE_PASS_REPAIR`.
-2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_PENDING`.
+1. `PR120_EXACT_HEAD_CI_PENDING_AFTER_ARRAY_INDEX_SETTER_P1_REPAIR`.
+2. `PR120_RELEASE_OWNER_FIVE_STAGE_GATE_PENDING_ON_REPAIRED_EXACT_HEAD`.
 3. `PR120_DISTINCT_EXACT_HEAD_INDEPENDENT_REVIEW_PENDING`.
 4. `PR120_ZERO_UNRESOLVED_P0_P1_P2_NOT_YET_ESTABLISHED`.
 5. `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`.
@@ -200,7 +182,7 @@ pre-merge gate, all applicable technical/security gates, canonical exact-head CI
 a genuinely distinct exact-head independent review, and zero unresolved P0/P1/P2
 on the same frozen SHA. Release-owner/Prime/self-review is non-independent. A
 fresh `chatgpt-codex-connector` review counts only when it actually reviews that
-exact SHA. Any head movement invalidates CI/review evidence.
+exact SHA. Any head movement invalidates exact-head CI/review evidence.
 
 After any merge, require exact-main CI and exact-merge-SHA SpecKit,
 skeptical/falsification, security, code-quality, optimization and
@@ -210,23 +192,20 @@ integration/regression assurance with one final verdict:
 
 ## next_safe_actions
 
-1. Treat the post-checkpoint PR #120 head recorded in the PR conversation as the
-   frozen candidate; do not move it for bookkeeping-only SHA self-reference.
-2. Run/read canonical exact-head CI on that SHA. Required evidence includes the
-   23/23 provider-gate pass with zero exploit counters, 19/19 shared plain-data
-   intrinsic-hardening pass, restored controlled-host integration including the
-   scalar-list false-PASS negatives, and full workflow success.
-3. If CI is green, run the release-owner five-stage gate and obtain a fresh
-   genuinely distinct exact-head skeptical/security review; direct assignment
-   failure is not independent evidence.
-4. Merge only if all exact-head gates pass unchanged and zero unresolved P0/P1/P2
-   remain; then run exact-merge post-merge assurance before trusting the
-   dependency.
-5. Reconstruct the durable claim-before-observer/downstream composition as a
-   separately bounded reviewed lot only after PR #120 is trusted.
-6. Reconcile PR #93 only after the trusted prerequisite order permits it.
-7. Do not begin burner/local-testnet execution without separate explicit human
-   authorization.
+1. Freeze the post-checkpoint PR #120 head and record its exact SHA in the PR
+   conversation; do not move it for bookkeeping-only SHA self-reference.
+2. Require canonical CI success on that exact SHA, including the original
+   Promise-drift exploit, shared plain-data hardening, scalar policy-list negative
+   cases, both inherited Array-index-setter regressions and full workflow.
+3. Re-run the release-owner five-stage gate on that exact repaired head.
+4. Obtain a fresh genuinely distinct exact-head skeptical/security review. A
+   failed reviewer assignment or a stale review is not independent evidence.
+5. Merge only if every exact-head gate passes unchanged and zero unresolved
+   P0/P1/P2 remain; immediately run exact-merge post-merge assurance before
+   trusting the dependency.
+6. Reconstruct durable claim-before-observer/downstream composition as a separate
+   bounded Tier-B lot only after PR #120 becomes trusted.
+7. Reconcile PR #93 only after the trusted prerequisite order permits it.
 
 ## safety_boundary
 
