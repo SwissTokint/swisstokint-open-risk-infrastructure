@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T16:07:45+02:00",
+  "updated_at": "2026-08-22T18:18:00+02:00",
   "current_main": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -37,7 +37,7 @@
     "id": "CORE-DURABLE-GATE-PROMISE-DRIFT-REPAIR",
     "title": "Fresh trusted-main repair for PR97-line Promise drift before async layers",
     "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-    "status": "IN_PROGRESS_PR120_DRAFT_NOT_TRUSTED",
+    "status": "PR120_REVIEW_CANDIDATE_AFTER_REJECTED_TRANSPORT_P1_REPAIR_NOT_TRUSTED",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "base_sha": "e5aead150a2ed5f390593cc2d9d307defdd79bdc",
@@ -49,15 +49,29 @@
     "known_historical_ci": {"run_id": 32487036517, "run_number": 592, "conclusion": "success_but_false_pass_for_security_property"},
     "historical_owner_gate": "BLOCK_NON_INDEPENDENT",
     "historical_independent_gate": "BLOCK_P1_REJECT_PROMISE_DRIFT_BEFORE_ENTERING_ASYNC_LAYERS",
+    "pre_reconciliation_repair_head": "9b52474a2def9df2c75649eda4b81a0ca128658a",
+    "pre_reconciliation_ci": {"run_id": 32584166269, "run_number": 739, "conclusion": "success_but_stale_after_control_plane_write"},
     "current_candidate_rule": "Read PR120 exact head live after the final owned-file commit; self-embedding the moving SHA in this file would recursively move it.",
-    "current_ci": "PENDING_ON_FINAL_EXACT_HEAD",
-    "current_owner_gate": "PENDING",
-    "current_independent_gate": "PENDING",
+    "current_ci": "REQUIRED_ON_FINAL_EXACT_HEAD_AFTER_CONTROL_PLANE_RECONCILIATION",
+    "current_owner_gate": "REQUIRED_ON_FINAL_EXACT_HEAD",
+    "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_VALIDATION_AFTER_CODEX_REJECTED_TRANSPORT_P1_REPAIR",
+    "independent_finding_history": [
+      {
+        "reviewed_head": "5885da291d7d6b3e4541e5c00c160ffb481828b8",
+        "reviewer": "chatgpt-codex-connector",
+        "severity": "P1",
+        "thread_id": "PRRT_kwDOTiNyWc6bZjxp",
+        "finding": "Drain rejected transports before failing validation so structurally invalid rejected native Promises cannot become orphaned unhandled rejections.",
+        "repair_state": "IMPLEMENTED_IN_MOVED_HEAD_REQUIRES_FRESH_EXACT_HEAD_INDEPENDENT_VALIDATION"
+      }
+    ],
     "repair_contract": [
       "prevent inherited Promise.prototype.constructor plus then poisoning from crossing outer async assimilation before transport rejection is observed",
       "restore a CI-wired regression that reproduces the sensitive-forwarding exploit without weakening hostile-dispatch expectations",
+      "drain structurally invalid rejected native Promise transports before returning the fail-closed gateway error without trusting hostile inherited Promise dispatch",
       "preserve ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility",
       "preserve hardened direct non-Promise capture and own-decorated Promise rejection",
+      "reject scalar policy-list coercion and inherited Array-index substitution in application bridges",
       "require zero authorization and zero sensitive forwarding for hostile rejected context transports",
       "preserve shared Core ownership; Wallet Guard remains an application profile",
       "do not claim or import durable Gate composition in this prerequisite lot"
@@ -65,7 +79,11 @@
     "skeptical_hypotheses": [
       "rejected context Promise can be substituted by inherited constructor/then poisoning and reach authorization/forwarding",
       "own Promise constructor/then accessors can execute during assimilation",
-      "synchronous Proxy/callable thenable can execute traps before inert capture"
+      "structurally invalid rejected native Promise can become an unhandled process-level rejection before fail-closed validation",
+      "non-extensible or non-configurable rejected native Promise variants can defeat safe draining or cause hostile dispatch",
+      "synchronous Proxy/callable thenable can execute traps before inert capture",
+      "shared plain-data capture can be weakened by post-import intrinsic or Array-prototype drift",
+      "policy/account bridge can false-PASS through scalar coercion or inherited Array-index substitution"
     ],
     "release_requirements": [
       "targeted expected-red/negative exploit regression",
@@ -73,10 +91,11 @@
       "exact-head canonical CI success",
       "release-owner five-stage PASS on exact head",
       "fresh genuinely distinct exact-head independent skeptical/security review",
+      "independent validation of thread PRRT_kwDOTiNyWc6bZjxp repair before resolution",
       "zero unresolved P0/P1/P2",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "Freeze the final PR120 owned-file head, record its exact SHA in the PR conversation, then run canonical CI, release-owner five-stage review and fresh distinct exact-head skeptical/security review. Merge only if all exact-head gates pass unchanged."
+    "next_safe_action": "Freeze the final PR120 head after this control-plane reconciliation, run canonical exact-head CI, run the release-owner five-stage review, request a genuinely distinct exact-head Codex skeptical/security review covering all Promise/bridge attack families, and keep the historical P1 thread unresolved until that exact-head validation passes."
   },
   "queue": [
     {
