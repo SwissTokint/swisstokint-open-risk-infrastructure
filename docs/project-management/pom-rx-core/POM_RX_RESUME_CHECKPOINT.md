@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T11:15:00+02:00`
+Updated: `2026-08-22T11:20:00+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -66,12 +66,14 @@ are not proved.
 
 Live GitHub advanced trusted coordination main from PR #117 to the exact PR #118
 merge `a22198bf...`, while the four files committed by PR #118 necessarily still
-contain pre-merge state. The current bounded non-Tier-B task is therefore a
-**post-PR118 state reconciliation**, not a recreation of PR #118.
+contained pre-merge state. The current bounded non-Tier-B task is therefore
+**PR #119 — post-PR118 state reconciliation**, not a recreation of PR #118.
 
-Active branch:
-
-`docs/pom-rx-checkpoint-after-118-20260822`
+- PR: `#119`;
+- base: exact trusted main `a22198bf8065cb7af2f4f7821edaba9c5f749704`;
+- branch: `docs/pom-rx-checkpoint-after-118-20260822`;
+- class: `NON_TIER_B_DOCUMENTATION_CONTROL_PLANE`;
+- status in this committed checkpoint: `ACTIVE_FINAL_EXACT_HEAD_GATES_PENDING`.
 
 Owned files are exactly:
 
@@ -85,11 +87,17 @@ This lot may only reconcile live GitHub facts: trusted PR #118, open PR #97 and
 It must not modify runtime, tests, protocol, Gate, Witness, verifier, Wallet
 Guard, provider, network, public-site/Vercel or financial-execution semantics.
 
+PR #119 is the permanent identity of this post-PR118 reconciliation. Never create
+a second PR for it, whether #119 is open, closed or merged. If #119 merges, run
+mandatory exact-merge post-merge assurance; after `POST_MERGE_ASSURANCE_PASS`,
+interpret the task as terminal and advance to the next safe queued task. If #119
+closes without merge, treat it as explicitly closed and do not recreate it
+automatically.
+
 The reconciliation PR's moving exact head is intentionally not self-embedded in
-these four owned files. After the final owned-file commit, read its PR head, CI,
-review and threads live. Any moved head invalidates exact-head CI/review evidence.
-A permanent PR identity/terminal rule must prevent this post-PR118 reconciliation
-from recreating itself after merge or closure.
+these four owned files. After this final owned-file commit, read PR #119 head,
+CI, review and threads live and persist that volatile evidence in the PR
+conversation. Any moved head invalidates exact-head CI/review evidence.
 
 ## open_runtime_prs
 
@@ -115,17 +123,17 @@ The current head is a test-only move from independently blocked parent
 transport rejection reaches its caller, then permit reference authorization and
 sensitive forwarding. Green CI 592 does not override that concrete reproducer.
 
-Required repair contract: after this control-plane reconciliation is trusted,
-start the smallest fresh runtime repair from then-current trusted main; do not
-merge/rebase/revive the stale #97 branch wholesale. Prevent Promise-prototype
-drift before outer async assimilation; restore or replace the CI-wired sensitive-
-forwarding exploit regression; require the durable capability claim to succeed
-before any observer or downstream work; preserve fail-closed replay, durable
-one-winner semantics, ordinary native-Promise Node/AsyncHooks bookkeeping-symbol
-compatibility, hardened direct non-Promise capture, own-decorated Promise
-rejection, and **zero authorization/forwarding for hostile rejected transports**.
-Then require exact-head CI, release-owner six-lane PASS, fresh distinct exact-head
-independent review and zero unresolved P0/P1/P2 before merge.
+Required repair contract: after PR #119 is trusted, start the smallest fresh
+runtime repair from then-current trusted main; do not merge/rebase/revive the
+stale #97 branch wholesale. Prevent Promise-prototype drift before outer async
+assimilation; restore or replace the CI-wired sensitive-forwarding exploit
+regression; require the durable capability claim to succeed before any observer
+or downstream work; preserve fail-closed replay, durable one-winner semantics,
+ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility,
+hardened direct non-Promise capture, own-decorated Promise rejection, and
+**zero authorization/forwarding for hostile rejected transports**. Then require
+exact-head CI, release-owner six-lane PASS, fresh distinct exact-head independent
+review and zero unresolved P0/P1/P2 before merge.
 
 ### PR #93 — Wallet Guard simulation evidence
 
@@ -150,9 +158,8 @@ prove external state/effect truth.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR118_LIVE_STATE_RECONCILIATION_PENDING` — the canonical
-   files on trusted main contain the pre-merge PR #118 checkpoint. This bounded
-   branch reconciles them before Tier-B dependency/readiness evidence is used.
+1. `CONTROL_PLANE_POST_PR118_LIVE_STATE_RECONCILIATION_PENDING` — PR #119 must
+   pass its exact-head gates and exact-merge assurance before its state is trusted.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
@@ -186,13 +193,12 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Finish this bounded post-PR118 four-file reconciliation and freeze its final
-   exact head.
+1. Freeze PR #119 at the exact head produced by this final owned-file commit.
 2. Require canonical exact-head CI, release-owner five-stage control, a genuinely
    distinct exact-head independent review and zero unresolved P0/P1/P2 on that
    same head before merge.
 3. After merge, require exact-main CI and exact-merge post-merge assurance PASS;
-   then mark this reconciliation terminal and do not recreate it.
+   then mark PR #119 terminal and do not recreate it.
 4. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592 as
    a security repair.
 5. Once the control plane is trusted, start the smallest fresh #97 runtime repair
