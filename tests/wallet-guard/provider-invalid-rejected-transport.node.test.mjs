@@ -22,6 +22,7 @@ let authorizationCalls = 0;
 let sensitiveCalls = 0;
 let accountReads = 0;
 let constructorGetterCalls = 0;
+let speciesGetterCalls = 0;
 
 const rejectedTransport = Promise.reject(new Error('provider transport rejected'));
 if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
@@ -67,6 +68,35 @@ if (process.env.POMRX_TRANSPORT_CASE === 'metadata') {
   const alternatePrototype = Object.create(Promise.prototype);
   Object.defineProperty(alternatePrototype, 'constructor', {
     value: Promise,
+    writable: false,
+    configurable: false,
+  });
+  Object.setPrototypeOf(rejectedTransport, alternatePrototype);
+  Object.preventExtensions(rejectedTransport);
+} else if (process.env.POMRX_TRANSPORT_CASE === 'prototype-nonextensible-alternate-data-constructor') {
+  const AlternatePromiseConstructor = function AlternatePromiseConstructor() {};
+  const alternatePrototype = Object.create(Promise.prototype);
+  Object.defineProperty(alternatePrototype, 'constructor', {
+    value: AlternatePromiseConstructor,
+    writable: false,
+    configurable: false,
+  });
+  Object.setPrototypeOf(rejectedTransport, alternatePrototype);
+  Object.preventExtensions(rejectedTransport);
+} else if (process.env.POMRX_TRANSPORT_CASE === 'prototype-nonextensible-hostile-species-accessor-prehandled') {
+  Reflect.apply(Promise.prototype.then, rejectedTransport, [undefined, () => undefined]);
+  const AlternatePromiseConstructor = function AlternatePromiseConstructor() {};
+  Object.defineProperty(AlternatePromiseConstructor, Symbol.species, {
+    enumerable: false,
+    configurable: false,
+    get() {
+      speciesGetterCalls += 1;
+      return Promise;
+    },
+  });
+  const alternatePrototype = Object.create(Promise.prototype);
+  Object.defineProperty(alternatePrototype, 'constructor', {
+    value: AlternatePromiseConstructor,
     writable: false,
     configurable: false,
   });
@@ -156,8 +186,8 @@ if (authorizationCalls !== 0 || sensitiveCalls !== 0 || accountReads !== 0) {
   console.error(JSON.stringify({ authorizationCalls, sensitiveCalls, accountReads }));
   process.exit(3);
 }
-if (constructorGetterCalls !== 0) {
-  console.error(JSON.stringify({ constructorGetterCalls }));
+if (constructorGetterCalls !== 0 || speciesGetterCalls !== 0) {
+  console.error(JSON.stringify({ constructorGetterCalls, speciesGetterCalls }));
   process.exit(4);
 }
 console.log('POMRX_INVALID_REJECTED_TRANSPORT_DRAINED ' + process.env.POMRX_TRANSPORT_CASE);
@@ -221,5 +251,27 @@ test('non-extensible rejected native Promise with benign data constructor chain 
   assert.match(
     result.stdout,
     /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype-nonextensible-data-constructor/,
+  );
+});
+
+test('non-extensible rejected native Promise with benign alternate data constructor and absent species is drained', () => {
+  const result = runRejectedInvalidTransportCase(
+    'prototype-nonextensible-alternate-data-constructor',
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype-nonextensible-alternate-data-constructor/,
+  );
+});
+
+test('hostile species accessor remains outside the drain claim without accessor execution or authorization', () => {
+  const result = runRejectedInvalidTransportCase(
+    'prototype-nonextensible-hostile-species-accessor-prehandled',
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /POMRX_INVALID_REJECTED_TRANSPORT_DRAINED prototype-nonextensible-hostile-species-accessor-prehandled/,
   );
 });
