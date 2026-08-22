@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T09:24:00+02:00",
+  "updated_at": "2026-08-22T09:31:00+02:00",
   "current_main": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -47,13 +47,25 @@
       "repair_rule": "restore the stable phrase in documentation only; do not weaken or edit the test"
     },
     "initial_independent_review": {
-      "request_comment": 5378995887,
-      "unavailable_comment": 5379001143,
-      "status": "PENDING_UNAVAILABLE_NO_APPROVAL",
-      "moved_head_rule": "The request targeted initial head 84220a2ec54b8e886a45b472daa9330b0eb847bb and becomes stale after any head move."
+      "review_id": 4999478108,
+      "reviewed_head": "84220a2ec54b8e886a45b472daa9330b0eb847bb",
+      "finding_comment": 3835499861,
+      "finding": "P2_STOP_RECREATING_THE_MERGED_RECONCILIATION_TASK",
+      "status": "BLOCK_FINDING_ADDRESSED_IN_LATER_HEAD_REQUIRES_FRESH_EXACT_HEAD_REVIEW"
     },
-    "pr_lookup_rule": "PR 118 is the sole active pull request for exact head branch docs/pom-rx-checkpoint-after-117-20260822. Do not create a duplicate while PR 118 is open.",
-    "exact_current_head_rule": "Read PR 118 head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
+    "quota_signal": {
+      "comment": 5378967144,
+      "status": "CODEX_SECURITY_REVIEW_USAGE_LIMIT_REACHED",
+      "rule": "Quota/unavailability is not independent approval and must not be treated as a waiver."
+    },
+    "latest_independent_request": {
+      "comment": 5379014199,
+      "requested_head": "7f5e83f14061bc15578dd387dad43b5ba511e384",
+      "status": "HISTORICAL_AFTER_ANY_LATER_HEAD_MOVE"
+    },
+    "pr_identity_rule": "PR 118 is the permanent identity of this post-117 reconciliation. Never create a second PR for this reconciliation regardless of whether PR 118 is open, closed or merged.",
+    "terminal_rule": "Read PR 118 live. If it is merged, validate the exact merge SHA with mandatory post-merge assurance; after POST_MERGE_ASSURANCE_PASS, interpret this task as terminal and advance to the next safe queued task. If PR 118 is closed without merge, treat this reconciliation as explicitly closed and do not recreate it automatically. A terminal PR 118 state does not require another self-reconciliation PR merely to record its own terminal state; persist the terminal fact in the next scoped control-plane update associated with useful follow-on work.",
+    "exact_current_head_rule": "While PR 118 remains open, read its head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -72,6 +84,7 @@
       "preserve production and real-wallet non-claims",
       "change no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
       "restore the capability-map stable phrase without weakening repository tests",
+      "address Codex P2 3835499861 by making PR 118 a permanent identity and preventing automatic recreation after merged/closed state",
       "run fresh exact-head CI and scoped release-owner review after the four-file diff is frozen",
       "obtain fresh distinct exact-head independent review before merge",
       "resolve review threads only after validated exact-head evidence with zero unresolved P0/P1/P2",
@@ -98,7 +111,7 @@
         "current exact-head and applicable historical P1 review threads remain unresolved",
         "historical branch base is not reconciled to current trusted main"
       ],
-      "next_safe_action": "After the post-PR117 control-plane reconciliation is safely recorded, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
+      "next_safe_action": "After PR 118 is trusted or terminally closed per its durable identity rule, start the smallest fresh runtime repair from then-current trusted main; do not merge, rebase or revive the stale branch wholesale. Prevent Promise-prototype drift before outer async assimilation, restore or replace the CI-wired sensitive-forwarding exploit regression, require durable capability claim success before observer/downstream work, preserve fail-closed replay, durable one-winner behavior, native-Promise compatibility and zero authorization/forwarding for hostile rejected transports, rerun exact-head CI, owner six-lane review and fresh distinct independent review, and require zero unresolved P0/P1/P2."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
