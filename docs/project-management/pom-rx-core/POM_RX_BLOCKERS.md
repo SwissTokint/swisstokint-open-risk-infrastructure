@@ -25,11 +25,22 @@ is trusted coordination evidence and did not make open Tier-B PR #120, stale PR
 PR #120 remains **OPEN / NOT TRUSTED / NOT MERGEABLE BY POLICY** until its final
 reconciled repaired head completes all exact-head gates.
 
-Prior blocked exact head `30e9c0399804f17cbadbc076eed4d1d48614610d`
-had canonical CI `32596104896` / CI 770 `success`, but that CI was a known false
-PASS for the fresh effective-constructor `Symbol.species` P1.
+Canonical CI `32602076493` / CI 773 attempt 1 failed on prior exact head
+`e643299a95f597da1f0226c2d52b6f4fba357b4c` during full `npm test`. The
+Promise/provider regression suite itself passed. The exact failing assertion was
+`tests/pom-rx-capability-map.node.test.mjs`, which requires the phrase
+`must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics`.
+The capability map had split the text between `not` and `duplicate`, so the regex
+could not match. This was a documentation layout mismatch, not a runtime species
+failure.
 
-The bounded repair is now implemented on the PR #120 branch:
+Commit `941814282b98f1dca6bfca484b1c27e9176bcd98` repairs only that capability-map
+line wrapping so the tested invariant remains unchanged and the test is not
+weakened. Because that write and the following control-plane checkpoint writes
+move the PR head, CI 773 and all earlier exact-head review evidence are historical
+only. Fresh canonical CI is required on the final checkpoint head.
+
+The bounded runtime repair remains implemented on the PR #120 branch:
 
 - `ebaf1c71c903a266ebedad60aa5be4f775f67a84` extends the captured-reflection
   classifier through the effective constructor's species path, rejects non-data
@@ -45,8 +56,7 @@ attacker-selected species constructors remain outside the gateway-owned internal
 drain guarantee unless separately proven safe. The implementation must not be
 broadened merely to make hostile classes pass.
 
-The exact PR #120 head after the final canonical checkpoint commit must be read
-live from GitHub. Required closure on that same frozen SHA:
+Required closure on one final frozen SHA:
 
 1. canonical exact-head CI `success`;
 2. mandatory five-stage release-owner gate with a Tier-B skeptical/falsification
