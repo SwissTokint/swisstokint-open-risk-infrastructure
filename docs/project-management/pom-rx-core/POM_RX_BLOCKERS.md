@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-22T00:28:00+02:00`
+Updated: `2026-08-22T02:10:44+02:00`
 
 Current trusted main: `dc926bcc006255825c1598c9699264af3476c363`
 
@@ -48,16 +48,28 @@ be used as readiness or dependency evidence until PR #111 is trusted. This is
 coordination-only and does not invalidate PR #110's recorded post-merge PASS or
 change runtime/security semantics.
 
-PR #111's prior exact head `70bc3c19b8f76aff5074cd8d251df74adf9b5454`
-had canonical CI run `32532398667` / CI 660 `success`, but the fresh distinct
-exact-head Codex review found P2 `Restore the canonicalization/hash blocker`.
-That finding correctly identified that the detailed PR #93 blocker lists had
-lost the still-unresolved shared proof canonicalization/hash class without a
-validated exact-head resolution. This moving branch now restores that class in
-the canonical continuation surfaces. The old CI/review evidence is stale after
-the repair head move; do not resolve the P2 or merge PR #111 until fresh exact-
-head CI, owner control and distinct independent review validate the repaired
-candidate with zero unresolved P0/P1/P2.
+Prior exact head `9cfa19cd0dfd1c237caf709c367874ad215c877e`
+had canonical CI run `32533068576` / CI 664 `success` and final release-owner
+control `PASS / NON-INDEPENDENT`. A fresh distinct exact-head Codex review then
+found two current P2s: `Reconcile PR #97 mergeability across canonical surfaces`
+and `Reconcile PR #93 mergeability across canonical surfaces`. At the repair
+decision, live GitHub revalidation reports `mergeable=true` for both exact
+historical heads. That signal is only volatile conflict metadata and remains
+non-evidentiary, but the canonical point-in-time snapshots must not contradict
+one another. This moving branch synchronizes those detailed snapshots to the same
+revalidated value.
+
+The earlier moved-head P2 `Restore the canonicalization/hash blocker` remains
+materially repaired: the detailed PR #93 continuation state still records the
+shared proof canonicalization/hash class, including the post-initialization
+canonicalization and SHA-256/hash hardening findings, until a repaired #93 exact
+head is independently validated.
+
+Because this repair moves PR #111 again, all exact-head CI/review evidence from
+`9cfa19cd...` is stale for release. Do not merge until fresh exact-head CI, owner
+control and a distinct independent review validate the new candidate with zero
+unresolved P0/P1/P2; resolve review threads only on evidence that actually
+validates their repair.
 
 ## `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`
 
@@ -66,8 +78,8 @@ PR #97 remains open and **must not merge**.
 - exact head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - historical base: `0564aecd42cf0794894c12842980969ff59c9f73`;
 - trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=true`; volatile metadata only and
-  never security/release evidence;
+- live GitHub at this checkpoint reports `mergeable=true`; volatile metadata only
+  and never security/release evidence;
 - exact-head CI run `32487036517` / CI 592: `success` but not security evidence;
 - release-owner exact-head verdict: `BLOCK / NON-INDEPENDENT`;
 - current exact-head distinct finding: P1 `Reject Promise drift before entering
@@ -138,7 +150,7 @@ PR #93 remains open and untrusted.
 - exact head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - historical base: `818718955c9e4136e9e55754a31be2f1c7b610f8`;
 - trusted main: `dc926bcc006255825c1598c9699264af3476c363`;
-- live GitHub currently reports `mergeable=true`; volatile metadata only;
+- live GitHub at this checkpoint reports `mergeable=true`; volatile metadata only;
 - exact-head CI run `32465835858` / CI 541: `success` but not release evidence;
 - latest distinct review evidence found in the PR record covers moved head
   `03e0201c9f...`, not current `c4e40ceb...`;
