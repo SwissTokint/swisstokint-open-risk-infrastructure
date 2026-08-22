@@ -82,8 +82,11 @@ drift before outer async assimilation, restore/replace the exact exploit
 regression, require the durable capability claim to succeed before observer or
 downstream work, preserve fail-closed replay and durable one-winner behavior,
 retain ordinary native-Promise Node/AsyncHooks bookkeeping-symbol compatibility,
-and pass exact-head CI, release-owner review, fresh distinct exact-head
-independent skeptical/security review and zero unresolved P0/P1/P2.
+preserve hardened direct non-Promise capture and own-decorated Promise rejection,
+and require **zero authorization/forwarding for hostile rejected transports**.
+Only then may it proceed through exact-head CI, release-owner review, fresh
+distinct exact-head independent skeptical/security review and zero unresolved
+P0/P1/P2.
 
 ### Witness
 
@@ -134,12 +137,14 @@ bounded documentation/control-plane scope.
 PR #113 changed no runtime/security semantics. PR #114 on branch
 `docs/pom-rx-checkpoint-after-113-20260822` is the current four-file non-Tier-B
 reconciliation because a merged checkpoint cannot self-describe its own future
-merge SHA. At PR creation the head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
-and CI 678 (`32551305996`) entered the queue; subsequent reconciliation commits
-moved that head, so creation-time exact-head evidence is stale. Read PR #114 live
-for its final exact head, CI, reviews and threads. Until it passes its own
-exact-head gates and post-merge assurance, live GitHub remains authoritative for
-volatile state.
+merge SHA. A distinct Codex review on the creation head
+`b98f9c0e80e25c4203784b99cc99061bba5ac6d5` raised P2 `Preserve the
+no-forwarding closure invariant`; the current repair restores explicit zero
+authorization/forwarding for hostile rejected transports across the canonical
+control plane. Creation-head CI/review evidence is stale after the repair commits.
+Read PR #114 live for its final exact head, CI, reviews and threads. Until it
+passes its own exact-head gates and post-merge assurance, live GitHub remains
+authoritative for volatile state.
 
 ### Proof transport and anchoring
 
@@ -297,7 +302,7 @@ review.
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
 | Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | production trust/time, distributed semantics, production-independent observation and external effect truth |
-| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | PR #97 blocked by exact-head Promise-drift P1; fresh repair from trusted main required |
+| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | PR #97 blocked by exact-head Promise-drift P1; fresh repair from trusted main required with zero authorization/forwarding for hostile rejected transports |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
