@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-22T06:07:30+02:00`
+Updated: `2026-08-22T06:17:24+02:00`
 
 Purpose: compact **durable cross-chat continuation state**. Scheduled-task chat
 history is not project state. Every run reconstructs state from live GitHub plus
@@ -58,6 +58,24 @@ are not proved.
 
 ## open_prs
 
+### PR #114 — post-PR113 control-plane reconciliation
+
+- state: `OPEN / NOT_MERGED / FRESH_EXACT_HEAD_GATES_REQUIRED`;
+- trusted base/main: `ecc25e3e3f2991482e925fbe307058a91276c0bc`;
+- branch: `docs/pom-rx-checkpoint-after-113-20260822`;
+- scope: exactly four canonical documentation/control-plane surfaces;
+- runtime/security semantics changed: none;
+- exact current head: **read live PR #114**. The checkpoint deliberately does not
+  self-embed its own moving exact head because committing that value would move it;
+- release rule: no merge authorization until the frozen final exact head has
+  fresh canonical CI, release-owner five-stage control, a genuinely distinct
+  exact-head independent review and zero unresolved P0/P1/P2.
+
+At PR creation the branch head was `b98f9c0e80e25c4203784b99cc99061bba5ac6d5`
+and CI 678 (`32551305996`) entered the queue. This checkpoint commit moves that
+head, so the creation-time head/CI is historical only; read the final head and its
+fresh CI live after this four-file reconciliation is frozen.
+
 ### PR #97 — Core durable-claim + single-use-Gate composition
 
 - state: `OPEN / NOT_MERGED / BLOCKED_EXACT_HEAD_SECURITY_P1 /
@@ -114,11 +132,8 @@ prove external state/effect truth.
 
 ## active_control_plane_lot
 
-The four canonical continuation surfaces merged by PR #113 necessarily describe
-the state before their own future merge SHA. This branch is the bounded
-post-PR113 reconciliation from trusted main `ecc25e3...`:
-
-`docs/pom-rx-checkpoint-after-113-20260822`
+PR #114 is the bounded post-PR113 reconciliation from trusted main `ecc25e3...`
+on branch `docs/pom-rx-checkpoint-after-113-20260822`.
 
 Owned files are exactly:
 
@@ -128,16 +143,16 @@ Owned files are exactly:
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 This lot is coordination-only and non-Tier-B. It changes no runtime/security
-implementation. Its own exact head is intentionally read live after the final
-four-file commit; self-embedding a moving head would move it again. It must pass
-fresh exact-head CI, release-owner five-stage control, a genuinely distinct
-exact-head review and zero unresolved P0/P1/P2 before merge. After merge,
-exact-merge post-merge assurance is mandatory again.
+implementation. Its final exact head must be read live after the last four-file
+commit; self-embedding a moving head would move it again. It must pass fresh
+exact-head CI, release-owner five-stage control, a genuinely distinct exact-head
+review and zero unresolved P0/P1/P2 before merge. After merge, exact-merge
+post-merge assurance is mandatory again.
 
 ## current_blockers
 
-1. `CONTROL_PLANE_POST_PR113_RECONCILIATION_REQUIRED` — this bounded four-file lot
-   must become trusted before Tier-B work uses the reconciled coordination state.
+1. `CONTROL_PLANE_POST_PR113_RECONCILIATION_REQUIRED` — PR #114 must become
+   trusted before Tier-B work uses the reconciled coordination state.
 2. `PR97_EXACT_HEAD_P1_PROMISE_DRIFT_BEFORE_ASYNC_LAYERS`.
 3. `PR97_FALSE_PASS_GREEN_CI_32487036517`.
 4. `PR97_RELEASE_OWNER_BLOCK_EXACT_HEAD_0EFB462`.
@@ -171,17 +186,17 @@ must be repaired through a new PR, never direct `main`.
 
 ## next_safe_actions
 
-1. Freeze this four-file post-PR113 reconciliation diff and open/update one scoped
-   documentation/control-plane PR from exact trusted main `ecc25e3...`.
+1. Freeze PR #114's four-file diff and revalidate live main/head/CI/review/thread
+   state.
 2. Require fresh exact-head canonical CI, release-owner five-stage control and a
    genuinely distinct exact-head independent review with zero unresolved
-   P0/P1/P2 before merging it.
+   P0/P1/P2 before merging PR #114.
 3. After its merge, immediately run exact-merge-SHA post-merge assurance before
    using the new merge as trusted coordination evidence.
 4. Keep stale PR #97 head `0efb462...` blocked; do not merge it or treat CI 592 as
    a security repair.
-5. Once this checkpoint is trusted, create the smallest fresh #97 runtime repair
-   from then-current trusted main for Promise-prototype drift before outer async
+5. Once PR #114 is trusted, create the smallest fresh #97 runtime repair from
+   then-current trusted main for Promise-prototype drift before outer async
    assimilation, preserving durable claim-before-observer/downstream and
    fail-closed durable one-winner behavior.
 6. Reconcile #93 only after #97 dependency ordering is trusted unless a separate
