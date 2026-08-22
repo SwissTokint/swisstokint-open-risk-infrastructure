@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T12:18:00+02:00",
+  "updated_at": "2026-08-22T13:16:00+02:00",
   "current_main": "a22198bf8065cb7af2f4f7821edaba9c5f749704",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -127,7 +127,7 @@
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after every applicable technical/security gate, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
+    "standing_authorization": "Applicable only after the mandatory five-stage pre-merge gate, every applicable technical/security gate, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
     "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA SpecKit, skeptical, security, code-quality, optimization and integration/regression assurance before dependent work may trust it."
