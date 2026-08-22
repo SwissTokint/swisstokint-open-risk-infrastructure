@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-22T09:12:00+02:00",
+  "updated_at": "2026-08-22T09:24:00+02:00",
   "current_main": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -33,11 +33,27 @@
     "id": "CONTROL-PLANE-POST-117-CHECKPOINT-20260822",
     "title": "Reconcile canonical control plane after trusted PR 117",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "ACTIVE_READ_LIVE_BY_BRANCH",
+    "status": "ACTIVE_EXACT_HEAD_REPAIR_AND_GATES_PENDING",
+    "pr": 118,
     "base_sha": "e7bcc15a9cfa430cf96b4859357790257ec3d39e",
     "branch": "docs/pom-rx-checkpoint-after-117-20260822",
-    "pr_lookup_rule": "Inspect live GitHub for an open PR whose exact head branch is docs/pom-rx-checkpoint-after-117-20260822. Create one only if none exists; never create a duplicate merely because this file does not embed a PR number.",
-    "exact_current_head_rule": "Read the branch/PR head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
+    "initial_head": "84220a2ec54b8e886a45b472daa9330b0eb847bb",
+    "initial_ci": {
+      "run_id": 32559140330,
+      "run_number": 699,
+      "conclusion": "failure",
+      "failed_stage": "npm test",
+      "cause": "capability-map paragraph reflow split the repository-tested stable phrase Blockchain and digital assets",
+      "repair_rule": "restore the stable phrase in documentation only; do not weaken or edit the test"
+    },
+    "initial_independent_review": {
+      "request_comment": 5378995887,
+      "unavailable_comment": 5379001143,
+      "status": "PENDING_UNAVAILABLE_NO_APPROVAL",
+      "moved_head_rule": "The request targeted initial head 84220a2ec54b8e886a45b472daa9330b0eb847bb and becomes stale after any head move."
+    },
+    "pr_lookup_rule": "PR 118 is the sole active pull request for exact head branch docs/pom-rx-checkpoint-after-117-20260822. Do not create a duplicate while PR 118 is open.",
+    "exact_current_head_rule": "Read PR 118 head live after the final owned-file commit; do not self-embed the moving exact head in the owned files because doing so would move it again.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -54,12 +70,14 @@
       "preserve mandatory five-stage pre-merge gate and moved-head invalidation",
       "preserve PR-60-only independent-review waiver",
       "preserve production and real-wallet non-claims",
-      "change no runtime, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
+      "change no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard or public-site semantics",
+      "restore the capability-map stable phrase without weakening repository tests",
       "run fresh exact-head CI and scoped release-owner review after the four-file diff is frozen",
       "obtain fresh distinct exact-head independent review before merge",
       "resolve review threads only after validated exact-head evidence with zero unresolved P0/P1/P2",
       "after merge run exact-merge post-merge assurance"
-    ]
+    ],
+    "current_gate": "BLOCK_PENDING_FINAL_EXACT_HEAD_CI_OWNER_AND_DISTINCT_INDEPENDENT_REVIEW"
   },
   "queue": [
     {
