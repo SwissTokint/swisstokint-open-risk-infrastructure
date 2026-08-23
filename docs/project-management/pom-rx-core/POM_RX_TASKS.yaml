@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T12:10:00+02:00",
-  "current_main": "abc19e969aa19f3ec08efe67cdf1988731b633ee",
+  "updated_at": "2026-08-23T13:06:00+02:00",
+  "current_main": "95cafa73139085343fae26526c4dc1ea3f07db6b",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,33 +10,34 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "abc19e969aa19f3ec08efe67cdf1988731b633ee",
-    "source_pr": 128,
-    "source_head": "ab3665f8a1ae22bb46d8c78b7c3d3babac8af6f3",
+    "sha": "95cafa73139085343fae26526c4dc1ea3f07db6b",
+    "source_pr": 129,
+    "source_head": "17cd468f3e90f9ae3deb544197937482459b885f",
     "source_head_ci": {
-      "run_id": 32627956172,
-      "run_number": 816,
+      "run_id": 32633365421,
+      "run_number": 818,
       "run_attempt": 1,
       "conclusion": "success"
     },
-    "owner_premerge_evidence": "REVIEW_5001979364_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385047280_ON_ab3665f8a1",
+    "owner_premerge_evidence": "REVIEW_5002164482_PASS_NON_INDEPENDENT_0_0_0",
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385505343_ON_17cd468f3e",
     "exact_main_ci": {
-      "run_id": 32630170335,
-      "run_number": 817,
+      "run_id": 32633614947,
+      "run_number": 819,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci"
     },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385232787",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385521407",
+    "terminal_checkpoint": "COMMENT_5385522627",
     "scope": "bounded_non_tier_b_control_plane_reconciliation"
   },
   "control_plane_reconciliation": {
-    "id": "POST-PR128-AND-PR120-CLOSE-LIVE-STATE-RECONCILIATION-20260823",
+    "id": "POST-PR129-LIVE-STATE-RECONCILIATION-20260823",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "branch": "docs/pom-rx-post-pr128-pr120-close-reconcile-20260823",
+    "branch": "docs/pom-rx-post-pr129-live-reconcile-20260823",
     "status": "IN_PROGRESS",
-    "reason": "PR128 merged and passed exact-merge assurance while the versioned source necessarily names its pre-merge parent; PR120 then closed without merge. Live GitHub therefore materially differs from the five canonical coordination/product-position files.",
+    "reason": "PR129 merged and passed exact-merge assurance; its source tree necessarily records pre-merge parent abc19e as trusted main, while live trusted main is now 95cafa. The five canonical continuation/product-position files must be reconciled before they are reused as dependency/readiness evidence.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -72,7 +73,7 @@
       {"id": "PRRT_kwDOTiNyWc6baIxZ", "severity": "P1", "state": "UNRESOLVED_HISTORY"},
       {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "state": "UNRESOLVED_HISTORY", "final_exact_head_finding": true}
     ],
-    "rule": "Do not reopen, rebase, revive or wholesale-merge PR120. Selectively reconstruct useful hardening on a fresh current-main Tier-B branch after the control-plane reconciliation is trusted."
+    "rule": "Do not reopen, rebase, revive or wholesale-merge PR120. Selectively reconstruct useful hardening on a fresh current-main Tier-B branch only after the control-plane reconciliation is trusted."
   },
   "next_tier_b_task": {
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
@@ -82,7 +83,7 @@
     "historical_source_pr": 120,
     "start_rule": "Create a fresh branch from then-current trusted main; do not reopen or wholesale-copy PR120.",
     "accepted_architecture_decision": {
-      "evidence": "PR126_COMMENT_5384571039_INDEPENDENTLY_RECONCILED_THROUGH_TRUSTED_PR127_AND_PRESERVED_BY_PR128",
+      "evidence": "PR126_COMMENT_5384571039_INDEPENDENTLY_RECONCILED_THROUGH_TRUSTED_PR127_AND_CARRIED_THROUGH_PR128_PR129",
       "prototype_boundary": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
       "supported_rejection_requirements": [
         "fail closed",
@@ -106,6 +107,7 @@
       "single writer on a fresh branch from then-current trusted main",
       "CI-wired pre-origin supported-provider conformance",
       "CI-wired strict in-contract rejected-transport survival with zero authorization and zero sensitive forwarding",
+      "clean child-process survival and no orphaned rejected transport",
       "truthful hostile out-of-contract negative unless reviewed isolation is introduced",
       "fresh canonical exact-head CI success",
       "mandatory five-stage release-owner review with concrete Promise/species/accessor/Proxy/unhandled-rejection/thenable/Array-poisoning hypotheses",
@@ -121,7 +123,7 @@
       "status": "BLOCKED_ON_TRUSTED_FRESH_PROVIDER_TRANSPORT_POST_MERGE_PASS",
       "historical_source_pr": 97,
       "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "historical_exact_head_ci": "32487036517 / CI 592 success",
+      "live_compare_to_trusted_main": "diverged ahead 66 behind 243 merge-base 0564aecd42cf0794894c12842980969ff59c9f73",
       "rule": "Do not merge/revive stale PR97. Reconstruct from then-current trusted main only after the fresh provider-transport prerequisite is trusted."
     },
     {
@@ -130,7 +132,7 @@
       "class": "TIER_B_APPLICATION_SECURITY",
       "status": "BLOCKED_DEPENDENCY_AND_FRESH_RECONSTRUCTION",
       "historical_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "historical_exact_head_ci": "32465835858 / CI 541 success",
+      "live_compare_to_trusted_main": "diverged ahead 86 behind 288 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8",
       "rule": "Historical green CI does not clear unresolved P1/P2 or current dependency order; reconstruct/reconcile later from trusted main."
     },
     {
