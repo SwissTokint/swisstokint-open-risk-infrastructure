@@ -61,9 +61,11 @@ PR #126 changed only canonical continuation/product-position documents. It is tr
 
 ### Current control-plane reconciliation
 
-The versioned files merged by PR #126 necessarily carried their pre-merge trusted parent, while live GitHub is now the post-merge-assured exact main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`. Branch `docs/pom-rx-post-pr126-live-reconcile-20260823` is the scoped non-Tier-B reconciliation required before stale exact-main fields are reused as dependency/readiness evidence.
+The versioned files merged by PR #126 necessarily carried their pre-merge trusted parent, while live GitHub is now the post-merge-assured exact main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`. PR #127 / branch `docs/pom-rx-post-pr126-live-reconcile-20260823` is the scoped non-Tier-B reconciliation required before stale exact-main fields are reused as dependency/readiness evidence.
 
 It owns exactly the compact checkpoint, task ledger, blocker ledger, team roster and this capability map. No runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics change.
+
+The first PR #127 candidate `d23b71284a2e5a13a071ece7d96e079b000df517` passed CI `32624912179` / CI 804 and owner review `5001873024`, but the genuinely distinct Codex review found P2 `PRRT_kwDOTiNyWc6bdxPp`: the control plane excluded non-configurable-unsafe-constructor Promise objects from the supported trusted-provider contract while requiring direct positive clean-process survival after that exact hostile object had already originated. The moved-head repair separates supported-path conformance/survival from the isolation-only hostile case; CI 804 and reviews on `d23b712...` are historical for release.
 
 ### Active prerequisite — PR #120
 
@@ -89,7 +91,14 @@ Read-only architecture/security decision `5384571039` selects an explicit narrow
 
 Inside the supported contract, rejection handling must prove fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently claimed safe. The existing Wallet Guard trusted bootstrap-provider assumption may support this narrow controlled-provider contract only when stated explicitly; it does not prove graceful survival against an intentionally hostile provider. A future hostile-provider survival claim requires a separately reviewed process/worker/RPC isolation boundary.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are excluded from that supported contract. The existing Wallet Guard trusted bootstrap-provider assumption may support this narrow controlled-provider contract only if the supported path is bound to a controlled provider/adapter that cannot originate those excluded transports. It does not prove graceful survival after an intentionally hostile provider has already returned such a rejected Promise.
+
+The local contract-narrowing route therefore requires two distinct evidence classes before PR #120 can be trusted:
+
+1. **supported-path evidence:** CI-wired conformance showing that the controlled trusted provider/adapter cannot originate excluded decorated/non-configurable-unsafe Promise transports on the supported path, plus a strict **in-contract** rejected-transport regression proving fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival and no orphaned provider rejection;
+2. **hostile out-of-contract evidence:** retain the already-originated unsafe/non-configurable rejected Promise as an explicit unsupported negative limitation. Do not present the in-contract survival test as reproducing or surviving that hostile object.
+
+If the product later claims clean survival after an excluded hostile Promise has already originated, it first requires a separately reviewed process/worker/RPC isolation boundary and a direct hostile-case regression across that isolation boundary.
 
 The selected direction must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors, traverse hostile Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or convert unknown/failure state into authorization/forwarding.
 
@@ -99,13 +108,11 @@ Normative reference:
 
 `https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
 
-The architecture decision narrows the supported prototype claim; it does not close P1 `PRRT_kwDOTiNyWc6bc4gh`, make PR #120 trusted, or authorize merging the stale branch.
+The architecture decision narrows the supported prototype claim; it does not by itself close P1 `PRRT_kwDOTiNyWc6bc4gh`, make PR #120 trusted, or authorize merging the stale branch. That P1 may close by independently validated claim narrowing only if exact-head evidence proves the supported path cannot originate the excluded transport and separately proves in-contract strict survival; otherwise an isolation repair is required.
 
-Before the next runtime write, this post-#126 reconciliation must become trusted. Then exactly one writer may reconcile PR #120 to then-current trusted main and implement only the bounded contract/runtime-diagnostic/test alignment plus the strict process-survival regression.
+Before the next runtime write, PR #127 must become trusted. Then exactly one writer may reconcile PR #120 to then-current trusted main and implement only the bounded contract/runtime-diagnostic/test alignment and the two evidence classes above.
 
-Any final repair must include a CI-wired `--unhandled-rejections=strict` regression for the unsafe non-configurable data-constructor case proving fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean process survival and no orphaned provider rejection within the supported contract.
-
-PR #120 remains untrusted and blocked from merge. Any reconciliation or repair moves the head and invalidates historical CI/review evidence. One frozen repaired/current-main-reconciled exact head must receive fresh canonical CI, the complete five-stage owner gate, a genuinely distinct exact-head `chatgpt-codex-connector` review, and zero unresolved P0/P1/P2.
+PR #120 remains untrusted and blocked from merge. Any reconciliation or repair moves the head and invalidates historical CI/review evidence. One frozen current-main-reconciled exact head must receive fresh canonical CI, the complete five-stage owner gate, a genuinely distinct exact-head `chatgpt-codex-connector` review, and zero unresolved P0/P1/P2.
 
 Six review threads remain unresolved until that evidence justifies closure: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and current P1 `PRRT_kwDOTiNyWc6bc4gh`.
 
@@ -224,12 +231,12 @@ Application folders contain only domain adapters, profiles, fixtures and tests. 
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | post-#126 control-plane reconciliation; PR #120 current-main reconciliation + contract-alignment/P1 repair and wholly fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #127 post-#126 control-plane reconciliation; PR #120 current-main reconciliation + contract-alignment/P1 closure evidence and wholly fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable claim-before-observer/downstream composition requires later reconstruction |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | trusted-provider contract alignment + P1 `PRRT_kwDOTiNyWc6bc4gh` repair + strict process-survival regression + fresh exact-head CI/owner/independent gates + six-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | trusted-provider supported-path binding + in-contract strict rejection survival + explicit hostile out-of-contract limitation or separately reviewed isolation + fresh exact-head CI/owner/independent gates + six-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
