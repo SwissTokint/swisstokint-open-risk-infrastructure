@@ -1,6 +1,6 @@
 # POM-RX Core — Durable Blockers Snapshot
 
-Updated: `2026-08-23T19:26:00+02:00`
+Updated: `2026-08-23T20:12:00+02:00`
 
 This file records durable blocker rules at authoring time. It does **not** claim that its embedded SHA is the forever-current GitHub `main`. Read live GitHub first. Exact post-merge state and current blocker resolution are persisted in the relevant PR terminal checkpoint.
 
@@ -19,6 +19,20 @@ PR #134 post-merge assurance identified a P2 continuity/liveness defect in the o
 Closure rule: the latest continuity-model repair must amend the automation policy and canonical snapshot surfaces so versioned SHAs are explicitly authoring-time anchors, exact live state is always read from GitHub, exact post-merge state is persisted in the merge PR terminal checkpoint, and no new docs-only PR is required solely to chase the repair PR's own merge SHA. The repair itself still requires normal exact-head CI, five-stage owner gate, genuine distinct exact-head review, merge and exact-merge `POST_MERGE_ASSURANCE_PASS`.
 
 Once live GitHub records that PASS, this requirement is satisfied without rewriting this file only to replace `snapshot_base_main` with the repair merge SHA.
+
+## `CONTROL_PLANE_SINGLE_FLIGHT_GUARD_MUST_REMAIN_MANDATORY`
+
+The independent `chatgpt-codex-connector` review `5002957358` of PR #135 predecessor head `8dc1648f65dce0de59f314d7080e2408de95292b` found P2 thread `PRRT_kwDOTiNyWc6bg6TG`: the rewritten policy had changed mandatory single-flight acquisition into an optional "if present" guard. With overlapping delayed invocations, that allows two runs to enter writer selection and violates the one-writer invariant.
+
+Required repair semantics are fail-closed:
+
+- acquire the single-flight coordination lock before any state-changing action;
+- active lock younger than 45 minutes => `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing;
+- failed or unverifiable acquisition => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing;
+- do not invent a competing lock mechanism;
+- release any lock acquired by the run on every terminal path after durable state persistence.
+
+The head move implementing this repair invalidates CI 853, owner review `5002957417` and Codex review `5002957358` as release evidence for the successor head. Closure requires fresh canonical exact-head CI, a fresh five-stage owner gate, a fresh genuinely distinct exact-head review validating the repair, zero unresolved P0/P1/P2, and resolution of `PRRT_kwDOTiNyWc6bg6TG` only on that same-head evidence. Until then PR #135 remains blocked.
 
 ## `PR131_RELEASE_BLOCKED_RECONCILIATION_REQUIRED`
 
