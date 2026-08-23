@@ -1,23 +1,35 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T19:20:00+02:00`
+Updated: `2026-08-23T20:12:00+02:00`
 
 ## Purpose
 
-This roster defines accountable roles and evidence requirements. It does **not** claim that a named model, human or agent actually ran merely because a role is listed. GitHub review/runtime evidence is authoritative for reviewer identity.
+This roster defines accountable roles and evidence requirements. It does not claim that a named model, human or agent actually ran merely because a role is listed. GitHub review/runtime evidence is authoritative for reviewer identity and current activity.
+
+This is a **versioned snapshot**. Embedded SHAs/branch names are authoring-time anchors, not claims that they remain the exact live GitHub state after this file's own merge. Read live GitHub first.
+
+Snapshot anchors:
+
+- `snapshot_base_main`: `e45869bf77025566d6be4edac58424f6002ad08e`;
+- base state: PR #134 exact merge, exact-main CI 852 success, post-merge assurance `5387352052 = POST_MERGE_ASSURANCE_CONDITIONAL` due the control-plane self-reference/liveness defect;
+- `last_assured_main_before_snapshot`: `ed0cc5936a12fcd420890ee1553690569b2d4ec7`, PR #133 assurance `5387034808 = POST_MERGE_ASSURANCE_PASS`.
+
+Exact current main/CI/review/post-merge state is persisted after merge in the relevant PR terminal checkpoint; do not open a new docs-only PR solely to replace `snapshot_base_main` with that repair merge SHA.
 
 ## Invariants
 
 - One durable repository: `SwissTokint/swisstokint-open-risk-infrastructure`.
 - One writer per bounded lot and one owner per file set.
+- Single-flight coordination is mandatory before any state-changing action: an active lock younger than 45 minutes means `SKIPPED_PREVIOUS_RUN_ACTIVE`; failed or unverifiable acquisition means `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; both paths modify nothing. Any acquired lock is released on the terminal path after durable state persistence.
 - Maximum three active specialist lanes and two code worktrees.
 - Review lanes are read-only unless a separate implementation assignment is created after review.
-- Useful work is committed and pushed to a dedicated branch; no direct `main` edits and no force-push.
+- Useful work is committed/pushed to a dedicated branch; no direct `main` edits and no force-push.
 - A moved head invalidates exact-head CI/review evidence.
 - Release-owner/Prime/self-review is never independent evidence.
 - Missing independent review is `INDEPENDENT_REVIEW_PENDING`, never an invented reviewer.
+- Live GitHub determines which branch/PR is actually active; this file provides routing rules, not a self-expiring active-branch declaration.
 
-## Active role matrix
+## Role matrix
 
 | Role | Accountability | Mode | Required evidence | Forbidden |
 | --- | --- | --- | --- | --- |
@@ -28,70 +40,54 @@ This roster defines accountable roles and evidence requirements. It does **not**
 | QA / Conformance | positive/negative tests, expected-red, compatibility, false-PASS resistance | read-only relative to writer | reproducible exact-head evidence | approving unexecuted tests |
 | Code Quality / Optimization | TCB size, duplication, deterministic behavior, maintainability, boundedness | read-only | scoped PASS/CONDITIONAL/BLOCK | weakening fail-closed behavior for optimization |
 | Independent Release Gate | distinct skeptical/security release evidence | genuinely distinct exact-head reviewer | actual exact-head review with no unresolved P0/P1/P2 | owner/self/moved-head/invented review |
-| Context / State Ledger | durable cross-chat continuation | coordination | RESUME + TASKS/BLOCKERS/CAPABILITY reconciliation when facts change | parallel PM system or chat-only continuity |
+| Context / State Ledger | durable cross-chat continuation | coordination | RESUME + TASKS/BLOCKERS/CAPABILITY snapshot plus live terminal checkpoint | parallel PM system or chat-only continuity |
 
 ## Independent-review rule
 
-A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit has moved the head. The independent-review waiver remains limited to PR #60.
+A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, canonical exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit moved the head. The independent-review waiver remains limited to PR #60.
 
-## Current trusted coordination state
+## Continuity-model repair routing
 
-Trusted main is `ed0cc5936a12fcd420890ee1553690569b2d4ec7`, the exact PR #133 merge.
+The authoring-time repair branch is `docs/pom-rx-non-self-referential-continuity-20260823-1923`, created from `snapshot_base_main=e45869bf...` after PR #134 post-merge assurance found a P2 liveness defect.
 
-- source head `156447becff8e8d971bb835fb76eb8dc25dec010`;
-- source-head CI `32651116737` / CI 849 attempt 1 = `success`;
-- owner five-stage review `5002825021 = PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
-- genuinely distinct exact-head evidence `5387014025`, reviewed `156447becf`, no major issues;
-- exact-main CI `32651307731` / CI 850 attempt 1 = `success`;
-- exact-main status `pom-rx/exact-main-ci = success` targeting run `32651307731`;
-- exact-merge assurance `5387034808 = POST_MERGE_ASSURANCE_PASS`;
-- terminal checkpoint `5387039387`.
+The repair's bounded owned set is:
 
-## Current single-writer lane — non-Tier-B post-PR133 reconciliation
-
-Branch `docs/pom-rx-post-pr133-live-reconcile-20260823-1909` is the active single-writer lane and owns exactly:
-
+- `docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md`;
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
 - `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-This lot exists because PR #133 is already merged and post-merge assured while the source tree it merged necessarily still records the prior trusted parent and an in-progress reconciliation. It is documentation/control-plane only; no runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
+This is documentation/control-plane only; no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics belong to this repair lot.
 
-Current exact candidate SHA, CI and review evidence for this reconciliation are volatile and must be read from live GitHub/PR metadata rather than self-referenced in this file.
+The independent review `5002957358` of predecessor head `8dc1648f65...` found P2 thread `PRRT_kwDOTiNyWc6bg6TG`: single-flight acquisition had been made optional. The repair restores mandatory fail-closed acquisition, skip-on-active/unverifiable guard behavior, and terminal lock release. Because the head moved, CI 853 and all reviews on `8dc1648f65...` are historical for release; the successor head requires wholly fresh exact-head gates and genuinely distinct review before the thread may be resolved.
 
-### Exclusive ownership / PR #131 pause
+Stable ownership rule: while a live control-plane repair PR owning these files is open, PR #131's writer lane remains frozen. Once the latest repair PR merges and its exact-merge assurance is `POST_MERGE_ASSURANCE_PASS`, that freeze is lifted **without** requiring another docs-only PR solely to chase the repair merge SHA. Live GitHub terminal evidence resolves the transition.
 
-PR #131 branch `automation/wg-trusted-provider-transport-20260823` is frozen while the present reconciliation owns the five overlapping control-plane files.
+## Next Tier-B routing — PR #131
 
-Live PR #131 head is `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`. Against trusted main `ed0cc593...`, it is diverged ahead 32 / behind 12 with merge-base `87ed6ac...`; GitHub reports it non-mergeable. CI 846 is green but historical for release after the main move, and seven P1 threads remain unresolved/outdated.
+Authoring-time snapshot: PR #131 head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`; against `snapshot_base_main` it is diverged ahead 32 / behind 18; historical CI 846 is green but stale for release; seven P1 threads remain unresolved/outdated.
 
-After the reconciliation merges and receives exact-merge `POST_MERGE_ASSURANCE_PASS`, the PR #131 single writer may resume and reconcile onto then-current trusted main. That head move invalidates all previous exact-head release evidence and requires fresh CI, fresh five-stage owner review and a fresh genuinely distinct exact-head review.
+When live GitHub shows the continuity repair has exact-merge PASS, PR #131 becomes the next dependency-closing workstream. Use exactly one writer to reconcile it onto then-live main; no stale #120/#97/#93 branch is merged wholesale. A moved #131 head restarts exact-head evidence.
 
-## Paused Tier-B security review routing — PR #131
+Read-only specialist routing after reconciliation:
 
-PR #131 implements the narrow local **trusted-provider transport contract**. Shared Core canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution-evidence and observation/reconciliation semantics remain outside the application's ownership.
-
-When the Tier-B lane resumes, read-only specialist routing is:
-
-1. Protocol / Systems Architect — verify Core/application boundary, trusted-provider contract scope, and simpler TCB alternatives;
+1. Protocol / Systems Architect — verify Core/application boundary, narrow trusted-provider contract and simpler TCB alternatives;
 2. Security / Adversarial Skeptic — falsify provider provenance TOCTOU, pre/post-import Promise/reflection/provenance poisoning, constructor/species/accessor/Proxy/prototype paths, thenable assimilation, strict-unhandled behavior and claim leakage;
 3. QA / Conformance — verify CI-wired negative tests, clean strict-process survival, zero reference authorization and zero sensitive forwarding.
 
-The release owner then performs the mandatory five-stage gate as **non-independent** evidence. A genuinely distinct `chatgpt-codex-connector` review on the exact same frozen SHA is still required before merge.
+The release owner then performs the five-stage gate as non-independent evidence; a genuinely distinct exact-head review remains mandatory.
 
-Seven PR #131 P1 threads remain attack inputs and unresolved until same-head independent validation: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
+Seven PR #131 P1 threads remain attack inputs until same-head independent validation: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
 
 The supported path must not install process-global rejection swallowing, execute hostile constructor/species accessors or Proxy paths, silently trust attacker-selected species constructors, weaken strict-rejection tests, or claim same-process survival for an already-originated out-of-contract hostile Promise.
 
-## Historical streams
+## Historical streams at snapshot authoring
 
-PR #120 is `CLOSED / NOT MERGED / STALE` at `5238b9c289476100c875ed9a88bd7e21a574fa67`; do not reopen or wholesale-copy it. Its six P1/P2 findings remain attack history.
-
-PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, diverged from trusted main by ahead 66 / behind 261. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
-
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, diverged by ahead 86 / behind 306. Simulation work remains later in dependency order.
+- PR #120: `CLOSED / NOT MERGED / STALE` at `5238b9c289476100c875ed9a88bd7e21a574fa67`; do not reopen or wholesale-copy; six P1/P2 findings remain attack history.
+- PR #97: `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, diverged ahead 66 / behind 267 from `snapshot_base_main`.
+- PR #93: `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, diverged ahead 86 / behind 312.
 
 ## Operational prototype claim boundary
 

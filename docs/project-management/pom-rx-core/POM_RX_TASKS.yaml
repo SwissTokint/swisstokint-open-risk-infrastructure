@@ -1,85 +1,59 @@
 {
-  "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T19:20:00+02:00",
-  "current_main": "ed0cc5936a12fcd420890ee1553690569b2d4ec7",
-  "canonical_control_directory": "docs/project-management/pom-rx-core",
-  "continuity": {
-    "mode": "GITHUB_BACKED_CROSS_CHAT",
-    "compact_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-    "source_of_truth_order": ["live_github", "canonical_control_plane", "repository_architecture_and_specs"],
-    "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
+  "schema_version": "pom-rx-tasks/2-non-self-referential",
+  "updated_at": "2026-08-23T20:12:00+02:00",
+  "continuity_model": {
+    "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
+    "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
+    "versioned_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
+    "snapshot_base_main": "e45869bf77025566d6be4edac58424f6002ad08e",
+    "snapshot_base_main_state": "PR134 exact merge; CI852 success; POST_MERGE_ASSURANCE_CONDITIONAL due self-reference P2",
+    "last_assured_main_before_snapshot": "ed0cc5936a12fcd420890ee1553690569b2d4ec7",
+    "last_assured_main_evidence": "PR133 comment 5387034808 = POST_MERGE_ASSURANCE_PASS; terminal 5387039387",
+    "rule": "Embedded SHAs are authoring-time anchors, not claims of forever-current main. Exact post-merge main/CI/status/verdict is persisted in the merged PR terminal checkpoint and re-read live every run. Do not create a docs-only loop solely to chase a control-plane merge SHA."
   },
-  "trusted_main": {
-    "sha": "ed0cc5936a12fcd420890ee1553690569b2d4ec7",
-    "source_pr": 133,
-    "source_head": "156447becff8e8d971bb835fb76eb8dc25dec010",
-    "source_head_ci": {
-      "run_id": 32651116737,
-      "run_number": 849,
-      "run_attempt": 1,
-      "conclusion": "success"
-    },
-    "owner_premerge_evidence": "REVIEW_5002825021_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5387014025_ON_156447becf",
-    "exact_main_ci": {
-      "run_id": 32651307731,
-      "run_number": 850,
-      "run_attempt": 1,
-      "conclusion": "success",
-      "status_context": "pom-rx/exact-main-ci"
-    },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5387034808",
-    "terminal_checkpoint": "COMMENT_5387039387",
-    "scope": "bounded_non_tier_b_control_plane_reconciliation"
-  },
-  "active_task": {
-    "id": "POST-PR133-LIVE-STATE-RECONCILIATION-20260823",
-    "title": "Reconcile canonical control plane with assured PR133 and paused PR131 state",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "status": "IN_PROGRESS",
-    "branch": "docs/pom-rx-post-pr133-live-reconcile-20260823-1909",
-    "base_sha": "ed0cc5936a12fcd420890ee1553690569b2d4ec7",
-    "single_writer": true,
+  "snapshot_repair_lot": {
+    "id": "CONTROL-PLANE-NON-SELF-REFERENTIAL-CONTINUITY",
+    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE_REPAIR",
+    "branch_at_authoring": "docs/pom-rx-non-self-referential-continuity-20260823-1923",
+    "base_sha": "e45869bf77025566d6be4edac58424f6002ad08e",
+    "trigger": "PR134 post-merge assurance comment 5387352052 identified a P2 continuity/liveness defect: the old model made each control-plane reconciliation immediately stale after its own merge.",
     "owned_files": [
+      "docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md",
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
       "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
       "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
-    "reason": "PR133 is merged and post-merge assured as exact main ed0cc593..., while main's versioned five-file coordination state necessarily still describes trusted PR132 and PR133 as in progress. Live GitHub wins; volatile control-plane facts must be reconciled before readiness/dependency use.",
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
-    "release_requirements": [
-      "canonical exact-head CI success",
-      "five-stage release-owner exact-head review",
-      "fresh genuinely distinct exact-head independent review",
-      "zero unresolved P0/P1/P2 for this reconciliation",
-      "decision-time unchanged main/base/head/CI/review/thread state",
-      "mandatory exact-merge post-merge assurance"
-    ]
-  },
-  "paused_tier_b_task": {
-    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
-    "class": "TIER_B_APPLICATION_SECURITY",
-    "status": "PAUSED_FOR_TRUSTED_CONTROL_PLANE_RECONCILIATION_AND_MAIN_REBASE",
-    "pr": 131,
-    "branch": "automation/wg-trusted-provider-transport-20260823",
-    "historical_base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "live_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
-    "live_compare_to_trusted_main": "diverged ahead 32 behind 12 merge-base 87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "mergeable": false,
-    "historical_exact_head_ci": {
-      "run_id": 32645853067,
-      "run_number": 846,
-      "run_attempt": 1,
-      "conclusion": "success",
-      "release_freshness": "historical_after_main_move"
+    "active_review_blocker": {
+      "severity": "P2",
+      "thread": "PRRT_kwDOTiNyWc6bg6TG",
+      "review_id": 5002957358,
+      "reviewed_predecessor_head": "8dc1648f65dce0de59f314d7080e2408de95292b",
+      "finding": "The policy made single-flight guard acquisition conditional, permitting an overlapping invocation to enter the writer lane without verified mutual exclusion.",
+      "repair_requirements": [
+        "mandatory single-flight lock acquisition before any state-changing action",
+        "active lock younger than 45 minutes => SKIPPED_PREVIOUS_RUN_ACTIVE and modify nothing",
+        "unverifiable or failed acquisition => SKIPPED_COORDINATION_GUARD_UNAVAILABLE and modify nothing",
+        "do not invent a competing lock mechanism",
+        "release any acquired lock on every terminal path after durable state persistence"
+      ],
+      "evidence_freshness": "CI853, owner review 5002957417 and Codex review 5002957358 are historical after the repair head moves",
+      "closure_rule": "fresh canonical exact-head CI + fresh five-stage owner gate + fresh genuinely distinct exact-head review + zero unresolved P0/P1/P2; resolve the thread only on same-head evidence"
     },
-    "exact_head_owner_gate": "MISSING_ON_EVENTUAL_RECONCILED_HEAD",
-    "exact_head_independent_review": "MISSING_ON_EVENTUAL_RECONCILED_HEAD",
-    "release_state": "BLOCKED",
-    "reason": "Trusted main moved to PR133 exact merge. PR131 is diverged/non-mergeable and seven P1 threads remain unresolved/outdated. Reconcile onto then-current trusted main only after the active control-plane reconciliation becomes trusted, then restart all exact-head release evidence.",
+    "closure_rule": "normal exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + exact-merge POST_MERGE_ASSURANCE_PASS"
+  },
+  "next_dependency_closing_workstream": {
+    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
+    "pr": 131,
+    "class": "TIER_B_APPLICATION_SECURITY",
+    "transition_rule": "READY_TO_RECONCILE only after the latest continuity-model repair has POST_MERGE_ASSURANCE_PASS; live GitHub exact state must be read at that time",
+    "snapshot_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
+    "snapshot_compare_to_e45869bf": "diverged ahead 32 behind 18 merge-base 87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "historical_exact_head_ci": "32645853067 / CI 846 attempt 1 = success but stale for release",
+    "release_state": "BLOCKED_UNTIL_RECONCILED_AND_FRESHLY_GATED",
     "review_threads": [
       {"id": "PRRT_kwDOTiNyWc6bfPvI", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
       {"id": "PRRT_kwDOTiNyWc6bfPvO", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
@@ -90,7 +64,7 @@
       {"id": "PRRT_kwDOTiNyWc6bfel7", "severity": "P1", "state": "UNRESOLVED_OUTDATED"}
     ],
     "accepted_boundary": {
-      "prototype_boundary": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
+      "name": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
       "requirements": [
         "fail closed before unowned provider transport origin",
         "zero reference authorization on rejected/invalid context transport",
@@ -108,9 +82,19 @@
         "weakening strict rejection regressions"
       ]
     },
-    "resume_rule": "After the active control-plane reconciliation merges and receives exact-merge POST_MERGE_ASSURANCE_PASS, reconcile PR131 onto then-current trusted main using exactly one writer. Any moved head invalidates existing exact-head release evidence and requires fresh CI, owner gate and genuinely distinct exact-head review."
+    "resume_procedure": [
+      "read then-live main and PR131 metadata",
+      "reconcile PR131 with exactly one writer and preserve canonical control-plane semantics",
+      "freeze new exact head",
+      "run canonical exact-head CI",
+      "run full five-stage owner gate with concrete provenance/Promise/reflection/species/accessor/Proxy/prototype/thenable/strict-unhandled/Array-poisoning hypotheses",
+      "obtain genuinely distinct exact-head review",
+      "resolve seven P1 threads only on same-head evidence and zero new P0/P1/P2",
+      "merge only after all gates pass",
+      "run exact-merge assurance immediately"
+    ]
   },
-  "historical_state": {
+  "historical_streams": {
     "pr120": {
       "status": "CLOSED_NOT_MERGED_STALE_ATTACK_HISTORY",
       "head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
@@ -119,45 +103,44 @@
     "pr97": {
       "status": "OPEN_STALE_MUST_NOT_MERGE",
       "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "live_compare_to_trusted_main": "diverged ahead 66 behind 261 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
+      "snapshot_compare_to_e45869bf": "diverged ahead 66 behind 267 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
     },
     "pr93": {
       "status": "OPEN_STALE_UNTRUSTED_LATER",
       "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "live_compare_to_trusted_main": "diverged ahead 86 behind 306 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
+      "snapshot_compare_to_e45869bf": "diverged ahead 86 behind 312 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
     }
   },
-  "queue": [
+  "queue_after_pr131_trusted": [
     {
       "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
       "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-      "status": "BLOCKED_ON_TRUSTED_FRESH_PROVIDER_TRANSPORT_POST_MERGE_PASS",
-      "historical_source_pr": 97
+      "historical_source_pr": 97,
+      "status_rule": "blocked until fresh provider transport exact-merge assurance PASS"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONSTRUCTION",
       "historical_pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
-      "status": "BLOCKED_DEPENDENCY_AND_FRESH_RECONSTRUCTION"
+      "status_rule": "later after dependency closure and fresh reconstruction"
     },
     {
       "id": "DAGR-SOURCE-GATE",
-      "class": "SOURCE_GATED_NORMATIVE_PROFILE",
       "status": "BLOCKED",
       "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
     },
     {
       "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
       "status": "BLOCKED"
     }
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after mandatory gates, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
+    "standing_authorization": "Only after mandatory gates, exact-head CI, required distinct exact-head independent review and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
-    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA assurance before dependent work may trust it."
+    "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it.",
+    "single_flight_rule": "Mandatory before any state-changing action; active lock under 45 minutes or unverifiable acquisition means modify nothing; release acquired lock on every terminal path."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
