@@ -65,26 +65,27 @@ Bounded implementation repair remains present on the PR #120 branch:
 
 ## latest_ci_diagnosis_and_scoped_fix
 
-Canonical CI `32604445154` / CI 777 attempt 1 failed on exact head
-`d18ba4cb0cf99e13f107c8b1b4c1f5094b1e3e22` during full `npm test`.
+Canonical CI `32607345516` / CI 781 attempt 1 failed on exact head
+`6745422b1e43616dd4f4242d35a9680fefc0cfa5` during full `npm test`.
 
-The Wallet Guard Promise/provider regressions passed before the failure. The exact
-failing assertion was in `tests/pom-rx-capability-map.node.test.mjs`: the test
-requires
-`must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics`.
-The earlier layout repair had already made `must not duplicate` contiguous, but
-the final capability map still split `Gate` from `semantics`, so the unchanged
-regex continued to fail.
+The Wallet Guard Promise/provider suite passed before the failure, including the
+strict non-extensible alternate-constructor/species regression and the hostile
+species-accessor boundary. The exact failing assertion was in
+`tests/pom-rx-capability-map.node.test.mjs`: the unchanged invariant requires
+`primary product home is\s+Blockchain and digital assets, while its defensive control model also overlaps\s+the Cybersecurity block`.
+The capability map split `its` from `defensive control model` with a newline, so
+the regex could not match. This is a documentation layout mismatch, not a runtime
+species failure.
 
-Commit `f43c8887405e9f5a615c45bf340ea96a566ba113` repairs only that remaining
-capability-map line wrap, keeping `Gate semantics` contiguous. The invariant test
+Commit `7803fc18337aecfbe4dd4c9870fe413ffced094c` repairs only that line wrap by
+keeping the Wallet Guard primary-product sentence contiguous. The invariant test
 is unchanged; no runtime/security semantics or tested requirement are weakened.
-Commits `6c438eafd758381df6542ed684d06dea5963fd26` and
-`0e4fee9e6610f926e5b13581ae463b658db6b6c8` then reconcile TASKS and BLOCKERS to
-CI 777 and this second bounded layout repair.
+Commit `9707e6df33f5cca24ed130de775a281d2fce28b5` reconciles the machine-readable
+task ledger to CI 781 and commit `481d726c495f0ca405fec06994c1b04c23746ed4`
+reconciles active blockers.
 
 This checkpoint write moves the branch once more; therefore the final exact PR
-#120 head must be read live from GitHub after this commit. CI 777 and all earlier
+#120 head must be read live from GitHub after this commit. CI 781 and all earlier
 exact-head review evidence are historical only. On the final checkpoint head:
 
 - canonical exact-head CI: `PENDING`;
