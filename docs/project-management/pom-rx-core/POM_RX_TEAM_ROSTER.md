@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T19:26:00+02:00`
+Updated: `2026-08-23T20:12:00+02:00`
 
 ## Purpose
 
@@ -20,6 +20,7 @@ Exact current main/CI/review/post-merge state is persisted after merge in the re
 
 - One durable repository: `SwissTokint/swisstokint-open-risk-infrastructure`.
 - One writer per bounded lot and one owner per file set.
+- Single-flight coordination is mandatory before any state-changing action: an active lock younger than 45 minutes means `SKIPPED_PREVIOUS_RUN_ACTIVE`; failed or unverifiable acquisition means `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; both paths modify nothing. Any acquired lock is released on the terminal path after durable state persistence.
 - Maximum three active specialist lanes and two code worktrees.
 - Review lanes are read-only unless a separate implementation assignment is created after review.
 - Useful work is committed/pushed to a dedicated branch; no direct `main` edits and no force-push.
@@ -59,6 +60,8 @@ The repair's bounded owned set is:
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 This is documentation/control-plane only; no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics belong to this repair lot.
+
+The independent review `5002957358` of predecessor head `8dc1648f65...` found P2 thread `PRRT_kwDOTiNyWc6bg6TG`: single-flight acquisition had been made optional. The repair restores mandatory fail-closed acquisition, skip-on-active/unverifiable guard behavior, and terminal lock release. Because the head moved, CI 853 and all reviews on `8dc1648f65...` are historical for release; the successor head requires wholly fresh exact-head gates and genuinely distinct review before the thread may be resolved.
 
 Stable ownership rule: while a live control-plane repair PR owning these files is open, PR #131's writer lane remains frozen. Once the latest repair PR merges and its exact-merge assurance is `POST_MERGE_ASSURANCE_PASS`, that freeze is lifted **without** requiring another docs-only PR solely to chase the repair merge SHA. Live GitHub terminal evidence resolves the transition.
 
