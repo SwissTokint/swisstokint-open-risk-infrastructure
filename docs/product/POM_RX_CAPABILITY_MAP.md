@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-23
 
-Trusted-main checkpoint: `cff851b92746af09c224451c82d3da9c3bae176a`.
+Trusted-main checkpoint: `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -70,26 +70,26 @@ composition must be reconstructed later from then-current trusted main after PR
 
 ### Trusted coordination checkpoint
 
-PR #122 source head `19a1f2edb617d5025e274c3a3076f0ba78cdf841`
-merged as exact main `cff851b92746af09c224451c82d3da9c3bae176a`.
-Canonical exact-main push CI `32610793817` / CI 787 attempt 1 passed on that exact
+PR #123 source head `6cac168b775b26b572336764271b4f25e934a5ea`
+merged as exact main `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
+Canonical exact-main push CI `32614549879` / CI 789 attempt 1 passed on that exact
 merge SHA. Independent pre-merge evidence is `chatgpt-codex-connector[bot]`
-comment `5383609128`, reviewed exact source commit `19a1f2edb6`, no major issues.
-Exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #122 comment
-`5383628489`; terminal checkpoint is PR #122 comment `5383629556`.
+comment `5383774814`, reviewed exact source commit `6cac168b77`, no major issues.
+Exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #123 comment
+`5383940027`.
 
-PR #122 changed only the canonical continuation/product-position files. It is
+PR #123 changed only canonical continuation/product-position documents. It is
 trusted coordination evidence, not runtime or Wallet Guard security evidence.
 
 ### Current control-plane reconciliation
 
-The files merged by PR #122 necessarily recorded its pre-merge parent
-`06de789768c2cb0d5738161997c6bf104930a174`, while live GitHub is now the assured
-PR #122 merge `cff851b92746af09c224451c82d3da9c3bae176a`. PR #120 is also diverged
-from that current trusted main. Branch
-`docs/pom-rx-post-pr122-live-reconcile-20260823` is the scoped non-Tier-B
-material-drift reconciliation required by the continuity contract before stale
-exact-main fields are used as dependency/readiness evidence.
+The files currently on trusted `main` still contain the pre-PR123 continuation
+state `cff851b92746af09c224451c82d3da9c3bae176a` / PR #122, while live GitHub is
+now the assured PR #123 merge `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
+Live PR #120 also gained a fresh exact-head independent P1 after its CI and owner
+review. Branch `docs/pom-rx-post-pr123-live-reconcile-20260823` is the scoped
+non-Tier-B reconciliation required by the continuity contract before stale
+exact-main or blocker fields are reused as dependency/readiness evidence.
 
 This reconciliation changes only the compact checkpoint/task/blocker/team-roster/
 capability-map state. It changes no runtime, test, protocol, Gate, Witness,
@@ -102,45 +102,58 @@ PR #120 is the current Wallet Guard/provider Promise-transport prerequisite
 repair.
 
 - exact branch: `automation/pom-rx-promise-drift-repair-20260822`;
-- exact live head: `2d01503c13b9b22ea136f6bbd169bc2032366b9a`;
+- exact live head: `5238b9c289476100c875ed9a88bd7e21a574fa67`;
 - target branch: `main`;
-- PR metadata base SHA: `06de789768c2cb0d5738161997c6bf104930a174`;
-- current trusted main: `cff851b92746af09c224451c82d3da9c3bae176a`;
-- current-main -> head comparison: `diverged`, ahead 66 / behind 5, merge-base
-  `06de789768c2cb0d5738161997c6bf104930a174`;
-- GitHub mergeability at revalidation: `false` (volatile conflict metadata only);
-- canonical CI on exact head `2d01503c...`: `32609855025` / CI 785 attempt 1,
-  `completed / success`, but historical for final release after trusted main moved;
-- mandatory five-stage release-owner exact-head gate after current-main
-  reconciliation: `PENDING / NON-INDEPENDENT`;
-- fresh genuinely distinct exact-head `chatgpt-codex-connector` review after
-  reconciliation: `PENDING`;
+- current trusted main: `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- trusted-main reconciliation merge on the branch: `e4c8d4b29cdc875d17c170d6e67a0fd7804d849d`;
+- current-main -> head comparison: `ahead`, ahead 69 / behind 0, merge-base
+  exactly `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- GitHub mergeability at revalidation: `true` (volatile conflict metadata only);
+- canonical exact-head CI: `32614831929` / CI 792 attempt 1,
+  `completed / success`, but false-PASS for the fresh independently reviewed P1;
+- release-owner five-stage exact-head review `5001566041`:
+  `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- fresh genuinely distinct exact-head `chatgpt-codex-connector` review:
+  `BLOCK / P1` via current unresolved thread `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
-The bounded repair is present on the branch:
+The bounded repair already present on the branch uses captured reflection and
+data-descriptor checks for constructor/species classification, bounded
+prototype/species traversal with Proxy rejection before hostile reflection
+dispatch, and internal draining only when effective species is absent, null,
+undefined or the captured native `Promise`. Primitive constructors,
+constructor/species accessors, Proxies and attacker-selected species constructors
+remain outside the internally-drainable claim unless separately proven safe.
 
-- constructor/species classification uses captured reflection and data-descriptor
-  checks;
-- prototype/species traversal is bounded and rejects Proxy paths before hostile
-  reflection can be dispatched;
-- internal draining is allowed only when the effective species is absent, null,
-  undefined, or the captured native `Promise`;
-- primitive constructors, constructor/species accessors, Proxies and
-  attacker-selected species constructors remain outside the internally-drainable
-  claim unless separately proven safe;
-- canonical provider-gate tests include a strict-unhandled-rejection regression
-  for a non-extensible benign alternate data constructor and a prehandled hostile
-  species-accessor boundary regression requiring zero accessor execution, zero
-  reference authorization and zero sensitive forwarding.
+The fresh exact-head P1 demonstrates that this boundary is still incomplete. A
+rejected same-realm native Promise with a non-configurable own unsafe data
+`constructor`, such as `constructor: 1`, can make the classifier reject the path
+and then make the fallback constructor-shadowing `defineProperty` fail before the
+captured rejection reaction is attached. Under strict unhandled-rejection
+behavior, the Wallet Guard operation fails closed but the original rejection may
+remain orphaned and terminate the process. The current canonical regression
+covers the safe non-configurable `constructor: Promise` case, not this unsafe
+data-constructor variant.
 
-PR #120 remains **untrusted and blocked from merge** until it is reconciled to the
-exact trusted main and one frozen exact head has fresh canonical CI, the complete
-five-stage owner gate, a genuinely distinct exact-head
-`chatgpt-codex-connector` review, and zero unresolved P0/P1/P2. Historical review
-threads `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`,
-`PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, and
-`PRRT_kwDOTiNyWc6baIxZ` remain unresolved until that evidence justifies closure.
-Any head move invalidates exact-head release evidence.
+Required repair is deliberately narrow: attach/drain the rejected transport
+without requiring successful attacker-controlled constructor shadowing first;
+do not execute hostile constructor/species accessors or Proxy paths; do not trust
+attacker-selected species constructors; and add a CI-wired
+`--unhandled-rejections=strict` regression proving fail-closed behavior with zero
+reference authorization and zero sensitive forwarding for the non-configurable
+unsafe data-constructor case.
+
+PR #120 remains **untrusted and blocked from merge**. Any repair moves the head
+and invalidates CI 792, owner review `5001566041` and the current Codex review as
+release evidence. One frozen repaired exact head must receive fresh canonical CI,
+the complete five-stage owner gate, a genuinely distinct exact-head
+`chatgpt-codex-connector` review, and zero unresolved P0/P1/P2.
+
+Six review threads remain unresolved until that evidence justifies closure:
+`PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`,
+`PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`,
+`PRRT_kwDOTiNyWc6baIxZ`, and fresh current P1
+`PRRT_kwDOTiNyWc6bc4gh`.
 
 ### Witness
 
@@ -181,33 +194,33 @@ active.
 These block names mirror the public SwissTokint taxonomy. They are contexts for
 POM-RX research and integration, not claims that every block is operational.
 
-### Block A — Payments and financial operations
+### Payments and financial operations
 
 Examples include destination/amount controls, trading-agent preflight and
 execution reconciliation, beneficiary policy and exchange/broker adapter
 evidence. Existing market-risk work remains supporting research unless a
 reviewed POM-RX Gate actually enforces the action.
 
-### Block B — AI agents
+### AI agents
 
 Examples include external tool/API calls, bounded spending/transfer authority,
 model-generated actions requiring policy decisions and separation of agent
 intent, authorization and external effect.
 
-### Block C — APIs and enterprise systems
+### APIs and enterprise systems
 
 Examples include critical configuration changes, privileged API mutations,
 approval workflows for ERP/infrastructure operations and exact target/action
 binding before writes reach downstream systems.
 
-### Block D — Cybersecurity
+### Cybersecurity
 
 Examples include blocking policy-violating high-impact actions before forwarding,
 detecting declared-intent/requested-effect mismatch, fail-closed handling of
 unknown critical operations and incident evidence/reconciliation. POM-RX is not
 an antivirus, malware detector, firewall or universal phishing detector.
 
-### Block E — Blockchain and digital assets
+### Blockchain and digital assets
 
 Examples include Wallet Guard for dangerous wallet RPC requests, smart-account
 or contract-level Risk Gates, exact authorization for approvals/permits/transfers,
@@ -240,7 +253,7 @@ controlled dApp
 
 Trusted main contains the reviewed reference pieces already merged. PR #120
 changes only the Promise/provider/inert-data prerequisite boundary and remains
-untrusted until its current-main-reconciled exact-head and post-merge gates pass.
+untrusted until its repaired exact-head and post-merge gates pass.
 
 PR #93 remains open/untrusted at exact live head
 `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Its historical green CI is not
@@ -305,12 +318,12 @@ implementation and are referenced rather than copied.
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 must reconcile to current trusted main and pass fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 fresh P1 repair and wholly fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable claim-before-observer/downstream composition requires later reconstruction |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 current-main reconciliation + final owner/independent exact-head gates + historical-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 current P1 `PRRT_kwDOTiNyWc6bc4gh` repair + new exact-head CI/owner/independent gates + six-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
