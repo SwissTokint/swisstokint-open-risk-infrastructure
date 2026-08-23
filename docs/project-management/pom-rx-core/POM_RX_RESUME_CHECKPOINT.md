@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T06:30:00+02:00`
+Updated: `2026-08-23T06:37:00+02:00`
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
@@ -29,7 +29,9 @@ This file update is part of the scoped post-PR124 continuation reconciliation fr
 
 Branch: `docs/pom-rx-post-pr124-live-reconcile-20260823`.
 
-Owned continuation files for this bounded lot are `POM_RX_RESUME_CHECKPOINT.md`, `POM_RX_TASKS.yaml`, `POM_RX_BLOCKERS.md` and `docs/product/POM_RX_CAPABILITY_MAP.md`. No runtime/test/security semantic change is intended.
+Owned continuation files for this bounded lot are `POM_RX_RESUME_CHECKPOINT.md`, `POM_RX_TASKS.yaml`, `POM_RX_BLOCKERS.md`, `POM_RX_TEAM_ROSTER.md` and `docs/product/POM_RX_CAPABILITY_MAP.md`. No runtime/test/security semantic change is intended.
+
+Independent review of the first candidate found P2 `PRRT_kwDOTiNyWc6bdJ1q`: the owned-file manifest omitted `POM_RX_TEAM_ROSTER.md` even though that file was modified. The manifest mismatch is repaired on the current moved head; prior CI/review evidence is historical until rerun/re-review on the new exact head.
 
 ## active_runtime_task
 
