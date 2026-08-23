@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23` — PR #131 independent-review repair cycle.
+Updated: `2026-08-23` — PR #131 pre-import Promise primordial repair cycle.
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Every run reconstructs state from live GitHub plus this canonical control plane. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
@@ -29,17 +29,16 @@ The PR is **OPEN / NOT TRUSTED / REPAIRING INDEPENDENT P1 FINDINGS**. Read live 
 
 ### Current independent findings and repairs
 
-The genuinely distinct `chatgpt-codex-connector` review of moved head `d92417f151...` produced three P1 findings. That review is attack evidence, not release approval for any later head.
+A genuinely distinct `chatgpt-codex-connector` review of moved head `d92417f151...` produced three P1 findings. A later genuinely distinct review of exact head `95591a214e113ea0fc4cdb6884d86e60b3893100` found a fourth P1. All of those reviews are attack evidence only after the branch moves and none is release approval for the final candidate.
 
-- `PRRT_kwDOTiNyWc6bfPvR` — runtime-owned native Promise async-hook symbols were rejected by the first implementation. Repair landed before this checkpoint in `364b1d6a741a1d0f587da14407f91644d09c8b18`: same-realm native Promise brand/direct prototype/no own string fields remain required while runtime-owned symbols are tolerated. The thread is outdated but remains unresolved until fresh same-head independent validation.
-- `PRRT_kwDOTiNyWc6bfPvI` — provider provenance TOCTOU: a bootstrap accessor/Proxy could pass one provider on validation and expose another when the generic gateway re-read `options.provider`. Runtime repair `62fdd59002e71c35f55e9881af6acb5198e58204` rejects Proxy bootstrap objects, requires own data properties, binds the exact validated provider into an accessor-free frozen snapshot, and never executes a provider bootstrap accessor.
-- `PRRT_kwDOTiNyWc6bfPvO` — an intermediate object inserted above `Array.prototype` could contribute an inherited hostile `then` getter while the previous own-property checks still passed. Runtime repair `62fdd59002e71c35f55e9881af6acb5198e58204` binds the supported Array/Object prototype chain and fails closed on parent-chain drift before controlled transport origin.
+- `PRRT_kwDOTiNyWc6bfPvR` — native Promise runtime-owned async-hook symbols were rejected. Repair `364b1d6a741a1d0f587da14407f91644d09c8b18` keeps native Promise brand/direct same-realm prototype/no own string fields while tolerating runtime-owned symbol metadata.
+- `PRRT_kwDOTiNyWc6bfPvI` — provider provenance TOCTOU through a bootstrap accessor/Proxy. Repair `62fdd59002e71c35f55e9881af6acb5198e58204` rejects Proxy bootstrap objects, requires own data properties, binds the exact provider descriptor value into an accessor-free frozen snapshot, and never executes the provider accessor.
+- `PRRT_kwDOTiNyWc6bfPvO` — an intermediate object above `Array.prototype` could contribute an inherited hostile `then` accessor. Repair `62fdd59002e71c35f55e9881af6acb5198e58204` binds the supported `Array.prototype -> Object.prototype -> null` relationship before controlled transport origin.
+- `PRRT_kwDOTiNyWc6bfWeN` — **P1 on exact head `95591a214e...`**: import-time capture of `Promise.resolve`/`Promise.reject` could bless methods poisoned before module import. The reviewer reproduced a poisoned `Promise.resolve` that substituted `0x1 -> 0x2` while still returning a native direct-`Promise.prototype` transport. Runtime repair `b1210dce83207f5e1b03ae1065f079edf4a7daa1` now derives a pristine Promise/reflection baseline from a fresh `node:vm` realm, validates the current realm Promise constructor/method descriptors and builtin sources against that trusted primordial, derives the current intrinsic Promise prototype from an async-function Promise probe, and uses the pristine `Promise.resolve`/`Promise.reject` algorithms with the validated current-realm native Promise constructor for controlled transport creation. The poisoned current method is therefore neither blessed nor executed.
 
-Regression commit `8eb166488283cd1232159bd0453d8d41b309a510` adds CI-wired tests for provider-accessor zero execution, Proxy bootstrap zero traps, exact-provider binding, and intermediate Array-prototype `then` accessor zero execution, while preserving the strict in-contract rejected-transport child-process test.
+Regression commit `8eb166488283cd1232159bd0453d8d41b309a510` covers bootstrap provider-accessor zero execution, Proxy bootstrap zero traps, intermediate Array-prototype `then` getter zero execution and prior strict/runtime-integrity cases. New regression `bd1674b3b95d18601b534a315fe4755ae49b8ff5`, wired into the provider-gate suite by `6dc74bdd09d930ced0459e5c7c2bca786bf92bda`, executes child processes with `Promise.resolve` and `Promise.reject` poisoned **before dynamic import** and requires `POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY`, zero poisoned-method execution and clean strict-mode process exit.
 
-The same runtime repair also removes obvious ambient Array-method dependence from this new boundary where practical: expected-key validation uses indexed access rather than Array iteration, array-length validation no longer calls live `Array.prototype.includes`, and the internal sensitive-call append uses a captured `Array.prototype.push` intrinsic.
-
-No P1 above is considered closed merely because code/tests exist. The final candidate must receive fresh canonical CI, a fresh five-stage owner gate, and a genuinely distinct review on the exact same frozen head before any thread is resolved or merge considered.
+No PR #131 P1 is considered closed merely because code/tests exist. The final candidate must receive fresh canonical CI, a fresh five-stage owner gate, and a genuinely distinct review on the exact same frozen head before any thread is resolved or merge considered.
 
 ### Supported security boundary
 
@@ -48,8 +47,10 @@ The accepted claim remains the narrow local **trusted-provider transport contrac
 - module-private provenance admits only the controlled transport into `createWalletGuardTrustedProviderGateway()`;
 - the supported route rejects an unowned provider before its request path can originate transport;
 - the controlled transport owns same-realm native Promise origin;
-- supported Promise constructor/prototype/resolve/reject/then/species descriptors and the required Array/Object prototype relationship are checked before origin;
-- hostile constructor/species accessors are inspected by descriptor and are not executed;
+- the Promise constructor/prototype/resolve/reject/then/species baseline is checked against a fresh-realm trusted primordial and later descriptor drift is checked again immediately before controlled transport origin;
+- controlled Promise fulfillment/rejection uses pristine built-in Promise algorithms with the validated current-realm native Promise constructor, rather than trusting mutable current `Promise.resolve`/`Promise.reject` implementations;
+- hostile constructor/species accessors and pre-import Promise method wrappers are not executed by the supported transport path;
+- the required Array/Object prototype relationship is bound and rechecked before origin;
 - an in-contract rejected context transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned rejection termination.
 
 Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects from arbitrary providers remain outside this contract. An already-originated excluded rejected Promise remains an explicit unsupported negative unless separately reviewed process/worker/RPC isolation is introduced. The in-contract survival fixture must never be represented as same-process survival proof for that hostile object.
@@ -74,11 +75,11 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## next_safe_actions
 
-1. Treat the branch head after the final control-plane update as the only candidate; all CI/reviews on moved heads are historical.
-2. Require canonical exact-head CI success including the new provider-provenance and full Array-prototype-chain regressions. Do not weaken strict rejection or runtime-integrity tests to obtain green.
-3. Run the mandatory five-stage release-owner gate on the exact head with concrete provider-bootstrap TOCTOU, Promise constructor/species/accessor, Proxy/prototype-chain, strict-unhandled, thenable-assimilation, Array poisoning, zero-authorization/forwarding and claim-gap hypotheses.
+1. Treat the branch head after the final control-plane update as the only candidate; all CI/reviews on moved heads, including CI 830 and Codex review of `95591a...`, are historical for release.
+2. Require fresh canonical exact-head CI success including bootstrap TOCTOU, Array-prototype-chain, pre-import `Promise.resolve`/`Promise.reject` poisoning, native transport shape and strict in-contract rejection regressions. Do not weaken strict rejection or runtime-integrity tests to obtain green.
+3. Run the mandatory five-stage release-owner gate on that exact head with concrete provider-bootstrap TOCTOU, pre-import and post-import Promise poisoning, constructor/species/accessor, Proxy/prototype-chain, strict-unhandled, thenable-assimilation, Array poisoning, zero-authorization/forwarding and claim-gap hypotheses.
 4. Obtain a fresh genuinely distinct `chatgpt-codex-connector` review on that same exact head. A usage-limit response is transient and is not approval.
-5. Resolve `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO` and the outdated `PRRT_kwDOTiNyWc6bfPvR` only after same-head independent validation confirms the repairs and no new P0/P1/P2 remains.
+5. Resolve `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR` and `PRRT_kwDOTiNyWc6bfWeN` only after same-head independent validation confirms the repairs and no new P0/P1/P2 remains.
 6. Merge only if main/head/CI/review/thread/mergeability state is unchanged at decision time, then immediately run exact-merge-SHA post-merge assurance before dependent work trusts the lot.
 
 ## safety_boundary
