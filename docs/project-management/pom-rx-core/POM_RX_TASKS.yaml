@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/2-non-self-referential",
-  "updated_at": "2026-08-23T19:26:00+02:00",
+  "updated_at": "2026-08-23T20:12:00+02:00",
   "continuity_model": {
     "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
     "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
@@ -27,6 +27,22 @@
     ],
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
+    "active_review_blocker": {
+      "severity": "P2",
+      "thread": "PRRT_kwDOTiNyWc6bg6TG",
+      "review_id": 5002957358,
+      "reviewed_predecessor_head": "8dc1648f65dce0de59f314d7080e2408de95292b",
+      "finding": "The policy made single-flight guard acquisition conditional, permitting an overlapping invocation to enter the writer lane without verified mutual exclusion.",
+      "repair_requirements": [
+        "mandatory single-flight lock acquisition before any state-changing action",
+        "active lock younger than 45 minutes => SKIPPED_PREVIOUS_RUN_ACTIVE and modify nothing",
+        "unverifiable or failed acquisition => SKIPPED_COORDINATION_GUARD_UNAVAILABLE and modify nothing",
+        "do not invent a competing lock mechanism",
+        "release any acquired lock on every terminal path after durable state persistence"
+      ],
+      "evidence_freshness": "CI853, owner review 5002957417 and Codex review 5002957358 are historical after the repair head moves",
+      "closure_rule": "fresh canonical exact-head CI + fresh five-stage owner gate + fresh genuinely distinct exact-head review + zero unresolved P0/P1/P2; resolve the thread only on same-head evidence"
+    },
     "closure_rule": "normal exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + exact-merge POST_MERGE_ASSURANCE_PASS"
   },
   "next_dependency_closing_workstream": {
@@ -123,7 +139,8 @@
     "standing_authorization": "Only after mandatory gates, exact-head CI, required distinct exact-head independent review and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
-    "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it."
+    "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it.",
+    "single_flight_rule": "Mandatory before any state-changing action; active lock under 45 minutes or unverifiable acquisition means modify nothing; release acquired lock on every terminal path."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
