@@ -25,21 +25,23 @@ is trusted coordination evidence and did not make open Tier-B PR #120, stale PR
 PR #120 remains **OPEN / NOT TRUSTED / NOT MERGEABLE BY POLICY** until its final
 reconciled repaired head completes all exact-head gates.
 
-Canonical CI `32604445154` / CI 777 attempt 1 failed on exact head
-`d18ba4cb0cf99e13f107c8b1b4c1f5094b1e3e22` during full `npm test`. The
-Wallet Guard Promise/provider regression suite passed. The exact failure was
-`tests/pom-rx-capability-map.node.test.mjs`, which requires
-`must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics`.
-The earlier layout repair had made `must not duplicate` contiguous, but the final
-branch text still split `Gate` from `semantics`, so the unchanged invariant regex
-continued to fail. This is a documentation layout mismatch, not a runtime species
-failure.
+Canonical CI `32607345516` / CI 781 attempt 1 failed on exact head
+`6745422b1e43616dd4f4242d35a9680fefc0cfa5` during full `npm test`. The
+Wallet Guard Promise/provider regression suite passed, including the strict
+non-extensible alternate-constructor/species regression and hostile species
+accessor boundary. The exact failure was
+`tests/pom-rx-capability-map.node.test.mjs`, whose unchanged product-position
+invariant requires
+`primary product home is\s+Blockchain and digital assets, while its defensive control model also overlaps\s+the Cybersecurity block`.
+The branch text split `its` from `defensive control model` with a newline. This is
+a documentation layout mismatch, not a runtime species failure.
 
-Commit `f43c8887405e9f5a615c45bf340ea96a566ba113` repairs only that remaining
-capability-map wrap by keeping `Gate semantics` contiguous. The invariant test is
-unchanged; no runtime/security semantics or tested requirement were weakened.
-Control-plane commits after it record CI 777 as historical failed evidence.
-Fresh canonical CI is required on the final checkpoint head.
+Commit `7803fc18337aecfbe4dd4c9870fe413ffced094c` repairs only that capability-map
+line wrap by keeping the Wallet Guard primary-product sentence contiguous. The
+invariant test is unchanged; no runtime/security semantics or tested requirement
+were weakened. Task-ledger commit `9707e6df33f5cca24ed130de775a281d2fce28b5`
+records CI 781 as historical failed evidence. Fresh canonical CI is required on
+the final checkpoint head.
 
 The bounded runtime repair remains implemented on the PR #120 branch:
 
