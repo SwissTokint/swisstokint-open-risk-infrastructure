@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T09:16:00+02:00",
-  "current_main": "7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411",
+  "updated_at": "2026-08-23T10:18:00+02:00",
+  "current_main": "ef05bd371aa2f71ed07f79d7c36f3c22d780963e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,34 +10,34 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411",
-    "source_pr": 126,
-    "source_head": "520b231acfcdb896e0ce01ce52fae18f490bf408",
+    "sha": "ef05bd371aa2f71ed07f79d7c36f3c22d780963e",
+    "source_pr": 127,
+    "source_head": "df491ec5c73f74dabc49fc6372d239fddb997a59",
     "source_head_ci": {
-      "run_id": 32619624022,
-      "run_number": 802,
+      "run_id": 32625199525,
+      "run_number": 809,
       "run_attempt": 1,
       "conclusion": "success"
     },
-    "owner_premerge_evidence": "REVIEW_5001707331_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5384371632_ON_520b231acf",
-    "premerge_decision": "COMMENT_5384577930",
+    "owner_premerge_evidence": "REVIEW_5001882172_PASS_NON_INDEPENDENT_0_0_0",
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5384821148_ON_df491ec5c7",
+    "premerge_decision": "COMMENT_5384996506",
     "exact_main_ci": {
-      "run_id": 32622491799,
-      "run_number": 803,
+      "run_id": 32627602883,
+      "run_number": 810,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci"
     },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5384587913",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385007479",
     "scope": "bounded_non_tier_b_control_plane_and_architecture_reconciliation"
   },
   "control_plane_reconciliation": {
-    "id": "POST-PR126-LIVE-STATE-RECONCILIATION-20260823",
+    "id": "POST-PR127-LIVE-STATE-RECONCILIATION-20260823",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "branch": "docs/pom-rx-post-pr126-live-reconcile-20260823",
-    "status": "IN_PROGRESS_REPAIRED_P2_AWAITING_FRESH_EXACT_HEAD_GATES",
-    "reason": "PR126 merged and passed exact-merge assurance at 7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411 while its versioned checkpoint necessarily names the pre-merge parent. PR127 persists the assured PR126 state and accepted PR120 architecture decision. Distinct review on first head d23b712 found P2 PRRT_kwDOTiNyWc6bdxPp because the docs required positive survival for an already-originated hostile Promise that the selected contract explicitly excludes; the repair now separates in-contract survival from hostile-case isolation evidence.",
+    "branch": "docs/pom-rx-post-pr127-live-reconcile-20260823",
+    "status": "IN_PROGRESS",
+    "reason": "PR127 merged as ef05bd371aa2f71ed07f79d7c36f3c22d780963e and received exact-merge POST_MERGE_ASSURANCE_PASS while its versioned checkpoint necessarily names the pre-merge parent. PR128 persists the assured PR127 state and current PR120 divergence before Tier-B runtime work resumes.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -47,18 +47,21 @@
     ],
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
-    "historical_first_head": {
-      "sha": "d23b71284a2e5a13a071ece7d96e079b000df517",
-      "ci": "32624912179 / CI 804 attempt 1 success",
-      "owner_gate": "5001873024 PASS_NON_INDEPENDENT 0_0_0",
-      "independent_finding": "P2_PRRT_kwDOTiNyWc6bdxPp",
-      "release_freshness": "HISTORICAL_AFTER_HEAD_MOVE"
+    "trusted_source": {
+      "source_pr": 127,
+      "source_head": "df491ec5c73f74dabc49fc6372d239fddb997a59",
+      "source_ci": "32625199525 / CI 809 attempt 1 success",
+      "owner_gate": "5001882172 PASS_NON_INDEPENDENT 0_0_0",
+      "independent_review": "5384821148 reviewed df491ec5c7 no major issues",
+      "merge_sha": "ef05bd371aa2f71ed07f79d7c36f3c22d780963e",
+      "exact_main_ci": "32627602883 / CI 810 attempt 1 success",
+      "post_merge_assurance": "5385007479 POST_MERGE_ASSURANCE_PASS"
     },
     "release_requirements": [
-      "canonical exact-head CI success on the repaired head",
-      "applicable five-stage release-owner exact-head review on the repaired head",
-      "fresh genuinely distinct exact-head independent review on the repaired head",
-      "resolve PRRT_kwDOTiNyWc6bdxPp only after same-head validation",
+      "reconcile all five owned control-plane/product-position files",
+      "canonical exact-head CI success on the completed candidate",
+      "applicable five-stage release-owner exact-head review",
+      "fresh genuinely distinct exact-head independent review",
       "zero unresolved P0/P1/P2 for this reconciliation",
       "decision-time unchanged main/base/head/CI/review/thread state",
       "exact-merge post-merge assurance after merge"
@@ -68,17 +71,17 @@
     "id": "PR120-PROMISE-TRANSPORT-CONTRACT-ALIGNMENT",
     "title": "Reconcile Wallet Guard provider transport to the accepted narrow trusted-provider contract",
     "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_RUNTIME_BOUNDARY",
-    "status": "BLOCKED_PENDING_TRUSTED_POST_PR126_CONTROL_PLANE_RECONCILIATION",
+    "status": "BLOCKED_PENDING_TRUSTED_POST_PR127_CONTROL_PLANE_RECONCILIATION",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "target_base": "main",
-    "current_trusted_main": "7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411",
+    "current_trusted_main": "ef05bd371aa2f71ed07f79d7c36f3c22d780963e",
     "exact_head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
     "mergeable_at_revalidation": false,
     "compare_to_current_main": {
       "status": "diverged",
       "ahead_by": 69,
-      "behind_by": 23,
+      "behind_by": 34,
       "merge_base": "73f3921984449ffd6025f6c9b99b0220f0bf068b"
     },
     "historical_head_ci": {
@@ -91,7 +94,7 @@
     "current_owner_gate": "HISTORICAL_5001566041_PASS_NON_INDEPENDENT_INVALID_FOR_RELEASE",
     "current_independent_gate": "BLOCK_P1_PRRT_kwDOTiNyWc6bc4gh_ON_HEAD_5238b9c",
     "accepted_architecture_decision": {
-      "evidence": "PR126_COMMENT_5384571039",
+      "evidence": "PR126_COMMENT_5384571039_AND_TRUSTED_PR127_RECONCILIATION",
       "prototype_boundary": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
       "supported_rejection_requirements": [
         "fail closed",
@@ -106,6 +109,7 @@
         "non-configurable unsafe data constructor Promise",
         "attacker-selected species constructor"
       ],
+      "supported_path_rule": "The controlled provider/adapter must be proven unable to originate excluded transports before the gateway relies on them; strict clean-process survival is then proved separately for an in-contract rejected transport.",
       "hostile_case_rule": "An already-originated excluded rejected Promise is not required to survive in the same process under the contract-narrowing route. To claim that property, introduce and review process/worker/RPC isolation first.",
       "future_hostile_provider_requirement": "separately reviewed process/worker/RPC isolation boundary"
     },
@@ -132,7 +136,7 @@
       {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "state": "UNRESOLVED", "fresh_exact_head_finding": true}
     ],
     "release_requirements": [
-      "complete and trust the post-PR126 control-plane reconciliation first",
+      "complete and trust the post-PR127 control-plane reconciliation first",
       "reconcile PR120 to then-current trusted main using exactly one writer",
       "align provider contract/runtime diagnostics/tests to the accepted narrow trusted-provider transport boundary",
       "bind the supported local path to a controlled trusted provider/adapter that cannot originate excluded decorated/non-configurable-unsafe Promise transports, with CI-wired conformance evidence before such a transport originates",
@@ -145,7 +149,7 @@
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
     ],
-    "next_safe_action": "Trust the repaired post-PR126 control-plane reconciliation. Then reconcile PR120 to current trusted main with one writer, bind the controlled supported provider path before Promise origin, and add separate in-contract strict-survival plus out-of-contract negative evidence before wholly fresh gates."
+    "next_safe_action": "Complete and trust PR128. Then reconcile PR120 to current trusted main with one writer, bind the controlled supported provider path before Promise origin, and add separate in-contract strict-survival plus out-of-contract negative evidence before wholly fresh gates."
   },
   "queue": [
     {

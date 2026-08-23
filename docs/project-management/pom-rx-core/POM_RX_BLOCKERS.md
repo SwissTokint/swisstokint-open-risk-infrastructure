@@ -1,32 +1,32 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23T09:16:00+02:00`
+Updated: `2026-08-23T10:19:00+02:00`
 
-Current trusted main: `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`
+Current trusted main: `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`
 
 This file lists current blockers only. Historical detail remains in Git history and PR review threads. Live GitHub wins whenever a PR head, CI run, review, thread, mergeability signal or merge changes after this checkpoint.
 
 ## Trusted coordination state
 
-PR #126 exact source head `520b231acfcdb896e0ce01ce52fae18f490bf408` merged as exact main SHA `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`.
+PR #127 exact source head `df491ec5c73f74dabc49fc6372d239fddb997a59` merged as exact main SHA `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`.
 
-- canonical source-head CI: `32619624022` / CI 802 attempt 1 = `success`;
-- release-owner five-stage review: `5001707331` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
-- distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5384371632`, reviewed `520b231acf`, no major issues;
-- historical reconciliation P2 `PRRT_kwDOTiNyWc6bdRTY` was resolved only after same-head validation;
-- pre-merge decision: comment `5384577930`;
-- canonical exact-main push CI: `32622491799` / CI 803 attempt 1 = `success`;
-- exact-main status `pom-rx/exact-main-ci = success` targeted run `32622491799` at assurance time;
-- exact-merge assurance: PR #126 comment `5384587913` = `POST_MERGE_ASSURANCE_PASS`;
+- canonical source-head CI: `32625199525` / CI 809 attempt 1 = `success`;
+- release-owner five-stage review: `5001882172` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5384821148`, reviewed `df491ec5c7`, no major issues;
+- historical P2 threads `PRRT_kwDOTiNyWc6bdxPp` and `PRRT_kwDOTiNyWc6bdyZ8` were resolved only after repaired same-head validation;
+- pre-merge decision: comment `5384996506`;
+- canonical exact-main push CI: `32627602883` / CI 810 attempt 1 = `success`;
+- exact-main status `pom-rx/exact-main-ci = success` targeted run `32627602883` at assurance time;
+- exact-merge assurance: PR #127 comment `5385007479` = `POST_MERGE_ASSURANCE_PASS`;
 - reviewed source head -> exact merge comparison adds zero changed files.
 
-PR #126 changed only coordination/product-position documents and does not make open Tier-B work trusted.
+PR #127 changed only coordination/product-position documents and does not make open Tier-B work trusted.
 
-## `CONTROL_PLANE_STALE_AFTER_PR126`
+## `CONTROL_PLANE_STALE_AFTER_PR127`
 
-The versioned files merged by PR #126 necessarily still name the pre-merge trusted parent `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`, while live GitHub is now assured exact main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`.
+The versioned files merged by PR #127 necessarily name the pre-merge trusted parent, while live GitHub is now assured exact main `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`.
 
-Required closure is scoped PR #127 on branch `docs/pom-rx-post-pr126-live-reconcile-20260823`, limited to exactly:
+Required closure is scoped PR #128 on branch `docs/pom-rx-post-pr127-live-reconcile-20260823`, limited to exactly:
 
 - `POM_RX_RESUME_CHECKPOINT.md`;
 - `POM_RX_TASKS.yaml`;
@@ -36,7 +36,7 @@ Required closure is scoped PR #127 on branch `docs/pom-rx-post-pr126-live-reconc
 
 It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
 
-The first PR #127 candidate `d23b71284a2e5a13a071ece7d96e079b000df517` passed CI `32624912179` / CI 804 and owner review `5001873024`, but distinct Codex review found P2 `PRRT_kwDOTiNyWc6bdxPp`: the docs required positive clean-process survival for an already-originated non-configurable-unsafe Promise while simultaneously placing that object outside the supported trusted-provider contract. The repaired moved head must receive wholly fresh gates; CI 804 and reviews on `d23b712...` are historical for release.
+Until PR #128 itself passes exact-head CI, five-stage owner review, fresh genuinely distinct exact-head review, zero unresolved P0/P1/P2, merge and exact-merge assurance, use live GitHub rather than its branch documents as readiness evidence.
 
 ## `PR120_RECONCILE_TO_CURRENT_MAIN`
 
@@ -44,15 +44,15 @@ PR #120 is **OPEN / NOT TRUSTED / BLOCKED** at exact head `5238b9c289476100c875e
 
 Current live state:
 
-- trusted main: `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`;
-- main -> PR head compare: `diverged`, ahead 69 / behind 23, merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- trusted main: `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`;
+- main -> PR head compare: `diverged`, ahead 69 / behind 34, merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
 - GitHub mergeability: `false` at this revalidation;
 - exact-head CI `32614831929` / CI 792 attempt 1 = `success`, but historical after main moved and a false-PASS for the current P1;
 - release-owner review `5001566041` = `PASS_NON_INDEPENDENT`, historical and unusable for current release;
 - genuinely distinct Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
-Do not merge the stale branch or treat its historical green CI as release evidence. After PR #127 becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
+Do not merge the stale branch or treat its historical green CI as release evidence. After PR #128 becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
 
 ## `PR120_P1_NONCONFIGURABLE_UNSAFE_DATA_CONSTRUCTOR`
 
@@ -64,7 +64,7 @@ An in-contract survival test must never be presented as if it reproduces or clos
 
 ## `PR120_ARCHITECTURE_DECISION_ACCEPTED_BUT_NOT_IMPLEMENTED`
 
-Read-only architecture/security decision is persisted in PR #126 comment `5384571039`.
+Read-only architecture/security decision remains PR #126 comment `5384571039` and was reconciled/independently reviewed through trusted PR #127.
 
 For the current local prototype, the selected direction is an explicit narrow **trusted-provider transport contract**, not another same-realm Promise reorder/shadow trick.
 
@@ -112,7 +112,7 @@ Do not resolve these merely because partial repairs or claim narrowing exist. Cl
 
 ## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
-PR #97 remains live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, currently non-mergeable. Do not merge, rebase, revive or wholesale-copy it. Durable claim-before-observer/downstream composition remains a future bounded Core lot reconstructed from then-current trusted main only after PR #120 receives exact-merge `POST_MERGE_ASSURANCE_PASS`.
+PR #97 remains live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Do not merge, rebase, revive or wholesale-copy it. Durable claim-before-observer/downstream composition remains a future bounded Core lot reconstructed from then-current trusted main only after PR #120 receives exact-merge `POST_MERGE_ASSURANCE_PASS`.
 
 ## `CORE_DURABLE_GATE_COMPOSITION_NOT_YET_TRUSTED`
 
@@ -120,7 +120,7 @@ Trusted main contains a process-local single-use Gate and a separate filesystem 
 
 ## `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_LATER`
 
-PR #93 remains live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`, currently non-mergeable. Historical green CI/reviews are not release evidence. Keep it ordered after trusted PR #120 and required shared-Core work unless a separately reviewed dependency-order change is recorded.
+PR #93 remains live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Historical green CI/reviews are not release evidence. Keep it ordered after trusted PR #120 and required shared-Core work unless a separately reviewed dependency-order change is recorded.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
