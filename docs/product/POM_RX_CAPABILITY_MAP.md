@@ -41,7 +41,7 @@ Strict verification is structurally non-authorizing. A valid receipt, proof, anc
 
 Trusted main contains the common exact-authorization contract, a process-local single-use Gate and a separate filesystem durable claim-store reference primitive. Reviewed composition of the durable claim primitive with the common Gate is **not** trusted on current main.
 
-Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Against trusted main `87ed6ac...` it is diverged ahead 66 / behind 249 with merge-base `0564aecd42cf0794894c12842980969ff59c9f73`. Durable composition is reconstructed later from then-current trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted.
+Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable composition is reconstructed later from then-current trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted. Historical branch CI/review evidence is not current release evidence.
 
 ### Trusted coordination checkpoint
 
@@ -58,11 +58,19 @@ PR #130 changed only canonical coordination/product-position documents. It is tr
 
 ### Active fresh provider-transport prerequisite
 
-Fresh branch `automation/wg-trusted-provider-transport-20260823` starts directly from trusted main `87ed6ac...` and is the current Tier-B single-writer lane. Closed PR #120 is not reopened, rebased or copied wholesale.
+PR #131 on branch `automation/wg-trusted-provider-transport-20260823` starts directly from trusted main `87ed6ac...` and is the current Tier-B single-writer lane. Closed PR #120 is not reopened, rebased or copied wholesale.
 
-The accepted direction is an explicit narrow **trusted-provider transport contract** for the local prototype. Current fresh-branch work introduces an application-owned controlled provider transport plus `createWalletGuardTrustedProviderGateway()`.
+The accepted direction is an explicit narrow **trusted-provider transport contract** for the local prototype. The fresh branch introduces an application-owned controlled provider transport plus `createWalletGuardTrustedProviderGateway()`.
 
-The supported path uses module-private provider provenance so an arbitrary/unowned provider is rejected before its `request()` path can originate transport. The controlled transport owns native Promise creation and checks the supported Promise transport runtime immediately before origin. The current tests target same-realm undecorated native transport shape, unowned/Proxy provider pre-origin rejection, hostile `Symbol.species` accessor drift without executing the accessor, inherited `Array.prototype.then` fail-closed behavior, and a strict in-contract rejected-context transport.
+The supported path uses module-private provider provenance so an arbitrary/unowned provider is rejected before its `request()` path can originate transport. The controlled transport owns native Promise creation and checks the supported Promise transport runtime immediately before origin. A same-realm native Promise may carry runtime-owned async-hook symbol metadata; the boundary still requires native Promise brand, direct `Promise.prototype` and no caller-controlled own string properties.
+
+A genuinely distinct Codex review of moved head `d92417f151...` found three P1s. These findings are attack evidence but are not release approval for any later head:
+
+- `PRRT_kwDOTiNyWc6bfPvR`: native Node async-hook Promise symbols were incorrectly rejected. Commit `364b1d6a741a1d0f587da14407f91644d09c8b18` repairs that false rejection while retaining native-brand/direct-prototype/no-own-string requirements.
+- `PRRT_kwDOTiNyWc6bfPvI`: provider provenance could be checked on one `options.provider` value and then bypassed when the original bootstrap object was re-read. Commit `62fdd59002e71c35f55e9881af6acb5198e58204` rejects Proxy bootstrap objects, requires own data properties, binds provenance to the exact provider descriptor value and forwards an accessor-free frozen snapshot. Regression `8eb166488283cd1232159bd0453d8d41b309a510` requires zero provider-accessor execution, zero Proxy traps and zero unowned forwarding.
+- `PRRT_kwDOTiNyWc6bfPvO`: an intermediate object inserted between `Array.prototype` and `Object.prototype` could contribute an inherited hostile `then` accessor. Commit `62fdd59002e71c35f55e9881af6acb5198e58204` binds the supported `Array.prototype -> Object.prototype -> null` relationship before controlled transport origin; regression `8eb166488283cd1232159bd0453d8d41b309a510` requires fail-closed rejection with zero hostile getter execution.
+
+Those threads remain unresolved until a fresh genuinely distinct review validates the same final exact head that has green canonical CI. The earlier review was on a moved head and is not release evidence.
 
 Inside this supported contract, rejection handling must prove fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
 
@@ -70,7 +78,7 @@ Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise obj
 
 The selected direction must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors, traverse hostile Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or convert unknown/failure into authorization/forwarding.
 
-The generic historical `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded by this lot into a hostile-provider-wide Promise-integrity claim. The fresh supported claim is limited to the controlled transport + trusted gateway path. At this checkpoint, the existing controlled-host path has not yet been rebound to the strict transport; that integration/readiness decision remains part of the active Tier-B lot before candidate freeze.
+The generic historical `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded by this lot into a hostile-provider-wide Promise-integrity claim. The fresh supported claim is limited to the controlled transport + trusted gateway path. The existing `controlled-host.mjs` path is not rebound by this prerequisite; therefore no broader Wallet Guard operational-readiness claim changes in PR #131.
 
 Six PR #120 review threads remain mandatory attack history: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and final P1 `PRRT_kwDOTiNyWc6bc4gh`.
 
@@ -143,9 +151,9 @@ controlled dApp
   -> reconciliation
 ```
 
-The fresh provider transport prerequisite is **in progress, not yet trusted**. No branch head is release evidence until exact-head CI, the mandatory five-stage owner gate, a genuinely distinct exact-head review and zero P0/P1/P2 all cover the same frozen candidate.
+The fresh provider transport prerequisite is **in progress, not yet trusted**. PR #131 currently has repaired P1 findings awaiting wholly fresh exact-head CI, five-stage owner review and genuinely distinct exact-head validation. No moved-head CI or review counts as release evidence, and no P1 thread is closed solely because code/tests were added.
 
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`, now diverged ahead 86 / behind 294 from trusted main. Reconstruct useful simulation work later rather than merging stale history wholesale.
+PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconstruct useful simulation work later rather than merging stale history wholesale.
 
 ## 5. Integration and adapter block
 
@@ -193,7 +201,7 @@ compatibility/
 | Witness | source/Witness primitives, process-local trust lifecycle | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces already trusted to merged scope | fresh strict trusted-provider transport is active but not yet trusted; controlled-host binding decision remains; PR #120 is attack history; PR #93 simulation work later |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces already trusted to merged scope | PR #131 fresh strict trusted-provider transport is active but not yet trusted; three independent P1 findings are repaired but await fresh same-head CI/review validation; controlled-host is not rebound by this prerequisite; PR #120 is attack history; PR #93 simulation work later |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
