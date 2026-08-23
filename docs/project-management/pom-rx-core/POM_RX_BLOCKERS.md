@@ -25,20 +25,21 @@ is trusted coordination evidence and did not make open Tier-B PR #120, stale PR
 PR #120 remains **OPEN / NOT TRUSTED / NOT MERGEABLE BY POLICY** until its final
 reconciled repaired head completes all exact-head gates.
 
-Canonical CI `32602076493` / CI 773 attempt 1 failed on prior exact head
-`e643299a95f597da1f0226c2d52b6f4fba357b4c` during full `npm test`. The
-Promise/provider regression suite itself passed. The exact failing assertion was
-`tests/pom-rx-capability-map.node.test.mjs`, which requires the phrase
+Canonical CI `32604445154` / CI 777 attempt 1 failed on exact head
+`d18ba4cb0cf99e13f107c8b1b4c1f5094b1e3e22` during full `npm test`. The
+Wallet Guard Promise/provider regression suite passed. The exact failure was
+`tests/pom-rx-capability-map.node.test.mjs`, which requires
 `must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics`.
-The capability map had split the text between `not` and `duplicate`, so the regex
-could not match. This was a documentation layout mismatch, not a runtime species
+The earlier layout repair had made `must not duplicate` contiguous, but the final
+branch text still split `Gate` from `semantics`, so the unchanged invariant regex
+continued to fail. This is a documentation layout mismatch, not a runtime species
 failure.
 
-Commit `941814282b98f1dca6bfca484b1c27e9176bcd98` repairs only that capability-map
-line wrapping so the tested invariant remains unchanged and the test is not
-weakened. Because that write and the following control-plane checkpoint writes
-move the PR head, CI 773 and all earlier exact-head review evidence are historical
-only. Fresh canonical CI is required on the final checkpoint head.
+Commit `f43c8887405e9f5a615c45bf340ea96a566ba113` repairs only that remaining
+capability-map wrap by keeping `Gate semantics` contiguous. The invariant test is
+unchanged; no runtime/security semantics or tested requirement were weakened.
+Control-plane commits after it record CI 777 as historical failed evidence.
+Fresh canonical CI is required on the final checkpoint head.
 
 The bounded runtime repair remains implemented on the PR #120 branch:
 
