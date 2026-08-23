@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23` — PR #131 pre-import Promise primordial repair cycle.
+Updated: `2026-08-23` — PR #131 seven-P1 repair cycle.
 
 Current trusted main: `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`.
 
@@ -17,40 +17,45 @@ PR #130 source head `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa` merged as exact m
 - exact-merge assurance: `5385948152 = POST_MERGE_ASSURANCE_PASS`;
 - terminal checkpoint: `5385949730`.
 
-## `PR131_FRESH_PROVIDER_TRANSPORT_P1_REPAIRS_PENDING_EXACT_HEAD_VALIDATION`
+## `PR131_FRESH_PROVIDER_TRANSPORT_SEVEN_P1_REPAIRS_PENDING_EXACT_HEAD_VALIDATION`
 
-PR #131 is the active fresh Tier-B Wallet Guard/provider prerequisite on `automation/wg-trusted-provider-transport-20260823`, created directly from trusted main `87ed6ac...`. It remains **OPEN / NOT TRUSTED**. Read live GitHub for its exact head because control-plane commits continue to move the branch until the candidate is frozen.
+PR #131 is the active fresh Tier-B Wallet Guard/provider prerequisite on `automation/wg-trusted-provider-transport-20260823`, created directly from trusted main `87ed6ac...`. It remains **OPEN / NOT TRUSTED**. Read live GitHub for its exact head because this control-plane update itself moves the branch.
 
-A genuinely distinct Codex review of moved head `d92417f151...` found three P1s. A genuinely distinct review of later exact head `95591a214e113ea0fc4cdb6884d86e60b3893100` found a fourth P1. None of these reviews is release approval for a later head, and no finding may be considered closed until a fresh same-head independent review validates the final repair candidate.
+Four earlier P1 findings came from independent reviews of moved heads `d92417f151...` and `95591a214e...`. A genuinely distinct Codex review of exact head `a6d9cdabbc62469a460e82d5d8adfa4c1252c4e7` then found three additional P1s. CI 838 and all reviews on `a6d9cd...` are historical for release after the repair head moved. None of the seven threads is resolved until a fresh same-head independent review validates the final candidate.
 
-### `PRRT_kwDOTiNyWc6bfPvR` — P1 — outdated / repair awaiting same-head validation
+### Earlier P1 repairs awaiting same-head validation
 
-The first implementation rejected otherwise native same-realm Promises when Node's test/async-hook runtime attached internal symbol metadata. Commit `364b1d6a741a1d0f587da14407f91644d09c8b18` keeps the native Promise brand, direct `Promise.prototype` and no-own-string-property requirements while tolerating runtime-owned symbols.
+- `PRRT_kwDOTiNyWc6bfPvR` — native Promise runtime-owned async-hook symbols were incorrectly rejected. Repair `364b1d6a741a1d0f587da14407f91644d09c8b18` preserves native Promise brand/direct same-realm prototype/no own string fields while tolerating runtime-owned symbols.
+- `PRRT_kwDOTiNyWc6bfPvI` — provider provenance TOCTOU through bootstrap accessor/Proxy. Repair `62fdd59002e71c35f55e9881af6acb5198e58204`, regression `8eb166488283cd1232159bd0453d8d41b309a510`.
+- `PRRT_kwDOTiNyWc6bfPvO` — intermediate Array prototype could contribute inherited hostile `then`. Repair `62fdd59002e71c35f55e9881af6acb5198e58204`, regression `8eb166488283cd1232159bd0453d8d41b309a510`.
+- `PRRT_kwDOTiNyWc6bfWeN` — pre-import `Promise.resolve`/`Promise.reject` poisoning could be blessed as import baseline. Repair `b1210dce83207f5e1b03ae1065f079edf4a7daa1`, strict regression `bd1674b3b95d18601b534a315fe4755ae49b8ff5`, wiring `6dc74bdd09d930ced0459e5c7c2bca786bf92bda`.
 
-### `PRRT_kwDOTiNyWc6bfPvI` — P1 — outdated / repair awaiting same-head validation
+### `PRRT_kwDOTiNyWc6bfel5` — P1 — repaired, fresh exact-head validation pending
 
-The trusted gateway previously read `options.provider` to validate provenance and then forwarded the original bootstrap object to the generic gateway, which read `provider` again. A bootstrap accessor could therefore return the owned provider first and an arbitrary provider second.
+On exact head `a6d9cd...`, replacing current-realm `Object.getPrototypeOf` before import could lie specifically for `Array.prototype`. Both the import-time baseline and runtime chain check used that attacker-selected reflector, so a real intermediate prototype containing an inherited `then` getter could remain hidden and execute during pristine Promise assimilation.
 
-Repair `62fdd59002e71c35f55e9881af6acb5198e58204` rejects Proxy bootstrap objects, obtains the provider through its own property descriptor without accessor execution, requires own enumerable data properties, checks module-private provenance on that exact provider value, and forwards an accessor-free frozen snapshot containing the same validated provider. Regression `8eb166488283cd1232159bd0453d8d41b309a510` requires zero getter/trap/unowned-provider execution and zero sensitive forwarding on rejection.
+Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` binds and rechecks Array/Object prototype relationships with the fresh-VM trusted `getPrototypeOf`; transport-value arrays and returned native Promise prototype admission use the same trusted reflector. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` poisons current `Object.getPrototypeOf`, installs the inherited Array `then` getter, and requires `POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY` with zero getter execution under `--unhandled-rejections=strict`.
 
-### `PRRT_kwDOTiNyWc6bfPvO` — P1 — outdated / repair awaiting same-head validation
+### `PRRT_kwDOTiNyWc6bfel6` — P1 — repaired, fresh exact-head validation pending
 
-An attacker could insert an intermediate prototype object above `Array.prototype` with an inherited hostile `then` accessor while the prior direct own-property checks still passed. Repair `62fdd59002e71c35f55e9881af6acb5198e58204` binds the supported `Array.prototype -> Object.prototype -> null` relationship before controlled transport origin. Regression `8eb166488283cd1232159bd0453d8d41b309a510` requires fail-closed rejection with zero hostile getter execution.
+On exact head `a6d9cd...`, replacing `globalThis.WeakSet` before import with an implementation whose `has()` always returns true could bless arbitrary unowned providers as module-owned and defeat the provenance boundary.
 
-### `PRRT_kwDOTiNyWc6bfWeN` — P1 — exact-head finding repaired, fresh validation pending
+Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` constructs and operates the module-private provider registry with trusted fresh-realm `WeakSet` constructor/add/has primordials. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` poisons global WeakSet before import and requires `POMRX_WG_TRANSPORT_E_UNTRUSTED_PROVIDER` with zero unowned-provider calls.
 
-On exact head `95591a214e...`, the module captured the current `Promise.resolve` and `Promise.reject` and then compared later descriptors to those same import-time captures. If either method had been poisoned **before import**, the poisoned implementation became the baseline. The independent reviewer reproduced a `Promise.resolve` wrapper that substituted chain id `0x1 -> 0x2` while returning a same-realm native undecorated Promise, so all later shape checks passed while attacker code controlled settlement.
+### `PRRT_kwDOTiNyWc6bfel7` — P1 — repaired, fresh exact-head validation pending
 
-Repair `b1210dce83207f5e1b03ae1065f079edf4a7daa1` now uses a fresh `node:vm` realm as the trusted Promise/reflection primordial source, validates the current realm native Promise constructor/method descriptors and builtin sources against that independent baseline, derives the current intrinsic Promise prototype from an async-function Promise probe, and uses pristine Promise resolve/reject algorithms with the validated current-realm Promise constructor for controlled transport creation. Pre-import wrappers are therefore rejected without being executed. Regression `bd1674b3b95d18601b534a315fe4755ae49b8ff5`, wired by `6dc74bdd09d930ced0459e5c7c2bca786bf92bda`, poisons `Promise.resolve` and `Promise.reject` in strict child processes **before dynamic import** and requires runtime-integrity failure plus zero poisoned-method calls.
+On exact head `a6d9cd...`, if `globalThis.Promise` was a Proxy before import, constructor descriptor reads executed the Proxy's `getOwnPropertyDescriptor` traps before the eventual fail-closed decision.
+
+Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` applies the trap-free Node proxy detector to the captured Promise constructor before any constructor descriptor introspection and short-circuits the unsupported runtime path. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` installs a Promise constructor Proxy before import and requires runtime-integrity failure with zero descriptor-trap calls.
 
 ### Required closure for PR #131
 
 The final exact head must pass all of:
 
-1. canonical exact-head CI including bootstrap TOCTOU, Array prototype-chain, pre-import Promise poisoning and strict in-contract rejection regressions;
-2. mandatory five-stage owner gate with concrete provider-bootstrap TOCTOU, pre/post-import Promise poisoning, Promise constructor/species/accessor, Proxy/prototype-chain, strict-unhandled, thenable-assimilation, Array poisoning, zero-authorization/forwarding and claim-gap falsification;
+1. canonical exact-head CI including bootstrap TOCTOU, Array prototype-chain, pre-import Promise-method poisoning, pre-import `Object.getPrototypeOf`, pre-import WeakSet, Promise-constructor Proxy and strict in-contract rejection regressions;
+2. mandatory five-stage owner gate with concrete provider-bootstrap TOCTOU, pre/post-import Promise/reflection/provenance poisoning, Promise constructor/species/accessor, Proxy/prototype-chain, strict-unhandled, thenable-assimilation, Array poisoning, zero-authorization/forwarding and claim-gap falsification;
 3. a fresh genuinely distinct `chatgpt-codex-connector` review on that same exact SHA;
-4. zero unresolved P0/P1/P2, including same-head validation before all four PR #131 review threads are resolved;
+4. zero unresolved P0/P1/P2, including same-head validation before all seven PR #131 review threads are resolved;
 5. unchanged decision-time main/head/CI/reviews/threads/mergeability;
 6. exact-merge post-merge assurance PASS after merge before dependent work trusts it.
 
@@ -58,13 +63,13 @@ A prior CI success or review on any moved head is historical only. A Codex usage
 
 ## `FRESH_PROVIDER_TRANSPORT_CLAIM_BOUNDARY`
 
-The supported claim remains an explicit narrow **trusted-provider transport contract**. The controlled provider owns supported native Promise origin and the strict gateway accepts only module-provenanced transports. The supported Promise constructor/prototype/method baseline must match a fresh-realm trusted primordial before origin; mutable current `Promise.resolve`/`Promise.reject` wrappers are not trusted as transport algorithms. Inside this contract, an in-contract rejected transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned rejection termination.
+The supported claim remains an explicit narrow **trusted-provider transport contract**. The controlled provider owns supported native Promise origin and the strict gateway accepts only module-provenanced transports. Provider provenance uses trusted fresh-realm WeakSet primordials. Promise constructor Proxy classification precedes constructor descriptor inspection. Promise constructor/prototype/method state and Array/Object prototype relationships are checked with fresh-realm trusted primordials before transport origin. Mutable pre-import `Promise.resolve`/`Promise.reject` or `Object.getPrototypeOf` wrappers are not trusted as security baselines. Inside this contract, an in-contract rejected transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned rejection termination.
 
 Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects from arbitrary providers remain excluded. An already-originated excluded rejected Promise is an explicit unsupported negative unless separately reviewed process/worker/RPC isolation is introduced. The in-contract fixture is not same-process survival proof for that hostile object.
 
 The generic `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded into a hostile-provider-wide Promise-integrity claim. The existing `controlled-host.mjs` path is not rebound by this prerequisite; broader Wallet Guard operational readiness therefore does not advance merely because PR #131 passes.
 
-Prohibited shortcuts remain process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy constructor/species traversal, silent trust of attacker-selected species, blessing pre-import Promise wrappers as primordials, weakened strict tests, or fail-open authorization/forwarding.
+Prohibited shortcuts remain process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy constructor/species traversal, silent trust of attacker-selected species, blessing mutable pre-import Promise/reflection/provenance wrappers as primordials, weakened strict tests, or fail-open authorization/forwarding.
 
 ## `PR120_CLOSED_NOT_MERGED_ATTACK_HISTORY`
 
