@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T04:09:11+02:00",
-  "current_main": "cff851b92746af09c224451c82d3da9c3bae176a",
+  "updated_at": "2026-08-23T05:13:00+02:00",
+  "current_main": "73f3921984449ffd6025f6c9b99b0220f0bf068b",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,78 +10,38 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "cff851b92746af09c224451c82d3da9c3bae176a",
-    "source_pr": 122,
-    "source_head": "19a1f2edb617d5025e274c3a3076f0ba78cdf841",
-    "exact_main_ci": {
-      "run_id": 32610793817,
-      "run_number": 787,
-      "run_attempt": 1,
-      "conclusion": "success"
-    },
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5383609128_ON_19a1f2edb6",
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5383628489",
-    "terminal_checkpoint": "PR122_COMMENT_5383629556",
+    "sha": "73f3921984449ffd6025f6c9b99b0220f0bf068b",
+    "source_pr": 123,
+    "source_head": "6cac168b775b26b572336764271b4f25e934a5ea",
+    "exact_main_ci": {"run_id": 32614549879, "run_number": 789, "run_attempt": 1, "conclusion": "success"},
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5383774814_ON_6cac168b77",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5383940027",
     "scope": "bounded_non_tier_b_live_state_reconciliation"
-  },
-  "control_plane_reconciliation": {
-    "id": "POST-PR122-LIVE-STATE-RECONCILIATION-20260823",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "branch": "docs/pom-rx-post-pr122-live-reconcile-20260823",
-    "status": "IN_PROGRESS",
-    "reason": "PR122 is merged and post-merge assured at exact main cff851b, while the versioned checkpoint it merged necessarily still names its pre-merge parent 06de789. Live GitHub wins and exact-main state must be reconciled before stale fields are reused as dependency/readiness evidence.",
-    "owned_files": [
-      "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-      "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
-      "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
-      "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
-      "docs/product/POM_RX_CAPABILITY_MAP.md"
-    ],
-    "runtime_semantics_changed": false,
-    "test_semantics_changed": false,
-    "release_requirements": [
-      "canonical exact-head CI success",
-      "applicable five-stage release-owner exact-head review",
-      "fresh genuinely distinct exact-head independent review where required",
-      "zero unresolved P0/P1/P2 for this reconciliation",
-      "decision-time unchanged main/base/head/CI/review/thread state",
-      "exact-merge post-merge assurance after merge"
-    ]
   },
   "active_task": {
     "id": "PR120-PROMISE-TRANSPORT-SPECIES-PATH-REPAIR",
     "title": "Close rejected native-Promise transport and effective-constructor species drain boundary",
     "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_BOUNDARY_DEPENDENCY",
-    "status": "BLOCKED_PENDING_CURRENT_MAIN_RECONCILIATION_AND_FRESH_EXACT_HEAD_GATES",
+    "status": "RECONCILED_TO_TRUSTED_MAIN_PENDING_FRESH_EXACT_HEAD_GATES",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
-    "target_base": "main",
-    "pr_metadata_base_sha": "06de789768c2cb0d5738161997c6bf104930a174",
-    "current_trusted_main": "cff851b92746af09c224451c82d3da9c3bae176a",
-    "exact_head": "2d01503c13b9b22ea136f6bbd169bc2032366b9a",
-    "compare_to_current_main": {
-      "status": "diverged",
-      "ahead_by": 66,
-      "behind_by": 5,
-      "merge_base": "06de789768c2cb0d5738161997c6bf104930a174"
-    },
-    "github_mergeable_at_revalidation": false,
-    "current_head_ci": {
-      "run_id": 32609855025,
-      "run_number": 785,
-      "run_attempt": 1,
-      "conclusion": "success",
-      "release_freshness": "HISTORICAL_AFTER_TRUSTED_MAIN_MOVED"
-    },
+    "trusted_main_ancestor": "73f3921984449ffd6025f6c9b99b0220f0bf068b",
+    "pre_reconciliation_head": "2d01503c13b9b22ea136f6bbd169bc2032366b9a",
+    "reconciliation_merge_commit": "e4c8d4b29cdc875d17c170d6e67a0fd7804d849d",
+    "exact_head": "READ_LIVE_AFTER_THIS_CHECKPOINT_COMMIT",
+    "pre_reconciliation_ci": {"run_id": 32609855025, "run_number": 785, "run_attempt": 1, "conclusion": "success", "release_freshness": "HISTORICAL_AFTER_HEAD_MOVE"},
+    "current_ci": "PENDING_FRESH_EXACT_HEAD",
     "repair_state": {
       "effective_constructor_species_classifier": "IMPLEMENTED_ON_BRANCH",
-      "strict_nonextensible_benign_alternate_constructor_regression": "IMPLEMENTED_AND_CI_WIRED",
-      "prehandled_hostile_species_accessor_zero_execution_regression": "IMPLEMENTED_AND_CI_WIRED",
+      "data_descriptor_only": true,
+      "prototype_chain_proxy_rejection": true,
       "safe_internal_drain_species": ["absent", "null", "undefined", "captured_native_Promise"],
-      "outside_internal_drain_claim": ["primitive_constructor", "constructor_accessor", "species_accessor", "Proxy_constructor_or_species_path", "attacker_selected_species_constructor"]
+      "outside_internal_drain_claim": ["primitive_constructor", "constructor_accessor", "species_accessor", "Proxy_constructor_or_species_path", "attacker_selected_species_constructor"],
+      "strict_nonextensible_benign_alternate_constructor_regression": "IMPLEMENTED_AND_CI_WIRED",
+      "prehandled_hostile_species_accessor_zero_execution_regression": "IMPLEMENTED_AND_CI_WIRED"
     },
-    "current_owner_gate": "PENDING_AFTER_RECONCILIATION_TO_CURRENT_TRUSTED_MAIN",
-    "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_CHATGPT_CODEX_CONNECTOR_REVIEW_AFTER_RECONCILIATION",
+    "current_owner_gate": "PENDING_AFTER_FRESH_EXACT_HEAD_CI",
+    "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_CHATGPT_CODEX_CONNECTOR_REVIEW",
     "merge": "BLOCKED",
     "historical_review_threads": [
       {"id": "PRRT_kwDOTiNyWc6bZjxp", "severity": "P1", "state": "UNRESOLVED"},
@@ -91,58 +51,28 @@
       {"id": "PRRT_kwDOTiNyWc6baIxZ", "severity": "P1", "state": "UNRESOLVED"}
     ],
     "release_requirements": [
-      "trusted control-plane reconciliation first",
-      "reconcile PR120 to exact trusted main cff851b92746af09c224451c82d3da9c3bae176a",
-      "fresh canonical exact-head CI success after the head moves",
-      "mandatory five-stage release-owner exact-head review with concrete Promise/species/accessor/Proxy/unhandled-rejection attack hypotheses",
+      "fresh canonical exact-head CI success on the frozen post-checkpoint SHA",
+      "mandatory five-stage release-owner exact-head review with concrete Promise/species/accessor/Proxy/unhandled-rejection hypotheses",
       "fresh genuinely distinct read-only chatgpt-codex-connector review on the same frozen SHA",
       "zero unresolved P0/P1/P2",
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
     ],
-    "next_safe_action": "Complete the post-PR122 control-plane reconciliation, then reconcile PR120 to exact trusted main cff851b, freeze the new head, rerun canonical CI, execute the five-stage owner gate, obtain a fresh distinct exact-head Codex review, and only then resolve historical threads or merge."
+    "next_safe_action": "Freeze the post-checkpoint PR120 head, obtain fresh canonical CI, run the five-stage owner gate, request a fresh distinct exact-head Codex review, and only then resolve historical threads or merge."
   },
   "queue": [
-    {
-      "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
-      "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-      "status": "BLOCKED_ON_TRUSTED_PR120_POST_MERGE_PASS",
-      "historical_source_pr": 97,
-      "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "rule": "Do not merge/revive stale PR97. Reconstruct from then-current trusted main only after PR120 is trusted."
-    },
-    {
-      "id": "WALLET-GUARD-SIMULATION-RECONCILIATION",
-      "pr": 93,
-      "class": "TIER_B_APPLICATION_SECURITY",
-      "status": "BLOCKED_DEPENDENCY_AND_FRESH_EXACT_HEAD_REVIEW",
-      "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7"
-    },
-    {
-      "id": "DAGR-SOURCE-GATE",
-      "class": "SOURCE_GATED_NORMATIVE_PROFILE",
-      "status": "BLOCKED",
-      "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
-    },
-    {
-      "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
-      "status": "BLOCKED"
-    }
+    {"id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION", "class": "TIER_B_SHARED_SECURITY_SEMANTICS", "status": "BLOCKED_ON_TRUSTED_PR120_POST_MERGE_PASS", "historical_source_pr": 97, "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb", "rule": "Do not merge/revive stale PR97. Reconstruct from then-current trusted main only after PR120 is trusted."},
+    {"id": "WALLET-GUARD-SIMULATION-RECONCILIATION", "pr": 93, "class": "TIER_B_APPLICATION_SECURITY", "status": "BLOCKED_DEPENDENCY_AND_FRESH_EXACT_HEAD_REVIEW", "exact_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7"},
+    {"id": "DAGR-SOURCE-GATE", "class": "SOURCE_GATED_NORMATIVE_PROFILE", "status": "BLOCKED", "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"},
+    {"id": "PRODUCTION-TRUST-AND-REAL-WALLET", "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST", "status": "BLOCKED"}
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after the mandatory five-stage pre-merge gate, every applicable technical/security gate, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
+    "standing_authorization": "Only after every applicable gate, exact-head CI, required distinct exact-head independent review and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
-    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA SpecKit, skeptical, security, code-quality, optimization and integration/regression assurance before dependent work may trust it."
+    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA assurance before dependent work may trust it."
   },
-  "safety": {
-    "real_wallet": "NOT_AUTHORIZED",
-    "mainnet": "NOT_AUTHORIZED",
-    "meaningful_funds": "NOT_AUTHORIZED",
-    "burner_local_testnet": "SEPARATE_EXPLICIT_HUMAN_GATE_REQUIRED",
-    "public_site_vercel_funding_directory": "OUT_OF_SCOPE"
-  },
+  "safety": {"real_wallet": "NOT_AUTHORIZED", "mainnet": "NOT_AUTHORIZED", "meaningful_funds": "NOT_AUTHORIZED", "burner_local_testnet": "SEPARATE_EXPLICIT_HUMAN_GATE_REQUIRED", "public_site_vercel_funding_directory": "OUT_OF_SCOPE"},
   "maximum_claim": "POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY"
 }
