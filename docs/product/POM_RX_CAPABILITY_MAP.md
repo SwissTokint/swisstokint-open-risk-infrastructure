@@ -4,7 +4,7 @@ Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
 Date: 2026-08-23
 
-Trusted-main checkpoint: `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
+Trusted-main checkpoint: `097937acf19338bdaab54050d64f18195d9b4a33`.
 
 This document organizes repository work. It does not change protocol semantics,
 publish a new POM-RX version, establish production readiness, or by itself
@@ -70,31 +70,33 @@ composition must be reconstructed later from then-current trusted main after PR
 
 ### Trusted coordination checkpoint
 
-PR #123 source head `6cac168b775b26b572336764271b4f25e934a5ea`
-merged as exact main `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
-Canonical exact-main push CI `32614549879` / CI 789 attempt 1 passed on that exact
-merge SHA. Independent pre-merge evidence is `chatgpt-codex-connector[bot]`
-comment `5383774814`, reviewed exact source commit `6cac168b77`, no major issues.
-Exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #123 comment
-`5383940027`.
+PR #124 source head `43c331244ac608725aec63d46fa281dc78d39f0d`
+merged as exact main `097937acf19338bdaab54050d64f18195d9b4a33`.
+Canonical source-head CI `32617450870` / CI 793 attempt 1 passed before merge.
+Release-owner five-stage review `5001642141` was `PASS_NON_INDEPENDENT` with
+owner findings `0 P0 / 0 P1 / 0 P2`. Independent pre-merge evidence is
+`chatgpt-codex-connector[bot]` comment `5384176703`, reviewed exact source commit
+`43c331244a`, no major issues. Canonical exact-main push CI `32617884521` / CI
+794 attempt 1 passed on the exact merge SHA, and `pom-rx/exact-main-ci` reported
+`success` targeting that run. Exact-merge assurance is
+`POST_MERGE_ASSURANCE_PASS` in PR #124 comment `5384213312`.
 
-PR #123 changed only canonical continuation/product-position documents. It is
+Source-head -> merge comparison contains one merge commit and zero changed files.
+PR #124 changed only canonical continuation/product-position documents. It is
 trusted coordination evidence, not runtime or Wallet Guard security evidence.
 
 ### Current control-plane reconciliation
 
-The files currently on trusted `main` still contain the pre-PR123 continuation
-state `cff851b92746af09c224451c82d3da9c3bae176a` / PR #122, while live GitHub is
-now the assured PR #123 merge `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
-Live PR #120 also gained a fresh exact-head independent P1 after its CI and owner
-review. Branch `docs/pom-rx-post-pr123-live-reconcile-20260823` is the scoped
-non-Tier-B reconciliation required by the continuity contract before stale
-exact-main or blocker fields are reused as dependency/readiness evidence.
+The files merged by PR #124 necessarily recorded its pre-merge parent
+`73f3921984449ffd6025f6c9b99b0220f0bf068b`, while live GitHub is now the
+post-merge-assured exact main `097937acf19338bdaab54050d64f18195d9b4a33`.
+Branch `docs/pom-rx-post-pr124-live-reconcile-20260823` is the scoped non-Tier-B
+reconciliation required before stale exact-main fields are reused as dependency
+or readiness evidence.
 
-This reconciliation changes only the compact checkpoint/task/blocker/team-roster/
-capability-map state. It changes no runtime, test, protocol, Gate, Witness,
-verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or
-financial-execution semantics.
+This reconciliation changes only canonical continuation/capability state. It
+changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider,
+wallet/network, public-site/Vercel or financial-execution semantics.
 
 ### Active prerequisite — PR #120
 
@@ -104,17 +106,17 @@ repair.
 - exact branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - exact live head: `5238b9c289476100c875ed9a88bd7e21a574fa67`;
 - target branch: `main`;
-- current trusted main: `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
-- trusted-main reconciliation merge on the branch: `e4c8d4b29cdc875d17c170d6e67a0fd7804d849d`;
-- current-main -> head comparison: `ahead`, ahead 69 / behind 0, merge-base
-  exactly `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
-- GitHub mergeability at revalidation: `true` (volatile conflict metadata only);
-- canonical exact-head CI: `32614831929` / CI 792 attempt 1,
-  `completed / success`, but false-PASS for the fresh independently reviewed P1;
-- release-owner five-stage exact-head review `5001566041`:
-  `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
-- fresh genuinely distinct exact-head `chatgpt-codex-connector` review:
-  `BLOCK / P1` via current unresolved thread `PRRT_kwDOTiNyWc6bc4gh`;
+- current trusted main: `097937acf19338bdaab54050d64f18195d9b4a33`;
+- previous trusted-main reconciliation merge on the branch: `e4c8d4b29cdc875d17c170d6e67a0fd7804d849d`;
+- current-main -> head comparison: `diverged`, ahead 69 / behind 6, merge-base
+  `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- canonical exact-head CI `32614831929` / CI 792 attempt 1 = `success`, but it is
+  historical after main moved and a false-PASS for the fresh independently reviewed P1;
+- release-owner five-stage exact-head review `5001566041` was
+  `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`, but is no longer
+  valid release evidence;
+- genuinely distinct exact-head `chatgpt-codex-connector` review found current
+  P1 `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
 The bounded repair already present on the branch uses captured reflection and
@@ -125,29 +127,31 @@ undefined or the captured native `Promise`. Primitive constructors,
 constructor/species accessors, Proxies and attacker-selected species constructors
 remain outside the internally-drainable claim unless separately proven safe.
 
-The fresh exact-head P1 demonstrates that this boundary is still incomplete. A
-rejected same-realm native Promise with a non-configurable own unsafe data
-`constructor`, such as `constructor: 1`, can make the classifier reject the path
-and then make the fallback constructor-shadowing `defineProperty` fail before the
-captured rejection reaction is attached. Under strict unhandled-rejection
-behavior, the Wallet Guard operation fails closed but the original rejection may
-remain orphaned and terminate the process. The current canonical regression
-covers the safe non-configurable `constructor: Promise` case, not this unsafe
-data-constructor variant.
+The fresh P1 demonstrates that this boundary is still incomplete. A rejected
+same-realm native Promise with a non-configurable own unsafe data `constructor`,
+such as `constructor: 1`, can make the classifier reject the path and then make
+the fallback constructor-shadowing `defineProperty` fail before the captured
+rejection reaction is attached. Under strict unhandled-rejection behavior, the
+Wallet Guard operation fails closed but the original rejection may remain
+orphaned and terminate the process. The current canonical regression covers the
+safe non-configurable `constructor: Promise` case, not this unsafe data-constructor
+variant.
 
-Required repair is deliberately narrow: attach/drain the rejected transport
-without requiring successful attacker-controlled constructor shadowing first;
-do not execute hostile constructor/species accessors or Proxy paths; do not trust
-attacker-selected species constructors; and add a CI-wired
+Required repair is deliberately narrow: after reconciling PR #120 to exact
+trusted main `097937acf19338bdaab54050d64f18195d9b4a33`, attach/drain the
+rejected transport without requiring successful attacker-controlled constructor
+shadowing first; do not execute hostile constructor/species accessors or Proxy
+paths; do not trust attacker-selected species constructors; and add a CI-wired
 `--unhandled-rejections=strict` regression proving fail-closed behavior with zero
 reference authorization and zero sensitive forwarding for the non-configurable
 unsafe data-constructor case.
 
-PR #120 remains **untrusted and blocked from merge**. Any repair moves the head
-and invalidates CI 792, owner review `5001566041` and the current Codex review as
-release evidence. One frozen repaired exact head must receive fresh canonical CI,
-the complete five-stage owner gate, a genuinely distinct exact-head
-`chatgpt-codex-connector` review, and zero unresolved P0/P1/P2.
+PR #120 remains **untrusted and blocked from merge**. Any reconciliation or repair
+moves the head and invalidates CI 792, owner review `5001566041` and the current
+Codex review as release evidence. One frozen repaired/current-main-reconciled
+exact head must receive fresh canonical CI, the complete five-stage owner gate, a
+genuinely distinct exact-head `chatgpt-codex-connector` review, and zero unresolved
+P0/P1/P2.
 
 Six review threads remain unresolved until that evidence justifies closure:
 `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`,
@@ -318,12 +322,12 @@ implementation and are referenced rather than copied.
 
 | Block | Current trusted-main state | Missing / active |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 fresh P1 repair and wholly fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation, exact-main CI observability | PR #120 current-main reconciliation + fresh P1 repair and wholly fresh exact-head gates; durable Gate composition remains separate/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable claim-before-observer/downstream composition requires later reconstruction |
 | Witness | source/Witness primitives, process-local trust lifecycle, Wallet Guard Core-verification adapter | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 current P1 `PRRT_kwDOTiNyWc6bc4gh` repair + new exact-head CI/owner/independent gates + six-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference path | PR #120 current-main reconciliation + P1 `PRRT_kwDOTiNyWc6bc4gh` repair + new exact-head CI/owner/independent gates + six-thread closure; PR #93 simulation evidence later; simulation-to-forwarding binding separate |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
