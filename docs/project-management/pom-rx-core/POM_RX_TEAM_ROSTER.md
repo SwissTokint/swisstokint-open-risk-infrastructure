@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T16:45:00+02:00`
+Updated: `2026-08-23T18:09:25+02:00`
 
 ## Purpose
 
@@ -36,19 +36,20 @@ A fresh `chatgpt-codex-connector` review may satisfy the independent release gat
 
 ## Current trusted coordination state
 
-Trusted main is `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`, the exact PR #130 merge.
+Trusted main is `01f27ef06b71daf3b53efa4c1017946a439b2d7e`, the exact PR #132 merge.
 
-- source head `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa`;
-- source-head CI `32635882670` / CI 820 attempt 1 = `success`;
-- owner five-stage review `5002253211 = PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
-- genuinely distinct exact-head evidence `5385715573`, reviewed `ce1f2ca2f9`, no major issues;
-- exact-main CI `32638722306` / CI 821 attempt 1 = `success`;
-- exact-merge assurance `5385948152 = POST_MERGE_ASSURANCE_PASS`;
-- terminal checkpoint `5385949730`.
+- source head `8c532dee2fb8d9f8295f1c3cbb6ed44cb7e752b0`;
+- source-head CI `32646404031` / CI 847 attempt 1 = `success`;
+- owner five-stage review `5002648630 = PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
+- genuinely distinct exact-head evidence `5386619599`, reviewed `8c532dee2f`, no major issues;
+- exact-main CI `32647638029` / CI 848 attempt 1 = `success`;
+- exact-main status at assurance time `pom-rx/exact-main-ci = success` targeting run `32647638029`;
+- exact-merge assurance `5386717914 = POST_MERGE_ASSURANCE_PASS`;
+- terminal checkpoint `5386728720`.
 
-## Current single-writer lane — non-Tier-B live-state reconciliation
+## Current single-writer lane — non-Tier-B post-PR132 reconciliation
 
-Branch `docs/pom-rx-post-pr130-live-reconcile-20260823` is the active single-writer lane and owns exactly:
+Branch `docs/pom-rx-post-pr132-live-reconcile-20260823-1809` is the active single-writer lane and owns exactly:
 
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
@@ -56,11 +57,15 @@ Branch `docs/pom-rx-post-pr130-live-reconcile-20260823` is the active single-wri
 - `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-This lot exists because live GitHub already trusts PR #130 and has active PR #131 while `main` still carries stale post-PR129 control-plane facts. It is documentation/control-plane only; no runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
+This lot exists because PR #132 is already merged and post-merge assured while the source tree it merged necessarily still records the pre-merge trusted parent and an in-progress reconciliation. It is documentation/control-plane only; no runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
+
+Current exact candidate SHA, CI and review evidence for this reconciliation are volatile and must be read from live GitHub/PR metadata rather than self-referenced in this file.
 
 ### Exclusive ownership / PR #131 pause
 
-PR #131 branch `automation/wg-trusted-provider-transport-20260823` is frozen while the present reconciliation owns the five overlapping control-plane files. No second writer may modify PR #131 during this reconciliation. Live PR #131 head is `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`; CI 846 is green, but no owner five-stage or genuinely distinct review covers that head and seven P1 threads remain unresolved.
+PR #131 branch `automation/wg-trusted-provider-transport-20260823` is frozen while the present reconciliation owns the five overlapping control-plane files.
+
+Live PR #131 head is `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`. Against trusted main `01f27ef...`, it is diverged ahead 32 / behind 6 with merge-base `87ed6ac...`; GitHub reports it non-mergeable. CI 846 is green but historical for release after the main move, and seven P1 threads remain unresolved/outdated.
 
 After the reconciliation merges and receives exact-merge `POST_MERGE_ASSURANCE_PASS`, the PR #131 single writer may resume and reconcile onto then-current trusted main. That head move invalidates all previous exact-head release evidence and requires fresh CI, fresh five-stage owner review and a fresh genuinely distinct exact-head review.
 
@@ -82,11 +87,11 @@ The supported path must not install process-global rejection swallowing, execute
 
 ## Historical streams
 
-PR #120 is `CLOSED / NOT MERGED / STALE`; do not reopen or wholesale-copy it. Its six P1/P2 findings remain attack history.
+PR #120 is `CLOSED / NOT MERGED / STALE` at `5238b9c289476100c875ed9a88bd7e21a574fa67`; do not reopen or wholesale-copy it. Its six P1/P2 findings remain attack history.
 
-PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, diverged from trusted main by ahead 66 / behind 249. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
+PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, diverged from trusted main by ahead 66 / behind 255. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
 
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, diverged by ahead 86 / behind 294. Simulation work remains later in dependency order.
+PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, diverged by ahead 86 / behind 300. Simulation work remains later in dependency order.
 
 ## Operational prototype claim boundary
 

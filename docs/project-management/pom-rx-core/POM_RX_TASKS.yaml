@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T16:45:00+02:00",
-  "current_main": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+  "updated_at": "2026-08-23T18:09:25+02:00",
+  "current_main": "01f27ef06b71daf3b53efa4c1017946a439b2d7e",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,35 +10,35 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "source_pr": 130,
-    "source_head": "ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa",
+    "sha": "01f27ef06b71daf3b53efa4c1017946a439b2d7e",
+    "source_pr": 132,
+    "source_head": "8c532dee2fb8d9f8295f1c3cbb6ed44cb7e752b0",
     "source_head_ci": {
-      "run_id": 32635882670,
-      "run_number": 820,
+      "run_id": 32646404031,
+      "run_number": 847,
       "run_attempt": 1,
       "conclusion": "success"
     },
-    "owner_premerge_evidence": "REVIEW_5002253211_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385715573_ON_ce1f2ca2f9",
+    "owner_premerge_evidence": "REVIEW_5002648630_PASS_NON_INDEPENDENT_0_0_0",
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5386619599_ON_8c532dee2f",
     "exact_main_ci": {
-      "run_id": 32638722306,
-      "run_number": 821,
+      "run_id": 32647638029,
+      "run_number": 848,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci"
     },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385948152",
-    "terminal_checkpoint": "COMMENT_5385949730",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5386717914",
+    "terminal_checkpoint": "COMMENT_5386728720",
     "scope": "bounded_non_tier_b_control_plane_reconciliation"
   },
   "active_task": {
-    "id": "POST-PR130-LIVE-STATE-RECONCILIATION-20260823",
-    "title": "Reconcile canonical control plane with trusted PR130 and live PR131 state",
+    "id": "POST-PR132-LIVE-STATE-RECONCILIATION-20260823",
+    "title": "Reconcile canonical control plane with assured PR132 and paused PR131 state",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "status": "IN_PROGRESS",
-    "branch": "docs/pom-rx-post-pr130-live-reconcile-20260823",
-    "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "branch": "docs/pom-rx-post-pr132-live-reconcile-20260823-1809",
+    "base_sha": "01f27ef06b71daf3b53efa4c1017946a439b2d7e",
     "single_writer": true,
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
@@ -47,7 +47,7 @@
       "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
-    "reason": "Live GitHub already has trusted PR130 and active PR131 while main's five canonical coordination files still describe the post-PR129 reconciliation as pending. Live GitHub wins; stale control-plane facts must be reconciled before readiness/dependency use.",
+    "reason": "PR132 is merged and post-merge assured as exact main 01f27ef..., while main's versioned five-file coordination state necessarily still describes trusted PR130 and PR132 as in progress. Live GitHub wins; volatile control-plane facts must be reconciled before readiness/dependency use.",
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
     "release_requirements": [
@@ -62,22 +62,24 @@
   "paused_tier_b_task": {
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
     "class": "TIER_B_APPLICATION_SECURITY",
-    "status": "PAUSED_FOR_TRUSTED_CONTROL_PLANE_RECONCILIATION",
+    "status": "PAUSED_FOR_TRUSTED_CONTROL_PLANE_RECONCILIATION_AND_MAIN_REBASE",
     "pr": 131,
     "branch": "automation/wg-trusted-provider-transport-20260823",
-    "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "historical_base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
     "live_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
-    "mergeable": true,
-    "exact_head_ci": {
+    "live_compare_to_trusted_main": "diverged ahead 32 behind 6 merge-base 87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "mergeable": false,
+    "historical_exact_head_ci": {
       "run_id": 32645853067,
       "run_number": 846,
       "run_attempt": 1,
-      "conclusion": "success"
+      "conclusion": "success",
+      "release_freshness": "historical_after_main_move"
     },
-    "exact_head_owner_gate": "MISSING_ON_3a75418",
-    "exact_head_independent_review": "MISSING_ON_3a75418",
+    "exact_head_owner_gate": "MISSING_ON_EVENTUAL_RECONCILED_HEAD",
+    "exact_head_independent_review": "MISSING_ON_EVENTUAL_RECONCILED_HEAD",
     "release_state": "BLOCKED",
-    "reason": "Seven P1 review threads remain unresolved and the current head moved after prior owner/Codex evidence. Current CI is not sufficient release evidence. PR131 is frozen while the canonical control plane is reconciled.",
+    "reason": "Trusted main moved to PR132 exact merge. PR131 is diverged/non-mergeable and seven P1 threads remain unresolved/outdated. Reconcile onto then-current trusted main only after the active control-plane reconciliation becomes trusted, then restart all exact-head release evidence.",
     "review_threads": [
       {"id": "PRRT_kwDOTiNyWc6bfPvI", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
       {"id": "PRRT_kwDOTiNyWc6bfPvO", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
@@ -90,11 +92,11 @@
     "accepted_boundary": {
       "prototype_boundary": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
       "requirements": [
-        "fail closed",
-        "zero reference authorization",
-        "zero sensitive forwarding",
-        "clean process survival under --unhandled-rejections=strict",
-        "no orphaned provider-rejection termination"
+        "fail closed before unowned provider transport origin",
+        "zero reference authorization on rejected/invalid context transport",
+        "zero sensitive forwarding on rejected/invalid context transport",
+        "clean process survival under --unhandled-rejections=strict for in-contract rejected transport",
+        "no orphaned provider-rejection termination for in-contract transport"
       ],
       "out_of_contract": "Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers remain unsupported without separately reviewed process/worker/RPC isolation.",
       "prohibited_shortcuts": [
@@ -106,7 +108,7 @@
         "weakening strict rejection regressions"
       ]
     },
-    "resume_rule": "After the active control-plane reconciliation merges and receives exact-merge POST_MERGE_ASSURANCE_PASS, reconcile PR131 onto then-current trusted main. Any moved head invalidates existing exact-head release evidence and requires fresh CI, owner gate and genuinely distinct exact-head review."
+    "resume_rule": "After the active control-plane reconciliation merges and receives exact-merge POST_MERGE_ASSURANCE_PASS, reconcile PR131 onto then-current trusted main using exactly one writer. Any moved head invalidates existing exact-head release evidence and requires fresh CI, owner gate and genuinely distinct exact-head review."
   },
   "historical_state": {
     "pr120": {
@@ -117,12 +119,12 @@
     "pr97": {
       "status": "OPEN_STALE_MUST_NOT_MERGE",
       "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "live_compare_to_trusted_main": "diverged ahead 66 behind 249 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
+      "live_compare_to_trusted_main": "diverged ahead 66 behind 255 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
     },
     "pr93": {
       "status": "OPEN_STALE_UNTRUSTED_LATER",
       "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "live_compare_to_trusted_main": "diverged ahead 86 behind 294 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
+      "live_compare_to_trusted_main": "diverged ahead 86 behind 300 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
     }
   },
   "queue": [
