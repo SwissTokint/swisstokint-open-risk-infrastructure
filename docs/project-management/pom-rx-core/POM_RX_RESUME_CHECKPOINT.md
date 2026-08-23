@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T09:05:24+02:00`
+Updated: `2026-08-23T09:16:00+02:00`
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
@@ -27,7 +27,7 @@ PR #126 changed only canonical coordination/product-position documents. It chang
 
 ## current_control_plane_reconciliation
 
-The versioned files merged by PR #126 necessarily still named their pre-merge trusted parent `1989bb88...`. This branch/PR is the scoped post-#126 reconciliation from exact trusted main `7f4b0f7b...`.
+The versioned files merged by PR #126 necessarily still named their pre-merge trusted parent `1989bb88...`. PR #127 / branch `docs/pom-rx-post-pr126-live-reconcile-20260823` is the scoped post-#126 reconciliation from exact trusted main `7f4b0f7b...`.
 
 Owned files are exactly:
 
@@ -38,6 +38,8 @@ Owned files are exactly:
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 No runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics change in this reconciliation.
+
+The first PR #127 candidate `d23b71284a2e5a13a071ece7d96e079b000df517` had canonical CI `32624912179` / CI 804 attempt 1 = `success` and owner review `5001873024 = PASS_NON_INDEPENDENT / 0-0-0`, but the genuinely distinct Codex review on that exact head found P2 `PRRT_kwDOTiNyWc6bdxPp`: the docs simultaneously excluded non-configurable-unsafe-constructor Promise objects from the supported trusted-provider contract while requiring a positive clean-process-survival regression for that already-originated hostile object. That criterion could silently reintroduce the deferred isolation requirement or let a different in-contract test masquerade as closure of the hostile case. This moved-head repair makes the supported-vs-hostile evidence split explicit. CI 804 and all reviews on `d23b712...` are historical for release after this commit.
 
 ## active_runtime_task
 
@@ -71,7 +73,14 @@ For the current local prototype, use an explicit narrow **trusted-provider trans
 - clean child-process survival under `--unhandled-rejections=strict`;
 - no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently claimed safe. The existing Wallet Guard trusted bootstrap-provider assumption may justify a narrow controlled-provider contract only when stated explicitly; it does not establish graceful survival against an intentionally hostile provider. A future hostile-provider survival claim requires a separately reviewed isolation boundary such as process/worker/RPC isolation.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are outside that supported contract. The existing Wallet Guard trusted bootstrap-provider assumption may justify a narrow controlled-provider contract only when the supported path is bound to a provider/adapter that cannot originate those excluded transports. It does not establish graceful survival after an intentionally hostile provider has already returned such a rejected Promise.
+
+The current hostile P1 therefore has two truthful closure routes, and they must not be conflated:
+
+1. **contract-narrowing route for the local prototype:** prove before merge that the controlled trusted-provider path cannot originate the excluded decorated/non-configurable-unsafe Promise; separately prove strict clean-process survival for an **in-contract** rejected transport. Keep the hostile already-originated Promise as an explicit unsupported/negative limitation rather than presenting the in-contract test as reproducing it;
+2. **hostile-provider route:** if the product intends to survive that already-originated hostile Promise, first introduce a separately reviewed isolation boundary such as process/worker/RPC isolation, then reproduce and prove clean survival across that isolation boundary.
+
+A direct positive strict-survival requirement against the already-originated non-configurable-unsafe Promise is **not** part of the contract-narrowing release criterion. Requiring it without isolation would contradict the selected boundary.
 
 Do not add process-global `unhandledRejection`/`uncaughtException` swallowing, do not execute hostile constructor/species accessors or Proxy paths, and do not silently trust attacker-selected species constructors.
 
@@ -81,7 +90,7 @@ Normative reference:
 
 `https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
 
-The architecture decision narrows the supported prototype claim; it does **not** resolve the current P1, make PR #120 trusted, or authorize merging its stale head. Runtime writing resumes only after this post-#126 control-plane reconciliation becomes trusted and PR #120 is reconciled to then-current trusted main with one writer.
+The architecture decision narrows the supported prototype claim; it does **not** by itself resolve the current P1, make PR #120 trusted, or authorize merging its stale head. Runtime writing resumes only after this post-#126 control-plane reconciliation becomes trusted and PR #120 is reconciled to then-current trusted main with one writer.
 
 Six PR #120 P1/P2 threads remain unresolved attack history:
 
@@ -92,7 +101,7 @@ Six PR #120 P1/P2 threads remain unresolved attack history:
 - `PRRT_kwDOTiNyWc6baIxZ` — P1;
 - `PRRT_kwDOTiNyWc6bc4gh` — P1 current finding.
 
-Do not resolve them merely because partial repairs exist. Closure requires one frozen repaired/current-main-reconciled exact head with green canonical CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2.
+Do not resolve them merely because partial repairs or claim narrowing exist. Closure requires one frozen current-main-reconciled candidate with green canonical CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2. For `PRRT_kwDOTiNyWc6bc4gh`, exact-head evidence must explicitly validate either the contract-narrowing proof that the excluded transport cannot originate on the supported path plus separate in-contract survival, or a real isolation repair; an unrelated in-contract test cannot stand in for the hostile case.
 
 ## blocked_historical_prs
 
@@ -108,14 +117,15 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## next_safe_actions
 
-1. Complete this scoped post-#126 control-plane reconciliation from exact trusted main `7f4b0f7b...` with fresh exact-head CI, the applicable five-stage owner gate and a genuinely distinct exact-head review.
-2. Merge it only if decision-time main/head/CI/review/thread state remains unchanged with zero unresolved P0/P1/P2; immediately run exact-merge-SHA post-merge assurance.
+1. Freeze the repaired PR #127 candidate after this checkpoint commit and obtain wholly fresh canonical exact-head CI, five-stage owner review and genuinely distinct exact-head review; resolve P2 `PRRT_kwDOTiNyWc6bdxPp` only on same-SHA evidence.
+2. Merge PR #127 only if decision-time main/head/CI/review/thread state remains unchanged with zero unresolved P0/P1/P2; immediately run exact-merge-SHA post-merge assurance.
 3. After that reconciliation becomes trusted, reconcile PR #120 to then-current exact trusted main using exactly one writer; do not merge or wholesale-revive stale branch history.
-4. Align the Wallet Guard provider contract/runtime diagnostics/tests to the accepted narrow trusted-provider transport boundary and add the strict unsafe-constructor regression proving fail-closed, zero authorization, zero sensitive forwarding and clean process survival/no orphaned rejection within the supported contract.
-5. Freeze the moved PR #120 head and require wholly fresh canonical exact-head CI, the mandatory five-stage owner gate with concrete Promise/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses, and a fresh genuinely distinct exact-head `chatgpt-codex-connector` review.
-6. Resolve the six PR #120 P1/P2 threads only when same-SHA evidence justifies closure; merge only with zero unresolved P0/P1/P2 and unchanged decision-time main/head/CI/review state.
-7. Immediately run exact-merge-SHA post-merge assurance after any merge.
-8. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
+4. On the contract-narrowing route, bind the supported local path to a controlled trusted provider/adapter that cannot originate the excluded decorated/non-configurable-unsafe Promise, add CI-wired conformance evidence for that pre-origin boundary, and separately add a strict **in-contract rejected transport** regression proving fail-closed behavior, zero authorization, zero sensitive forwarding, clean process survival and no orphaned rejection.
+5. Keep the already-originated unsafe non-configurable-constructor Promise as an explicit unsupported negative case unless a separately reviewed process/worker/RPC isolation boundary is introduced; do not claim its direct same-process clean survival merely because the in-contract regression passes.
+6. Freeze the moved PR #120 head and require wholly fresh canonical exact-head CI, the mandatory five-stage owner gate with concrete Promise/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses, and a fresh genuinely distinct exact-head `chatgpt-codex-connector` review.
+7. Resolve the six PR #120 P1/P2 threads only when same-SHA evidence justifies closure; merge only with zero unresolved P0/P1/P2 and unchanged decision-time main/head/CI/review state.
+8. Immediately run exact-merge-SHA post-merge assurance after any merge.
+9. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
 
 ## safety_boundary
 
