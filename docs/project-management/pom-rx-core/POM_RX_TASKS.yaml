@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T13:06:00+02:00",
-  "current_main": "95cafa73139085343fae26526c4dc1ea3f07db6b",
+  "updated_at": "2026-08-23",
+  "current_main": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,111 +10,115 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "95cafa73139085343fae26526c4dc1ea3f07db6b",
-    "source_pr": 129,
-    "source_head": "17cd468f3e90f9ae3deb544197937482459b885f",
+    "sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "source_pr": 130,
+    "source_head": "ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa",
     "source_head_ci": {
-      "run_id": 32633365421,
-      "run_number": 818,
+      "run_id": 32635882670,
+      "run_number": 820,
       "run_attempt": 1,
       "conclusion": "success"
     },
-    "owner_premerge_evidence": "REVIEW_5002164482_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385505343_ON_17cd468f3e",
+    "owner_premerge_evidence": "REVIEW_5002253211_PASS_NON_INDEPENDENT_0_0_0",
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385715573_ON_ce1f2ca2f9",
     "exact_main_ci": {
-      "run_id": 32633614947,
-      "run_number": 819,
+      "run_id": 32638722306,
+      "run_number": 821,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci"
     },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385521407",
-    "terminal_checkpoint": "COMMENT_5385522627",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385948152",
+    "terminal_checkpoint": "COMMENT_5385949730",
     "scope": "bounded_non_tier_b_control_plane_reconciliation"
   },
-  "control_plane_reconciliation": {
+  "completed_reconciliation": {
     "id": "POST-PR129-LIVE-STATE-RECONCILIATION-20260823",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "branch": "docs/pom-rx-post-pr129-live-reconcile-20260823",
-    "status": "IN_PROGRESS",
-    "reason": "PR129 merged and passed exact-merge assurance; its source tree necessarily records pre-merge parent abc19e as trusted main, while live trusted main is now 95cafa. The five canonical continuation/product-position files must be reconciled before they are reused as dependency/readiness evidence.",
+    "source_pr": 130,
+    "status": "TRUSTED_POST_MERGE_PASS",
+    "exact_merge_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9"
+  },
+  "active_task": {
+    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
+    "title": "Reconstruct the Wallet Guard provider transport prerequisite under the accepted narrow trusted-provider contract",
+    "class": "TIER_B_APPLICATION_SECURITY",
+    "status": "IN_PROGRESS_NOT_FROZEN",
+    "branch": "automation/wg-trusted-provider-transport-20260823",
+    "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
+    "single_writer": true,
+    "historical_source_pr": 120,
+    "wholesale_history_reuse": false,
     "owned_files": [
+      "applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs",
+      "tests/wallet-guard/trusted-provider-transport.node.test.mjs",
+      "package.json",
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
       "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
       "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
-    "runtime_semantics_changed": false,
-    "test_semantics_changed": false,
-    "release_requirements": [
-      "canonical exact-head CI success on the completed candidate",
-      "applicable five-stage release-owner exact-head review",
-      "fresh genuinely distinct exact-head independent review",
-      "zero unresolved P0/P1/P2 for this reconciliation",
-      "decision-time unchanged main/base/head/CI/review/thread state",
-      "exact-merge post-merge assurance after merge"
-    ]
-  },
-  "closed_historical_task": {
-    "id": "PR120-PROMISE-TRANSPORT-CONTRACT-ALIGNMENT",
-    "historical_pr": 120,
-    "status": "CLOSED_NOT_MERGED_STALE_ATTACK_HISTORY",
-    "branch": "automation/pom-rx-promise-drift-repair-20260822",
-    "final_head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
-    "merged": false,
-    "historical_ci": "32614831929 / CI 792 attempt 1 success but false-PASS for final independent P1",
-    "historical_owner_gate": "5001566041 PASS_NON_INDEPENDENT and not current release evidence",
-    "attack_threads": [
-      {"id": "PRRT_kwDOTiNyWc6bZjxp", "severity": "P1", "state": "UNRESOLVED_HISTORY"},
-      {"id": "PRRT_kwDOTiNyWc6bZ6tx", "severity": "P1", "state": "UNRESOLVED_HISTORY"},
-      {"id": "PRRT_kwDOTiNyWc6bZ6tz", "severity": "P2", "state": "UNRESOLVED_HISTORY"},
-      {"id": "PRRT_kwDOTiNyWc6baFkR", "severity": "P1", "state": "UNRESOLVED_HISTORY"},
-      {"id": "PRRT_kwDOTiNyWc6baIxZ", "severity": "P1", "state": "UNRESOLVED_HISTORY"},
-      {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "state": "UNRESOLVED_HISTORY", "final_exact_head_finding": true}
+    "implemented_so_far": [
+      "application-owned controlled provider transport with module-private provenance",
+      "trusted gateway rejects unowned provider before provider.request transport origin",
+      "supported Promise runtime descriptor checks before controlled transport origin",
+      "in-contract controlled rejected native Promise transport for strict survival regression",
+      "CI-wired tests for native transport shape, unowned Proxy provider pre-origin rejection, species accessor zero execution, inherited Array then poisoning fail-closed, strict rejection survival with zero authorization and forwarding"
     ],
-    "rule": "Do not reopen, rebase, revive or wholesale-merge PR120. Selectively reconstruct useful hardening on a fresh current-main Tier-B branch only after the control-plane reconciliation is trusted."
-  },
-  "next_tier_b_task": {
-    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
-    "title": "Reconstruct the Wallet Guard provider transport prerequisite from trusted main under the accepted narrow trusted-provider contract",
-    "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_RUNTIME_BOUNDARY",
-    "status": "BLOCKED_PENDING_TRUSTED_CONTROL_PLANE_RECONCILIATION",
-    "historical_source_pr": 120,
-    "start_rule": "Create a fresh branch from then-current trusted main; do not reopen or wholesale-copy PR120.",
-    "accepted_architecture_decision": {
-      "evidence": "PR126_COMMENT_5384571039_INDEPENDENTLY_RECONCILED_THROUGH_TRUSTED_PR127_AND_CARRIED_THROUGH_PR128_PR129",
-      "prototype_boundary": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
-      "supported_rejection_requirements": [
-        "fail closed",
-        "zero reference authorization",
-        "zero sensitive forwarding",
-        "clean process survival under --unhandled-rejections=strict",
-        "no orphaned provider-rejection termination"
-      ],
-      "supported_path_rule": "Prove before origin that the controlled trusted provider/adapter cannot emit excluded decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports, then separately prove strict clean-process survival for an in-contract rejected transport.",
-      "hostile_case_rule": "An already-originated excluded rejected Promise remains an explicit unsupported negative unless a separately reviewed process/worker/RPC isolation boundary is introduced.",
-      "prohibited_shortcuts": [
-        "process-global unhandledRejection swallowing",
-        "process-global uncaughtException swallowing",
-        "executing hostile constructor/species accessors",
-        "executing Proxy constructor/species paths",
-        "silently trusting attacker-selected species constructors",
-        "weakening strict rejection regressions"
-      ]
-    },
+    "current_limitations": [
+      "generic createWalletGuardReferenceProviderGateway remains outside the fresh hostile-provider-wide transport claim",
+      "existing controlled-host path has not yet been rebound to the strict trusted transport at this checkpoint",
+      "already-originated excluded hostile rejected Promise remains unsupported without reviewed process/worker/RPC isolation"
+    ],
+    "supported_rejection_requirements": [
+      "fail closed",
+      "zero reference authorization",
+      "zero sensitive forwarding",
+      "clean process survival under --unhandled-rejections=strict",
+      "no orphaned provider-rejection termination"
+    ],
+    "prohibited_shortcuts": [
+      "process-global unhandledRejection swallowing",
+      "process-global uncaughtException swallowing",
+      "executing hostile constructor/species accessors",
+      "executing Proxy constructor/species paths",
+      "silently trusting attacker-selected species constructors",
+      "weakening strict rejection regressions"
+    ],
     "release_requirements": [
-      "single writer on a fresh branch from then-current trusted main",
-      "CI-wired pre-origin supported-provider conformance",
-      "CI-wired strict in-contract rejected-transport survival with zero authorization and zero sensitive forwarding",
-      "clean child-process survival and no orphaned rejected transport",
-      "truthful hostile out-of-contract negative unless reviewed isolation is introduced",
-      "fresh canonical exact-head CI success",
+      "complete the bounded implementation and reconcile current claim wording",
+      "canonical exact-head CI success on the frozen head",
       "mandatory five-stage release-owner review with concrete Promise/species/accessor/Proxy/unhandled-rejection/thenable/Array-poisoning hypotheses",
       "fresh genuinely distinct chatgpt-codex-connector review on the same frozen SHA",
       "zero unresolved P0/P1/P2",
+      "decision-time unchanged main/base/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
+    ],
+    "attack_history": [
+      {"id": "PRRT_kwDOTiNyWc6bZjxp", "severity": "P1"},
+      {"id": "PRRT_kwDOTiNyWc6bZ6tx", "severity": "P1"},
+      {"id": "PRRT_kwDOTiNyWc6bZ6tz", "severity": "P2"},
+      {"id": "PRRT_kwDOTiNyWc6baFkR", "severity": "P1"},
+      {"id": "PRRT_kwDOTiNyWc6baIxZ", "severity": "P1"},
+      {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "final_historical_finding": true}
     ]
+  },
+  "historical_state": {
+    "pr120": {
+      "status": "CLOSED_NOT_MERGED_STALE_ATTACK_HISTORY",
+      "head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
+      "rule": "Do not reopen, rebase, revive or wholesale-merge."
+    },
+    "pr97": {
+      "status": "OPEN_STALE_MUST_NOT_MERGE",
+      "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
+      "compare_to_trusted_main": "diverged ahead 66 behind 249 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
+    },
+    "pr93": {
+      "status": "OPEN_STALE_UNTRUSTED_LATER",
+      "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
+      "compare_to_trusted_main": "diverged ahead 86 behind 294 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
+    }
   },
   "queue": [
     {
@@ -122,18 +126,13 @@
       "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
       "status": "BLOCKED_ON_TRUSTED_FRESH_PROVIDER_TRANSPORT_POST_MERGE_PASS",
       "historical_source_pr": 97,
-      "historical_head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "live_compare_to_trusted_main": "diverged ahead 66 behind 243 merge-base 0564aecd42cf0794894c12842980969ff59c9f73",
-      "rule": "Do not merge/revive stale PR97. Reconstruct from then-current trusted main only after the fresh provider-transport prerequisite is trusted."
+      "rule": "Reconstruct from then-current trusted main only; never merge stale PR97 wholesale."
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONSTRUCTION",
       "historical_pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
-      "status": "BLOCKED_DEPENDENCY_AND_FRESH_RECONSTRUCTION",
-      "historical_head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "live_compare_to_trusted_main": "diverged ahead 86 behind 288 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8",
-      "rule": "Historical green CI does not clear unresolved P1/P2 or current dependency order; reconstruct/reconcile later from trusted main."
+      "status": "BLOCKED_DEPENDENCY_AND_FRESH_RECONSTRUCTION"
     },
     {
       "id": "DAGR-SOURCE-GATE",
@@ -149,10 +148,10 @@
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after the mandatory five-stage pre-merge gate, every applicable technical/security gate, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
+    "standing_authorization": "Applicable only after mandatory gates, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
-    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA SpecKit, skeptical, security, code-quality, optimization and integration/regression assurance before dependent work may trust it."
+    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA assurance before dependent work may trust it."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
