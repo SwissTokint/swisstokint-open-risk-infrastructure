@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23T06:30:00+02:00`
+Updated: `2026-08-23T06:37:00+02:00`
 
 Current trusted main: `097937acf19338bdaab54050d64f18195d9b4a33`
 
@@ -25,7 +25,9 @@ PR #124 changed only coordination/product-position documents and does not make o
 
 PR #124 is merged and post-merge assured at exact main `097937acf19338bdaab54050d64f18195d9b4a33`, while the versioned files it merged necessarily name the pre-merge parent `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
 
-Required closure is the scoped non-Tier-B reconciliation on branch `docs/pom-rx-post-pr124-live-reconcile-20260823`, limited to `POM_RX_RESUME_CHECKPOINT.md`, `POM_RX_TASKS.yaml`, `POM_RX_BLOCKERS.md` and `POM_RX_CAPABILITY_MAP.md`. It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+Required closure is the scoped non-Tier-B reconciliation on branch `docs/pom-rx-post-pr124-live-reconcile-20260823`, limited to `POM_RX_RESUME_CHECKPOINT.md`, `POM_RX_TASKS.yaml`, `POM_RX_BLOCKERS.md`, `POM_RX_TEAM_ROSTER.md` and `POM_RX_CAPABILITY_MAP.md`. It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+
+Independent review of the first candidate found P2 `PRRT_kwDOTiNyWc6bdJ1q`: its owned-file manifest omitted `POM_RX_TEAM_ROSTER.md` despite that file being in the diff. The moved current candidate repairs the manifest in RESUME/TASKS/BLOCKERS; prior CI/review evidence is historical until fresh same-head gates complete.
 
 Until this reconciliation passes its applicable exact-head gates and exact-merge assurance, live GitHub remains the dependency/readiness source of truth and PR #120 runtime work must not use stale exact-main fields as release evidence.
 
