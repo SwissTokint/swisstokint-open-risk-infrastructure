@@ -53,11 +53,11 @@ Roles describe responsibilities, not fictitious running agents. A role counts as
 
 Do not claim that Claude, another model, another human or another agent performed a review unless the evidence identifies that route. Missing independence is `INDEPENDENT_REVIEW_PENDING`/BLOCK, never an invented lane.
 
-Use one writer. Reviewers remain read-only. Maximum three active specialist lanes and two code worktrees.
+Use one writer. Reviewers remain read-only. Maximum three active specialist lanes and two code worktrees. Single-flight coordination is mandatory: two overlapping automation invocations must never both enter a writer lane.
 
 ## Prime level 3 cycle
 
-1. Acquire the repository's single-flight coordination guard if present; do not create a competing lock mechanism.
+1. Acquire the single-flight coordination lock **before any state-changing action**. Acquisition is mandatory, never best-effort. If an active lock is younger than 45 minutes, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing. If lock acquisition or lock-state verification cannot be completed, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing. Do not invent a competing lock mechanism.
 2. Revalidate live `main`, open/merged PRs, actual heads, reviews, threads and CI.
 3. Reconcile versioned snapshot facts using the non-self-referential continuity rule above. Do not restart an unfocused global audit every hour and do not generate an endless docs-only loop merely to chase a merge SHA.
 4. Select exactly one bounded READY task with measurable acceptance and exclusive file ownership. Prefer the smallest dependency-closing lot.
@@ -69,6 +69,7 @@ Use one writer. Reviewers remain read-only. Maximum three active specialist lane
 10. After every non-trivial merge, run the exact-merge-SHA post-merge assurance in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as trusted.
 11. A merged lot without `POST_MERGE_ASSURANCE_PASS` **must not be used as trusted evidence** for later readiness, release, deployment or dependent Tier-B work. Conditional/block findings are repaired through a new PR, never patched directly on `main`.
 12. Persist the exact live terminal state in the merge/active PR checkpoint and reconcile versioned durable facts only when required by the snapshot rule.
+13. Release any single-flight lock acquired by this run cleanly on every terminal path after durable state has been persisted.
 
 ## Post-merge assurance discipline
 
@@ -114,8 +115,7 @@ Do not mass-move frozen protocol or fixture paths for cosmetic reorganization. A
 - no DAGR content invented without an authorized source;
 - no legacy result, internal readiness result or standalone strict verdict may be treated as execution authorization;
 - **no stale historical PR is merged wholesale** merely to recover useful code; salvage useful parts onto current trusted `main` through a new scoped PR;
-- **no domain reputation, UI warning, blockchain anchor or simulation result may
-  substitute for the execution-side Gate** when a claim requires blocking.
+- **no domain reputation, UI warning, blockchain anchor or simulation result may substitute for the execution-side Gate** when a claim requires blocking.
 
 ## Notification gate
 
