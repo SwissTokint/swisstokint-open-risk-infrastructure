@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T19:26:00+02:00`
+Updated: `2026-08-23T20:12:00+02:00`
 
 Purpose: compact durable cross-chat **versioned snapshot**. Conversation history is not project state. Every run first reads live GitHub. This file deliberately records authoring-time anchors and durable transition rules; it does not claim that an embedded SHA is the exact live `main` forever.
 
@@ -20,6 +20,20 @@ Purpose: compact durable cross-chat **versioned snapshot**. Conversation history
 - `continuity_repair_branch_at_authoring`: `docs/pom-rx-non-self-referential-continuity-20260823-1923`.
 
 These are historical-at-authoring facts. After this repair merges, the exact resulting `main`, exact-main CI/status and post-merge verdict must be read from live GitHub and the repair PR terminal checkpoint. Do **not** open another docs-only reconciliation solely to replace `snapshot_base_main` with that merge SHA.
+
+## Active PR #135 independent-review repair
+
+The genuinely distinct `chatgpt-codex-connector` review `5002957358` explicitly reviewed predecessor candidate `8dc1648f65dce0de59f314d7080e2408de95292b` and found one P2, thread `PRRT_kwDOTiNyWc6bg6TG`: the rewritten automation policy had weakened mandatory single-flight acquisition to "if present", so an overlapping invocation could proceed without a verified guard and violate the one-writer invariant.
+
+The required repair is fail-closed and operationally equivalent to the prior invariant:
+
+- acquire the single-flight coordination lock before any state-changing action;
+- if an active lock is younger than 45 minutes, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing;
+- if acquisition or lock-state verification cannot be completed, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing;
+- never invent a competing lock mechanism;
+- release any lock acquired by the run on every terminal path after durable state is persisted.
+
+Because implementing this repair moves the PR head, CI `32654891442` / CI 853, owner review `5002957417`, and Codex review `5002957358` are historical evidence only for `8dc1648f65...`. The repaired successor head must receive fresh canonical exact-head CI, a fresh five-stage release-owner review and a fresh genuinely distinct exact-head review before thread `PRRT_kwDOTiNyWc6bg6TG` may be resolved or PR #135 merged.
 
 ## Continuity-model repair objective
 
@@ -66,7 +80,7 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## Next safe action rule
 
-First complete the continuity-model repair under normal exact-head gates and exact-merge assurance. If and only if the latest repair receives `POST_MERGE_ASSURANCE_PASS`, resume PR #131 by reconciling it onto the then-live main and run a wholly fresh exact-head release cycle. Only after #131 itself receives exact-merge assurance PASS may durable Gate composition be reconstructed; PR #93 remains later in dependency order.
+Complete the single-flight P2 repair on PR #135, freeze the successor exact head, run fresh canonical exact-head CI and the full five-stage owner gate, and obtain a fresh genuinely distinct exact-head review. Resolve `PRRT_kwDOTiNyWc6bg6TG` only if that same-head review validates the repair and no P0/P1/P2 remains. Merge only after decision-time main/head/CI/review/thread/mergeability revalidation, then immediately run exact-merge assurance. If and only if PR #135 receives `POST_MERGE_ASSURANCE_PASS`, resume PR #131 by reconciling it onto then-live main and run a wholly fresh exact-head release cycle.
 
 ## Safety boundary
 
