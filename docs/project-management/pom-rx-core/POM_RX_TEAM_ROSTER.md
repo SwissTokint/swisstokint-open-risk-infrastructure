@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T09:16:00+02:00`
+Updated: `2026-08-23T10:20:00+02:00`
 
 ## Purpose
 
@@ -36,18 +36,18 @@ A fresh `chatgpt-codex-connector` review may satisfy the independent release gat
 
 ## Current trusted coordination state
 
-Trusted main is `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`, the exact PR #126 merge.
+Trusted main is `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`, the exact PR #127 merge.
 
-- source head `520b231acfcdb896e0ce01ce52fae18f490bf408`;
-- canonical source-head CI `32619624022` / CI 802 attempt 1 = `success`;
-- owner five-stage review `5001707331` = `PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
-- genuinely distinct exact-head evidence `chatgpt-codex-connector[bot]` comment `5384371632`, reviewed `520b231acf`, no major issues;
-- historical reconciliation P2 `PRRT_kwDOTiNyWc6bdRTY` resolved only after same-head validation;
-- pre-merge decision `5384577930`;
-- exact-main CI `32622491799` / CI 803 attempt 1 = `success`;
-- exact-merge assurance `5384587913` = `POST_MERGE_ASSURANCE_PASS`.
+- source head `df491ec5c73f74dabc49fc6372d239fddb997a59`;
+- canonical source-head CI `32625199525` / CI 809 attempt 1 = `success`;
+- owner five-stage review `5001882172` = `PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
+- genuinely distinct exact-head evidence `chatgpt-codex-connector[bot]` comment `5384821148`, reviewed `df491ec5c7`, no major issues;
+- historical #127 P2 threads `PRRT_kwDOTiNyWc6bdxPp` and `PRRT_kwDOTiNyWc6bdyZ8` were resolved only after same-head validation;
+- pre-merge decision `5384996506`;
+- exact-main CI `32627602883` / CI 810 attempt 1 = `success`;
+- exact-merge assurance `5385007479` = `POST_MERGE_ASSURANCE_PASS`.
 
-PR #127 / branch `docs/pom-rx-post-pr126-live-reconcile-20260823` has one documentation writer and owns exactly:
+PR #128 / branch `docs/pom-rx-post-pr127-live-reconcile-20260823` is the current single documentation writer lane and owns exactly:
 
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
@@ -55,21 +55,19 @@ PR #127 / branch `docs/pom-rx-post-pr126-live-reconcile-20260823` has one docume
 - `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
-
-The first #127 head `d23b71284a2e5a13a071ece7d96e079b000df517` passed CI 804 and owner review `5001873024`, but distinct Codex review found P2 `PRRT_kwDOTiNyWc6bdxPp`: it was contradictory to exclude the hostile non-configurable-unsafe Promise from the contract while requiring direct positive clean survival after that exact object had already originated. The moved-head documentation repair separates supported-path survival evidence from the isolation-only hostile case. All `d23b712...` release evidence is historical.
+No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot. PR #128 must remain blocked from merge until all five files are reconciled and its exact-head gates are complete.
 
 ## Active Tier-B focus — PR #120
 
 PR #120 remains the active Wallet Guard/provider prerequisite at exact live head `5238b9c289476100c875ed9a88bd7e21a574fa67`.
 
-Against trusted main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`, the branch is diverged ahead 69 / behind 23 with merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b` and is non-mergeable at this revalidation.
+Against trusted main `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`, the branch is diverged ahead 69 / behind 34 with merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b` and is non-mergeable at this revalidation.
 
-Historical exact-head CI `32614831929` / 792 passed and owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but neither is current release evidence after main moved and the distinct exact-head Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`.
+Historical exact-head CI `32614831929` / CI 792 passed and owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but neither is current release evidence after main moved and the distinct exact-head Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`.
 
 ### Accepted read-only architecture/security boundary
 
-The architecture/security decision is persisted in PR #126 comment `5384571039`.
+The architecture/security decision remains PR #126 comment `5384571039` and was independently reconciled through trusted PR #127.
 
 For the current local prototype, the selected boundary is an explicit narrow **trusted-provider transport contract**. This is intentionally smaller than a hostile-provider/browser-wide Promise-integrity claim.
 
@@ -91,7 +89,7 @@ ECMAScript 2026 §27.2.5.4 remains load-bearing evidence: ordinary `Promise.prot
 
 ### Next writer boundary
 
-Only after PR #127 becomes trusted may exactly one writer reconcile PR #120 to then-current trusted main and implement the smallest contract-alignment/runtime-diagnostic/test repair.
+Only after PR #128 becomes trusted may exactly one writer reconcile PR #120 to then-current trusted main and implement the smallest contract-alignment/runtime-diagnostic/test repair.
 
 QA/conformance for the moved final candidate must provide two clearly separated evidence classes:
 
