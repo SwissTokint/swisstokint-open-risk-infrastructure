@@ -1,6 +1,6 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23T09:05:24+02:00`
+Updated: `2026-08-23T09:16:00+02:00`
 
 Current trusted main: `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`
 
@@ -26,7 +26,7 @@ PR #126 changed only coordination/product-position documents and does not make o
 
 The versioned files merged by PR #126 necessarily still name the pre-merge trusted parent `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`, while live GitHub is now assured exact main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`.
 
-Required closure is this scoped non-Tier-B reconciliation on branch `docs/pom-rx-post-pr126-live-reconcile-20260823`, limited to exactly:
+Required closure is scoped PR #127 on branch `docs/pom-rx-post-pr126-live-reconcile-20260823`, limited to exactly:
 
 - `POM_RX_RESUME_CHECKPOINT.md`;
 - `POM_RX_TASKS.yaml`;
@@ -35,6 +35,8 @@ Required closure is this scoped non-Tier-B reconciliation on branch `docs/pom-rx
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+
+The first PR #127 candidate `d23b71284a2e5a13a071ece7d96e079b000df517` passed CI `32624912179` / CI 804 and owner review `5001873024`, but distinct Codex review found P2 `PRRT_kwDOTiNyWc6bdxPp`: the docs required positive clean-process survival for an already-originated non-configurable-unsafe Promise while simultaneously placing that object outside the supported trusted-provider contract. The repaired moved head must receive wholly fresh gates; CI 804 and reviews on `d23b712...` are historical for release.
 
 ## `PR120_RECONCILE_TO_CURRENT_MAIN`
 
@@ -50,13 +52,15 @@ Current live state:
 - genuinely distinct Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
-Do not merge the stale branch or treat its historical green CI as release evidence. After this post-#126 control-plane reconciliation becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
+Do not merge the stale branch or treat its historical green CI as release evidence. After PR #127 becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
 
 ## `PR120_P1_NONCONFIGURABLE_UNSAFE_DATA_CONSTRUCTOR`
 
 P1 `PRRT_kwDOTiNyWc6bc4gh`: for a rejected same-realm native Promise with a non-configurable own unsafe data `constructor`, e.g. `constructor: 1`, current fallback shadowing can throw before a captured rejection reaction is attached. Under `--unhandled-rejections=strict`, Wallet Guard fails closed but the original rejected Promise can remain orphaned and terminate the process.
 
-Zero reference authorization and zero sensitive forwarding are necessary but not sufficient; the supported contract must also prove clean process survival and no orphaned provider-rejection termination.
+Under the accepted contract-narrowing direction this exact already-originated hostile Promise is **outside** the supported local-provider transport contract. That does not erase the finding. It changes the required proof: the supported controlled-provider path must be shown unable to originate the excluded transport before the gateway relies on it, while an in-contract rejected transport separately proves strict clean-process survival. If the product instead wants to survive the already-originated hostile object, a separately reviewed isolation boundary is required.
+
+An in-contract survival test must never be presented as if it reproduces or closes direct same-process survival for the excluded hostile Promise.
 
 ## `PR120_ARCHITECTURE_DECISION_ACCEPTED_BUT_NOT_IMPLEMENTED`
 
@@ -72,7 +76,9 @@ Inside the supported contract, rejection handling must prove:
 - clean process survival under `--unhandled-rejections=strict`;
 - no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently claimed safe. A future claim of graceful survival against intentionally hostile provider behavior requires a separately reviewed isolation boundary such as process/worker/RPC isolation.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are excluded from that supported contract. The contract-narrowing route therefore requires **pre-origin conformance evidence** that the controlled trusted provider/adapter cannot emit those excluded transports on the supported path. It does not require direct positive same-process survival after such an object has already been returned.
+
+A future claim of graceful survival against an intentionally hostile provider or an already-originated excluded rejected Promise requires a separately reviewed isolation boundary such as process/worker/RPC isolation.
 
 The selected design must not:
 
@@ -89,7 +95,7 @@ Normative reference:
 
 `https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
 
-The architecture decision does not close the current P1 or make PR #120 trusted.
+The architecture decision does not by itself close the current P1 or make PR #120 trusted.
 
 ## `PR120_REVIEW_THREADS_REQUIRE_REPAIRED_FINAL_EXACT_HEAD_VALIDATION`
 
@@ -102,7 +108,7 @@ Six distinct P1/P2 threads remain unresolved attack history:
 - `PRRT_kwDOTiNyWc6baIxZ` — P1 Wallet Guard capability-map product-position invariant was removed at that reviewed head;
 - `PRRT_kwDOTiNyWc6bc4gh` — P1 current unsafe non-configurable data constructor can reach impossible shadowing before drain reaction.
 
-Do not resolve these merely because partial repairs exist. Closure requires one frozen repaired/current-main-reconciled candidate with green exact-head CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2.
+Do not resolve these merely because partial repairs or claim narrowing exist. Closure requires one frozen current-main-reconciled candidate with green exact-head CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2. For `PRRT_kwDOTiNyWc6bc4gh`, the exact-head reviewer must explicitly validate either (a) the supported-path pre-origin contract proof plus separate in-contract strict survival and the hostile case as a truthful unsupported limitation, or (b) a real isolation repair. A different in-contract test cannot stand in for the hostile object.
 
 ## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
