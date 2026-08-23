@@ -1,29 +1,28 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T04:09:11+02:00`
+Updated: `2026-08-23T06:10:00+02:00`
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
 ## trusted_main
 
-Exact live/trusted `main`: `cff851b92746af09c224451c82d3da9c3bae176a`.
+Exact live/trusted `main`: `73f3921984449ffd6025f6c9b99b0220f0bf068b`.
 
-Latest trusted merge: PR #122 — bounded non-Tier-B control-plane reconciliation.
+Latest trusted merge: PR #123 — bounded non-Tier-B control-plane reconciliation.
 
-- exact source head: `19a1f2edb617d5025e274c3a3076f0ba78cdf841`;
-- exact merge/main SHA: `cff851b92746af09c224451c82d3da9c3bae176a`;
-- canonical exact-main push CI: run `32610793817`, CI 787 attempt 1, `completed / success`;
-- independent pre-merge evidence: `chatgpt-codex-connector[bot]` comment `5383609128`, reviewed exact source commit `19a1f2edb6`, no major issues;
-- exact-merge assurance: PR #122 comment `5383628489` = `POST_MERGE_ASSURANCE_PASS`;
-- terminal GitHub checkpoint: PR #122 comment `5383629556`.
+- exact source head: `6cac168b775b26b572336764271b4f25e934a5ea`;
+- exact merge/main SHA: `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- canonical exact-main push CI: run `32614549879`, CI 789 attempt 1, `completed / success`;
+- genuinely distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5383774814`, reviewed commit `6cac168b77`, no major issues;
+- exact-merge assurance: PR #123 comment `5383940027` = `POST_MERGE_ASSURANCE_PASS`.
 
-PR #122 is coordination-only evidence. It changed no runtime, protocol, Gate, Witness, verifier or Wallet Guard/provider semantics.
+PR #123 changed only the canonical coordination/product-position documents. It is trusted coordination evidence and changed no runtime, protocol, Gate, Witness, verifier or Wallet Guard/provider semantics.
 
 ## control_plane_reconciliation
 
-The files merged by PR #122 necessarily recorded its pre-merge trusted parent `06de789768c2cb0d5738161997c6bf104930a174`. Live GitHub has since advanced to the exact assured PR #122 merge `cff851b...`. The continuity contract therefore requires this scoped non-Tier-B reconciliation before stale exact-main fields are reused as dependency/readiness evidence.
+The canonical files on trusted `main` still name the pre-PR123 trusted state `cff851b92746af09c224451c82d3da9c3bae176a` / PR #122, while live GitHub is now the assured PR #123 merge `73f3921984449ffd6025f6c9b99b0220f0bf068b`. Live GitHub also shows a fresh exact-head independent P1 on PR #120 that is absent from the canonical files.
 
-Current reconciliation branch: `docs/pom-rx-post-pr122-live-reconcile-20260823`.
+Current bounded reconciliation branch: `docs/pom-rx-post-pr123-live-reconcile-20260823`.
 
 Owned files in this lot:
 
@@ -41,30 +40,33 @@ No runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wall
 
 Live GitHub at this checkpoint:
 
-- PR: `#120`, `OPEN / NOT TRUSTED`;
+- PR: `#120`, `OPEN / NOT TRUSTED / BLOCKED`;
 - branch: `automation/pom-rx-promise-drift-repair-20260822`;
 - target base branch: `main`;
-- PR metadata base SHA: `06de789768c2cb0d5738161997c6bf104930a174`;
-- exact live head: `2d01503c13b9b22ea136f6bbd169bc2032366b9a`;
-- current trusted main: `cff851b92746af09c224451c82d3da9c3bae176a`;
-- compare current main -> head: `diverged`, ahead 66 / behind 5, merge-base `06de789768c2cb0d5738161997c6bf104930a174`;
-- GitHub mergeability at revalidation: `false` (volatile conflict metadata, not a security verdict);
-- canonical CI on current head: run `32609855025`, CI 785, `completed / success`, but it is historical for release after trusted `main` moved;
-- five-stage release-owner gate on a candidate reconciled to current main: `PENDING / NON-INDEPENDENT`;
-- genuinely distinct exact-head `chatgpt-codex-connector` release review on a candidate reconciled to current main: `PENDING`;
+- exact live head: `5238b9c289476100c875ed9a88bd7e21a574fa67`;
+- current trusted main: `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- trusted-main reconciliation merge on the PR branch: `e4c8d4b29cdc875d17c170d6e67a0fd7804d849d`, with prior PR #120 head `2d01503c13b9b22ea136f6bbd169bc2032366b9a` as first parent and trusted main `73f392...` as second parent;
+- compare current main -> head: `ahead`, ahead 69 / behind 0, merge-base exactly `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- GitHub mergeability at revalidation: `true` (volatile conflict metadata, not a security verdict);
+- canonical exact-head CI: run `32614831929`, CI 792 attempt 1, `completed / success` on exact `5238b9c...`;
+- five-stage release-owner review: review `5001566041` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- genuinely distinct exact-head `chatgpt-codex-connector` review: **BLOCK / P1** on exact `5238b9c...` via new unresolved thread `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
-The bounded `Symbol.species`/rejected-Promise repair and strict regressions remain on the branch, but the branch must be reconciled to exact trusted main before any final release gate. Any head move invalidates prior exact-head CI/review evidence.
+Fresh P1 `PRRT_kwDOTiNyWc6bc4gh`: a rejected same-realm native Promise with a non-configurable own unsafe data `constructor` such as `constructor: 1` can make the current safety classifier reject the path and then make constructor shadowing throw before the captured rejection reaction is attached. Under `--unhandled-rejections=strict`, the gateway fails closed but the original rejection can remain orphaned and terminate the process. The current canonical regression only covers the safe non-configurable `constructor: Promise` case, so CI 792 is a false-PASS for this newly reviewed variant.
 
-Five historical PR #120 P1/P2 threads remain unresolved attack history:
+Required runtime repair remains bounded: do not execute hostile constructor/species accessors or Proxy paths; attach/drain the rejected transport without requiring a successful attacker-controlled constructor shadow first; add a CI-wired strict regression for the non-configurable unsafe data-constructor case proving fail-closed behavior with zero reference authorization and zero sensitive forwarding. Any repair moves the head and invalidates CI 792, owner review `5001566041`, and the exact-head Codex review as release evidence.
+
+Six PR #120 P1/P2 threads are currently unresolved attack history:
 
 - `PRRT_kwDOTiNyWc6bZjxp` — P1, unresolved, non-outdated;
 - `PRRT_kwDOTiNyWc6bZ6tx` — P1, unresolved, outdated location;
 - `PRRT_kwDOTiNyWc6bZ6tz` — P2, unresolved, outdated location;
 - `PRRT_kwDOTiNyWc6baFkR` — P1, unresolved, non-outdated;
-- `PRRT_kwDOTiNyWc6baIxZ` — P1, unresolved, outdated location.
+- `PRRT_kwDOTiNyWc6baIxZ` — P1, unresolved, outdated location;
+- `PRRT_kwDOTiNyWc6bc4gh` — P1, unresolved, current exact-head finding.
 
-Do not resolve them merely because later repairs exist. Closure requires one frozen current-main-reconciled head with green canonical CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2.
+Do not resolve any of them merely because later repairs exist. Closure requires one frozen repaired head with green canonical CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2.
 
 ## blocked_historical_prs
 
@@ -72,17 +74,17 @@ Do not resolve them merely because later repairs exist. Closure requires one fro
 
 - exact live head: `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`;
 - state: `OPEN / STALE / MUST_NOT_MERGE`;
-- unresolved review history includes multiple P1 classes, including Promise-drift/async-assimilation findings.
+- GitHub mergeability at revalidation: `false`.
 
-Do not merge, rebase, revive or wholesale-copy it. Reconstruct durable claim-before-observer/downstream composition later from then-current trusted main after PR #120 has exact-merge `POST_MERGE_ASSURANCE_PASS`.
+Do not merge, rebase, revive or wholesale-copy it. Reconstruct durable claim-before-observer/downstream composition later from then-current trusted main only after PR #120 receives exact-merge `POST_MERGE_ASSURANCE_PASS`.
 
 ### PR #93
 
 - exact live head: `c4e40ceb286f4e59657767661daed15d2b68e9a7`;
 - state: `OPEN / STALE / UNTRUSTED / LATER`;
-- unresolved review history still contains P1/P2 exact-value, wrapper, reflection and canonicalization/hash classes.
+- GitHub mergeability at revalidation: `false`.
 
-Its historical green CI is not release evidence. Reconcile useful work later from then-current trusted main rather than merging stale history wholesale.
+Its historical green CI/reviews are not release evidence. Reconcile useful work later from then-current trusted main rather than merging stale history wholesale.
 
 ## architecture_and_claim_boundary
 
@@ -92,14 +94,15 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## next_safe_actions
 
-1. Complete this scoped post-PR122 control-plane reconciliation through its applicable exact-head gates; do not change runtime in this lot.
-2. After the reconciliation is trusted, reconcile PR #120 to exact trusted main `cff851b92746af09c224451c82d3da9c3bae176a`. Any head move invalidates CI 785 and all prior exact-head release evidence.
-3. Freeze the new PR #120 head and require fresh canonical exact-head CI success.
-4. Run the mandatory five-stage owner gate with concrete falsification hypotheses covering rejected-Promise draining, effective `constructor`/`Symbol.species`, hostile constructor/species accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation and fail-closed zero authorization/forwarding.
-5. Obtain a fresh read-only `chatgpt-codex-connector` review on that same exact SHA and require zero unresolved P0/P1/P2.
-6. Resolve historical PR #120 threads only when the exact-head evidence justifies closure; revalidate unchanged main/base/head/latest CI/reviews/threads/mergeability immediately before merge.
-7. Merge under standing authorization only if every applicable gate passes, then immediately record exact-merge-SHA post-merge assurance.
-8. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
+1. Complete this scoped post-PR123 control-plane reconciliation through its applicable exact-head gates; do not change runtime in this lot.
+2. Keep PR #120 unmerged. Assign exactly one writer to repair current P1 `PRRT_kwDOTiNyWc6bc4gh` on the existing bounded repair stream, without widening the claim to hostile accessors/Proxy/attacker-selected species paths.
+3. Add the strict non-configurable unsafe data-constructor regression and preserve zero authorization / zero sensitive forwarding on failure.
+4. Freeze the moved PR #120 head and require fresh canonical exact-head CI success.
+5. Rerun the mandatory five-stage owner gate with concrete rejected-Promise/constructor/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses.
+6. Obtain a fresh genuinely distinct read-only `chatgpt-codex-connector` review on that same exact SHA and require zero unresolved P0/P1/P2.
+7. Resolve historical PR #120 threads only when that exact-head evidence justifies closure; revalidate unchanged main/base/head/latest CI/reviews/threads/mergeability immediately before merge.
+8. Merge under standing authorization only if every applicable gate passes, then immediately record exact-merge-SHA post-merge assurance.
+9. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
 
 ## safety_boundary
 
