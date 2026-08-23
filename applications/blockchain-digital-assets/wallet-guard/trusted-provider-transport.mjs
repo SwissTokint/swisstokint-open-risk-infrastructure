@@ -9,6 +9,7 @@ import {
 
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_FREEZE = Object.freeze;
+const OBJECT_CREATE = Object.create;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -17,8 +18,13 @@ const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_PROTOTYPE = Array.prototype;
+const OBJECT_PROTOTYPE = Object.prototype;
+const ARRAY_PROTOTYPE_PARENT = OBJECT_GET_PROTOTYPE_OF(ARRAY_PROTOTYPE);
+const OBJECT_PROTOTYPE_PARENT = OBJECT_GET_PROTOTYPE_OF(OBJECT_PROTOTYPE);
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_PROTOTYPE = Promise.prototype;
 const PROMISE_RESOLVE = Promise.resolve;
@@ -64,7 +70,7 @@ const INITIAL_ARRAY_THEN_DESCRIPTOR = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
   'then',
 );
 const INITIAL_OBJECT_THEN_DESCRIPTOR = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
-  Object.prototype,
+  OBJECT_PROTOTYPE,
   'then',
 );
 
@@ -73,6 +79,14 @@ const OPTIONS_KEYS = OBJECT_FREEZE([
   'accounts',
   'providerResult',
   'maxSensitiveCalls',
+]);
+const TRUSTED_GATEWAY_KEYS = OBJECT_FREEZE([
+  'captureTrustedOrigin',
+  'provider',
+  'policy',
+  'trustedClock',
+  'referenceAuthorizationForRequest',
+  'capabilityLifetimeMs',
 ]);
 const MAX_CONTEXT_ACCOUNTS = 64;
 
@@ -123,6 +137,8 @@ function runtimeBaselineWasSupported() {
     && PROMISE_CONSTRUCTOR_DESCRIPTOR?.value === PROMISE_CONSTRUCTOR
     && PROMISE_THEN_DESCRIPTOR?.value === PROMISE_THEN
     && ARRAY_PROTOTYPE_DESCRIPTOR?.value === ARRAY_PROTOTYPE
+    && ARRAY_PROTOTYPE_PARENT === OBJECT_PROTOTYPE
+    && OBJECT_PROTOTYPE_PARENT === null
     && INITIAL_ARRAY_THEN_DESCRIPTOR === undefined
     && INITIAL_OBJECT_THEN_DESCRIPTOR === undefined;
 }
@@ -159,8 +175,10 @@ function assertPromiseTransportRuntime() {
         apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [ARRAY_CONSTRUCTOR, 'prototype']),
         ARRAY_PROTOTYPE_DESCRIPTOR,
       )
+      || apply(OBJECT_GET_PROTOTYPE_OF, Object, [ARRAY_PROTOTYPE]) !== ARRAY_PROTOTYPE_PARENT
+      || apply(OBJECT_GET_PROTOTYPE_OF, Object, [OBJECT_PROTOTYPE]) !== OBJECT_PROTOTYPE_PARENT
       || apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [ARRAY_PROTOTYPE, 'then']) !== undefined
-      || apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [Object.prototype, 'then']) !== undefined) {
+      || apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [OBJECT_PROTOTYPE, 'then']) !== undefined) {
     fail(
       'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
       'trusted provider Promise transport runtime is outside the supported local contract',
@@ -181,7 +199,8 @@ function exactKeys(value, expected, label) {
       || names.length !== expected.length) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', `${label} has missing or unknown fields`);
   }
-  for (const key of expected) {
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = expected[index];
     const descriptor = descriptors[key];
     if (!descriptor
         || !OBJECT_HAS_OWN(descriptor, 'value')
@@ -191,10 +210,11 @@ function exactKeys(value, expected, label) {
       fail('POMRX_WG_TRANSPORT_E_INVALID', `${label}.${key} must be an enumerable data property`);
     }
   }
+  return descriptors;
 }
 
 function defineArrayElement(output, index, value) {
-  const descriptor = Object.create(null);
+  const descriptor = apply(OBJECT_CREATE, Object, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
   descriptor.writable = false;
@@ -207,7 +227,7 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} exceeds the supported transport depth`);
   }
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-  if (typeof value === 'number' && Number.isSafeInteger(value)) return value;
+  if (typeof value === 'number' && apply(NUMBER_IS_SAFE_INTEGER, Number, [value])) return value;
   if (!value || typeof value !== 'object' || isProxy(value)) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} contains unsupported transport data`);
   }
@@ -224,11 +244,11 @@ function snapshotTransportValue(value, label, depth = 0) {
   const descriptors = apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
   const lengthDescriptor = descriptors.length;
   const length = lengthDescriptor?.value;
-  if (!Number.isSafeInteger(length) || length < 0 || length > MAX_CONTEXT_ACCOUNTS) {
+  if (!apply(NUMBER_IS_SAFE_INTEGER, Number, [length]) || length < 0 || length > MAX_CONTEXT_ACCOUNTS) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} has an invalid array length`);
   }
   const names = apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  if (names.length !== length + 1 || !names.includes('length')) {
+  if (names.length !== length + 1 || !lengthDescriptor || !OBJECT_HAS_OWN(lengthDescriptor, 'value')) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must be a dense undecorated array`);
   }
   const output = [];
@@ -302,7 +322,7 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
 
   if (typeof rawOptions.chainId !== 'string'
       || typeof rawOptions.providerResult !== 'string'
-      || !Number.isSafeInteger(rawOptions.maxSensitiveCalls)
+      || !apply(NUMBER_IS_SAFE_INTEGER, Number, [rawOptions.maxSensitiveCalls])
       || rawOptions.maxSensitiveCalls < 1
       || rawOptions.maxSensitiveCalls > 1_000) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted provider transport options are invalid');
@@ -349,9 +369,9 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
             'controlled provider sensitive-call log is full',
           );
         }
-        state.sensitiveCalls.push(
+        apply(ARRAY_PUSH, state.sensitiveCalls, [
           captureReferencePlainData(request, 'trusted provider sensitive request'),
-        );
+        ]);
         assertPromiseTransportRuntime();
         return fulfilledTransport(state.providerResult);
       } catch (error) {
@@ -399,13 +419,50 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
 }
 
 export function createWalletGuardTrustedProviderGateway(options) {
-  const provider = options && typeof options === 'object' ? options.provider : null;
+  if (!options
+      || typeof options !== 'object'
+      || isProxy(options)
+      || apply(ARRAY_IS_ARRAY, null, [options])) {
+    fail(
+      'POMRX_WG_TRANSPORT_E_INVALID',
+      'trusted Wallet Guard gateway bootstrap must be a non-Proxy object',
+    );
+  }
+
+  const providerDescriptor = apply(
+    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    Object,
+    [options, 'provider'],
+  );
+  if (!providerDescriptor || !OBJECT_HAS_OWN(providerDescriptor, 'value')) {
+    fail(
+      'POMRX_WG_TRANSPORT_E_INVALID',
+      'trusted Wallet Guard gateway provider must be an own data property',
+    );
+  }
+
+  const provider = providerDescriptor.value;
   if (!provider || !trustedTransportHas(provider)) {
     fail(
       'POMRX_WG_TRANSPORT_E_UNTRUSTED_PROVIDER',
       'supported Wallet Guard provider path requires the controlled trusted transport',
     );
   }
+
+  const descriptors = exactKeys(
+    options,
+    TRUSTED_GATEWAY_KEYS,
+    'trusted Wallet Guard provider bootstrap',
+  );
+  const snapshot = freeze({
+    captureTrustedOrigin: descriptors.captureTrustedOrigin.value,
+    provider,
+    policy: descriptors.policy.value,
+    trustedClock: descriptors.trustedClock.value,
+    referenceAuthorizationForRequest: descriptors.referenceAuthorizationForRequest.value,
+    capabilityLifetimeMs: descriptors.capabilityLifetimeMs.value,
+  });
+
   assertPromiseTransportRuntime();
-  return createWalletGuardReferenceProviderGateway(options);
+  return createWalletGuardReferenceProviderGateway(snapshot);
 }
