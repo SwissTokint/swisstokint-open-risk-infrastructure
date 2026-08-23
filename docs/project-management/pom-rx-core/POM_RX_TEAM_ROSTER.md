@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T09:05:24+02:00`
+Updated: `2026-08-23T09:16:00+02:00`
 
 ## Purpose
 
@@ -47,7 +47,7 @@ Trusted main is `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`, the exact PR #126 me
 - exact-main CI `32622491799` / CI 803 attempt 1 = `success`;
 - exact-merge assurance `5384587913` = `POST_MERGE_ASSURANCE_PASS`.
 
-The current bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr126-live-reconcile-20260823` has one documentation writer and owns exactly:
+PR #127 / branch `docs/pom-rx-post-pr126-live-reconcile-20260823` has one documentation writer and owns exactly:
 
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
@@ -56,6 +56,8 @@ The current bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr126-liv
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
+
+The first #127 head `d23b71284a2e5a13a071ece7d96e079b000df517` passed CI 804 and owner review `5001873024`, but distinct Codex review found P2 `PRRT_kwDOTiNyWc6bdxPp`: it was contradictory to exclude the hostile non-configurable-unsafe Promise from the contract while requiring direct positive clean survival after that exact object had already originated. The moved-head documentation repair separates supported-path survival evidence from the isolation-only hostile case. All `d23b712...` release evidence is historical.
 
 ## Active Tier-B focus — PR #120
 
@@ -79,21 +81,26 @@ Inside the supported contract, QA must prove all of:
 - clean process survival under `--unhandled-rejections=strict`;
 - no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently claimed safe. A future claim of graceful survival against an intentionally hostile provider requires a separately reviewed process/worker/RPC isolation boundary.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are excluded from that supported contract. The local contract-narrowing route must therefore prove **before such a transport originates** that the controlled trusted provider/adapter cannot emit an excluded transport on the supported path. QA must then separately prove strict clean-process survival for an **in-contract** rejected transport.
 
-The Protocol / Systems Architect and Security / Adversarial Skeptic lanes reject proposals that require process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy paths, silent trust in attacker-selected species constructors, or weakening strict-rejection tests.
+An already-originated excluded rejected Promise is not a positive same-process survival requirement under contract narrowing. If that property is desired, the Protocol / Systems Architect and Security / Adversarial Skeptic lanes must first review an isolation boundary such as process/worker/RPC, and QA must reproduce the hostile case across that boundary.
+
+The review lanes reject proposals that require process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy paths, silent trust in attacker-selected species constructors, or weakening strict-rejection tests.
 
 ECMAScript 2026 §27.2.5.4 remains load-bearing evidence: ordinary `Promise.prototype.then` resolves `SpeciesConstructor` and creates the result capability before `PerformPromiseThen` attaches reactions. A reorder-only drain strategy is therefore not a universal repair for hostile effective constructor/species paths.
 
 ### Next writer boundary
 
-Only after the post-#126 control-plane reconciliation becomes trusted may exactly one writer reconcile PR #120 to then-current trusted main and implement the smallest contract-alignment/runtime-diagnostic/test repair.
+Only after PR #127 becomes trusted may exactly one writer reconcile PR #120 to then-current trusted main and implement the smallest contract-alignment/runtime-diagnostic/test repair.
 
-QA/conformance for the moved final candidate must include a CI-wired `--unhandled-rejections=strict` regression for the unsafe non-configurable data-constructor case and prove fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival and no orphaned provider rejection **within the supported contract**.
+QA/conformance for the moved final candidate must provide two clearly separated evidence classes:
+
+1. **supported-path conformance and survival:** CI-wired proof that the controlled provider/adapter cannot originate the excluded decorated/non-configurable-unsafe transport on the supported path, plus a strict in-contract rejected-transport regression proving fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival and no orphaned provider rejection;
+2. **hostile out-of-contract negative:** retain the non-configurable-unsafe Promise as an explicit unsupported/negative case. Do not claim direct same-process clean survival for it unless a separately reviewed isolation boundary is introduced.
 
 Concrete skeptical hypotheses for the final repaired candidate must cover rejected-Promise draining, effective `constructor`/`Symbol.species`, non-configurable unsafe data constructors, hostile constructor/species accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, inherited Array-index substitution, and zero reference authorization/sensitive forwarding on fail-closed rejection.
 
-Six PR #120 P1/P2 threads remain unresolved until repaired exact-head evidence justifies closure: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and current finding `PRRT_kwDOTiNyWc6bc4gh`.
+Six PR #120 P1/P2 threads remain unresolved until exact-head evidence justifies closure: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and current finding `PRRT_kwDOTiNyWc6bc4gh`. The last may close by independently validated claim narrowing only if the supported path is actually proven unable to originate the excluded transport; otherwise isolation is required.
 
 ## Historical streams
 
