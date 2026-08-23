@@ -62,10 +62,10 @@ function createTransport() {
   });
 }
 
-function createGateway({ transport = createTransport(), onAuthorization = () => {} } = {}) {
-  const gateway = createWalletGuardTrustedProviderGateway({
+function gatewayOptions(provider, onAuthorization = () => {}) {
+  return {
     captureTrustedOrigin: () => ORIGIN,
-    provider: transport.provider,
+    provider,
     policy: policy(),
     trustedClock: () => '2026-08-23T14:30:00.000Z',
     referenceAuthorizationForRequest: () => {
@@ -73,7 +73,13 @@ function createGateway({ transport = createTransport(), onAuthorization = () => 
       return referenceAuthorizationRecord();
     },
     capabilityLifetimeMs: 30_000,
-  });
+  };
+}
+
+function createGateway({ transport = createTransport(), onAuthorization = () => {} } = {}) {
+  const gateway = createWalletGuardTrustedProviderGateway(
+    gatewayOptions(transport.provider, onAuthorization),
+  );
   return { gateway, transport };
 }
 
@@ -148,6 +154,63 @@ test('trusted gateway rejects an unowned provider before its request path can or
   assert.equal(proxyTrapCalls, 0);
 });
 
+test('trusted gateway never executes a provider bootstrap accessor during provenance validation', () => {
+  const transport = createTransport();
+  let getterCalls = 0;
+  let unownedRequestCalls = 0;
+  const unownedProvider = {
+    request() {
+      unownedRequestCalls += 1;
+      return Promise.reject(new Error('unowned provider must never execute'));
+    },
+  };
+  const options = gatewayOptions(transport.provider);
+  Object.defineProperty(options, 'provider', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      return getterCalls === 1 ? transport.provider : unownedProvider;
+    },
+  });
+
+  assert.throws(
+    () => createWalletGuardTrustedProviderGateway(options),
+    (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_INVALID'),
+  );
+  assert.equal(getterCalls, 0);
+  assert.equal(unownedRequestCalls, 0);
+  assert.equal(transport.control.inspect().context_reads, 0);
+  assert.equal(transport.control.inspect().sensitive_call_count, 0);
+});
+
+test('trusted gateway rejects Proxy bootstrap options without executing Proxy traps', () => {
+  const transport = createTransport();
+  let trapCalls = 0;
+  const options = new Proxy(gatewayOptions(transport.provider), {
+    get(target, key, receiver) {
+      trapCalls += 1;
+      return Reflect.get(target, key, receiver);
+    },
+    getOwnPropertyDescriptor(target, key) {
+      trapCalls += 1;
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+    ownKeys(target) {
+      trapCalls += 1;
+      return Reflect.ownKeys(target);
+    },
+  });
+
+  assert.throws(
+    () => createWalletGuardTrustedProviderGateway(options),
+    (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_INVALID'),
+  );
+  assert.equal(trapCalls, 0);
+  assert.equal(transport.control.inspect().context_reads, 0);
+  assert.equal(transport.control.inspect().sensitive_call_count, 0);
+});
+
 test('Promise species/accessor drift is detected synchronously without executing the hostile accessor', () => {
   const { provider, control } = createTransport();
   const original = Object.getOwnPropertyDescriptor(Promise, Symbol.species);
@@ -174,7 +237,7 @@ test('Promise species/accessor drift is detected synchronously without executing
   assert.equal(control.inspect().context_reads, 0);
 });
 
-test('inherited Array thenable poisoning is rejected before an accounts transport originates', () => {
+test('direct Array thenable poisoning is rejected before an accounts transport originates', () => {
   const { provider, control } = createTransport();
   const original = Object.getOwnPropertyDescriptor(Array.prototype, 'then');
   let thenCalls = 0;
@@ -198,6 +261,34 @@ test('inherited Array thenable poisoning is rejected before an accounts transpor
   }
 
   assert.equal(thenCalls, 0);
+  assert.equal(control.inspect().context_reads, 0);
+});
+
+test('intermediate Array prototype then accessor is rejected without executing the getter', () => {
+  const { provider, control } = createTransport();
+  const originalParent = Object.getPrototypeOf(Array.prototype);
+  const intermediate = Object.create(originalParent);
+  let getterCalls = 0;
+
+  Object.defineProperty(intermediate, 'then', {
+    configurable: true,
+    enumerable: false,
+    get() {
+      getterCalls += 1;
+      throw new Error('intermediate Array then accessor executed');
+    },
+  });
+  Object.setPrototypeOf(Array.prototype, intermediate);
+  try {
+    assert.throws(
+      () => provider.request({ method: 'eth_accounts', params: [] }),
+      (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY'),
+    );
+  } finally {
+    Object.setPrototypeOf(Array.prototype, originalParent);
+  }
+
+  assert.equal(getterCalls, 0);
   assert.equal(control.inspect().context_reads, 0);
 });
 
