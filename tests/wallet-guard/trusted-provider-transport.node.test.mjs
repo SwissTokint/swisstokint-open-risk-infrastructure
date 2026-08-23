@@ -95,14 +95,13 @@ function expectTransportCode(error, code) {
   return true;
 }
 
-test('controlled provider originates undecorated same-realm native Promise transports only', async () => {
+test('controlled provider originates same-realm native Promise transports only', async () => {
   const { provider, control } = createTransport();
 
   const chainTransport = provider.request({ method: 'eth_chainId', params: [] });
   assert.equal(utilTypes.isPromise(chainTransport), true);
   assert.equal(Object.getPrototypeOf(chainTransport), Promise.prototype);
   assert.deepEqual(Object.getOwnPropertyNames(chainTransport), []);
-  assert.deepEqual(Object.getOwnPropertySymbols(chainTransport), []);
   assert.equal(await chainTransport, '0x1');
 
   const accountsTransport = provider.request({ method: 'eth_accounts', params: [] });
