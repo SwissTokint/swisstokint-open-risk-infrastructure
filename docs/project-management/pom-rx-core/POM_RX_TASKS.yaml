@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T09:05:24+02:00",
+  "updated_at": "2026-08-23T09:16:00+02:00",
   "current_main": "7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -36,8 +36,8 @@
     "id": "POST-PR126-LIVE-STATE-RECONCILIATION-20260823",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
     "branch": "docs/pom-rx-post-pr126-live-reconcile-20260823",
-    "status": "IN_PROGRESS",
-    "reason": "PR126 merged and passed exact-merge assurance at 7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411 while its versioned checkpoint necessarily names the pre-merge parent. This reconciliation persists the assured PR126 state and the accepted PR120 architecture decision before runtime work resumes.",
+    "status": "IN_PROGRESS_REPAIRED_P2_AWAITING_FRESH_EXACT_HEAD_GATES",
+    "reason": "PR126 merged and passed exact-merge assurance at 7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411 while its versioned checkpoint necessarily names the pre-merge parent. PR127 persists the assured PR126 state and accepted PR120 architecture decision. Distinct review on first head d23b712 found P2 PRRT_kwDOTiNyWc6bdxPp because the docs required positive survival for an already-originated hostile Promise that the selected contract explicitly excludes; the repair now separates in-contract survival from hostile-case isolation evidence.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -47,10 +47,18 @@
     ],
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
+    "historical_first_head": {
+      "sha": "d23b71284a2e5a13a071ece7d96e079b000df517",
+      "ci": "32624912179 / CI 804 attempt 1 success",
+      "owner_gate": "5001873024 PASS_NON_INDEPENDENT 0_0_0",
+      "independent_finding": "P2_PRRT_kwDOTiNyWc6bdxPp",
+      "release_freshness": "HISTORICAL_AFTER_HEAD_MOVE"
+    },
     "release_requirements": [
-      "canonical exact-head CI success",
-      "applicable five-stage release-owner exact-head review",
-      "fresh genuinely distinct exact-head independent review",
+      "canonical exact-head CI success on the repaired head",
+      "applicable five-stage release-owner exact-head review on the repaired head",
+      "fresh genuinely distinct exact-head independent review on the repaired head",
+      "resolve PRRT_kwDOTiNyWc6bdxPp only after same-head validation",
       "zero unresolved P0/P1/P2 for this reconciliation",
       "decision-time unchanged main/base/head/CI/review/thread state",
       "exact-merge post-merge assurance after merge"
@@ -92,11 +100,13 @@
         "clean process survival under --unhandled-rejections=strict",
         "no orphaned provider-rejection termination"
       ],
-      "non_claims": [
-        "decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently safe",
-        "intentionally hostile provider survival is not proved",
-        "same-realm Promise.then reordering is not a universal drain proof"
+      "excluded_transport_classes": [
+        "decorated/rebased native Promise outside the controlled contract",
+        "Proxy/accessor constructor or species path",
+        "non-configurable unsafe data constructor Promise",
+        "attacker-selected species constructor"
       ],
+      "hostile_case_rule": "An already-originated excluded rejected Promise is not required to survive in the same process under the contract-narrowing route. To claim that property, introduce and review process/worker/RPC isolation first.",
       "future_hostile_provider_requirement": "separately reviewed process/worker/RPC isolation boundary"
     },
     "architecture_finding": {
@@ -125,15 +135,17 @@
       "complete and trust the post-PR126 control-plane reconciliation first",
       "reconcile PR120 to then-current trusted main using exactly one writer",
       "align provider contract/runtime diagnostics/tests to the accepted narrow trusted-provider transport boundary",
-      "add a CI-wired strict regression proving fail-closed result, zero authorization, zero sensitive forwarding, clean process survival and no orphaned provider rejection termination within the supported contract",
+      "bind the supported local path to a controlled trusted provider/adapter that cannot originate excluded decorated/non-configurable-unsafe Promise transports, with CI-wired conformance evidence before such a transport originates",
+      "add a CI-wired strict regression for an in-contract rejected transport proving fail-closed result, zero authorization, zero sensitive forwarding, clean process survival and no orphaned provider rejection termination",
+      "keep the already-originated non-configurable-unsafe rejected Promise as an explicit unsupported negative limitation unless separately reviewed isolation is introduced; do not present the in-contract test as reproducing or surviving that hostile object",
       "freeze moved head and obtain fresh canonical exact-head CI success",
       "rerun mandatory five-stage release-owner exact-head review with concrete Promise/species/accessor/Proxy/unhandled-rejection/thenable/Array-poisoning hypotheses",
       "obtain fresh genuinely distinct read-only chatgpt-codex-connector review on the same frozen SHA",
-      "zero unresolved P0/P1/P2",
+      "zero unresolved P0/P1/P2; PRRT_kwDOTiNyWc6bc4gh may close by independently validated claim narrowing only if the supported path is proven unable to originate the excluded transport, otherwise isolation is required",
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
     ],
-    "next_safe_action": "Trust the post-PR126 control-plane reconciliation. Then reconcile PR120 to current trusted main with one writer and implement only the bounded contract-alignment plus strict process-survival regression before wholly fresh gates."
+    "next_safe_action": "Trust the repaired post-PR126 control-plane reconciliation. Then reconcile PR120 to current trusted main with one writer, bind the controlled supported provider path before Promise origin, and add separate in-contract strict-survival plus out-of-contract negative evidence before wholly fresh gates."
   },
   "queue": [
     {
