@@ -109,7 +109,7 @@
       "record a bounded architecture/security decision for the rejected-Promise transport boundary",
       "reject reorder-only Promise.then repair unless evidence disproves the SpeciesConstructor-before-reaction issue",
       "reconcile PR120 to then-current trusted main using exactly one writer",
-      "implement the smallest accepted repair and a CI-wired strict regression preserving zero authorization and zero sensitive forwarding",
+      "implement the smallest accepted repair and a CI-wired strict regression proving zero authorization, zero sensitive forwarding, clean process survival and no orphaned provider rejection termination within the supported contract",
       "freeze moved head and obtain fresh canonical exact-head CI success",
       "rerun mandatory five-stage release-owner exact-head review with concrete Promise/species/accessor/Proxy/unhandled-rejection hypotheses",
       "obtain fresh genuinely distinct read-only chatgpt-codex-connector review on the same frozen SHA",
