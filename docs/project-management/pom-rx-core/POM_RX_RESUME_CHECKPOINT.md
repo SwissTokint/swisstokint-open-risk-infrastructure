@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T10:15:00+02:00`
+Updated: `2026-08-23T10:22:00+02:00`
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
@@ -29,7 +29,7 @@ PR #127 changed only canonical coordination/product-position documents. It chang
 
 PR #128 / branch `docs/pom-rx-post-pr127-live-reconcile-20260823` is the scoped post-#127 reconciliation from exact trusted main `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`.
 
-The bounded owned control-plane set remains exactly:
+The bounded owned control-plane set is exactly:
 
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
@@ -37,7 +37,7 @@ The bounded owned control-plane set remains exactly:
 - `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-This checkpoint commit persists the new trusted-main/post-merge state first. TASKS/BLOCKERS/TEAM_ROSTER/CAPABILITY_MAP still require reconciliation on this same branch before the lot can be considered complete. No runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics are authorized in this reconciliation.
+All five owned files are now reconciled on the same branch to the assured PR #127 merge, exact-main CI 810, post-merge assurance `5385007479`, and the current PR #120 divergence. No runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics change in this reconciliation. The lot remains untrusted until its completed exact head receives fresh CI, owner five-stage review, genuinely distinct exact-head review, zero unresolved P0/P1/P2, merge and exact-merge assurance.
 
 ## active_runtime_task
 
@@ -106,15 +106,14 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## next_safe_actions
 
-1. Complete the post-PR127 control-plane reconciliation on this same branch by reconciling TASKS, BLOCKERS, TEAM_ROSTER and CAPABILITY_MAP to exact trusted main `ef05bd371aa2f71ed07f79d7c36f3c22d780963e` and current PR #120 divergence.
-2. Freeze the completed PR #128 candidate and obtain canonical exact-head CI, five-stage owner review and a fresh genuinely distinct exact-head review with zero unresolved P0/P1/P2.
-3. Merge PR #128 only if decision-time main/head/CI/review/thread state remains unchanged, then immediately run exact-merge-SHA post-merge assurance.
-4. Only after that reconciliation becomes trusted, use exactly one writer to reconcile PR #120 to then-current trusted main and implement the smallest supported-provider contract/runtime-diagnostic/test alignment.
-5. Require CI-wired pre-origin conformance for the controlled supported provider path plus a separate strict in-contract rejected-transport survival regression; keep the already-originated hostile Promise as an explicit unsupported negative unless reviewed isolation is introduced.
-6. Freeze the moved PR #120 head and require wholly fresh canonical exact-head CI, the mandatory five-stage owner gate with concrete Promise/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses, and a fresh genuinely distinct exact-head `chatgpt-codex-connector` review.
-7. Resolve the six PR #120 P1/P2 threads only when same-SHA evidence justifies closure; merge only with zero unresolved P0/P1/P2 and unchanged decision-time main/head/CI/review state.
-8. Immediately run exact-merge-SHA post-merge assurance after any merge.
-9. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
+1. Freeze the completed PR #128 candidate and obtain canonical exact-head CI, five-stage owner review and a fresh genuinely distinct exact-head review with zero unresolved P0/P1/P2.
+2. Merge PR #128 only if decision-time main/head/CI/review/thread state remains unchanged, then immediately run exact-merge-SHA post-merge assurance.
+3. Only after that reconciliation becomes trusted, use exactly one writer to reconcile PR #120 to then-current trusted main and implement the smallest supported-provider contract/runtime-diagnostic/test alignment.
+4. Require CI-wired pre-origin conformance for the controlled supported provider path plus a separate strict in-contract rejected-transport survival regression; keep the already-originated hostile Promise as an explicit unsupported negative unless reviewed isolation is introduced.
+5. Freeze the moved PR #120 head and require wholly fresh canonical exact-head CI, the mandatory five-stage owner gate with concrete Promise/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses, and a fresh genuinely distinct exact-head `chatgpt-codex-connector` review.
+6. Resolve the six PR #120 P1/P2 threads only when same-SHA evidence justifies closure; merge only with zero unresolved P0/P1/P2 and unchanged decision-time main/head/CI/review state.
+7. Immediately run exact-merge-SHA post-merge assurance after any merge.
+8. Only after PR #120 becomes trusted, reconstruct durable Gate composition as a fresh bounded Core lot; reconcile PR #93 later in dependency order.
 
 ## safety_boundary
 
