@@ -10,7 +10,17 @@ import {
 
 const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+  const getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
+  const getOwnPropertyNames = Object.getOwnPropertyNames;
+  const getOwnPropertySymbols = Object.getOwnPropertySymbols;
   const getPrototypeOf = Object.getPrototypeOf;
+  const objectFreeze = Object.freeze;
+  const objectCreate = Object.create;
+  const objectHasOwn = Object.hasOwn;
+  const objectDefineProperty = Object.defineProperty;
+  const arrayIsArray = Array.isArray;
+  const arrayPush = Array.prototype.push;
+  const numberIsSafeInteger = Number.isSafeInteger;
   const functionToString = Function.prototype.toString;
   const reflectApply = Reflect.apply;
   const speciesKey = Symbol.species;
@@ -19,13 +29,24 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   return {
     reflectApply,
     getOwnPropertyDescriptor,
+    getOwnPropertyDescriptors,
+    getOwnPropertyNames,
+    getOwnPropertySymbols,
     getPrototypeOf,
+    objectFreeze,
+    objectCreate,
+    objectHasOwn,
+    objectDefineProperty,
+    arrayIsArray,
+    arrayPush,
+    numberIsSafeInteger,
     functionToString,
     promiseResolve: Promise.resolve,
     promiseReject: Promise.reject,
     weakSetConstructor: WeakSet,
     weakSetAdd: WeakSet.prototype.add,
     weakSetHas: WeakSet.prototype.has,
+    speciesKey,
     promiseSource: functionToString.call(Promise),
     resolveSource: functionToString.call(Promise.resolve),
     rejectSource: functionToString.call(Promise.reject),
@@ -43,7 +64,17 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
 
 const TRUSTED_REFLECT_APPLY = PRISTINE_RUNTIME.reflectApply;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR = PRISTINE_RUNTIME.getOwnPropertyDescriptor;
+const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = PRISTINE_RUNTIME.getOwnPropertyDescriptors;
+const TRUSTED_GET_OWN_PROPERTY_NAMES = PRISTINE_RUNTIME.getOwnPropertyNames;
+const TRUSTED_GET_OWN_PROPERTY_SYMBOLS = PRISTINE_RUNTIME.getOwnPropertySymbols;
 const TRUSTED_GET_PROTOTYPE_OF = PRISTINE_RUNTIME.getPrototypeOf;
+const TRUSTED_OBJECT_FREEZE = PRISTINE_RUNTIME.objectFreeze;
+const TRUSTED_OBJECT_CREATE = PRISTINE_RUNTIME.objectCreate;
+const TRUSTED_OBJECT_HAS_OWN = PRISTINE_RUNTIME.objectHasOwn;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = PRISTINE_RUNTIME.objectDefineProperty;
+const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
+const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
+const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
@@ -51,22 +82,7 @@ const TRUSTED_WEAK_SET_CONSTRUCTOR = PRISTINE_RUNTIME.weakSetConstructor;
 const TRUSTED_WEAK_SET_ADD = PRISTINE_RUNTIME.weakSetAdd;
 const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 
-const REFLECT_APPLY = Reflect.apply;
-const OBJECT_FREEZE = Object.freeze;
-const OBJECT_CREATE = Object.create;
-const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
-const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
-const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
-const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
-const OBJECT_HAS_OWN = Object.hasOwn;
-const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
-const ARRAY_IS_ARRAY = Array.isArray;
-const ARRAY_PUSH = Array.prototype.push;
-const ARRAY_CONSTRUCTOR = Array;
-const ARRAY_PROTOTYPE = Array.prototype;
-const OBJECT_PROTOTYPE = Object.prototype;
-const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
-const PROMISE_SPECIES_KEY = Symbol.species;
+const PROMISE_SPECIES_KEY = PRISTINE_RUNTIME.speciesKey;
 const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
@@ -76,11 +92,11 @@ function trustedApply(fn, receiver, args) {
 }
 
 function trustedOwnDescriptor(value, key) {
-  return trustedApply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR, Object, [value, key]);
+  return trustedApply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR, null, [value, key]);
 }
 
 function trustedPrototypeOf(value) {
-  return trustedApply(TRUSTED_GET_PROTOTYPE_OF, Object, [value]);
+  return trustedApply(TRUSTED_GET_PROTOTYPE_OF, null, [value]);
 }
 
 function trustedIsProxy(value) {
@@ -97,6 +113,23 @@ function trustedFunctionSource(value) {
     return null;
   }
 }
+
+function apply(fn, receiver, args) {
+  return trustedApply(fn, receiver, args);
+}
+
+function freeze(value) {
+  return apply(TRUSTED_OBJECT_FREEZE, null, [value]);
+}
+
+function isProxy(value) {
+  return Boolean(value)
+    && (typeof value === 'object' || typeof value === 'function')
+    && apply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+const ARRAY_PROTOTYPE = trustedPrototypeOf([]);
+const OBJECT_PROTOTYPE = trustedPrototypeOf({});
 
 async function intrinsicPromiseProbe() {}
 const INTRINSIC_PROMISE_PROTOTYPE = trustedPrototypeOf(intrinsicPromiseProbe());
@@ -119,10 +152,6 @@ const PROMISE_SPECIES_DESCRIPTOR = PROMISE_CONSTRUCTOR_IS_PROXY
 const PROMISE_CONSTRUCTOR_DESCRIPTOR = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'constructor');
 const PROMISE_THEN_DESCRIPTOR = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'then');
 const PROMISE_THEN = PROMISE_THEN_DESCRIPTOR?.value;
-const ARRAY_PROTOTYPE_DESCRIPTOR = trustedOwnDescriptor(
-  ARRAY_CONSTRUCTOR,
-  'prototype',
-);
 const ARRAY_PROTOTYPE_PARENT = trustedPrototypeOf(ARRAY_PROTOTYPE);
 const OBJECT_PROTOTYPE_PARENT = trustedPrototypeOf(OBJECT_PROTOTYPE);
 const INITIAL_ARRAY_THEN_DESCRIPTOR = trustedOwnDescriptor(
@@ -134,13 +163,13 @@ const INITIAL_OBJECT_THEN_DESCRIPTOR = trustedOwnDescriptor(
   'then',
 );
 
-const OPTIONS_KEYS = OBJECT_FREEZE([
+const OPTIONS_KEYS = freeze([
   'chainId',
   'accounts',
   'providerResult',
   'maxSensitiveCalls',
 ]);
-const TRUSTED_GATEWAY_KEYS = OBJECT_FREEZE([
+const TRUSTED_GATEWAY_KEYS = freeze([
   'captureTrustedOrigin',
   'provider',
   'policy',
@@ -160,20 +189,6 @@ export class WalletGuardTrustedProviderTransportError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardTrustedProviderTransportError(code, message);
-}
-
-function apply(fn, receiver, args) {
-  return REFLECT_APPLY(fn, receiver, args);
-}
-
-function freeze(value) {
-  return apply(OBJECT_FREEZE, Object, [value]);
-}
-
-function isProxy(value) {
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
-    && apply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
 function sameDescriptor(current, baseline) {
@@ -240,7 +255,6 @@ function runtimeBaselineWasSupported() {
     && PROMISE_REJECT_DESCRIPTOR?.value === trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'reject')?.value
     && PROMISE_CONSTRUCTOR_DESCRIPTOR?.value === PROMISE_CONSTRUCTOR
     && PROMISE_THEN_DESCRIPTOR?.value === PROMISE_THEN
-    && ARRAY_PROTOTYPE_DESCRIPTOR?.value === ARRAY_PROTOTYPE
     && ARRAY_PROTOTYPE_PARENT === OBJECT_PROTOTYPE
     && OBJECT_PROTOTYPE_PARENT === null
     && INITIAL_ARRAY_THEN_DESCRIPTOR === undefined
@@ -276,10 +290,6 @@ function assertPromiseTransportRuntime() {
         trustedOwnDescriptor(PROMISE_PROTOTYPE, 'then'),
         PROMISE_THEN_DESCRIPTOR,
       )
-      || !sameDescriptor(
-        trustedOwnDescriptor(ARRAY_CONSTRUCTOR, 'prototype'),
-        ARRAY_PROTOTYPE_DESCRIPTOR,
-      )
       || trustedPrototypeOf(ARRAY_PROTOTYPE) !== ARRAY_PROTOTYPE_PARENT
       || trustedPrototypeOf(OBJECT_PROTOTYPE) !== OBJECT_PROTOTYPE_PARENT
       || trustedOwnDescriptor(ARRAY_PROTOTYPE, 'then') !== undefined
@@ -295,12 +305,12 @@ function exactKeys(value, expected, label) {
   if (!value
       || typeof value !== 'object'
       || isProxy(value)
-      || apply(ARRAY_IS_ARRAY, null, [value])) {
+      || apply(TRUSTED_ARRAY_IS_ARRAY, null, [value])) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', `${label} must be a non-Proxy object`);
   }
-  const descriptors = apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const names = apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  if (apply(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0
+  const descriptors = apply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS, null, [value]);
+  const names = apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [value]);
+  if (apply(TRUSTED_GET_OWN_PROPERTY_SYMBOLS, null, [value]).length !== 0
       || names.length !== expected.length) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', `${label} has missing or unknown fields`);
   }
@@ -308,10 +318,10 @@ function exactKeys(value, expected, label) {
     const key = expected[index];
     const descriptor = descriptors[key];
     if (!descriptor
-        || !OBJECT_HAS_OWN(descriptor, 'value')
+        || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
         || descriptor.enumerable !== true
-        || OBJECT_HAS_OWN(descriptor, 'get')
-        || OBJECT_HAS_OWN(descriptor, 'set')) {
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'set')) {
       fail('POMRX_WG_TRANSPORT_E_INVALID', `${label}.${key} must be an enumerable data property`);
     }
   }
@@ -319,12 +329,12 @@ function exactKeys(value, expected, label) {
 }
 
 function defineArrayElement(output, index, value) {
-  const descriptor = apply(OBJECT_CREATE, Object, [null]);
+  const descriptor = apply(TRUSTED_OBJECT_CREATE, null, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
   descriptor.writable = false;
   descriptor.configurable = false;
-  apply(OBJECT_DEFINE_PROPERTY, Object, [output, String(index), descriptor]);
+  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, String(index), descriptor]);
 }
 
 function snapshotTransportValue(value, label, depth = 0) {
@@ -332,28 +342,28 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} exceeds the supported transport depth`);
   }
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
-  if (typeof value === 'number' && apply(NUMBER_IS_SAFE_INTEGER, Number, [value])) return value;
+  if (typeof value === 'number' && apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [value])) return value;
   if (!value || typeof value !== 'object' || isProxy(value)) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} contains unsupported transport data`);
   }
-  if (!apply(ARRAY_IS_ARRAY, null, [value])) {
+  if (!apply(TRUSTED_ARRAY_IS_ARRAY, null, [value])) {
     fail(
       'POMRX_WG_TRANSPORT_E_VALUE',
       `${label} supports only primitives and dense arrays in this local provider contract`,
     );
   }
   if (trustedPrototypeOf(value) !== ARRAY_PROTOTYPE
-      || apply(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
+      || apply(TRUSTED_GET_OWN_PROPERTY_SYMBOLS, null, [value]).length !== 0) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must be a standard non-Proxy array`);
   }
-  const descriptors = apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+  const descriptors = apply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS, null, [value]);
   const lengthDescriptor = descriptors.length;
   const length = lengthDescriptor?.value;
-  if (!apply(NUMBER_IS_SAFE_INTEGER, Number, [length]) || length < 0 || length > MAX_CONTEXT_ACCOUNTS) {
+  if (!apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [length]) || length < 0 || length > MAX_CONTEXT_ACCOUNTS) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} has an invalid array length`);
   }
-  const names = apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  if (names.length !== length + 1 || !lengthDescriptor || !OBJECT_HAS_OWN(lengthDescriptor, 'value')) {
+  const names = apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [value]);
+  if (names.length !== length + 1 || !lengthDescriptor || !TRUSTED_OBJECT_HAS_OWN(lengthDescriptor, 'value')) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must be a dense undecorated array`);
   }
   const output = [];
@@ -363,10 +373,10 @@ function snapshotTransportValue(value, label, depth = 0) {
   for (let index = 0; index < length; index += 1) {
     const descriptor = descriptors[String(index)];
     if (!descriptor
-        || !OBJECT_HAS_OWN(descriptor, 'value')
+        || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
         || descriptor.enumerable !== true
-        || OBJECT_HAS_OWN(descriptor, 'get')
-        || OBJECT_HAS_OWN(descriptor, 'set')) {
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'set')) {
       fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must contain dense data elements only`);
     }
     defineArrayElement(
@@ -386,7 +396,7 @@ function assertOwnedPromise(value) {
   // string properties; runtime-owned symbol metadata is not an attacker input.
   if (!apply(UTIL_TYPES_IS_PROMISE, utilTypes, [value])
       || trustedPrototypeOf(value) !== PROMISE_PROTOTYPE
-      || apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]).length !== 0) {
+      || apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [value]).length !== 0) {
     fail(
       'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
       'controlled transport did not originate a same-realm native Promise',
@@ -427,7 +437,7 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
 
   if (typeof rawOptions.chainId !== 'string'
       || typeof rawOptions.providerResult !== 'string'
-      || !apply(NUMBER_IS_SAFE_INTEGER, Number, [rawOptions.maxSensitiveCalls])
+      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [rawOptions.maxSensitiveCalls])
       || rawOptions.maxSensitiveCalls < 1
       || rawOptions.maxSensitiveCalls > 1_000) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted provider transport options are invalid');
@@ -474,7 +484,7 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
             'controlled provider sensitive-call log is full',
           );
         }
-        apply(ARRAY_PUSH, state.sensitiveCalls, [
+        apply(TRUSTED_ARRAY_PUSH, state.sensitiveCalls, [
           captureReferencePlainData(request, 'trusted provider sensitive request'),
         ]);
         assertPromiseTransportRuntime();
@@ -527,19 +537,15 @@ export function createWalletGuardTrustedProviderGateway(options) {
   if (!options
       || typeof options !== 'object'
       || isProxy(options)
-      || apply(ARRAY_IS_ARRAY, null, [options])) {
+      || apply(TRUSTED_ARRAY_IS_ARRAY, null, [options])) {
     fail(
       'POMRX_WG_TRANSPORT_E_INVALID',
       'trusted Wallet Guard gateway bootstrap must be a non-Proxy object',
     );
   }
 
-  const providerDescriptor = apply(
-    OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
-    Object,
-    [options, 'provider'],
-  );
-  if (!providerDescriptor || !OBJECT_HAS_OWN(providerDescriptor, 'value')) {
+  const providerDescriptor = trustedOwnDescriptor(options, 'provider');
+  if (!providerDescriptor || !TRUSTED_OBJECT_HAS_OWN(providerDescriptor, 'value')) {
     fail(
       'POMRX_WG_TRANSPORT_E_INVALID',
       'trusted Wallet Guard gateway provider must be an own data property',
