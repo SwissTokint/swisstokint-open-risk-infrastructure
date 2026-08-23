@@ -1,31 +1,32 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23T06:54:00+02:00`
+Updated: `2026-08-23T09:05:24+02:00`
 
-Current trusted main: `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`
+Current trusted main: `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`
 
 This file lists current blockers only. Historical detail remains in Git history and PR review threads. Live GitHub wins whenever a PR head, CI run, review, thread, mergeability signal or merge changes after this checkpoint.
 
 ## Trusted coordination state
 
-PR #125 exact source head `c9f00b13cdc3aa654004d6fb7c8740b23c936e96` merged as exact main SHA `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`.
+PR #126 exact source head `520b231acfcdb896e0ce01ce52fae18f490bf408` merged as exact main SHA `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`.
 
-- canonical source-head CI: `32618322165` / CI 798 attempt 1 = `success`;
-- release-owner five-stage review: `5001667406` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
-- distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5384255481`, reviewed `c9f00b13cd`, no major issues;
-- pre-merge decision: comment `5384262424`;
-- canonical exact-main push CI: `32618596436` / CI 799 attempt 1 = `success`;
-- exact-main status `pom-rx/exact-main-ci = success` targets run `32618596436`;
-- exact-merge assurance: PR #125 comment `5384274893` = `POST_MERGE_ASSURANCE_PASS`;
+- canonical source-head CI: `32619624022` / CI 802 attempt 1 = `success`;
+- release-owner five-stage review: `5001707331` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5384371632`, reviewed `520b231acf`, no major issues;
+- historical reconciliation P2 `PRRT_kwDOTiNyWc6bdRTY` was resolved only after same-head validation;
+- pre-merge decision: comment `5384577930`;
+- canonical exact-main push CI: `32622491799` / CI 803 attempt 1 = `success`;
+- exact-main status `pom-rx/exact-main-ci = success` targeted run `32622491799` at assurance time;
+- exact-merge assurance: PR #126 comment `5384587913` = `POST_MERGE_ASSURANCE_PASS`;
 - reviewed source head -> exact merge comparison adds zero changed files.
 
-PR #125 changed only coordination/product-position documents and does not make open Tier-B work trusted.
+PR #126 changed only coordination/product-position documents and does not make open Tier-B work trusted.
 
-## `CONTROL_PLANE_STALE_AFTER_PR125`
+## `CONTROL_PLANE_STALE_AFTER_PR126`
 
-The versioned files merged by PR #125 necessarily still name the prior PR #124 checkpoint. Live GitHub is now assured exact main `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`.
+The versioned files merged by PR #126 necessarily still name the pre-merge trusted parent `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`, while live GitHub is now assured exact main `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`.
 
-Required closure is the scoped non-Tier-B reconciliation on branch `docs/pom-rx-post-pr125-live-architecture-reconcile-20260823`, limited to exactly:
+Required closure is this scoped non-Tier-B reconciliation on branch `docs/pom-rx-post-pr126-live-reconcile-20260823`, limited to exactly:
 
 - `POM_RX_RESUME_CHECKPOINT.md`;
 - `POM_RX_TASKS.yaml`;
@@ -41,39 +42,39 @@ PR #120 is **OPEN / NOT TRUSTED / BLOCKED** at exact head `5238b9c289476100c875e
 
 Current live state:
 
-- trusted main: `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`;
-- main -> PR head compare: `diverged`, ahead 69 / behind 15, merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
-- GitHub mergeability: `false` at this revalidation; this is volatile conflict metadata only;
+- trusted main: `7f4b0f7baf5c0fbed1c75b7b2b5fd0a643974411`;
+- main -> PR head compare: `diverged`, ahead 69 / behind 23, merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
+- GitHub mergeability: `false` at this revalidation;
 - exact-head CI `32614831929` / CI 792 attempt 1 = `success`, but historical after main moved and a false-PASS for the current P1;
 - release-owner review `5001566041` = `PASS_NON_INDEPENDENT`, historical and unusable for current release;
 - genuinely distinct Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`;
 - merge: `BLOCKED`.
 
-Do not write more runtime on this stale base. After the current control-plane reconciliation becomes trusted and a bounded architecture decision is recorded, reconcile the existing PR #120 stream to then-current trusted main with exactly one writer. Any head move invalidates prior exact-head CI/review evidence.
+Do not merge the stale branch or treat its historical green CI as release evidence. After this post-#126 control-plane reconciliation becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
 
 ## `PR120_P1_NONCONFIGURABLE_UNSAFE_DATA_CONSTRUCTOR`
 
 P1 `PRRT_kwDOTiNyWc6bc4gh`: for a rejected same-realm native Promise with a non-configurable own unsafe data `constructor`, e.g. `constructor: 1`, current fallback shadowing can throw before a captured rejection reaction is attached. Under `--unhandled-rejections=strict`, Wallet Guard fails closed but the original rejected Promise can remain orphaned and terminate the process.
 
-Zero reference authorization and zero sensitive forwarding are already required failure properties; they do not by themselves close the process-termination problem.
+Zero reference authorization and zero sensitive forwarding are necessary but not sufficient; the supported contract must also prove clean process survival and no orphaned provider-rejection termination.
 
-## `PR120_STANDARD_THEN_DRAIN_NOT_PROVEN`
+## `PR120_ARCHITECTURE_DECISION_ACCEPTED_BUT_NOT_IMPLEMENTED`
 
-A speculative “attach `Promise.prototype.then` before constructor shadowing” reorder is **not** an accepted repair.
+Read-only architecture/security decision is persisted in PR #126 comment `5384571039`.
 
-ECMAScript 2026 §27.2.5.4 specifies this order for `Promise.prototype.then`:
+For the current local prototype, the selected direction is an explicit narrow **trusted-provider transport contract**, not another same-realm Promise reorder/shadow trick.
 
-1. `SpeciesConstructor(promise, %Promise%)`;
-2. `NewPromiseCapability(C)`;
-3. `PerformPromiseThen(...)`.
+Inside the supported contract, rejection handling must prove:
 
-The reaction is attached only in `PerformPromiseThen`, so a hostile effective constructor/species path can throw before the reaction is installed. Normative reference:
+- fail closed;
+- zero reference authorization;
+- zero sensitive forwarding;
+- clean process survival under `--unhandled-rejections=strict`;
+- no orphaned provider-rejection termination.
 
-`https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are not silently claimed safe. A future claim of graceful survival against intentionally hostile provider behavior requires a separately reviewed isolation boundary such as process/worker/RPC isolation.
 
-No standards-based same-realm userland drain path bypassing this ordering is currently demonstrated in the repository. This is a design blocker, not a justification for weaker exception handling.
-
-The next architecture/security decision must prefer a smaller truthful boundary. Candidate directions may include preventing decorated native Promise transports from entering this gateway contract, isolating the provider execution boundary so an orphaned hostile rejection cannot terminate the trusted process, or narrowing the supported transport contract. The selected design must not:
+The selected design must not:
 
 - install process-global `unhandledRejection` or `uncaughtException` swallowing;
 - execute hostile constructor/species accessors;
@@ -81,6 +82,14 @@ The next architecture/security decision must prefer a smaller truthful boundary.
 - silently trust attacker-selected species constructors;
 - weaken `--unhandled-rejections=strict` regression coverage;
 - convert an unknown/failure state into authorization or forwarding.
+
+ECMAScript 2026 §27.2.5.4 remains the key constraint: ordinary `Promise.prototype.then` runs `SpeciesConstructor` and `NewPromiseCapability` before `PerformPromiseThen`, so reorder-only draining is not accepted as a universal proof.
+
+Normative reference:
+
+`https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
+
+The architecture decision does not close the current P1 or make PR #120 trusted.
 
 ## `PR120_REVIEW_THREADS_REQUIRE_REPAIRED_FINAL_EXACT_HEAD_VALIDATION`
 
