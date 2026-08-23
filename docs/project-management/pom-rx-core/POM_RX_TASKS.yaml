@@ -32,17 +32,12 @@
     "terminal_checkpoint": "COMMENT_5385949730",
     "scope": "bounded_non_tier_b_control_plane_reconciliation"
   },
-  "completed_reconciliation": {
-    "id": "POST-PR129-LIVE-STATE-RECONCILIATION-20260823",
-    "source_pr": 130,
-    "status": "TRUSTED_POST_MERGE_PASS",
-    "exact_merge_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9"
-  },
   "active_task": {
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
     "title": "Reconstruct the Wallet Guard provider transport prerequisite under the accepted narrow trusted-provider contract",
     "class": "TIER_B_APPLICATION_SECURITY",
-    "status": "IN_PROGRESS_NOT_FROZEN",
+    "status": "IN_PROGRESS_REPAIRING_INDEPENDENT_P1_FINDINGS",
+    "pr": 131,
     "branch": "automation/wg-trusted-provider-transport-20260823",
     "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
     "single_writer": true,
@@ -58,16 +53,47 @@
       "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
+    "independent_review_history": {
+      "reviewed_moved_head": "d92417f151",
+      "release_evidence": false,
+      "findings": [
+        {
+          "thread": "PRRT_kwDOTiNyWc6bfPvR",
+          "severity": "P1",
+          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
+          "repair_commit": "364b1d6a741a1d0f587da14407f91644d09c8b18",
+          "summary": "native Promise runtime-owned async-hook symbols must not be treated as caller decoration"
+        },
+        {
+          "thread": "PRRT_kwDOTiNyWc6bfPvI",
+          "severity": "P1",
+          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
+          "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
+          "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
+          "summary": "bind the exact provider that passed provenance and reject bootstrap accessor/Proxy TOCTOU"
+        },
+        {
+          "thread": "PRRT_kwDOTiNyWc6bfPvO",
+          "severity": "P1",
+          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
+          "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
+          "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
+          "summary": "bind the supported Array/Object prototype chain so intermediate inherited then accessors fail closed before origin"
+        }
+      ]
+    },
     "implemented_so_far": [
       "application-owned controlled provider transport with module-private provenance",
       "trusted gateway rejects unowned provider before provider.request transport origin",
-      "supported Promise runtime descriptor checks before controlled transport origin",
+      "trusted gateway validates own data-property bootstrap fields and forwards an accessor-free snapshot containing the exact validated provider",
+      "supported Promise runtime descriptor and Array/Object prototype-chain checks before controlled transport origin",
       "in-contract controlled rejected native Promise transport for strict survival regression",
-      "CI-wired tests for native transport shape, unowned Proxy provider pre-origin rejection, species accessor zero execution, inherited Array then poisoning fail-closed, strict rejection survival with zero authorization and forwarding"
+      "runtime-owned native Promise symbol metadata tolerated while native brand/direct same-realm prototype/no own string properties remain required",
+      "CI-wired regressions for bootstrap accessor zero execution, Proxy bootstrap zero traps, intermediate Array-prototype then accessor zero execution, native transport shape, species drift, direct Array then poisoning and strict rejection survival"
     ],
     "current_limitations": [
       "generic createWalletGuardReferenceProviderGateway remains outside the fresh hostile-provider-wide transport claim",
-      "existing controlled-host path has not yet been rebound to the strict trusted transport at this checkpoint",
+      "existing controlled-host path is not rebound by this prerequisite and broader operational-readiness claim does not advance",
       "already-originated excluded hostile rejected Promise remains unsupported without reviewed process/worker/RPC isolation"
     ],
     "supported_rejection_requirements": [
@@ -86,10 +112,11 @@
       "weakening strict rejection regressions"
     ],
     "release_requirements": [
-      "complete the bounded implementation and reconcile current claim wording",
-      "canonical exact-head CI success on the frozen head",
-      "mandatory five-stage release-owner review with concrete Promise/species/accessor/Proxy/unhandled-rejection/thenable/Array-poisoning hypotheses",
+      "freeze one final exact head after all code/test/control-plane repairs",
+      "canonical exact-head CI success on that frozen head",
+      "mandatory five-stage release-owner review with provider-bootstrap TOCTOU, Promise/species/accessor/Proxy/prototype/strict-unhandled/thenable/Array-poisoning and claim-gap hypotheses",
       "fresh genuinely distinct chatgpt-codex-connector review on the same frozen SHA",
+      "same-head independent validation before resolving PR131 P1 threads",
       "zero unresolved P0/P1/P2",
       "decision-time unchanged main/base/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
@@ -112,12 +139,12 @@
     "pr97": {
       "status": "OPEN_STALE_MUST_NOT_MERGE",
       "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "compare_to_trusted_main": "diverged ahead 66 behind 249 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
+      "rule": "Reconstruct durable Gate composition later from then-current trusted main only after the fresh provider prerequisite is trusted."
     },
     "pr93": {
       "status": "OPEN_STALE_UNTRUSTED_LATER",
       "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "compare_to_trusted_main": "diverged ahead 86 behind 294 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
+      "rule": "Reconstruct useful simulation work later from then-current trusted main."
     }
   },
   "queue": [
@@ -125,8 +152,7 @@
       "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
       "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
       "status": "BLOCKED_ON_TRUSTED_FRESH_PROVIDER_TRANSPORT_POST_MERGE_PASS",
-      "historical_source_pr": 97,
-      "rule": "Reconstruct from then-current trusted main only; never merge stale PR97 wholesale."
+      "historical_source_pr": 97
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONSTRUCTION",
