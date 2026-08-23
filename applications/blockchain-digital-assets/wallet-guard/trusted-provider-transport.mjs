@@ -23,6 +23,9 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     functionToString,
     promiseResolve: Promise.resolve,
     promiseReject: Promise.reject,
+    weakSetConstructor: WeakSet,
+    weakSetAdd: WeakSet.prototype.add,
+    weakSetHas: WeakSet.prototype.has,
     promiseSource: functionToString.call(Promise),
     resolveSource: functionToString.call(Promise.resolve),
     rejectSource: functionToString.call(Promise.reject),
@@ -44,6 +47,9 @@ const TRUSTED_GET_PROTOTYPE_OF = PRISTINE_RUNTIME.getPrototypeOf;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
+const TRUSTED_WEAK_SET_CONSTRUCTOR = PRISTINE_RUNTIME.weakSetConstructor;
+const TRUSTED_WEAK_SET_ADD = PRISTINE_RUNTIME.weakSetAdd;
+const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_FREEZE = Object.freeze;
@@ -52,7 +58,6 @@ const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
-const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const ARRAY_IS_ARRAY = Array.isArray;
@@ -60,15 +65,11 @@ const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_PROTOTYPE = Array.prototype;
 const OBJECT_PROTOTYPE = Object.prototype;
-const ARRAY_PROTOTYPE_PARENT = OBJECT_GET_PROTOTYPE_OF(ARRAY_PROTOTYPE);
-const OBJECT_PROTOTYPE_PARENT = OBJECT_GET_PROTOTYPE_OF(OBJECT_PROTOTYPE);
 const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const PROMISE_SPECIES_KEY = Symbol.species;
 const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
-const WEAK_SET = new WeakSet();
-const WEAK_SET_ADD = WeakSet.prototype.add;
-const WEAK_SET_HAS = WeakSet.prototype.has;
+const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
 
 function trustedApply(fn, receiver, args) {
   return TRUSTED_REFLECT_APPLY(fn, receiver, args);
@@ -80,6 +81,12 @@ function trustedOwnDescriptor(value, key) {
 
 function trustedPrototypeOf(value) {
   return trustedApply(TRUSTED_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function trustedIsProxy(value) {
+  return Boolean(value)
+    && (typeof value === 'object' || typeof value === 'function')
+    && trustedApply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
 function trustedFunctionSource(value) {
@@ -95,23 +102,34 @@ async function intrinsicPromiseProbe() {}
 const INTRINSIC_PROMISE_PROTOTYPE = trustedPrototypeOf(intrinsicPromiseProbe());
 const GLOBAL_PROMISE_DESCRIPTOR = trustedOwnDescriptor(globalThis, 'Promise');
 const PROMISE_CONSTRUCTOR = GLOBAL_PROMISE_DESCRIPTOR?.value;
+const PROMISE_CONSTRUCTOR_IS_PROXY = trustedIsProxy(PROMISE_CONSTRUCTOR);
 const PROMISE_PROTOTYPE = INTRINSIC_PROMISE_PROTOTYPE;
-const PROMISE_PROTOTYPE_DESCRIPTOR = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'prototype');
-const PROMISE_RESOLVE_DESCRIPTOR = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'resolve');
-const PROMISE_REJECT_DESCRIPTOR = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'reject');
-const PROMISE_SPECIES_DESCRIPTOR = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, PROMISE_SPECIES_KEY);
+const PROMISE_PROTOTYPE_DESCRIPTOR = PROMISE_CONSTRUCTOR_IS_PROXY
+  ? null
+  : trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'prototype');
+const PROMISE_RESOLVE_DESCRIPTOR = PROMISE_CONSTRUCTOR_IS_PROXY
+  ? null
+  : trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'resolve');
+const PROMISE_REJECT_DESCRIPTOR = PROMISE_CONSTRUCTOR_IS_PROXY
+  ? null
+  : trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'reject');
+const PROMISE_SPECIES_DESCRIPTOR = PROMISE_CONSTRUCTOR_IS_PROXY
+  ? null
+  : trustedOwnDescriptor(PROMISE_CONSTRUCTOR, PROMISE_SPECIES_KEY);
 const PROMISE_CONSTRUCTOR_DESCRIPTOR = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'constructor');
 const PROMISE_THEN_DESCRIPTOR = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'then');
 const PROMISE_THEN = PROMISE_THEN_DESCRIPTOR?.value;
-const ARRAY_PROTOTYPE_DESCRIPTOR = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+const ARRAY_PROTOTYPE_DESCRIPTOR = trustedOwnDescriptor(
   ARRAY_CONSTRUCTOR,
   'prototype',
 );
-const INITIAL_ARRAY_THEN_DESCRIPTOR = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+const ARRAY_PROTOTYPE_PARENT = trustedPrototypeOf(ARRAY_PROTOTYPE);
+const OBJECT_PROTOTYPE_PARENT = trustedPrototypeOf(OBJECT_PROTOTYPE);
+const INITIAL_ARRAY_THEN_DESCRIPTOR = trustedOwnDescriptor(
   ARRAY_PROTOTYPE,
   'then',
 );
-const INITIAL_OBJECT_THEN_DESCRIPTOR = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+const INITIAL_OBJECT_THEN_DESCRIPTOR = trustedOwnDescriptor(
   OBJECT_PROTOTYPE,
   'then',
 );
@@ -179,16 +197,23 @@ function sameDescriptorShape(current, baseline) {
 
 function promiseRuntimeMatchesTrustedPrimordial() {
   const liveGlobalPromise = trustedOwnDescriptor(globalThis, 'Promise');
+  const livePromiseConstructor = liveGlobalPromise?.value;
+  if (!PROMISE_CONSTRUCTOR
+      || PROMISE_CONSTRUCTOR_IS_PROXY
+      || !liveGlobalPromise
+      || livePromiseConstructor !== PROMISE_CONSTRUCTOR
+      || trustedIsProxy(livePromiseConstructor)) {
+    return false;
+  }
+
   const livePrototype = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'prototype');
   const liveResolve = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'resolve');
   const liveReject = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'reject');
   const liveSpecies = trustedOwnDescriptor(PROMISE_CONSTRUCTOR, PROMISE_SPECIES_KEY);
-  const liveConstructor = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'constructor');
+  const livePrototypeConstructor = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'constructor');
   const liveThen = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'then');
 
-  return Boolean(PROMISE_CONSTRUCTOR)
-    && sameDescriptorShape(liveGlobalPromise, PRISTINE_RUNTIME.globalPromiseDescriptor)
-    && liveGlobalPromise.value === PROMISE_CONSTRUCTOR
+  return sameDescriptorShape(liveGlobalPromise, PRISTINE_RUNTIME.globalPromiseDescriptor)
     && trustedFunctionSource(PROMISE_CONSTRUCTOR) === PRISTINE_RUNTIME.promiseSource
     && sameDescriptorShape(livePrototype, PRISTINE_RUNTIME.prototypeDescriptor)
     && livePrototype.value === PROMISE_PROTOTYPE
@@ -198,8 +223,8 @@ function promiseRuntimeMatchesTrustedPrimordial() {
     && trustedFunctionSource(liveReject.value) === PRISTINE_RUNTIME.rejectSource
     && sameDescriptorShape(liveSpecies, PRISTINE_RUNTIME.speciesDescriptor)
     && trustedFunctionSource(liveSpecies.get) === PRISTINE_RUNTIME.speciesGetSource
-    && sameDescriptorShape(liveConstructor, PRISTINE_RUNTIME.constructorDescriptor)
-    && liveConstructor.value === PROMISE_CONSTRUCTOR
+    && sameDescriptorShape(livePrototypeConstructor, PRISTINE_RUNTIME.constructorDescriptor)
+    && livePrototypeConstructor.value === PROMISE_CONSTRUCTOR
     && sameDescriptorShape(liveThen, PRISTINE_RUNTIME.thenDescriptor)
     && trustedFunctionSource(liveThen.value) === PRISTINE_RUNTIME.thenSource;
 }
@@ -252,13 +277,13 @@ function assertPromiseTransportRuntime() {
         PROMISE_THEN_DESCRIPTOR,
       )
       || !sameDescriptor(
-        apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [ARRAY_CONSTRUCTOR, 'prototype']),
+        trustedOwnDescriptor(ARRAY_CONSTRUCTOR, 'prototype'),
         ARRAY_PROTOTYPE_DESCRIPTOR,
       )
-      || apply(OBJECT_GET_PROTOTYPE_OF, Object, [ARRAY_PROTOTYPE]) !== ARRAY_PROTOTYPE_PARENT
-      || apply(OBJECT_GET_PROTOTYPE_OF, Object, [OBJECT_PROTOTYPE]) !== OBJECT_PROTOTYPE_PARENT
-      || apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [ARRAY_PROTOTYPE, 'then']) !== undefined
-      || apply(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [OBJECT_PROTOTYPE, 'then']) !== undefined) {
+      || trustedPrototypeOf(ARRAY_PROTOTYPE) !== ARRAY_PROTOTYPE_PARENT
+      || trustedPrototypeOf(OBJECT_PROTOTYPE) !== OBJECT_PROTOTYPE_PARENT
+      || trustedOwnDescriptor(ARRAY_PROTOTYPE, 'then') !== undefined
+      || trustedOwnDescriptor(OBJECT_PROTOTYPE, 'then') !== undefined) {
     fail(
       'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
       'trusted provider Promise transport runtime is outside the supported local contract',
@@ -317,7 +342,7 @@ function snapshotTransportValue(value, label, depth = 0) {
       `${label} supports only primitives and dense arrays in this local provider contract`,
     );
   }
-  if (apply(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== ARRAY_PROTOTYPE
+  if (trustedPrototypeOf(value) !== ARRAY_PROTOTYPE
       || apply(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must be a standard non-Proxy array`);
   }
@@ -332,7 +357,7 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_VALUE', `${label} must be a dense undecorated array`);
   }
   const output = [];
-  if (apply(OBJECT_GET_PROTOTYPE_OF, Object, [output]) !== ARRAY_PROTOTYPE) {
+  if (trustedPrototypeOf(output) !== ARRAY_PROTOTYPE) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'array literal prototype drifted');
   }
   for (let index = 0; index < length; index += 1) {
@@ -360,7 +385,7 @@ function assertOwnedPromise(value) {
   // Require the native Promise brand, direct same-realm prototype, and no own
   // string properties; runtime-owned symbol metadata is not an attacker input.
   if (!apply(UTIL_TYPES_IS_PROMISE, utilTypes, [value])
-      || apply(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== PROMISE_PROTOTYPE
+      || trustedPrototypeOf(value) !== PROMISE_PROTOTYPE
       || apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]).length !== 0) {
     fail(
       'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
@@ -385,11 +410,11 @@ function rejectedTransport(error) {
 }
 
 function trustedTransportHas(provider) {
-  return apply(WEAK_SET_HAS, WEAK_SET, [provider]);
+  return trustedApply(TRUSTED_WEAK_SET_HAS, WEAK_SET, [provider]);
 }
 
 function trustedTransportAdd(provider) {
-  apply(WEAK_SET_ADD, WEAK_SET, [provider]);
+  trustedApply(TRUSTED_WEAK_SET_ADD, WEAK_SET, [provider]);
 }
 
 function copySensitiveCalls(calls) {
