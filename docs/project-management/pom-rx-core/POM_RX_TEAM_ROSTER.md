@@ -54,6 +54,7 @@ Owned file set for this lot:
 
 - `applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs`;
 - `tests/wallet-guard/trusted-provider-transport.node.test.mjs`;
+- `tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs`;
 - `package.json`;
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
@@ -67,24 +68,24 @@ No second writer is authorized on those files while this lot remains active. Sha
 
 The local prototype uses an explicit narrow **trusted-provider transport contract**, not a claim of browser-wide or intentionally hostile-provider Promise integrity.
 
-The fresh branch currently introduces an application-owned controlled transport that owns Promise origin and a strict gateway wrapper that accepts only module-provenanced controlled transports. Unowned or Proxy providers must be rejected before their request path executes. Runtime descriptor drift relevant to native Promise origin and inherited top-level Array/Object thenable assimilation is checked immediately before controlled transport creation.
+The fresh branch introduces an application-owned controlled transport that owns Promise origin and a strict gateway wrapper that accepts only module-provenanced controlled transports. Unowned or Proxy providers must be rejected before their request path executes. The supported Promise constructor/prototype/resolve/reject/then/species baseline is validated against a fresh `node:vm` realm trusted primordial before controlled transport origin, while the current intrinsic Promise prototype is derived from an async-function Promise probe. Controlled fulfillment/rejection uses pristine Promise algorithms with the validated current-realm native Promise constructor; pre-import wrappers around current `Promise.resolve`/`Promise.reject` are rejected without being used as transport algorithms.
 
 QA/conformance must keep two evidence classes separate:
 
-1. **supported-path conformance and survival:** prove the controlled transport originates only the supported same-realm undecorated native Promise shape, rejects unowned provider origins before request execution, and survives an in-contract rejected context transport under `--unhandled-rejections=strict` with zero reference authorization, zero sensitive forwarding and no orphaned provider rejection;
-2. **hostile out-of-contract negative:** retain decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers as unsupported unless separately reviewed process/worker/RPC isolation is introduced.
+1. **supported-path conformance and survival:** prove the controlled transport originates only the supported same-realm native Promise shape, rejects unowned provider origins before request execution, rejects pre-import Promise method substitution without executing the substituted method, and survives an in-contract rejected context transport under `--unhandled-rejections=strict` with zero reference authorization, zero sensitive forwarding and no orphaned provider rejection;
+2. **out-of-contract negative:** retain decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers as unsupported unless separately reviewed process/worker/RPC isolation is introduced.
 
-The current branch must not represent its in-contract rejection fixture as proof that an already-originated hostile Promise can be drained safely in the same process.
+The current branch must not represent its in-contract rejection fixture as proof that an already-originated excluded Promise can be drained safely in the same process. The fresh-realm primordial mechanism is a bounded local Node prototype control, not a browser/runtime attestation claim.
 
-Concrete skeptical hypotheses before release must cover rejected-Promise handling, effective `constructor`/`Symbol.species`, non-configurable unsafe constructor paths, hostile accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, Array/Object inherited thenable poisoning, zero authorization/forwarding on fail-closed rejection, and any claim gap between the strict transport path and the existing controlled-host path.
+Concrete skeptical hypotheses before release must cover rejected-Promise handling, pre-import and post-import `Promise.resolve`/`Promise.reject` substitution, effective `constructor`/`Symbol.species`, non-configurable unsafe constructor paths, accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, Array/Object inherited thenable poisoning, zero authorization/forwarding on fail-closed rejection, and any claim gap between the strict transport path and the existing controlled-host path.
 
-All six PR #120 findings remain attack-history inputs: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, `PRRT_kwDOTiNyWc6bc4gh`.
+PR #131 currently has four independent P1 review threads awaiting final same-head validation: `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfWeN`. All six PR #120 findings remain additional historical falsification inputs: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, `PRRT_kwDOTiNyWc6bc4gh`.
 
-Review lanes reject proposals that require process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy paths, silent trust in attacker-selected species, weakened strict tests, or fail-open forwarding.
+Review lanes reject proposals that require process-global `unhandledRejection`/`uncaughtException` swallowing, execution of constructor/species accessors or Proxy paths, silent trust in attacker-selected species, blessing pre-import Promise wrappers as trusted primordials, weakened strict tests, or fail-open forwarding.
 
 ### Current review routing
 
-The candidate is not frozen yet. Therefore release-owner and independent-release evidence are `PENDING` and no prior PR #120 or moved-head review counts. Once the writer declares a frozen exact head and canonical CI is green:
+The candidate is not frozen until the final control-plane commit lands. All CI and reviews on earlier heads are historical for release. Once the final branch head is frozen and canonical CI is green:
 
 1. Protocol/Systems + Security/Adversarial + QA/Conformance review the bounded design and tests read-only;
 2. Prime/Release Owner records the mandatory five-stage exact-head gate as non-independent evidence;
@@ -95,9 +96,9 @@ The candidate is not frozen yet. Therefore release-owner and independent-release
 
 PR #120 is `CLOSED / NOT MERGED / STALE`; do not reopen or wholesale-copy it.
 
-PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`, now diverged ahead 66 / behind 249 from trusted main. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
+PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
 
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, now diverged ahead 86 / behind 294. Simulation work remains later in dependency order.
+PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Simulation work remains later in dependency order.
 
 ## Operational prototype claim boundary
 
