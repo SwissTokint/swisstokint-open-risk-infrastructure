@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T06:30:00+02:00`
+Updated: `2026-08-23T06:54:00+02:00`
 
 ## Purpose
 
@@ -34,39 +34,49 @@ This roster defines accountable roles and evidence requirements. It does **not**
 
 A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit has moved the head. The independent-review waiver remains limited to PR #60.
 
-## Current coordination ownership
+## Current trusted coordination state
 
-Trusted main is `097937acf19338bdaab54050d64f18195d9b4a33`, the exact PR #124 merge. Canonical exact-main CI `32617884521` / CI 794 attempt 1 succeeded and exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #124 comment `5384213312`. The distinct source-head review is `chatgpt-codex-connector[bot]` comment `5384176703` on reviewed commit `43c331244a`.
+Trusted main is `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`, the exact PR #125 merge. Canonical exact-main CI `32618596436` / CI 799 attempt 1 succeeded and exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #125 comment `5384274893`. The distinct source-head review is `chatgpt-codex-connector[bot]` comment `5384255481` on reviewed commit `c9f00b13cd`.
 
-The bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr124-live-reconcile-20260823` has one documentation writer and owns only:
+The bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr125-live-architecture-reconcile-20260823` has one documentation writer and owns exactly:
 
-- `POM_RX_RESUME_CHECKPOINT.md`;
-- `POM_RX_TASKS.yaml`;
-- `POM_RX_BLOCKERS.md`;
-- `POM_RX_TEAM_ROSTER.md`;
+- `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
+- `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
+- `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
+- `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot. Its purpose is to persist the assured PR #124 main state and the resulting PR #120 divergence before stale canonical facts are reused.
+No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot.
 
-## Active Tier-B ownership focus — PR #120
+## Active Tier-B focus — PR #120
 
-PR #120 remains the active Wallet Guard/provider prerequisite at exact live head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Since trusted main advanced to `097937acf19338bdaab54050d64f18195d9b4a33`, the branch is now diverged: ahead 69 / behind 6 with merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`. It must be reconciled to current trusted main before any runtime repair or fresh release evidence.
+PR #120 remains the active Wallet Guard/provider prerequisite at exact live head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Against trusted main `1989bb88ae2eee6ae32328f2df4cc056c0dd27d4`, the branch is diverged ahead 69 / behind 15 with merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b` and was non-mergeable at this revalidation.
 
-Historical exact-head CI `32614831929` / 792 passed and owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but they are not release evidence after main moved and the distinct exact-head Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`.
+Historical exact-head CI `32614831929` / 792 passed and owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but neither is release evidence after main moved and the distinct exact-head Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`.
 
-After the current documentation reconciliation becomes trusted, exactly one writer may reconcile and repair this bounded P1 on the existing PR #120 stream. That writer must not widen the claim to hostile constructor/species accessors, Proxy paths or attacker-selected species constructors. Required QA includes a CI-wired `--unhandled-rejections=strict` regression for the non-configurable unsafe data-constructor case and proof of zero reference authorization / zero sensitive forwarding on failure.
+### Required read-only architecture/security lane before the next writer
 
-Architecture, security/adversarial, QA/conformance and code-quality lanes remain read-only relative to that writer. The release-owner lane remains non-independent. A moved head requires wholly fresh canonical CI, owner five-stage evidence and genuinely distinct exact-head `chatgpt-codex-connector` review before release.
+Do not send an implementer to “move `Promise.prototype.then` earlier” as if that were already a valid fix. ECMAScript 2026 §27.2.5.4 resolves `SpeciesConstructor` and creates the result capability before `PerformPromiseThen` attaches reactions. A non-configurable unsafe effective constructor can therefore make ordinary same-realm `then` throw before the rejection reaction exists.
 
-Concrete skeptical hypotheses for the repaired final candidate must cover rejected-Promise draining, effective `constructor`/`Symbol.species`, non-configurable unsafe data constructors, hostile constructor/species accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, inherited Array-index substitution, and zero reference authorization/sensitive forwarding on fail-closed rejection.
+The Protocol / Systems Architect and Security / Adversarial Skeptic lanes must first select and falsify a smaller trust boundary. At minimum compare:
 
-Six PR #120 P1/P2 threads remain unresolved until repaired exact-head evidence justifies closure: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and fresh current finding `PRRT_kwDOTiNyWc6bc4gh`.
+1. rejecting/declassifying decorated native Promise transports at the provider contract boundary before they are relied upon;
+2. isolating provider execution so a hostile orphaned rejection cannot terminate the trusted process;
+3. narrowing the supported provider transport contract while retaining existing synchronous inert-data support.
+
+They must reject any proposal that requires process-global `unhandledRejection`/`uncaughtException` swallowing, execution of hostile constructor/species accessors or Proxy paths, silent trust in attacker-selected species constructors, or weakening `--unhandled-rejections=strict` tests.
+
+Only after a bounded architecture/security decision may exactly one writer reconcile PR #120 to then-current trusted main and implement the smallest accepted repair plus strict regression. QA must prove fail-closed behavior, zero reference authorization and zero sensitive forwarding, while also proving the process does not terminate from an orphaned provider rejection for the supported contract.
+
+Concrete skeptical hypotheses for the final repaired candidate must cover rejected-Promise draining, effective `constructor`/`Symbol.species`, non-configurable unsafe data constructors, hostile constructor/species accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, inherited Array-index substitution, and zero reference authorization/sensitive forwarding on fail-closed rejection.
+
+Six PR #120 P1/P2 threads remain unresolved until repaired exact-head evidence justifies closure: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and current finding `PRRT_kwDOTiNyWc6bc4gh`.
 
 ## Historical streams
 
-PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Reconstruct useful durable-Gate concepts later from then-current trusted main after PR #120 receives post-merge assurance PASS; do not revive or wholesale-copy stale history.
+PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`; reconstruct useful durable-Gate concepts later from then-current trusted main after PR #120 receives post-merge assurance PASS.
 
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconcile useful simulation work later with fresh dependency and exact-head review evidence.
+PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`; reconcile useful simulation work later with fresh dependency and exact-head review evidence.
 
 ## Operational prototype claim boundary
 
