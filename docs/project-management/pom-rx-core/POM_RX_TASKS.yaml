@@ -1,7 +1,7 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T06:37:00+02:00",
-  "current_main": "097937acf19338bdaab54050d64f18195d9b4a33",
+  "updated_at": "2026-08-23T06:54:00+02:00",
+  "current_main": "1989bb88ae2eee6ae32328f2df4cc056c0dd27d4",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
     "mode": "GITHUB_BACKED_CROSS_CHAT",
@@ -10,33 +10,34 @@
     "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
   },
   "trusted_main": {
-    "sha": "097937acf19338bdaab54050d64f18195d9b4a33",
-    "source_pr": 124,
-    "source_head": "43c331244ac608725aec63d46fa281dc78d39f0d",
+    "sha": "1989bb88ae2eee6ae32328f2df4cc056c0dd27d4",
+    "source_pr": 125,
+    "source_head": "c9f00b13cdc3aa654004d6fb7c8740b23c936e96",
     "source_head_ci": {
-      "run_id": 32617450870,
-      "run_number": 793,
+      "run_id": 32618322165,
+      "run_number": 798,
       "run_attempt": 1,
       "conclusion": "success"
     },
-    "owner_premerge_evidence": "REVIEW_5001642141_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5384176703_ON_43c331244a",
+    "owner_premerge_evidence": "REVIEW_5001667406_PASS_NON_INDEPENDENT_0_0_0",
+    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5384255481_ON_c9f00b13cd",
+    "premerge_decision": "COMMENT_5384262424",
     "exact_main_ci": {
-      "run_id": 32617884521,
-      "run_number": 794,
+      "run_id": 32618596436,
+      "run_number": 799,
       "run_attempt": 1,
       "conclusion": "success",
       "status_context": "pom-rx/exact-main-ci"
     },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5384213312",
+    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5384274893",
     "scope": "bounded_non_tier_b_live_state_reconciliation"
   },
   "control_plane_reconciliation": {
-    "id": "POST-PR124-LIVE-STATE-RECONCILIATION-20260823",
+    "id": "POST-PR125-LIVE-STATE-AND-PROMISE-FEASIBILITY-RECONCILIATION-20260823",
     "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE",
-    "branch": "docs/pom-rx-post-pr124-live-reconcile-20260823",
+    "branch": "docs/pom-rx-post-pr125-live-architecture-reconcile-20260823",
     "status": "IN_PROGRESS",
-    "reason": "PR124 merged and passed exact-merge assurance at 097937acf19338bdaab54050d64f18195d9b4a33, while the versioned checkpoint it merged necessarily names its pre-merge parent. PR120 also became diverged from current trusted main.",
+    "reason": "PR125 merged and passed exact-merge assurance at 1989bb88ae2eee6ae32328f2df4cc056c0dd27d4 while the versioned checkpoint still named PR124. Fresh falsification also showed that ordinary Promise.prototype.then performs SpeciesConstructor/NewPromiseCapability before PerformPromiseThen, so the proposed PR120 same-realm drain-by-reordering direction is not proven safe.",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -49,49 +50,51 @@
     "release_requirements": [
       "canonical exact-head CI success",
       "applicable five-stage release-owner exact-head review",
-      "fresh genuinely distinct exact-head independent review where required",
+      "fresh genuinely distinct exact-head independent review",
       "zero unresolved P0/P1/P2 for this reconciliation",
       "decision-time unchanged main/base/head/CI/review/thread state",
       "exact-merge post-merge assurance after merge"
     ]
   },
   "active_task": {
-    "id": "PR120-PROMISE-TRANSPORT-SPECIES-PATH-REPAIR",
-    "title": "Close rejected native-Promise transport drain boundary",
-    "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_BOUNDARY_DEPENDENCY",
-    "status": "BLOCKED_PENDING_CURRENT_MAIN_RECONCILIATION_AND_FRESH_P1_REPAIR",
+    "id": "PR120-PROMISE-TRANSPORT-ARCHITECTURE-BLOCKER",
+    "title": "Resolve rejected native-Promise transport boundary without orphaned strict rejection",
+    "class": "TIER_B_APPLICATION_SECURITY_WITH_SHARED_RUNTIME_BOUNDARY",
+    "status": "BLOCKED_PENDING_CONTROL_PLANE_RECONCILIATION_AND_ARCHITECTURE_DECISION",
     "pr": 120,
     "branch": "automation/pom-rx-promise-drift-repair-20260822",
     "target_base": "main",
-    "current_trusted_main": "097937acf19338bdaab54050d64f18195d9b4a33",
+    "current_trusted_main": "1989bb88ae2eee6ae32328f2df4cc056c0dd27d4",
     "exact_head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
+    "mergeable_at_revalidation": false,
     "compare_to_current_main": {
       "status": "diverged",
       "ahead_by": 69,
-      "behind_by": 6,
+      "behind_by": 15,
       "merge_base": "73f3921984449ffd6025f6c9b99b0220f0bf068b"
     },
-    "previous_reconciliation_merge_commit": "e4c8d4b29cdc875d17c170d6e67a0fd7804d849d",
-    "current_head_ci": {
+    "historical_head_ci": {
       "run_id": 32614831929,
       "run_number": 792,
       "run_attempt": 1,
       "conclusion": "success",
-      "release_freshness": "HISTORICAL_AFTER_MAIN_MOVED_AND_FALSE_PASS_FOR_FRESH_P1"
-    },
-    "repair_state": {
-      "effective_constructor_species_classifier": "IMPLEMENTED_ON_BRANCH_BUT_INCOMPLETE_FOR_NONCONFIGURABLE_UNSAFE_DATA_CONSTRUCTOR",
-      "safe_internal_drain_species": ["absent", "null", "undefined", "captured_native_Promise"],
-      "outside_internal_drain_claim": ["primitive_constructor", "constructor_accessor", "species_accessor", "Proxy_constructor_or_species_path", "attacker_selected_species_constructor"],
-      "fresh_p1": {
-        "thread": "PRRT_kwDOTiNyWc6bc4gh",
-        "severity": "P1",
-        "summary": "A rejected native Promise with non-configurable unsafe own data constructor such as constructor:1 can make fallible constructor shadowing throw before the captured rejection reaction is attached, leaving an orphaned strict unhandled rejection.",
-        "required_repair": "After reconciling the branch to current trusted main, drain or attach the rejection reaction without requiring successful attacker-controlled constructor shadowing first; keep hostile accessors, Proxy paths and attacker-selected species outside the trusted drain claim; add a CI-wired strict regression proving zero authorization and zero sensitive forwarding."
-      }
+      "release_freshness": "HISTORICAL_AFTER_MAIN_MOVED_AND_FALSE_PASS_FOR_CURRENT_P1"
     },
     "current_owner_gate": "HISTORICAL_5001566041_PASS_NON_INDEPENDENT_INVALID_FOR_RELEASE",
-    "current_independent_gate": "HISTORICAL_BLOCK_P1_PRRT_kwDOTiNyWc6bc4gh_ON_HEAD_5238b9c",
+    "current_independent_gate": "BLOCK_P1_PRRT_kwDOTiNyWc6bc4gh_ON_HEAD_5238b9c",
+    "architecture_finding": {
+      "status": "BLOCKING_DESIGN_CONSTRAINT",
+      "normative_reference": "ECMAScript 2026 27.2.5.4 Promise.prototype.then",
+      "reference_url": "https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then",
+      "finding": "Promise.prototype.then performs SpeciesConstructor and NewPromiseCapability before PerformPromiseThen. Therefore a hostile effective constructor can make ordinary same-realm then throw before it attaches the rejection reaction. A reorder-only drain repair is not accepted without new evidence.",
+      "prohibited_shortcuts": [
+        "process-global unhandledRejection swallowing",
+        "process-global uncaughtException swallowing",
+        "executing hostile constructor/species accessors",
+        "executing Proxy constructor/species paths",
+        "silently trusting attacker-selected species constructors"
+      ]
+    },
     "merge": "BLOCKED",
     "review_threads": [
       {"id": "PRRT_kwDOTiNyWc6bZjxp", "severity": "P1", "state": "UNRESOLVED"},
@@ -102,10 +105,11 @@
       {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "state": "UNRESOLVED", "fresh_exact_head_finding": true}
     ],
     "release_requirements": [
-      "complete trusted post-PR124 control-plane reconciliation first",
-      "reconcile PR120 to exact trusted main 097937acf19338bdaab54050d64f18195d9b4a33",
-      "repair fresh P1 PRRT_kwDOTiNyWc6bc4gh with one bounded single-writer change",
-      "add CI-wired strict non-configurable unsafe data-constructor regression preserving zero authorization and zero sensitive forwarding",
+      "complete trusted post-PR125 control-plane reconciliation first",
+      "record a bounded architecture/security decision for the rejected-Promise transport boundary",
+      "reject reorder-only Promise.then repair unless evidence disproves the SpeciesConstructor-before-reaction issue",
+      "reconcile PR120 to then-current trusted main using exactly one writer",
+      "implement the smallest accepted repair and a CI-wired strict regression preserving zero authorization and zero sensitive forwarding",
       "freeze moved head and obtain fresh canonical exact-head CI success",
       "rerun mandatory five-stage release-owner exact-head review with concrete Promise/species/accessor/Proxy/unhandled-rejection hypotheses",
       "obtain fresh genuinely distinct read-only chatgpt-codex-connector review on the same frozen SHA",
@@ -113,7 +117,7 @@
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
     ],
-    "next_safe_action": "Complete the post-PR124 control-plane reconciliation. Then reconcile PR120 to exact trusted main 097937acf19338bdaab54050d64f18195d9b4a33 before changing runtime, repair P1 PRRT_kwDOTiNyWc6bc4gh with one writer, add the strict regression, freeze the new head, rerun canonical CI and all exact-head owner/independent gates, and resolve threads only on valid same-SHA evidence."
+    "next_safe_action": "Complete the post-PR125 control-plane reconciliation. Then perform a read-only architecture/security decision for PR120 before any runtime write. Select a boundary that prevents an orphaned strict rejection without hostile constructor/species/Proxy execution or global exception swallowing; only then reconcile and repair PR120 with one writer."
   },
   "queue": [
     {
