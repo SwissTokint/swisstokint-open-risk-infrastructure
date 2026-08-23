@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23T06:10:00+02:00`
+Updated: `2026-08-23T06:30:00+02:00`
 
 ## Purpose
 
@@ -36,9 +36,9 @@ A fresh `chatgpt-codex-connector` review may satisfy the independent release gat
 
 ## Current coordination ownership
 
-Trusted main is `73f3921984449ffd6025f6c9b99b0220f0bf068b`, the exact PR #123 merge with exact-main CI 789 success and exact-merge `POST_MERGE_ASSURANCE_PASS` in comment `5383940027`.
+Trusted main is `097937acf19338bdaab54050d64f18195d9b4a33`, the exact PR #124 merge. Canonical exact-main CI `32617884521` / CI 794 attempt 1 succeeded and exact-merge assurance is `POST_MERGE_ASSURANCE_PASS` in PR #124 comment `5384213312`. The distinct source-head review is `chatgpt-codex-connector[bot]` comment `5384176703` on reviewed commit `43c331244a`.
 
-The bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr123-live-reconcile-20260823` has one documentation writer and owns only:
+The bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr124-live-reconcile-20260823` has one documentation writer and owns only:
 
 - `POM_RX_RESUME_CHECKPOINT.md`;
 - `POM_RX_TASKS.yaml`;
@@ -46,17 +46,17 @@ The bounded non-Tier-B reconciliation branch `docs/pom-rx-post-pr123-live-reconc
 - `POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot. Its purpose is to reconcile the assured PR #123 main state and the fresh PR #120 exact-head P1 before stale canonical facts are reused.
+No runtime/test/protocol/Gate/Witness/verifier/Wallet Guard/provider semantics belong to this writer lot. Its purpose is to persist the assured PR #124 main state and the resulting PR #120 divergence before stale canonical facts are reused.
 
 ## Active Tier-B ownership focus — PR #120
 
-PR #120 is the active Wallet Guard/provider prerequisite at exact live head `5238b9c289476100c875ed9a88bd7e21a574fa67`, reconciled to trusted main `73f3921984449ffd6025f6c9b99b0220f0bf068b`. Canonical exact-head CI `32614831929` / 792 passed and release-owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but that owner lane is non-independent.
+PR #120 remains the active Wallet Guard/provider prerequisite at exact live head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Since trusted main advanced to `097937acf19338bdaab54050d64f18195d9b4a33`, the branch is now diverged: ahead 69 / behind 6 with merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`. It must be reconciled to current trusted main before any runtime repair or fresh release evidence.
 
-A genuinely distinct exact-head `chatgpt-codex-connector` review on `5238b9c...` found current P1 `PRRT_kwDOTiNyWc6bc4gh`: a rejected native Promise with a non-configurable unsafe own data `constructor`, such as `constructor: 1`, can make fallible constructor shadowing fail before the captured rejection reaction is attached, leaving an orphaned rejection under strict unhandled-rejection behavior. Therefore CI 792 and the owner PASS are not sufficient release evidence and PR #120 remains blocked.
+Historical exact-head CI `32614831929` / 792 passed and owner review `5001566041` found `0 P0 / 0 P1 / 0 P2`, but they are not release evidence after main moved and the distinct exact-head Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`.
 
-After the current documentation reconciliation completes, exactly one writer may repair this bounded P1 on the existing PR #120 stream. That writer must not widen the claim to hostile constructor/species accessors, Proxy paths or attacker-selected species constructors. Required QA includes a CI-wired `--unhandled-rejections=strict` regression for the non-configurable unsafe data-constructor case and proof of zero reference authorization / zero sensitive forwarding on failure.
+After the current documentation reconciliation becomes trusted, exactly one writer may reconcile and repair this bounded P1 on the existing PR #120 stream. That writer must not widen the claim to hostile constructor/species accessors, Proxy paths or attacker-selected species constructors. Required QA includes a CI-wired `--unhandled-rejections=strict` regression for the non-configurable unsafe data-constructor case and proof of zero reference authorization / zero sensitive forwarding on failure.
 
-Architecture, security/adversarial, QA/conformance and code-quality lanes remain read-only relative to that writer. The release-owner lane remains non-independent. A new moved head requires wholly fresh canonical CI, owner five-stage evidence and genuinely distinct exact-head `chatgpt-codex-connector` review before release.
+Architecture, security/adversarial, QA/conformance and code-quality lanes remain read-only relative to that writer. The release-owner lane remains non-independent. A moved head requires wholly fresh canonical CI, owner five-stage evidence and genuinely distinct exact-head `chatgpt-codex-connector` review before release.
 
 Concrete skeptical hypotheses for the repaired final candidate must cover rejected-Promise draining, effective `constructor`/`Symbol.species`, non-configurable unsafe data constructors, hostile constructor/species accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, inherited Array-index substitution, and zero reference authorization/sensitive forwarding on fail-closed rejection.
 
