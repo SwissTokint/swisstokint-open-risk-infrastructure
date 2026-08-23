@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23T06:30:00+02:00",
+  "updated_at": "2026-08-23T06:37:00+02:00",
   "current_main": "097937acf19338bdaab54050d64f18195d9b4a33",
   "canonical_control_directory": "docs/project-management/pom-rx-core",
   "continuity": {
@@ -41,6 +41,7 @@
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
       "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
+      "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "runtime_semantics_changed": false,
