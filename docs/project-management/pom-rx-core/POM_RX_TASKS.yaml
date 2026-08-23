@@ -37,17 +37,18 @@
     "implementation_commits": [
       "ebaf1c71c903a266ebedad60aa5be4f775f67a84",
       "e9f7a70668ce0a7314dbcd0a40f90f402389f6e6",
-      "941814282b98f1dca6bfca484b1c27e9176bcd98"
+      "941814282b98f1dca6bfca484b1c27e9176bcd98",
+      "f43c8887405e9f5a615c45bf340ea96a566ba113"
     ],
     "exact_head": "READ_LIVE_FROM_PR120_AFTER_FINAL_CHECKPOINT_WRITE",
-    "previous_blocked_head": "e643299a95f597da1f0226c2d52b6f4fba357b4c",
+    "previous_blocked_head": "d18ba4cb0cf99e13f107c8b1b4c1f5094b1e3e22",
     "previous_ci": {
-      "run_id": 32602076493,
-      "run_number": 773,
+      "run_id": 32604445154,
+      "run_number": 777,
       "run_attempt": 1,
       "conclusion": "failure",
       "failing_stage": "npm_test",
-      "exact_failure": "tests/pom-rx-capability-map.node.test.mjs expected /must not duplicate\\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics/s but the capability-map line wrap split 'must not' from 'duplicate'",
+      "exact_failure": "tests/pom-rx-capability-map.node.test.mjs expected /must not duplicate\\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics/s; the branch text still split 'Gate' from 'semantics' after the earlier not/duplicate layout repair",
       "runtime_species_regressions": "passed_before_capability_map_failure"
     },
     "repair_state": {
@@ -69,9 +70,9 @@
       ],
       "strict_nonextensible_benign_alternate_constructor_regression": "IMPLEMENTED_AND_CI_WIRED",
       "prehandled_hostile_species_accessor_zero_execution_regression": "IMPLEMENTED_AND_CI_WIRED",
-      "capability_map_ci_invariant_layout": "REPAIRED_IN_941814282b98f1dca6bfca484b1c27e9176bcd98_WITHOUT_TEST_WEAKENING"
+      "capability_map_ci_invariant_layout": "REPAIRED_IN_f43c8887405e9f5a615c45bf340ea96a566ba113_WITHOUT_TEST_WEAKENING"
     },
-    "current_ci": "PENDING_ON_FINAL_CHECKPOINT_HEAD_AFTER_CAPABILITY_MAP_LAYOUT_FIX",
+    "current_ci": "PENDING_ON_FINAL_CHECKPOINT_HEAD_AFTER_SECOND_CAPABILITY_MAP_LAYOUT_FIX",
     "current_owner_gate": "PENDING_NON_INDEPENDENT_AFTER_GREEN_CI",
     "current_independent_gate": "PENDING_FRESH_EXACT_HEAD_CHATGPT_CODEX_CONNECTOR_REVIEW_AFTER_GREEN_CI",
     "merge": "BLOCKED",
@@ -111,7 +112,7 @@
       "decision-time unchanged main/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance after merge"
     ],
-    "next_safe_action": "Freeze the final checkpoint head after the scoped capability-map layout fix, run fresh canonical CI, then perform the exact-head five-stage owner gate and request the distinct Codex review only if CI is green."
+    "next_safe_action": "Freeze the final checkpoint head after the second scoped capability-map layout fix, require fresh canonical CI success, then perform the exact-head five-stage owner gate and request the distinct Codex review only if CI is green."
   },
   "queue": [
     {
