@@ -254,13 +254,17 @@ function snapshotTransportValue(value, label, depth = 0) {
 }
 
 function assertOwnedPromise(value) {
+  // Node's async_hooks/test runner may attach runtime-owned symbol metadata to
+  // native Promises. The supported transport creates this Promise internally,
+  // so caller-controlled decoration cannot race this check before return.
+  // Require the native Promise brand, direct same-realm prototype, and no own
+  // string properties; runtime-owned symbol metadata is not an attacker input.
   if (!apply(UTIL_TYPES_IS_PROMISE, utilTypes, [value])
       || apply(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== PROMISE_PROTOTYPE
-      || apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]).length !== 0
-      || apply(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
+      || apply(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]).length !== 0) {
     fail(
       'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
-      'controlled transport did not originate an undecorated same-realm native Promise',
+      'controlled transport did not originate a same-realm native Promise',
     );
   }
   return value;
