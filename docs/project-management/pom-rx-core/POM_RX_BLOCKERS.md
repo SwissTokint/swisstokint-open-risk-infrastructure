@@ -1,32 +1,30 @@
 # POM-RX Core — Active Blockers
 
-Updated: `2026-08-23T10:19:00+02:00`
+Updated: `2026-08-23T12:10:00+02:00`
 
-Current trusted main: `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`
+Current trusted main: `abc19e969aa19f3ec08efe67cdf1988731b633ee`.
 
 This file lists current blockers only. Historical detail remains in Git history and PR review threads. Live GitHub wins whenever a PR head, CI run, review, thread, mergeability signal or merge changes after this checkpoint.
 
 ## Trusted coordination state
 
-PR #127 exact source head `df491ec5c73f74dabc49fc6372d239fddb997a59` merged as exact main SHA `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`.
+PR #128 source head `ab3665f8a1ae22bb46d8c78b7c3d3babac8af6f3` merged as exact main SHA `abc19e969aa19f3ec08efe67cdf1988731b633ee`.
 
-- canonical source-head CI: `32625199525` / CI 809 attempt 1 = `success`;
-- release-owner five-stage review: `5001882172` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
-- distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5384821148`, reviewed `df491ec5c7`, no major issues;
-- historical P2 threads `PRRT_kwDOTiNyWc6bdxPp` and `PRRT_kwDOTiNyWc6bdyZ8` were resolved only after repaired same-head validation;
-- pre-merge decision: comment `5384996506`;
-- canonical exact-main push CI: `32627602883` / CI 810 attempt 1 = `success`;
-- exact-main status `pom-rx/exact-main-ci = success` targeted run `32627602883` at assurance time;
-- exact-merge assurance: PR #127 comment `5385007479` = `POST_MERGE_ASSURANCE_PASS`;
+- canonical source-head CI: `32627956172` / CI 816 attempt 1 = `success`;
+- release-owner five-stage review: `5001979364` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- genuinely distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5385047280`, reviewed `ab3665f8a1`, no major issues;
+- canonical exact-main push CI: `32630170335` / CI 817 attempt 1 = `success`;
+- exact-main status `pom-rx/exact-main-ci = success` targeted that run at assurance time;
+- exact-merge assurance: PR #128 comment `5385232787` = `POST_MERGE_ASSURANCE_PASS`;
 - reviewed source head -> exact merge comparison adds zero changed files.
 
-PR #127 changed only coordination/product-position documents and does not make open Tier-B work trusted.
+PR #128 changed only coordination/product-position documents and does not make later Tier-B work trusted.
 
-## `CONTROL_PLANE_STALE_AFTER_PR127`
+## `CONTROL_PLANE_STALE_AFTER_PR128_AND_PR120_CLOSE`
 
-The versioned files merged by PR #127 necessarily name the pre-merge trusted parent, while live GitHub is now assured exact main `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`.
+The files merged from PR #128 necessarily describe its pre-merge parent and still state that PR #120 is open. Live GitHub now has trusted main `abc19e969aa19f3ec08efe67cdf1988731b633ee`, and PR #120 is `CLOSED / NOT MERGED` at historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`.
 
-Required closure is scoped PR #128 on branch `docs/pom-rx-post-pr127-live-reconcile-20260823`, limited to exactly:
+Required closure is the scoped non-Tier-B branch `docs/pom-rx-post-pr128-pr120-close-reconcile-20260823`, limited to exactly:
 
 - `POM_RX_RESUME_CHECKPOINT.md`;
 - `POM_RX_TASKS.yaml`;
@@ -34,41 +32,32 @@ Required closure is scoped PR #128 on branch `docs/pom-rx-post-pr127-live-reconc
 - `POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+It changes no runtime, test, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics. Until this reconciliation passes its own exact-head gates, merge and exact-merge assurance, use live GitHub rather than stale versioned readiness fields.
 
-Until PR #128 itself passes exact-head CI, five-stage owner review, fresh genuinely distinct exact-head review, zero unresolved P0/P1/P2, merge and exact-merge assurance, use live GitHub rather than its branch documents as readiness evidence.
+## `PR120_CLOSED_NOT_MERGED_ATTACK_HISTORY`
 
-## `PR120_RECONCILE_TO_CURRENT_MAIN`
+PR #120 is **CLOSED / NOT MERGED / STALE** at exact historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Do not reopen, rebase, revive or wholesale-merge this branch.
 
-PR #120 is **OPEN / NOT TRUSTED / BLOCKED** at exact head `5238b9c289476100c875ed9a88bd7e21a574fa67`.
+Its historical exact-head CI `32614831929` / CI 792 was `success`, but that run is not release evidence and was a false-PASS for the final independent P1. Historical owner review `5001566041` is non-independent and not current release evidence.
 
-Current live state:
+Six unresolved P1/P2 review threads remain attack history:
 
-- trusted main: `ef05bd371aa2f71ed07f79d7c36f3c22d780963e`;
-- main -> PR head compare: `diverged`, ahead 69 / behind 34, merge-base `73f3921984449ffd6025f6c9b99b0220f0bf068b`;
-- GitHub mergeability: `false` at this revalidation;
-- exact-head CI `32614831929` / CI 792 attempt 1 = `success`, but historical after main moved and a false-PASS for the current P1;
-- release-owner review `5001566041` = `PASS_NON_INDEPENDENT`, historical and unusable for current release;
-- genuinely distinct Codex review found current P1 `PRRT_kwDOTiNyWc6bc4gh`;
-- merge: `BLOCKED`.
+- `PRRT_kwDOTiNyWc6bZjxp` — P1 rejected transport could fail before a rejection reaction was attached;
+- `PRRT_kwDOTiNyWc6bZ6tx` — P1 fallible constructor pinning preceded the rejection reaction;
+- `PRRT_kwDOTiNyWc6bZ6tz` — P2 strict rejected-transport regression was absent from canonical `npm test` at that reviewed head;
+- `PRRT_kwDOTiNyWc6baFkR` — P1 non-extensible rejected native Promise with nonstandard prototype could reach fallible constructor shadowing;
+- `PRRT_kwDOTiNyWc6baIxZ` — P1 Wallet Guard capability-map product-position invariant was removed at that reviewed head;
+- `PRRT_kwDOTiNyWc6bc4gh` — P1 final historical finding: a rejected native Promise with non-configurable unsafe data `constructor`, e.g. `constructor: 1`, can make constructor shadowing fail before rejection drain, leaving strict-mode orphaned rejection termination.
 
-Do not merge the stale branch or treat its historical green CI as release evidence. After PR #128 becomes trusted, one writer must reconcile PR #120 to then-current exact trusted main before any runtime repair is evaluated. Any head move invalidates old exact-head CI/review evidence.
+Closing the PR does not resolve those findings or make its code trusted.
 
-## `PR120_P1_NONCONFIGURABLE_UNSAFE_DATA_CONSTRUCTOR`
+## `FRESH_PROVIDER_TRANSPORT_REPAIR_NOT_STARTED`
 
-P1 `PRRT_kwDOTiNyWc6bc4gh`: for a rejected same-realm native Promise with a non-configurable own unsafe data `constructor`, e.g. `constructor: 1`, current fallback shadowing can throw before a captured rejection reaction is attached. Under `--unhandled-rejections=strict`, Wallet Guard fails closed but the original rejected Promise can remain orphaned and terminate the process.
+The next Tier-B Wallet Guard/provider prerequisite must be a **fresh branch from then-current trusted main** after the present control-plane reconciliation becomes trusted. Useful hardening from PR #120 may be selectively reconstructed only when justified by current architecture/tests; stale history must not be merged wholesale.
 
-Under the accepted contract-narrowing direction this exact already-originated hostile Promise is **outside** the supported local-provider transport contract. That does not erase the finding. It changes the required proof: the supported controlled-provider path must be shown unable to originate the excluded transport before the gateway relies on it, while an in-contract rejected transport separately proves strict clean-process survival. If the product instead wants to survive the already-originated hostile object, a separately reviewed isolation boundary is required.
+The accepted architecture/security direction remains the explicit narrow **trusted-provider transport contract** from PR #126 comment `5384571039`, independently reconciled through trusted PR #127 and preserved by PR #128.
 
-An in-contract survival test must never be presented as if it reproduces or closes direct same-process survival for the excluded hostile Promise.
-
-## `PR120_ARCHITECTURE_DECISION_ACCEPTED_BUT_NOT_IMPLEMENTED`
-
-Read-only architecture/security decision remains PR #126 comment `5384571039` and was reconciled/independently reviewed through trusted PR #127.
-
-For the current local prototype, the selected direction is an explicit narrow **trusted-provider transport contract**, not another same-realm Promise reorder/shadow trick.
-
-Inside the supported contract, rejection handling must prove:
+Inside the supported contract, the fresh lot must prove:
 
 - fail closed;
 - zero reference authorization;
@@ -76,43 +65,17 @@ Inside the supported contract, rejection handling must prove:
 - clean process survival under `--unhandled-rejections=strict`;
 - no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects are excluded from that supported contract. The contract-narrowing route therefore requires **pre-origin conformance evidence** that the controlled trusted provider/adapter cannot emit those excluded transports on the supported path. It does not require direct positive same-process survival after such an object has already been returned.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects remain excluded from that local supported contract. The fresh route must prove **before origin** that its controlled trusted provider/adapter cannot emit an excluded transport, then separately prove strict clean-process survival for an in-contract rejected transport.
 
-A future claim of graceful survival against an intentionally hostile provider or an already-originated excluded rejected Promise requires a separately reviewed isolation boundary such as process/worker/RPC isolation.
+An already-originated excluded rejected Promise remains an explicit unsupported negative unless a separately reviewed process/worker/RPC isolation boundary is introduced. An in-contract fixture must never be presented as direct same-process survival evidence for that hostile object.
 
-The selected design must not:
+The selected design must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors, traverse hostile Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or convert unknown/failure into authorization/forwarding.
 
-- install process-global `unhandledRejection` or `uncaughtException` swallowing;
-- execute hostile constructor/species accessors;
-- traverse/execute Proxy constructor/species paths;
-- silently trust attacker-selected species constructors;
-- weaken `--unhandled-rejections=strict` regression coverage;
-- convert an unknown/failure state into authorization or forwarding.
-
-ECMAScript 2026 §27.2.5.4 remains the key constraint: ordinary `Promise.prototype.then` runs `SpeciesConstructor` and `NewPromiseCapability` before `PerformPromiseThen`, so reorder-only draining is not accepted as a universal proof.
-
-Normative reference:
-
-`https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
-
-The architecture decision does not by itself close the current P1 or make PR #120 trusted.
-
-## `PR120_REVIEW_THREADS_REQUIRE_REPAIRED_FINAL_EXACT_HEAD_VALIDATION`
-
-Six distinct P1/P2 threads remain unresolved attack history:
-
-- `PRRT_kwDOTiNyWc6bZjxp` — P1 rejected transport could fail before a rejection reaction was attached;
-- `PRRT_kwDOTiNyWc6bZ6tx` — P1 fallible constructor pinning preceded the rejection reaction;
-- `PRRT_kwDOTiNyWc6bZ6tz` — P2 strict rejected-transport regression was absent from canonical `npm test` at that reviewed head;
-- `PRRT_kwDOTiNyWc6baFkR` — P1 non-extensible rejected native Promise with nonstandard prototype could reach fallible constructor shadowing;
-- `PRRT_kwDOTiNyWc6baIxZ` — P1 Wallet Guard capability-map product-position invariant was removed at that reviewed head;
-- `PRRT_kwDOTiNyWc6bc4gh` — P1 current unsafe non-configurable data constructor can reach impossible shadowing before drain reaction.
-
-Do not resolve these merely because partial repairs or claim narrowing exist. Closure requires one frozen current-main-reconciled candidate with green exact-head CI, the mandatory five-stage owner gate, a fresh genuinely distinct exact-head review and zero unresolved P0/P1/P2. For `PRRT_kwDOTiNyWc6bc4gh`, the exact-head reviewer must explicitly validate either (a) the supported-path pre-origin contract proof plus separate in-contract strict survival and the hostile case as a truthful unsupported limitation, or (b) a real isolation repair. A different in-contract test cannot stand in for the hostile object.
+ECMAScript 2026 §27.2.5.4 remains the feasibility constraint: ordinary `Promise.prototype.then` runs `SpeciesConstructor` and `NewPromiseCapability` before `PerformPromiseThen`, so reorder-only draining is not accepted as a universal proof.
 
 ## `PR97_STALE_HISTORICAL_BRANCH_MUST_NOT_MERGE`
 
-PR #97 remains live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Do not merge, rebase, revive or wholesale-copy it. Durable claim-before-observer/downstream composition remains a future bounded Core lot reconstructed from then-current trusted main only after PR #120 receives exact-merge `POST_MERGE_ASSURANCE_PASS`.
+PR #97 remains live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Exact-head CI `32487036517` / CI 592 is `success`, but the non-independent owner gate is `BLOCK` and an exact-head independent P1 about Promise drift before async layers remains unresolved. Do not merge, rebase, revive or wholesale-copy it. Durable claim-before-observer/downstream composition must be reconstructed later from then-current trusted main after the fresh provider-transport prerequisite receives exact-merge `POST_MERGE_ASSURANCE_PASS`.
 
 ## `CORE_DURABLE_GATE_COMPOSITION_NOT_YET_TRUSTED`
 
@@ -120,7 +83,7 @@ Trusted main contains a process-local single-use Gate and a separate filesystem 
 
 ## `PR93_RECONCILIATION_AND_FRESH_EXACT_HEAD_REVIEW_REQUIRED_LATER`
 
-PR #93 remains live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Historical green CI/reviews are not release evidence. Keep it ordered after trusted PR #120 and required shared-Core work unless a separately reviewed dependency-order change is recorded.
+PR #93 remains live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Exact-head CI `32465835858` / CI 541 is `success`, but multiple P1/P2 review threads remain unresolved and historical green CI/reviews are not sufficient release evidence. Reconstruct/reconcile useful simulation work later from then-current trusted main rather than merging stale history wholesale.
 
 ## `DAGR_SOURCE_DOCUMENT_MISSING`
 
