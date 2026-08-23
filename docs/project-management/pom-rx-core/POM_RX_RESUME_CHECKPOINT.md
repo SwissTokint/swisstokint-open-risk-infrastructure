@@ -65,28 +65,27 @@ Bounded implementation repair remains present on the PR #120 branch:
 
 ## latest_ci_diagnosis_and_scoped_fix
 
-Canonical CI `32602076493` / CI 773 attempt 1 failed on exact head
-`e643299a95f597da1f0226c2d52b6f4fba357b4c` during full `npm test`.
+Canonical CI `32604445154` / CI 777 attempt 1 failed on exact head
+`d18ba4cb0cf99e13f107c8b1b4c1f5094b1e3e22` during full `npm test`.
 
-The Promise/provider regressions passed before the failure. The exact failing
-assertion was in `tests/pom-rx-capability-map.node.test.mjs`: the test requires
+The Wallet Guard Promise/provider regressions passed before the failure. The exact
+failing assertion was in `tests/pom-rx-capability-map.node.test.mjs`: the test
+requires
 `must not duplicate\s+or fork Core canonicalization, hashing, verifier, Witness or Gate semantics`.
-The capability map had a formatting-only line break between `not` and
-`duplicate`, so that exact regex could not match.
+The earlier layout repair had already made `must not duplicate` contiguous, but
+the final capability map still split `Gate` from `semantics`, so the unchanged
+regex continued to fail.
 
-Commit `941814282b98f1dca6bfca484b1c27e9176bcd98` repairs only the capability-map
-line layout so `must not duplicate` is contiguous and the existing invariant test
-is preserved unchanged. No test was weakened and no runtime/security semantics
-were changed by this fix.
+Commit `f43c8887405e9f5a615c45bf340ea96a566ba113` repairs only that remaining
+capability-map line wrap, keeping `Gate semantics` contiguous. The invariant test
+is unchanged; no runtime/security semantics or tested requirement are weakened.
+Commits `6c438eafd758381df6542ed684d06dea5963fd26` and
+`0e4fee9e6610f926e5b13581ae463b658db6b6c8` then reconcile TASKS and BLOCKERS to
+CI 777 and this second bounded layout repair.
 
-The subsequent commits `15f80f473828be57af8ddd496618d47aeba28ca2`
-and `8d233d9f866964be6ba344c989771fc32e0fb200` reconcile the machine-readable task
-state and active blockers with the observed CI 773 failure and its bounded fix.
-This checkpoint write itself moves the branch once more; therefore the final exact
-PR #120 head must be read live from GitHub after this commit. All CI/reviews on
-`e643299a...` and earlier heads are historical release evidence only.
-
-On the final checkpoint head:
+This checkpoint write moves the branch once more; therefore the final exact PR
+#120 head must be read live from GitHub after this commit. CI 777 and all earlier
+exact-head review evidence are historical only. On the final checkpoint head:
 
 - canonical exact-head CI: `PENDING`;
 - mandatory five-stage release-owner gate: `PENDING / NON-INDEPENDENT`;
