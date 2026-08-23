@@ -36,7 +36,7 @@
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
     "title": "Reconstruct the Wallet Guard provider transport prerequisite under the accepted narrow trusted-provider contract",
     "class": "TIER_B_APPLICATION_SECURITY",
-    "status": "IN_PROGRESS_REPAIRING_INDEPENDENT_P1_FINDINGS",
+    "status": "IN_PROGRESS_REPAIRING_EXACT_HEAD_INDEPENDENT_P1",
     "pr": 131,
     "branch": "automation/wg-trusted-provider-transport-20260823",
     "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
@@ -46,6 +46,7 @@
     "owned_files": [
       "applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs",
       "tests/wallet-guard/trusted-provider-transport.node.test.mjs",
+      "tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs",
       "package.json",
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -54,10 +55,10 @@
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "independent_review_history": {
-      "reviewed_moved_head": "d92417f151",
       "release_evidence": false,
       "findings": [
         {
+          "reviewed_head": "d92417f151",
           "thread": "PRRT_kwDOTiNyWc6bfPvR",
           "severity": "P1",
           "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
@@ -65,20 +66,32 @@
           "summary": "native Promise runtime-owned async-hook symbols must not be treated as caller decoration"
         },
         {
+          "reviewed_head": "d92417f151",
           "thread": "PRRT_kwDOTiNyWc6bfPvI",
           "severity": "P1",
-          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
+          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
           "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
           "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
           "summary": "bind the exact provider that passed provenance and reject bootstrap accessor/Proxy TOCTOU"
         },
         {
+          "reviewed_head": "d92417f151",
           "thread": "PRRT_kwDOTiNyWc6bfPvO",
           "severity": "P1",
-          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
+          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
           "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
           "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
           "summary": "bind the supported Array/Object prototype chain so intermediate inherited then accessors fail closed before origin"
+        },
+        {
+          "reviewed_head": "95591a214e113ea0fc4cdb6884d86e60b3893100",
+          "thread": "PRRT_kwDOTiNyWc6bfWeN",
+          "severity": "P1",
+          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_INDEPENDENT_VALIDATION",
+          "repair_commit": "b1210dce83207f5e1b03ae1065f079edf4a7daa1",
+          "regression_commit": "bd1674b3b95d18601b534a315fe4755ae49b8ff5",
+          "wiring_commit": "6dc74bdd09d930ced0459e5c7c2bca786bf92bda",
+          "summary": "pre-import Promise.resolve/reject poisoning must be rejected against a trusted primordial without executing poisoned methods"
         }
       ]
     },
@@ -86,15 +99,19 @@
       "application-owned controlled provider transport with module-private provenance",
       "trusted gateway rejects unowned provider before provider.request transport origin",
       "trusted gateway validates own data-property bootstrap fields and forwards an accessor-free snapshot containing the exact validated provider",
-      "supported Promise runtime descriptor and Array/Object prototype-chain checks before controlled transport origin",
+      "supported Promise runtime and Array/Object prototype-chain checks before controlled transport origin",
+      "fresh node:vm realm supplies trusted Promise/reflection primordial evidence rather than blessing pre-import current Promise method wrappers",
+      "current realm native Promise constructor is validated against async-function intrinsic Promise prototype and trusted builtin source/descriptor shape",
+      "controlled fulfillment/rejection uses pristine built-in Promise.resolve/reject algorithms with the validated current-realm Promise constructor",
       "in-contract controlled rejected native Promise transport for strict survival regression",
       "runtime-owned native Promise symbol metadata tolerated while native brand/direct same-realm prototype/no own string properties remain required",
-      "CI-wired regressions for bootstrap accessor zero execution, Proxy bootstrap zero traps, intermediate Array-prototype then accessor zero execution, native transport shape, species drift, direct Array then poisoning and strict rejection survival"
+      "CI-wired regressions for bootstrap accessor zero execution, Proxy bootstrap zero traps, intermediate Array-prototype then accessor zero execution, pre-import Promise.resolve/reject poisoning, native transport shape, species drift, direct Array then poisoning and strict rejection survival"
     ],
     "current_limitations": [
       "generic createWalletGuardReferenceProviderGateway remains outside the fresh hostile-provider-wide transport claim",
       "existing controlled-host path is not rebound by this prerequisite and broader operational-readiness claim does not advance",
-      "already-originated excluded hostile rejected Promise remains unsupported without reviewed process/worker/RPC isolation"
+      "already-originated excluded hostile rejected Promise remains unsupported without reviewed process/worker/RPC isolation",
+      "the fresh-realm primordial boundary is a local Node prototype mechanism, not a browser-wide hostile-runtime attestation claim"
     ],
     "supported_rejection_requirements": [
       "fail closed",
@@ -109,14 +126,15 @@
       "executing hostile constructor/species accessors",
       "executing Proxy constructor/species paths",
       "silently trusting attacker-selected species constructors",
+      "blessing pre-import Promise method wrappers as trusted primordials",
       "weakening strict rejection regressions"
     ],
     "release_requirements": [
       "freeze one final exact head after all code/test/control-plane repairs",
-      "canonical exact-head CI success on that frozen head",
-      "mandatory five-stage release-owner review with provider-bootstrap TOCTOU, Promise/species/accessor/Proxy/prototype/strict-unhandled/thenable/Array-poisoning and claim-gap hypotheses",
+      "canonical exact-head CI success on that frozen head including pre-import Promise poisoning regressions",
+      "mandatory five-stage release-owner review with provider-bootstrap TOCTOU, pre/post-import Promise poisoning, species/accessor/Proxy/prototype/strict-unhandled/thenable/Array-poisoning and claim-gap hypotheses",
       "fresh genuinely distinct chatgpt-codex-connector review on the same frozen SHA",
-      "same-head independent validation before resolving PR131 P1 threads",
+      "same-head independent validation before resolving all four PR131 P1 threads",
       "zero unresolved P0/P1/P2",
       "decision-time unchanged main/base/head/CI/review/thread state",
       "mandatory exact-merge post-merge assurance"
