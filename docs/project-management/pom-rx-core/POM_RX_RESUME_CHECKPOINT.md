@@ -1,63 +1,54 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-23T13:06:00+02:00`
+Updated: `2026-08-23` — post-PR #130 assurance and fresh Tier-B activation.
 
 Purpose: compact durable cross-chat continuation state. Scheduled-task chat history is not project state. Every run reconstructs state from live GitHub plus this canonical control plane. Live GitHub wins whenever PR heads, CI, reviews, review threads, mergeability or merges differ from this file.
 
 ## trusted_main
 
-Exact live/trusted `main`: `95cafa73139085343fae26526c4dc1ea3f07db6b`.
+Exact live/trusted `main`: `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`.
 
-Latest trusted merge: PR #129 — bounded non-Tier-B control-plane reconciliation.
+Latest trusted merge: PR #130 — bounded non-Tier-B control-plane reconciliation.
 
-- exact source head: `17cd468f3e90f9ae3deb544197937482459b885f`;
-- pre-merge canonical exact-head CI: `32633365421` / CI 818 attempt 1 = `success`;
-- release-owner five-stage review: `5002164482` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
-- genuinely distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5385505343`, reviewed `17cd468f3e`, no major issues;
-- exact merge/main SHA: `95cafa73139085343fae26526c4dc1ea3f07db6b`;
-- merge parents: `abc19e969aa19f3ec08efe67cdf1988731b633ee` + `17cd468f3e90f9ae3deb544197937482459b885f`;
-- canonical exact-main push CI: `32633614947` / CI 819 attempt 1 = `success` on the exact merge SHA;
-- exact-merge assurance: PR #129 comment `5385521407` = `POST_MERGE_ASSURANCE_PASS`;
-- terminal GitHub continuity checkpoint: PR #129 comment `5385522627`.
+- exact source head: `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa`;
+- pre-merge canonical exact-head CI: `32635882670` / CI 820 attempt 1 = `success`;
+- release-owner five-stage review: `5002253211` = `PASS_NON_INDEPENDENT`, owner findings `0 P0 / 0 P1 / 0 P2`;
+- genuinely distinct exact-head evidence: `chatgpt-codex-connector[bot]` comment `5385715573`, reviewed `ce1f2ca2f9`, no major issues;
+- pre-merge decision checkpoint: PR #130 comment `5385931941`;
+- exact merge/main SHA: `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`;
+- merge parents: `95cafa73139085343fae26526c4dc1ea3f07db6b` + `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa`;
+- source-head -> merge: one merge commit and zero changed files;
+- canonical exact-main push CI: `32638722306` / CI 821 attempt 1 = `success` on the exact merge SHA;
+- decision-time `pom-rx/exact-main-ci`: `success`, targeting run `32638722306`;
+- exact-merge assurance: PR #130 comment `5385948152` = `POST_MERGE_ASSURANCE_PASS`;
+- terminal trusted reconciliation checkpoint: PR #130 comment `5385949730`.
 
-PR #129 changed only the five canonical coordination/product-position documents and is trusted coordination evidence only. It did not make closed PR #120 runtime code trusted and did not advance production, real-wallet, mainnet or external-effect claims.
+PR #130 is trusted coordination evidence only. It did not make historical PR #120 runtime code trusted and did not widen production, real-wallet, mainnet or external-effect claims.
 
-## current_control_plane_reconciliation
+## active_fresh_tier_b_provider_transport
 
-The source tree merged by PR #129 necessarily records its pre-merge parent `abc19e...` as trusted main. Live GitHub is now `95cafa...`, so the canonical continuation files are materially stale for dependency/readiness use until this reconciliation is trusted.
+Task: `WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR`.
 
-Current bounded reconciliation branch: `docs/pom-rx-post-pr129-live-reconcile-20260823`.
+Fresh branch: `automation/wg-trusted-provider-transport-20260823`, created directly from exact trusted main `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`. This branch is the single-writer lane. It does **not** reopen, rebase, revive or wholesale-copy PR #120.
 
-Owned files are exactly:
+Current work is **IN_PROGRESS / NOT FROZEN / NOT RELEASE EVIDENCE**. Live GitHub must be read for the exact branch head after this checkpoint commit. No exact-head CI/review may be reused after a head move.
 
-- `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
-- `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
-- `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
-- `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
-- `docs/product/POM_RX_CAPABILITY_MAP.md`.
+Implemented so far on the fresh branch:
 
-This is non-Tier-B documentation/control-plane work only. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+- new application-owned `applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs`;
+- module-private WeakSet provenance distinguishes the controlled transport from arbitrary/unowned providers without exposing a forgeable marker;
+- `createWalletGuardTrustedProviderGateway()` rejects an unowned provider before its `request()` path can originate a transport;
+- the controlled local transport owns Promise creation and checks the supported Promise/Array thenable runtime immediately before transport origin;
+- Promise `constructor`/`then`/`resolve`/`reject`/`Symbol.species` descriptor drift and inherited `Array.prototype.then` / `Object.prototype.then` are fail-closed for this narrow local path without executing hostile accessors;
+- controlled context-rejection injection creates an in-contract same-realm native rejected Promise for strict survival testing;
+- `tests/wallet-guard/trusted-provider-transport.node.test.mjs` covers owned native transport shape, unowned/Proxy provider pre-origin rejection, hostile `Symbol.species` accessor zero execution, inherited Array-then poisoning fail-closed, and child-process `--unhandled-rejections=strict` rejection survival with zero authorization and zero sensitive forwarding;
+- `package.json` wires the new regression into the canonical Wallet Guard provider-gate suite and therefore into `npm test`.
 
-## closed_historical_pr120
+Important current limitation: the historical generic `createWalletGuardReferenceProviderGateway()` remains available and is **not** upgraded into a hostile-provider-wide Promise-integrity claim by this lot. The fresh supported transport claim is limited to the explicit controlled transport + `createWalletGuardTrustedProviderGateway()` path. The existing controlled-host path has not yet been rebound to this strict transport in the work recorded by this checkpoint; that integration/readiness decision must be settled before the candidate is frozen.
 
-PR #120 is `CLOSED / NOT MERGED / STALE` at historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Its historical CI `32614831929` / CI 792 and owner review `5001566041` are not current release evidence.
+### Accepted security boundary
 
-Do not reopen, revive, rebase or wholesale-merge PR #120. Six P1/P2 threads remain attack history and must inform the next fresh Tier-B falsification matrix:
-
-- `PRRT_kwDOTiNyWc6bZjxp` — P1;
-- `PRRT_kwDOTiNyWc6bZ6tx` — P1;
-- `PRRT_kwDOTiNyWc6bZ6tz` — P2;
-- `PRRT_kwDOTiNyWc6baFkR` — P1;
-- `PRRT_kwDOTiNyWc6baIxZ` — P1;
-- `PRRT_kwDOTiNyWc6bc4gh` — P1 final historical finding.
-
-Closing PR #120 does not resolve these findings and does not make its branch trusted evidence.
-
-### Accepted provider-transport architecture/security boundary
-
-For the current local prototype, the accepted direction remains the explicit narrow **trusted-provider transport contract** recorded in PR #126 comment `5384571039`, independently reconciled through trusted PR #127 and carried through #128/#129.
-
-Inside the supported contract, rejection handling must prove all of:
+Inside the supported narrow trusted-provider contract, rejection evidence must prove all of:
 
 - fail closed;
 - zero reference authorization;
@@ -65,33 +56,37 @@ Inside the supported contract, rejection handling must prove all of:
 - clean child-process survival under `--unhandled-rejections=strict`;
 - no orphaned provider-rejection termination.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects remain outside the supported contract. The fresh route must prove **before origin** that its controlled trusted provider/adapter cannot emit those excluded transports, then separately prove strict clean-process survival for an **in-contract** rejected transport.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects from an arbitrary provider remain outside the supported contract. The supported path must reject unowned providers **before provider request origin**, then separately prove survival for an **in-contract** controlled rejected transport.
 
 An already-originated excluded rejected Promise remains an explicit unsupported negative unless a separately reviewed process/worker/RPC isolation boundary is introduced. An in-contract survival fixture must never be represented as same-process survival proof for that hostile object.
 
-Do not add process-global `unhandledRejection`/`uncaughtException` swallowing, do not execute hostile constructor/species accessors or Proxy constructor/species paths, and do not silently trust attacker-selected species constructors.
+Do not add process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors or Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or turn unknown/failure into authorization/forwarding.
 
-## open_historical_prs
+The six PR #120 attack-history threads remain mandatory falsification inputs: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, `PRRT_kwDOTiNyWc6bc4gh`.
 
-PR #97 is live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Against trusted main `95cafa...` it is `diverged`, ahead 66 / behind 243, merge-base `0564aecd42cf0794894c12842980969ff59c9f73`. Multiple unresolved P1 threads remain, including exact-head Promise-drift findings. Do not merge/revive it; durable Gate composition is reconstructed later from then-current trusted main only after the fresh provider-transport prerequisite is trusted.
+## historical_pr_state
 
-PR #93 is live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Against trusted main `95cafa...` it is `diverged`, ahead 86 / behind 288, merge-base `818718955c9e4136e9e55754a31be2f1c7b610f8`. Historical green CI/reviews do not clear its unresolved P1/P2 findings. Reconstruct useful simulation work later from then-current trusted main.
+PR #120 is `CLOSED / NOT MERGED / STALE` at historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`. Its historical CI/reviews are not release evidence; its six P1/P2 findings remain attack history.
+
+PR #97 is live `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Against trusted main `87ed6ac...` it is diverged, ahead 66 / behind 249, merge-base `0564aecd42cf0794894c12842980969ff59c9f73`. Durable Gate composition remains later and must be reconstructed from trusted main only after the fresh provider prerequisite receives post-merge assurance PASS.
+
+PR #93 is live `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Against trusted main `87ed6ac...` it is diverged, ahead 86 / behind 294, merge-base `818718955c9e4136e9e55754a31be2f1c7b610f8`. Historical simulation work is reconstructed later rather than merged wholesale.
 
 ## architecture_and_claim_boundary
 
-POM-RX remains the single principal technical product. Shared canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution-evidence and observation/reconciliation semantics remain Core-owned. Wallet Guard remains an application profile. Trusted main contains a process-local single-use Gate and a separate filesystem durable claim primitive; reviewed durable composition is not yet trusted.
+POM-RX remains the single principal technical product. Shared canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution-evidence and observation/reconciliation semantics remain Core-owned. Wallet Guard remains an application profile. The fresh transport module is application-owned and must not fork shared Core semantics.
 
 Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic, synthetic and bounded. It is not production readiness, audit, certification, wallet safety, financial safety or deployment authorization.
 
 ## next_safe_actions
 
-1. Complete this scoped five-file non-Tier-B reconciliation from exact trusted main `95cafa73139085343fae26526c4dc1ea3f07db6b`.
-2. Freeze its exact head, require canonical exact-head CI success, complete the five-stage owner gate, and obtain a fresh genuinely distinct `chatgpt-codex-connector` review on that same SHA with zero unresolved P0/P1/P2.
-3. Merge only if decision-time main/head/CI/review/thread state remains unchanged, then immediately run exact-merge-SHA post-merge assurance.
-4. Only after this reconciliation becomes trusted, create a fresh Tier-B Wallet Guard/provider transport branch from then-current trusted main. Do not reopen or wholesale-copy PR #120.
-5. In the fresh Tier-B lot, use one writer and add CI-wired pre-origin supported-provider conformance plus a separate strict in-contract rejected-transport survival regression proving fail-closed behavior, zero authorization, zero sensitive forwarding, clean process survival and no orphaned rejection.
-6. Preserve the already-originated hostile Promise as an explicit unsupported negative unless reviewed isolation is introduced. Re-run the complete five-stage owner gate with concrete Promise/species/accessor/Proxy/strict-unhandled/thenable/Array-poisoning hypotheses and require a fresh genuinely distinct exact-head review.
-7. Only after that provider prerequisite receives exact-merge `POST_MERGE_ASSURANCE_PASS` may durable Gate composition be reconstructed from current trusted main; PR #93 remains later in dependency order.
+1. Finish the fresh Tier-B provider-transport prerequisite on branch `automation/wg-trusted-provider-transport-20260823` with one writer only; decide explicitly whether the controlled-host path must be rebound before this lot can claim the supported route is operational.
+2. Run the branch candidate through canonical CI. Treat any failing test as a blocker; do not weaken the strict rejection regression or runtime-integrity checks to obtain green.
+3. Before freezing the candidate, reconcile TASKS/BLOCKERS/TEAM_ROSTER/CAPABILITY_MAP to the exact live state and preserve the explicit hostile out-of-contract limitation.
+4. On the frozen exact head, execute the mandatory five-stage release-owner gate with concrete rejected-Promise, constructor/species, hostile-accessor, Proxy/prototype, strict-unhandled, thenable-assimilation and Array-poisoning hypotheses.
+5. Obtain a fresh genuinely distinct `chatgpt-codex-connector` review on that same exact head. Any moved head invalidates CI/review evidence.
+6. Merge only with exact-head CI success, owner gate PASS, distinct exact-head review, zero unresolved P0/P1/P2 and unchanged decision-time main/head/thread state; then immediately run exact-merge-SHA post-merge assurance.
+7. Only after that assurance is `POST_MERGE_ASSURANCE_PASS` may durable Gate composition be reconstructed from current trusted main. PR #93 remains later.
 
 ## safety_boundary
 
