@@ -424,6 +424,60 @@ test('delivered MetaMask timeout stays AMBIGUOUS, retains a late hash, and forbi
   assert.equal(status.ambiguous.retry_allowed, false);
 });
 
+test('late Node chain-view validation cannot acknowledge an expired pending command', async (t) => {
+  let captureCount = 0;
+  let markViewCaptureStarted;
+  let releaseViewCapture;
+  const viewCaptureStarted = new Promise((resolve) => {
+    markViewCaptureStarted = resolve;
+  });
+  const delayedView = new Promise((resolve) => {
+    releaseViewCapture = resolve;
+  });
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    port: 0,
+    commandTimeoutMs: 1_000,
+    captureObservationBaseline: async () => Object.freeze({ marker: 'before-dispatch' }),
+    captureNodeChainView: async () => {
+      captureCount += 1;
+      if (captureCount !== 3) return nodeChainView();
+      markViewCaptureStarted();
+      return delayedView;
+    },
+    observeTransaction: async () => assert.fail('observer must not run'),
+  });
+  const info = await prototype.listen();
+  t.after(() => prototype.close());
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+
+  const allowPromise = http(info.origin, '/api/allow', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: '{}',
+  });
+  const command = await nextCommand(info, cookie);
+  const viewPromise = bindView(info, cookie, command);
+  await viewCaptureStarted;
+
+  const timedOut = await allowPromise;
+  assert.equal(timedOut.status, 202);
+  assert.equal(parseJson(timedOut).operation.cause_code, 'TIMEOUT');
+  releaseViewCapture(nodeChainView());
+
+  const lateView = await viewPromise;
+  assert.equal(lateView.status, 409);
+  assert.match(lateView.body, /expired during chain-view validation/u);
+  const status = parseJson(await http(info.origin, '/api/status', { cookie }));
+  assert.equal(status.closed, true);
+  assert.equal(status.command_pending, false);
+  assert.equal(status.operation_status, 'AMBIGUOUS');
+  assert.equal(status.ambiguous.retry_allowed, false);
+});
+
 test('post-prompt chain/account mismatch preserves and observes the bound transaction hash', async (t) => {
   const observations = [];
   const prototype = createWalletGuardPrototypeServer({

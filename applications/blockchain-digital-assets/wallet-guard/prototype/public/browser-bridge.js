@@ -268,6 +268,25 @@ async function processCommand(command) {
     return;
   }
 
+  // A wallet event can run while the HTTP view binding is pending. Never let
+  // a previously accepted binding authorize a send after that event closed the
+  // browser session. Resample once more so silent context/view drift in the
+  // same window also fails before the sensitive provider call.
+  if (sessionClosed) return;
+  let beforeSend;
+  try {
+    beforeSend = await sampleWalletChainView();
+  } catch {
+    await closeForContextChange();
+    return;
+  }
+  if (sessionClosed) return;
+  if (!contextMatches(command, beforeSend)
+      || !sameWalletChainView(second, beforeSend)) {
+    await closeForContextChange();
+    return;
+  }
+
   let result;
   try {
     result = await activeProvider.request(command.request);

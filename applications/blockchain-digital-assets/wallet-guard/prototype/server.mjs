@@ -755,6 +755,10 @@ export function createWalletGuardPrototypeServer({
         const pending = state.pending;
         const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
         const nodeView = await captureValidatedNodeChainView(state.account);
+        if (state.pending !== pending || state.closed) {
+          send(res, 409, 'pending command expired during chain-view validation');
+          return;
+        }
         const connectionNodeView = state.connectionChainViewBaseline?.node;
         if (connectionNodeView === undefined
             || walletView.genesis_hash !== connectionNodeView.genesis_hash

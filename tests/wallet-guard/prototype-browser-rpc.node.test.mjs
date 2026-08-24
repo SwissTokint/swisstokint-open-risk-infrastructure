@@ -203,6 +203,7 @@ function browserHarness({
   nextResponses,
   announcements = null,
   boundary = {},
+  viewResponse = null,
 } = {}) {
   const elements = new Map([
     ['#connect', new FakeElement()],
@@ -235,6 +236,7 @@ function browserHarness({
       });
     }
     if (path === '/bridge/next') return queue.shift() ?? response(410, { error: 'SESSION_CLOSED' });
+    if (path === '/bridge/view' && viewResponse !== null) return viewResponse;
     if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view') {
       return response(204);
     }
@@ -362,6 +364,49 @@ test('browser context events close the loopback bridge without another provider 
   assert.deepEqual(JSON.parse(JSON.stringify(close.body)), { code: 'CONTEXT_CHANGED' });
   assert.match(harness.elements.get('#wallet-status').textContent, /Session fermée/u);
   assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
+});
+
+test('wallet events while /bridge/view is pending cannot race into a sensitive request', async (t) => {
+  for (const [eventName, eventValue] of [
+    ['accountsChanged', [OTHER_ACCOUNT]],
+    ['chainChanged', MAINNET_CHAIN_ID],
+    ['disconnect', { code: 4900 }],
+  ]) {
+    await t.test(eventName, async () => {
+      let releaseView;
+      const pendingView = new Promise((resolve) => {
+        releaseView = resolve;
+      });
+      const provider = new DeterministicEip1193Provider();
+      const harness = browserHarness({
+        provider,
+        nextResponses: [response(200, command())],
+        viewResponse: pendingView,
+      });
+      await harness.elements.get('#connect').click();
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/view'),
+        'pending view binding',
+      );
+
+      await provider.emit(eventName, eventValue);
+      releaseView(response(204));
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/close'),
+        'context-change close while binding',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      assert.equal(
+        provider.calls.some(({ method }) => method === 'eth_sendTransaction'),
+        false,
+      );
+      assert.equal(
+        harness.fetchCalls.some(({ path }) => path === '/bridge/result'),
+        false,
+      );
+    });
+  }
 });
 
 test('browser explicitly switches after wallet_addEthereumChain before handshake', async () => {
