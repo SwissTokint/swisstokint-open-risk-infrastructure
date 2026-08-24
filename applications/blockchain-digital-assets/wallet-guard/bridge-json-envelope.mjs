@@ -3,14 +3,25 @@ import { types as utilTypes } from 'node:util';
 import {
   parseWalletGuardBoundedJsonData,
 } from './json-ingress.mjs';
-import {
-  captureReferencePlainData,
-} from '../../../core/reference-data/plain-data-snapshot.mjs';
 
 export const WALLET_GUARD_BRIDGE_SCHEMA_VERSION = 'wallet_guard_bridge/0.1';
 
 const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
+const TRUSTED_ARRAY_PROTOTYPE = Array.prototype;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const TRUSTED_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const TRUSTED_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const TRUSTED_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const TRUSTED_JSON_STRINGIFY = JSON.stringify;
+const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
+const TRUSTED_OBJECT_KEYS = Object.keys;
+const TRUSTED_OBJECT_PROTOTYPE = Object.prototype;
 const UTIL_TYPES_IS_PROXY_DESCRIPTOR = TRUSTED_REFLECT_APPLY(
   TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR,
   null,
@@ -18,7 +29,7 @@ const UTIL_TYPES_IS_PROXY_DESCRIPTOR = TRUSTED_REFLECT_APPLY(
 );
 const UTIL_TYPES_IS_PROXY = UTIL_TYPES_IS_PROXY_DESCRIPTOR?.value;
 
-const ERROR_CODES = Object.freeze([
+const ERROR_CODES = TRUSTED_OBJECT_FREEZE([
   'BRIDGE_CLOSED',
   'CONTEXT_CHANGED',
   'INTERNAL_ERROR',
@@ -26,7 +37,7 @@ const ERROR_CODES = Object.freeze([
   'USER_REJECTED',
   'WALLET_UNAVAILABLE',
 ]);
-const COMMAND_KEYS = Object.freeze([
+const COMMAND_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
   'session_id',
   'sequence',
@@ -35,7 +46,7 @@ const COMMAND_KEYS = Object.freeze([
   'expected_account',
   'request',
 ]);
-const RESPONSE_KEYS = Object.freeze([
+const RESPONSE_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
   'session_id',
   'sequence',
@@ -84,21 +95,147 @@ function assertProxyDetectorIntegrity() {
 function captureBridgePlainData(value, label) {
   assertProxyDetectorIntegrity();
   try {
-    return captureReferencePlainData(value, label);
+    return captureBridgeValue(value, label, 0, { remaining: 1_000 });
   } catch {
     fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be bounded plain data`);
   }
 }
 
+function isOwnDataDescriptor(descriptor) {
+  return descriptor !== null && descriptor !== undefined
+    && TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'set');
+}
+
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return isOwnDataDescriptor(descriptor)
+    && TRUSTED_OBJECT_HAS_OWN(descriptor, 'enumerable')
+    && descriptor.enumerable === true;
+}
+
+function defineCapturedValue(output, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = false;
+  descriptor.configurable = false;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(output, key, descriptor);
+}
+
+function unsafeKey(key) {
+  return key.length < 1 || key.length > 128
+    || key === '__proto__' || key === 'constructor' || key === 'prototype';
+}
+
+function rejectBridgeProxy(value) {
+  if (value && typeof value === 'object'
+      && TRUSTED_REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value])) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', 'bridge plain data cannot contain a Proxy');
+  }
+}
+
+function captureBridgeArray(value, label, depth, budget) {
+  rejectBridgeProxy(value);
+  if (TRUSTED_GET_PROTOTYPE_OF(value) !== TRUSTED_ARRAY_PROTOTYPE
+      || TRUSTED_GET_OWN_PROPERTY_SYMBOLS(value).length !== 0) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be a plain array`);
+  }
+  const descriptors = TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS(value);
+  const lengthDescriptor = descriptors.length;
+  if (!isOwnDataDescriptor(lengthDescriptor)
+      || !TRUSTED_NUMBER_IS_SAFE_INTEGER(lengthDescriptor.value)
+      || lengthDescriptor.value < 0 || lengthDescriptor.value > 1_000) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} has an invalid array length`);
+  }
+  const length = lengthDescriptor.value;
+  const names = TRUSTED_GET_OWN_PROPERTY_NAMES(value);
+  if (names.length !== length + 1 || length > budget.remaining) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be a dense bounded array`);
+  }
+  const output = [];
+  for (let index = 0; index < length; index += 1) {
+    const key = `${index}`;
+    const descriptor = descriptors[key];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must contain dense data elements`);
+    }
+    defineCapturedValue(
+      output,
+      key,
+      captureBridgeValue(descriptor.value, `${label}[${key}]`, depth + 1, budget),
+    );
+  }
+  return TRUSTED_OBJECT_FREEZE(output);
+}
+
+function captureBridgeObject(value, label, depth, budget) {
+  rejectBridgeProxy(value);
+  const prototype = TRUSTED_GET_PROTOTYPE_OF(value);
+  if ((prototype !== TRUSTED_OBJECT_PROTOTYPE && prototype !== null)
+      || TRUSTED_GET_OWN_PROPERTY_SYMBOLS(value).length !== 0) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be a plain object`);
+  }
+  const names = TRUSTED_GET_OWN_PROPERTY_NAMES(value);
+  if (names.length > budget.remaining) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} exceeds the node budget`);
+  }
+  const descriptors = TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS(value);
+  const output = TRUSTED_OBJECT_CREATE(null);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    const descriptor = descriptors[key];
+    if (unsafeKey(key) || !isOwnEnumerableDataDescriptor(descriptor)) {
+      fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} contains an unsafe property`);
+    }
+    defineCapturedValue(
+      output,
+      key,
+      captureBridgeValue(descriptor.value, `${label}.${key}`, depth + 1, budget),
+    );
+  }
+  return TRUSTED_OBJECT_FREEZE(output);
+}
+
+function captureBridgeValue(value, label, depth, budget) {
+  if (depth > 8 || budget.remaining <= 0) {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} exceeds bridge bounds`);
+  }
+  budget.remaining -= 1;
+  if (value === null || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.length > 16_384) fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} is too long`);
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!TRUSTED_NUMBER_IS_SAFE_INTEGER(value)) {
+      fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be a safe integer`);
+    }
+    return value;
+  }
+  if (!value || typeof value !== 'object') {
+    fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} contains an unsupported value`);
+  }
+  rejectBridgeProxy(value);
+  return TRUSTED_ARRAY_IS_ARRAY(value)
+    ? captureBridgeArray(value, label, depth, budget)
+    : captureBridgeObject(value, label, depth, budget);
+}
+
 function exactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || TRUSTED_ARRAY_IS_ARRAY(value)) {
     fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length
-      || actual.some((key, index) => key !== wanted[index])) {
+  const actual = TRUSTED_OBJECT_KEYS(value);
+  if (actual.length !== expected.length) {
     fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} has missing or unknown fields`);
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    let found = false;
+    for (let candidate = 0; candidate < actual.length; candidate += 1) {
+      if (actual[candidate] === expected[index]) found = true;
+    }
+    if (!found) fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} has missing or unknown fields`);
   }
 }
 
@@ -139,7 +276,7 @@ function validateIdentity(value, label) {
   if (value.schema_version !== WALLET_GUARD_BRIDGE_SCHEMA_VERSION
       || typeof value.session_id !== 'string'
       || !isLowerHex(value.session_id, 64)
-      || !Number.isSafeInteger(value.sequence)
+      || !TRUSTED_NUMBER_IS_SAFE_INTEGER(value.sequence)
       || value.sequence < 1
       || value.sequence > 99_999_999
       || typeof value.request_id !== 'string'
@@ -151,7 +288,7 @@ function validateIdentity(value, label) {
 function makeRequestId(sessionId, sequence) {
   if (typeof sessionId !== 'string'
       || !isLowerHex(sessionId, 64)
-      || !Number.isSafeInteger(sequence)
+      || !TRUSTED_NUMBER_IS_SAFE_INTEGER(sequence)
       || sequence < 1
       || sequence > 99_999_999) {
     fail('POMRX_WG_BRIDGE_E_IDENTITY', 'bridge command identity is invalid');
@@ -182,7 +319,7 @@ function validateExpectedIdentity(value, expected) {
 function validateRequest(request) {
   exactKeys(request, ['method', 'params'], 'bridge request');
   if (request.method !== 'eth_sendTransaction'
-      || !Array.isArray(request.params)
+      || !TRUSTED_ARRAY_IS_ARRAY(request.params)
       || request.params.length !== 1) {
     fail(
       'POMRX_WG_BRIDGE_E_REQUEST',
@@ -200,7 +337,7 @@ export function makeWalletGuardBridgeCommand(rawInput) {
   );
   const requestId = makeRequestId(input.sessionId, input.sequence);
   validateContext(input.expectedChainId, input.expectedAccount, 'bridge command');
-  const command = Object.freeze({
+  const command = TRUSTED_OBJECT_FREEZE({
     schema_version: WALLET_GUARD_BRIDGE_SCHEMA_VERSION,
     session_id: input.sessionId,
     sequence: input.sequence,
@@ -222,7 +359,7 @@ export function serializeWalletGuardBridgeCommand(rawCommand) {
   validateIdentity(command, 'bridge command');
   validateContext(command.expected_chain_id, command.expected_account, 'bridge command');
   validateRequest(command.request);
-  return JSON.stringify(command);
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_STRINGIFY, null, [command]);
 }
 
 export function parseWalletGuardBridgeResponse(raw, expectedIdentity) {
@@ -243,7 +380,7 @@ export function parseWalletGuardBridgeResponse(raw, expectedIdentity) {
         || response.error !== null) {
       fail('POMRX_WG_BRIDGE_E_RESULT', 'bridge success result must be one lowercase transaction hash');
     }
-    return Object.freeze({ outcome: 'result', result: response.result });
+    return TRUSTED_OBJECT_FREEZE({ outcome: 'result', result: response.result });
   }
 
   if (response.outcome === 'error') {
@@ -255,7 +392,7 @@ export function parseWalletGuardBridgeResponse(raw, expectedIdentity) {
         || !errorCodeSupported(response.error.code)) {
       fail('POMRX_WG_BRIDGE_E_ERROR', 'bridge response uses an unsupported bounded error code');
     }
-    return Object.freeze({ outcome: 'error', error_code: response.error.code });
+    return TRUSTED_OBJECT_FREEZE({ outcome: 'error', error_code: response.error.code });
   }
 
   fail('POMRX_WG_BRIDGE_E_OUTCOME', 'bridge response outcome is invalid');

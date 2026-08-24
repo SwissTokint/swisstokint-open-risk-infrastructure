@@ -338,6 +338,64 @@ test('post-import Object.entries poisoning cannot fabricate a bound bridge respo
   assert.equal(transport.control.inspect().destroyed, true);
 });
 
+test('post-import descriptor poisoning cannot substitute the expected bridge identity', async () => {
+  const original = Object.getOwnPropertyDescriptor(Object, 'getOwnPropertyDescriptors');
+  let poisonCalls = 0;
+  let transport;
+  try {
+    transport = createTransport((command, deliverRawJson) => {
+      Object.defineProperty(Object, 'getOwnPropertyDescriptors', {
+        ...original,
+        value(value) {
+          poisonCalls += 1;
+          return Reflect.apply(original.value, Object, [value]);
+        },
+      });
+      const otherSession = 'd'.repeat(64);
+      deliverRawJson(response(command, {
+        session_id: otherSession,
+        request_id: `wg-bridge-${otherSession.slice(0, 16)}-00000001`,
+      }));
+    });
+    await assert.rejects(
+      transport.provider.request(sendTransaction()),
+      (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_BRIDGE_INTERNAL_ERROR'),
+    );
+  } finally {
+    Object.defineProperty(Object, 'getOwnPropertyDescriptors', original);
+  }
+  assert.equal(poisonCalls, 0);
+  assert.equal(transport.control.inspect().destroyed, true);
+});
+
+test('post-import Object.freeze poisoning cannot turn a bounded error into success', async () => {
+  const original = Object.getOwnPropertyDescriptor(Object, 'freeze');
+  let poisonCalls = 0;
+  try {
+    const transport = createTransport((command, deliverRawJson) => {
+      Object.defineProperty(Object, 'freeze', {
+        ...original,
+        value() {
+          poisonCalls += 1;
+          return { outcome: 'result', result: TX_HASH };
+        },
+      });
+      deliverRawJson(response(command, {
+        outcome: 'error',
+        result: null,
+        error: { code: 'USER_REJECTED' },
+      }));
+    });
+    await assert.rejects(
+      transport.provider.request(sendTransaction()),
+      (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_BRIDGE_USER_REJECTED'),
+    );
+  } finally {
+    Object.defineProperty(Object, 'freeze', original);
+  }
+  assert.equal(poisonCalls, 0);
+});
+
 test('reentrant delivery is buffered until the dispatcher return contract is validated', async () => {
   const transport = createTransport((command, deliverRawJson, reportFailure) => {
     deliverRawJson(response(command));
