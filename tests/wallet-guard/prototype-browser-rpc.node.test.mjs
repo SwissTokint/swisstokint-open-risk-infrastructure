@@ -1654,18 +1654,33 @@ test('a durable arm completing after command expiry never acknowledges wallet di
 test('a durable dispatch mark completing after expiry never renews the command', async () => {
   let releaseDispatch;
   let reportDispatchStarted;
+  let journalState = 'READY';
+  let retainedHash = null;
   const dispatchHold = new Promise((resolve) => { releaseDispatch = resolve; });
   const dispatchStarted = new Promise((resolve) => { reportDispatchStarted = resolve; });
   const journal = Object.freeze({
     async initialize() { return Object.freeze({ state: 'READY' }); },
-    async arm() { return Object.freeze({ state: 'ARMED' }); },
+    async arm() { journalState = 'ARMED'; return Object.freeze({ state: journalState }); },
     async markDispatched() {
       reportDispatchStarted();
       await dispatchHold;
-      return Object.freeze({ state: 'DISPATCHED' });
+      journalState = 'DISPATCHED';
+      return Object.freeze({ state: journalState });
     },
+    async retainHash(hash) {
+      assert.equal(journalState, 'DISPATCHED');
+      retainedHash = hash;
+      journalState = 'HASH_OBSERVED';
+      return Object.freeze({ state: journalState });
+    },
+    async terminate() { journalState = 'TERMINAL'; },
     async close() {},
-    inspect() { return Object.freeze({ state: 'ARMED' }); },
+    inspect() {
+      return Object.freeze({
+        state: journalState,
+        operation: Object.freeze({ transaction_hash: retainedHash }),
+      });
+    },
   });
   const prototype = prototypeFor('http://127.0.0.1:8545/', {
     journalPath: '/tmp/pomrx-wallet-slow-dispatch-test.json',
@@ -1673,7 +1688,12 @@ test('a durable dispatch mark completing after expiry never renews the command',
     createOperationJournal: () => journal,
     captureNodeChainView: async () => chainView(),
     captureObservationBaseline: async () => baseline(),
-    observeTransaction: async () => assert.fail('a missing dispatch ack must await a hash'),
+    observeTransaction: async () => Object.freeze({
+      status: 'MATCH_REFERENCE',
+      transaction_hash: TX_HASH,
+      reference_only: true,
+      external_world_proved: false,
+    }),
   });
   let allowPromise = null;
   try {
@@ -1719,6 +1739,32 @@ test('a durable dispatch mark completing after expiry never renews the command',
       }),
     });
     await dispatchStarted;
+    const duplicateDispatch = await http(info.origin, '/bridge/dispatched', {
+      method: 'POST', cookie, requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: command.schema_version,
+        session_id: command.session_id,
+        sequence: command.sequence,
+        request_id: command.request_id,
+      }),
+    });
+    assert.equal(duplicateDispatch.status, 409);
+    const resultPromise = http(info.origin, '/bridge/result', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: command.schema_version,
+        session_id: command.session_id,
+        sequence: command.sequence,
+        request_id: command.request_id,
+        observed_chain_id: command.expected_chain_id,
+        observed_account: command.expected_account,
+        outcome: 'result',
+        result: TX_HASH,
+        error: null,
+      }),
+    });
     const allowed = await allowPromise;
     assert.equal(allowed.status, 202);
     assert.equal(JSON.parse(allowed.body).operation.cause_code, 'DISPATCH_ACK_TIMEOUT');
@@ -1726,9 +1772,123 @@ test('a durable dispatch mark completing after expiry never renews the command',
     const dispatched = await dispatchPromise;
     assert.equal(dispatched.status, 409);
     assert.match(dispatched.body, /expired during durable dispatch acknowledgement/u);
+    const result = await resultPromise;
+    assert.equal(result.status, 202);
+    assert.equal(JSON.parse(result.body).operation.cause_code, 'DISPATCH_ACK_TIMEOUT');
+    assert.equal(retainedHash, TX_HASH);
     const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
     assert.equal(status.closed, true);
     assert.equal(status.command_pending, false);
+  } finally {
+    releaseDispatch();
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
+  }
+});
+
+test('a wallet hash waits for an in-flight durable dispatch mark before retention', async () => {
+  let releaseDispatch;
+  let reportDispatchStarted;
+  let journalState = 'READY';
+  const trace = [];
+  const dispatchHold = new Promise((resolve) => { releaseDispatch = resolve; });
+  const dispatchStarted = new Promise((resolve) => { reportDispatchStarted = resolve; });
+  const journal = Object.freeze({
+    async initialize() { return Object.freeze({ state: journalState }); },
+    async arm() { journalState = 'ARMED'; return Object.freeze({ state: journalState }); },
+    async markDispatched() {
+      trace.push('dispatch:start');
+      reportDispatchStarted();
+      await dispatchHold;
+      journalState = 'DISPATCHED';
+      trace.push('dispatch:durable');
+      return Object.freeze({ state: journalState });
+    },
+    async retainHash(hash) {
+      assert.equal(journalState, 'DISPATCHED');
+      assert.equal(hash, TX_HASH);
+      trace.push('hash:durable');
+      journalState = 'HASH_OBSERVED';
+      return Object.freeze({ state: journalState });
+    },
+    async terminate() { journalState = 'TERMINAL'; },
+    async close() {},
+    inspect() { return Object.freeze({ state: journalState }); },
+  });
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath: '/tmp/pomrx-wallet-dispatch-hash-order-test.json',
+    createOperationJournal: () => journal,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => Object.freeze({
+      status: 'MATCH_REFERENCE',
+      transaction_hash: TX_HASH,
+      reference_only: true,
+      external_world_proved: false,
+    }),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    let next;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      next = await http(info.origin, '/bridge/next', { cookie });
+      if (next.status === 200) break;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(next.status, 200);
+    const bridgeCommand = JSON.parse(next.body);
+    const walletView = JSON.stringify({
+      schema_version: bridgeCommand.schema_version,
+      session_id: bridgeCommand.session_id,
+      sequence: bridgeCommand.sequence,
+      request_id: bridgeCommand.request_id,
+      chain_id: bridgeCommand.expected_chain_id,
+      account: bridgeCommand.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    assert.equal((await http(info.origin, '/bridge/view', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    assert.equal((await http(info.origin, '/bridge/arm', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    const dispatchPromise = http(info.origin, '/bridge/dispatched', {
+      method: 'POST', cookie, requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+      }),
+    });
+    await dispatchStarted;
+    const resultPromise = http(info.origin, '/bridge/result', {
+      method: 'POST', cookie, requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+        observed_chain_id: bridgeCommand.expected_chain_id,
+        observed_account: bridgeCommand.expected_account,
+        outcome: 'result',
+        result: TX_HASH,
+        error: null,
+      }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.deepEqual(trace, ['dispatch:start']);
+    releaseDispatch();
+    assert.equal((await dispatchPromise).status, 204);
+    assert.equal((await resultPromise).status, 204);
+    assert.deepEqual(trace.slice(0, 3), ['dispatch:start', 'dispatch:durable', 'hash:durable']);
+    assert.equal((await allowPromise).status, 200);
   } finally {
     releaseDispatch();
     await prototype.close();
@@ -2076,6 +2236,95 @@ test('wallet-error journal failure settles the callback and stays durably unreso
     const durable = JSON.parse(await readFile(journalPath, 'utf8'));
     assert.equal(durable.state, 'DISPATCHED');
     assert.equal(durable.operation.transaction_hash, null);
+    assert.equal(durable.terminal, null);
+  } finally {
+    await prototype.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('forwarded observation survives a terminal journal persistence failure', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-terminal-failure-'));
+  const journalPath = join(temporaryDirectory, 'operation.json');
+  const observation = Object.freeze({
+    status: 'MATCH_REFERENCE',
+    transaction_hash: TX_HASH,
+    reference_only: true,
+    external_world_proved: false,
+  });
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      await chmod(journalPath, 0o644);
+      return observation;
+    },
+  });
+  try {
+    const { allowed } = await executeAllowedTransaction(prototype);
+    assert.equal(allowed.status, 202);
+    const body = JSON.parse(allowed.body);
+    assert.equal(body.observation.status, 'MATCH_REFERENCE');
+    assert.equal(body.operation.cause_code, 'JOURNAL_FAILURE');
+    assert.equal(body.operation.reconciliation_status, 'JOURNAL_FAILURE');
+    assert.equal(body.operation.observation.status, 'MATCH_REFERENCE');
+    const durable = JSON.parse(await readFile(journalPath, 'utf8'));
+    assert.equal(durable.state, 'HASH_OBSERVED');
+    assert.equal(durable.operation.transaction_hash, TX_HASH);
+    assert.equal(durable.terminal, null);
+  } finally {
+    await prototype.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('reconciled observation survives a terminal journal persistence failure', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-reconcile-terminal-failure-'));
+  const journalPath = join(temporaryDirectory, 'operation.json');
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      await chmod(journalPath, 0o644);
+      return Object.freeze({
+        status: 'MATCH_REFERENCE',
+        transaction_hash: TX_HASH,
+        reference_only: true,
+        external_world_proved: false,
+      });
+    },
+  });
+  try {
+    const {
+      allowedPromise, bridgeCommand, info, cookie,
+    } = await dispatchWithoutResult(prototype);
+    const result = await http(info.origin, '/bridge/result', {
+      method: 'POST', cookie, requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+        observed_chain_id: MAINNET_CHAIN_ID,
+        observed_account: OTHER_ACCOUNT,
+        outcome: 'result',
+        result: TX_HASH,
+        error: null,
+      }),
+    });
+    assert.equal(result.status, 202);
+    const operation = JSON.parse(result.body).operation;
+    assert.equal(operation.cause_code, 'JOURNAL_FAILURE');
+    assert.equal(operation.reconciliation_status, 'JOURNAL_FAILURE');
+    assert.equal(operation.observation.status, 'MATCH_REFERENCE');
+    const allowed = await allowedPromise;
+    assert.equal(allowed.status, 202);
+    assert.equal(JSON.parse(allowed.body).observation.status, 'MATCH_REFERENCE');
+    const durable = JSON.parse(await readFile(journalPath, 'utf8'));
+    assert.equal(durable.state, 'HASH_OBSERVED');
+    assert.equal(durable.operation.transaction_hash, TX_HASH);
     assert.equal(durable.terminal, null);
   } finally {
     await prototype.close();

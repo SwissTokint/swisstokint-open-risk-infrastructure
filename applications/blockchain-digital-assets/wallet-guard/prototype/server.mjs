@@ -910,20 +910,17 @@ export function createWalletGuardPrototypeServer({
     ambiguous.context_matches = candidate.context_matches;
     ambiguous.reconciliation_status = 'OBSERVING';
     ambiguous.reconciliationPromise = (async () => {
+      let observation;
       try {
-        const observation = await observeTransaction({
+        observation = await observeTransaction({
           rpcUrl: profile.observerRpcUrl,
           txHash: candidate.transaction_hash,
           account: state.account,
           baseline: ambiguous.baseline,
           profile,
         });
-        ambiguous.observation = observation;
-        ambiguous.reconciliation_status = 'OBSERVED';
-        state.lastObservation = observation;
-        await terminateJournal(`AMBIGUOUS_${observation.status}`);
       } catch (error) {
-        const observation = Object.freeze({
+        observation = Object.freeze({
           status: 'AMBIGUOUS',
           detail: error instanceof Error ? error.message : 'observer failed',
           transaction_hash: candidate.transaction_hash,
@@ -933,7 +930,22 @@ export function createWalletGuardPrototypeServer({
         ambiguous.observation = observation;
         ambiguous.reconciliation_status = 'OBSERVATION_FAILED';
         state.lastObservation = observation;
-        await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED').catch(() => {});
+        try {
+          await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED');
+        } catch {
+          ambiguous.cause_code = 'JOURNAL_FAILURE';
+          ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+        }
+        return;
+      }
+      ambiguous.observation = observation;
+      ambiguous.reconciliation_status = 'OBSERVED';
+      state.lastObservation = observation;
+      try {
+        await terminateJournal(`AMBIGUOUS_${observation.status}`);
+      } catch {
+        ambiguous.cause_code = 'JOURNAL_FAILURE';
+        ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
       }
     })();
     return ambiguous.reconciliationPromise;
@@ -986,6 +998,7 @@ export function createWalletGuardPrototypeServer({
       viewBound: false,
       armed: false,
       dispatched: false,
+      dispatchCommitPromise: null,
       observationBaseline: state.activeObservationBaseline,
       nodeCheckpoint: null,
       timer: null,
@@ -1359,7 +1372,8 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/dispatched') {
         if (state.pending === null || !state.pending.armed
-            || state.pending.dispatched || state.closed) {
+            || state.pending.dispatched || state.pending.dispatchCommitPromise !== null
+            || state.closed) {
           send(res, 409, 'no armed command awaiting dispatch');
           return;
         }
@@ -1369,53 +1383,91 @@ export function createWalletGuardPrototypeServer({
           pending.command,
           'wallet dispatch signal',
         );
-        if (state.pending !== pending || state.closed || pending.dispatched) {
+        if (state.pending !== pending || state.closed || pending.dispatched
+            || pending.dispatchCommitPromise !== null) {
           send(res, 409, 'armed command is no longer dispatchable');
           return;
         }
-        if (journal !== null) {
-          try {
-            await journal.markDispatched();
-          } catch (error) {
-            state.pending = null;
-            clearTimeout(pending.timer);
-            markAmbiguous(pending, 'JOURNAL_FAILURE');
-            pending.reportFailure('BRIDGE_CLOSED');
-            throw error;
+        let releaseDispatchCommit;
+        const dispatchCommitPromise = new Promise((resolve) => {
+          releaseDispatchCommit = resolve;
+        });
+        pending.dispatchCommitPromise = dispatchCommitPromise;
+        try {
+          if (journal !== null) {
+            try {
+              await journal.markDispatched();
+            } catch (error) {
+              state.pending = null;
+              clearTimeout(pending.timer);
+              const ambiguous = markAmbiguous(pending, 'JOURNAL_FAILURE');
+              ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+              pending.reportFailure('BRIDGE_CLOSED');
+              throw error;
+            }
           }
-        }
-        if (
-          state.pending !== pending
-          || state.closed
-          || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
-        ) {
-          if (state.pending === pending && !state.closed) {
+          if (
+            state.pending !== pending
+            || state.closed
+            || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
+          ) {
+            if (state.pending === pending && !state.closed) {
+              state.pending = null;
+              clearTimeout(pending.timer);
+              state.closed = true;
+              markAmbiguous(pending, 'DISPATCH_ACK_TIMEOUT');
+              pending.reportFailure('TIMEOUT');
+            }
+            send(res, 409, 'command expired during durable dispatch acknowledgement');
+            return;
+          }
+          clearTimeout(pending.timer);
+          pending.dispatched = true;
+          pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
+          pending.timer = setTimeout(() => {
+            if (state.pending !== pending) return;
             state.pending = null;
-            clearTimeout(pending.timer);
             state.closed = true;
-            markAmbiguous(pending, 'DISPATCH_ACK_TIMEOUT');
+            markAmbiguous(pending, 'TIMEOUT');
             pending.reportFailure('TIMEOUT');
+          }, commandTimeoutMs);
+          send(res, 204);
+        } finally {
+          releaseDispatchCommit();
+          if (pending.dispatchCommitPromise === dispatchCommitPromise) {
+            pending.dispatchCommitPromise = null;
           }
-          send(res, 409, 'command expired during durable dispatch acknowledgement');
-          return;
         }
-        clearTimeout(pending.timer);
-        pending.dispatched = true;
-        pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
-        pending.timer = setTimeout(() => {
-          if (state.pending !== pending) return;
-          state.pending = null;
-          state.closed = true;
-          markAmbiguous(pending, 'TIMEOUT');
-          pending.reportFailure('TIMEOUT');
-        }, commandTimeoutMs);
-        send(res, 204);
         return;
       }
 
       if (url.pathname === '/bridge/result') {
         const raw = await readStrictBody(req);
+        const dispatchCommitPromise = state.pending?.dispatchCommitPromise;
+        if (dispatchCommitPromise !== null && dispatchCommitPromise !== undefined) {
+          await dispatchCommitPromise;
+        }
         if (state.pending === null || !state.pending.delivered) {
+          if (state.ambiguous?.cause_code === 'JOURNAL_FAILURE'
+              && state.ambiguous.reconciliation_status === 'JOURNAL_FAILURE'
+              && state.ambiguous.transaction_hash === null) {
+            const candidate = extractBoundTransactionCandidate(raw, state.ambiguous.command);
+            state.ambiguous.transaction_hash = candidate.transaction_hash;
+            state.ambiguous.observed_chain_id = candidate.observed_chain_id;
+            state.ambiguous.observed_account = candidate.observed_account;
+            state.ambiguous.context_matches = candidate.context_matches;
+            const observation = Object.freeze({
+              status: 'AMBIGUOUS',
+              detail: 'transaction hash arrived after durable dispatch persistence failed',
+              transaction_hash: candidate.transaction_hash,
+              reference_only: true,
+              external_world_proved: false,
+            });
+            state.ambiguous.observation = observation;
+            state.lastObservation = observation;
+            sendJson(res, 202, { operation: ambiguousView() });
+            return;
+          }
           if (state.ambiguous === null
               || state.ambiguous.reconciliation_status !== 'AWAITING_LATE_RESULT') {
             send(res, 409, 'no delivered command');
@@ -1609,7 +1661,6 @@ export function createWalletGuardPrototypeServer({
                 baseline: state.lastSensitivePending?.observationBaseline ?? baseline,
                 profile,
               });
-              await terminateJournal(observation.status);
             } catch (error) {
               observation = {
                 status: 'AMBIGUOUS',
@@ -1628,10 +1679,32 @@ export function createWalletGuardPrototypeServer({
               ambiguous.context_matches = true;
               ambiguous.reconciliation_status = 'OBSERVATION_FAILED';
               ambiguous.observation = observation;
-              await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED').catch(() => {});
+              try {
+                await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED');
+              } catch {
+                ambiguous.cause_code = 'JOURNAL_FAILURE';
+                ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+              }
               responseStatus = 202;
             }
             state.lastObservation = observation;
+            if (responseStatus === 200) {
+              try {
+                await terminateJournal(observation.status);
+              } catch {
+                const ambiguous = markAmbiguous(
+                  state.lastSensitivePending,
+                  'JOURNAL_FAILURE',
+                );
+                ambiguous.transaction_hash = result.provider_result;
+                ambiguous.observed_chain_id = profile.chainId;
+                ambiguous.observed_account = state.account;
+                ambiguous.context_matches = true;
+                ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+                ambiguous.observation = observation;
+                responseStatus = 202;
+              }
+            }
           }
           sendJson(res, responseStatus, {
             result,
