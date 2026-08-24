@@ -1,12 +1,21 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pr131-37a46fd-exact-head-gates-20260824T114030Z-gpt56sol",
+    "actor": "gpt-5.6-sol",
+    "purpose": "Record five-stage owner evidence and request distinct review for PR #131 exact head 37a46fd.",
+    "acquired_at": "2026-08-24T11:40:30Z",
+    "expires_at": "2026-08-24T12:25:30Z",
+    "base_main_sha": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
+    "target_pr": 131,
+    "target_head_sha": "37a46fd5400350ed58d82d3a43a6bb8762e81005"
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T11:38:58Z",
-    "actor": "pr131-node-util-tcb-repair-20260824T113326Z-gpt56sol",
-    "reason": "PR #131 successor repair head 37a46fd5400350ed58d82d3a43a6bb8762e81005, updated threat boundary, and checkpoint comment 5394662359 completed; CI 881 waiting is read-only and no project mutation remains in flight."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T11:40:30Z",
+    "actor": "pr131-37a46fd-exact-head-gates-20260824T114030Z-gpt56sol",
+    "reason": "Canonical lock was FREE; acquire exact-blob-SHA CAS before serialized exact-head gate comments."
   }
 }
