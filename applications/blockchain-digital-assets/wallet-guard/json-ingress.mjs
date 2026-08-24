@@ -6,6 +6,9 @@ import {
 
 export const WALLET_GUARD_JSON_INGRESS_SCHEMA_VERSION = 'wallet_guard_json_ingress/0.1';
 
+const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_JSON_PARSE = JSON.parse;
+
 const MAX_RAW_BYTES = 64 * 1024;
 const MAX_DEPTH = 8;
 const MAX_NODES = 1_000;
@@ -40,7 +43,7 @@ export function parseWalletGuardBoundedJsonData(raw) {
 
   let parsed;
   try {
-    parsed = JSON.parse(raw);
+    parsed = trustedJsonParse(raw);
   } catch {
     fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
   }
@@ -49,6 +52,10 @@ export function parseWalletGuardBoundedJsonData(raw) {
 
 function fail(code, message) {
   throw new WalletGuardJsonIngressError(code, message);
+}
+
+function trustedJsonParse(raw) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_PARSE, null, [raw]);
 }
 
 function isWhitespace(character) {
@@ -230,7 +237,7 @@ class StrictJsonScanner {
         const token = this.raw.slice(start, this.index);
         let decoded;
         try {
-          decoded = JSON.parse(token);
+          decoded = trustedJsonParse(token);
         } catch {
           fail('POMRX_WG_JSON_E_SYNTAX', 'JSON string escape sequence is invalid');
         }
