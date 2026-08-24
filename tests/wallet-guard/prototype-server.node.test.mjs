@@ -605,6 +605,106 @@ test('post-prompt chain/account mismatch preserves and observes the bound transa
   assert.equal(parseJson(await http(info.origin, '/api/status', { cookie })).closed, true);
 });
 
+test('result without dispatch acknowledgement is observable but never a normal success', async (t) => {
+  const observations = [];
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    port: 0,
+    commandTimeoutMs: 5_000,
+    captureObservationBaseline: async () => Object.freeze({ marker: 'before-dispatch' }),
+    captureNodeChainView: async () => nodeChainView(),
+    observeTransaction: async (input) => {
+      observations.push(input);
+      return Object.freeze({
+        status: 'MATCH_REFERENCE',
+        transaction_hash: input.txHash,
+        reference_only: true,
+        external_world_proved: false,
+      });
+    },
+  });
+  const info = await prototype.listen();
+  t.after(() => prototype.close());
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+
+  const allowPromise = http(info.origin, '/api/allow', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: '{}',
+  });
+  const command = await nextCommand(info, cookie);
+  assert.equal((await bindView(info, cookie, command)).status, 204);
+  assert.equal((await armView(info, cookie, command)).status, 204);
+
+  const result = await http(info.origin, '/bridge/result', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: resultEnvelope(command),
+  });
+  assert.equal(result.status, 202);
+  const operation = parseJson(result).operation;
+  assert.equal(operation.cause_code, 'DISPATCH_ACK_UNAVAILABLE');
+  assert.equal(operation.retry_allowed, false);
+  assert.equal(operation.transaction_hash, TX_HASH);
+  assert.equal(operation.reconciliation_status, 'OBSERVED');
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].txHash, TX_HASH);
+
+  const allowed = await allowPromise;
+  assert.equal(allowed.status, 202);
+  assert.equal(parseJson(allowed).result, undefined);
+  assert.equal(parseJson(allowed).operation.cause_code, 'DISPATCH_ACK_UNAVAILABLE');
+});
+
+test('wallet error without dispatch acknowledgement closes ambiguous without a success', async (t) => {
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    port: 0,
+    commandTimeoutMs: 5_000,
+    captureObservationBaseline: async () => Object.freeze({ marker: 'before-dispatch' }),
+    captureNodeChainView: async () => nodeChainView(),
+    observeTransaction: async () => assert.fail('observer must not run without a hash'),
+  });
+  const info = await prototype.listen();
+  t.after(() => prototype.close());
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+
+  const allowPromise = http(info.origin, '/api/allow', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+  });
+  const command = await nextCommand(info, cookie);
+  assert.equal((await bindView(info, cookie, command)).status, 204);
+  assert.equal((await armView(info, cookie, command)).status, 204);
+  const errorResult = await http(info.origin, '/bridge/result', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      observed_chain_id: command.expected_chain_id,
+      observed_account: command.expected_account,
+      outcome: 'error',
+      result: null,
+      error: { code: 'USER_REJECTED' },
+    }),
+  });
+  assert.equal(errorResult.status, 202);
+  const operation = parseJson(errorResult).operation;
+  assert.equal(operation.cause_code, 'DISPATCH_ACK_UNAVAILABLE');
+  assert.equal(operation.transaction_hash, null);
+  assert.equal(operation.retry_allowed, false);
+  assert.equal((await allowPromise).status, 202);
+});
+
 test('handshake rejects a MetaMask chain view that differs from the Node RPC view', async (t) => {
   const prototype = createWalletGuardPrototypeServer({
     createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,

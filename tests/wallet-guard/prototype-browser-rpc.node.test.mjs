@@ -214,6 +214,8 @@ function browserHarness({
   boundary = {},
   viewResponse = null,
   armResponse = null,
+  dispatchedResponse = null,
+  resultResponse = null,
 } = {}) {
   const elements = new Map([
     ['#connect', new FakeElement()],
@@ -251,6 +253,12 @@ function browserHarness({
     if (path === '/bridge/next') return queue.shift() ?? response(410, { error: 'SESSION_CLOSED' });
     if (path === '/bridge/view' && viewResponse !== null) return viewResponse;
     if (path === '/bridge/arm' && armResponse !== null) return armResponse;
+    if (path === '/bridge/dispatched' && dispatchedResponse !== null) {
+      return typeof dispatchedResponse === 'function'
+        ? dispatchedResponse()
+        : dispatchedResponse;
+    }
+    if (path === '/bridge/result' && resultResponse !== null) return resultResponse;
     if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view'
         || path === '/bridge/arm' || path === '/bridge/dispatched') {
       return response(204);
@@ -529,6 +537,53 @@ test('a post-send wallet context stall cannot suppress the transaction hash', as
       );
     });
   }
+});
+
+test('a missing dispatch acknowledgement cannot strand a wallet hash', async (t) => {
+  for (const [label, dispatchedResponse] of [
+    ['pending', new Promise(() => {})],
+    ['rejected', () => Promise.reject(new Error('dispatch acknowledgement unavailable'))],
+  ]) {
+    await t.test(label, async () => {
+      const harness = browserHarness({
+        provider: new DeterministicEip1193Provider(),
+        nextResponses: [response(200, command())],
+        dispatchedResponse,
+      });
+      await harness.elements.get('#connect').click();
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/result'),
+        `wallet hash after ${label} dispatch acknowledgement`,
+      );
+      const delivery = harness.fetchCalls.find(({ path }) => path === '/bridge/result').body;
+      assert.equal(delivery.outcome, 'result');
+      assert.equal(delivery.result, TX_HASH);
+      assert.equal(
+        harness.provider.calls.filter(({ method }) => method === 'eth_sendTransaction').length,
+        1,
+      );
+    });
+  }
+});
+
+test('a stalled result acknowledgement retains the hash for manual reconciliation', async () => {
+  const harness = browserHarness({
+    provider: new DeterministicEip1193Provider(),
+    nextResponses: [response(200, command())],
+    resultResponse: new Promise(() => {}),
+  });
+  await harness.elements.get('#connect').click();
+  await waitFor(
+    () => /Hash MetaMask à réconcilier manuellement/u.test(
+      harness.elements.get('#result').textContent,
+    ),
+    'manual hash reconciliation notice',
+  );
+  assert.match(harness.elements.get('#result').textContent, new RegExp(TX_HASH, 'u'));
+  assert.equal(
+    harness.provider.calls.filter(({ method }) => method === 'eth_sendTransaction').length,
+    1,
+  );
 });
 
 test('browser rejects duplicated MetaMask EIP-6963 announcements', async () => {

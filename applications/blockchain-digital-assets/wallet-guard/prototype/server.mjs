@@ -873,7 +873,35 @@ export function createWalletGuardPrototypeServer({
         }
         const pending = state.pending;
         if (!pending.dispatched) {
-          send(res, 409, 'wallet result requires a dispatched command');
+          if (!pending.armed) {
+            send(res, 409, 'wallet result requires an armed command');
+            return;
+          }
+          state.pending = null;
+          clearTimeout(pending.timer);
+          let candidate = null;
+          try {
+            const parsed = parseWalletGuardBridgeResponse(
+              raw,
+              bridgeExpectedIdentity(pending.command),
+            );
+            if (parsed.outcome === 'result') {
+              candidate = extractBoundTransactionCandidate(raw, pending.command);
+            }
+          } catch {
+            try {
+              candidate = extractBoundTransactionCandidate(raw, pending.command);
+            } catch {
+              // A missing dispatch acknowledgement can never become a normal
+              // success, even when no exact transaction candidate survives.
+            }
+          }
+          markAmbiguous(pending, 'DISPATCH_ACK_UNAVAILABLE', candidate);
+          pending.reportFailure('BRIDGE_CLOSED');
+          if (state.ambiguous.reconciliationPromise !== null) {
+            await state.ambiguous.reconciliationPromise;
+          }
+          sendJson(res, 202, { operation: ambiguousView() });
           return;
         }
         state.pending = null;

@@ -2,6 +2,8 @@ const ANVIL_CHAIN_ID = '0x7a69';
 const POLL_MS = 250;
 const EIP6963_ANNOUNCE_WAIT_MS = 250;
 const POST_SEND_CONTEXT_TIMEOUT_MS = 250;
+const DISPATCH_ACK_TIMEOUT_MS = 250;
+const RESULT_DELIVERY_TIMEOUT_MS = 1_000;
 const METAMASK_RDNS = 'io.metamask';
 const BLOCK_HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -194,6 +196,20 @@ async function sampleWalletContextBounded() {
   }
 }
 
+async function settleWithin(promise, timeoutMs, label) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label} expiré`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function sampleWalletChainView() {
   const context = await sampleWalletContext();
   const genesis = canonicalBlock(
@@ -349,16 +365,21 @@ async function processCommand(command) {
   );
   let dispatchAcknowledged = true;
   try {
-    await dispatchSignal;
+    await settleWithin(dispatchSignal, DISPATCH_ACK_TIMEOUT_MS, 'Accusé de dispatch');
   } catch {
     dispatchAcknowledged = false;
-    sessionClosed = true;
   }
   const outcome = await walletOutcome;
   if (Object.hasOwn(outcome, 'error')) {
     const after = await sampleWalletContextBounded().catch(() => second);
-    if (dispatchAcknowledged) {
-      await deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after);
+    try {
+      await settleWithin(
+        deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after),
+        RESULT_DELIVERY_TIMEOUT_MS,
+        'Livraison du résultat wallet',
+      );
+    } catch (error) {
+      resultView.textContent = `Résultat wallet à réconcilier manuellement (${error.message})`;
     }
     sessionClosed = true;
     return;
@@ -373,7 +394,11 @@ async function processCommand(command) {
     // Preserve the transaction hash even when the post-prompt context changed.
     // The server will reject it as a normal success, mark the operation
     // ambiguous, and reconcile the bound hash against its configured Anvil.
-    await deliver(command, { result }, after);
+    await settleWithin(
+      deliver(command, { result }, after),
+      RESULT_DELIVERY_TIMEOUT_MS,
+      'Livraison du hash wallet',
+    );
   } catch (error) {
     resultView.textContent = `Hash MetaMask à réconcilier manuellement: ${String(result)} (${error.message})`;
     sessionClosed = true;
@@ -382,6 +407,7 @@ async function processCommand(command) {
   if (!contextMatches(command, after)) {
     sessionClosed = true;
   }
+  if (!dispatchAcknowledged) sessionClosed = true;
 }
 
 async function bridgeLoop() {
