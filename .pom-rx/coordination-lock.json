@@ -1,0 +1,12 @@
+{
+  "schema": "pom-rx-coordination-lock/1",
+  "state": "FREE",
+  "lease_minutes": 45,
+  "holder": null,
+  "last_transition": {
+    "type": "BOOTSTRAP",
+    "at": "2026-08-24T07:26:07Z",
+    "actor": "explicit-human-directed-bootstrap",
+    "reason": "Restore the canonical single-flight guard required by POM_RX_AUTOMATION_POLICY.md. This coordination branch is the sole lock mechanism; it is not a project-management or release-evidence branch."
+  }
+}
