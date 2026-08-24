@@ -14,7 +14,7 @@ The guard is coordination state only. It is not release evidence, project-manage
 - branch: `automation/pom-rx-coordination`
 - path: `.pom-rx/coordination-lock.json`
 - schema: `pom-rx-coordination-lock/1`
-- lease duration: 45 minutes
+- active-window duration: 45 minutes
 
 No other branch, issue, label, comment, workflow artifact, local file, chat state, or external store may be used as a competing POM-RX single-flight lock.
 
@@ -42,7 +42,7 @@ When `state` is `HELD`, `holder` must contain:
 - `base_main`: live `main` SHA observed for the run;
 - `purpose`: bounded work description.
 
-Unknown schema/state, malformed timestamps, missing required holder fields, wrong lease duration, unreadable branch/file state, or inconsistent holder data is **guard unavailable**, never FREE.
+Unknown schema/state, malformed timestamps, missing required holder fields, wrong duration, unreadable branch/file state, or inconsistent holder data is **guard unavailable**, never FREE.
 
 ## Atomic acquisition protocol
 
@@ -51,45 +51,56 @@ The GitHub contents API blob SHA is the compare-and-swap token.
 Before entering any writer lane:
 
 1. Fetch `automation/pom-rx-coordination:.pom-rx/coordination-lock.json` and retain its exact blob SHA.
-2. Validate the schema and lease configuration. If validation fails, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify no project state.
-3. If the lock is `HELD` and `expires_at` is still in the future, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify no project state.
-4. If the lock is `FREE`, or `HELD` but expired, attempt one update of the lock file using the **exact fetched blob SHA**. The replacement state is `HELD` with this invocation's unique `run_id`, acquisition/expiry timestamps, live base-main SHA and bounded purpose.
-5. If the compare-and-swap update fails for any reason, re-read the lock only to classify the outcome; do not enter a writer lane. A now-active lease is `SKIPPED_PREVIOUS_RUN_ACTIVE`; otherwise return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`.
-6. After a successful update, fetch the lock again. Proceed only if the stored `state` is `HELD`, the schema/lease remain valid, `holder.run_id` exactly equals this invocation's `run_id`, and `expires_at` is still in the future. Otherwise return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify no project state.
+2. Validate the schema and lock configuration. If validation fails, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify no project state.
+3. If `state=HELD` and `expires_at` is still in the future, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify no project state.
+4. If `state=HELD` and `expires_at` is at or before the current time, treat the lock as **STALE/BLOCKED**, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and modify neither project state nor the lock. Automation must never reclaim an expired HELD lock automatically.
+5. Only if `state=FREE`, attempt one update of the lock file using the **exact fetched blob SHA**. The replacement state is `HELD` with this invocation's unique `run_id`, acquisition/expiry timestamps, live base-main SHA and bounded purpose.
+6. If the compare-and-swap update fails for any reason, re-read the lock only to classify the outcome; do not enter a writer lane and do not retry acquisition inside the same invocation. A now-active HELD state is `SKIPPED_PREVIOUS_RUN_ACTIVE`; every other result is `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`.
+7. After a successful update, fetch the lock again. Proceed only if the stored `state` is `HELD`, the schema/configuration remain valid, `holder.run_id` exactly equals this invocation's `run_id`, and `expires_at` is still in the future. Otherwise return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify no project state.
 
-Because every contender updates from the exact blob SHA it observed, the first successful acquisition changes the blob SHA. A concurrent contender using the stale SHA cannot successfully claim the same lease state.
+Because every contender updates from the exact blob SHA it observed, the first successful acquisition changes the blob SHA. A concurrent contender using the stale SHA cannot successfully claim the same FREE state. `last_transition` also changes on every acquisition/release, preventing the FREE document from intentionally returning to an identical content blob during normal operation.
 
-## Mandatory lease-liveness check before every project mutation
+## Mandatory lock-liveness check before every project mutation
 
 Initial acquisition is not sufficient for a long-running invocation. **Immediately before every state-changing project action** — including branch/ref movement, file write, PR/comment/review/thread mutation, merge, or any other GitHub write outside the coordination branch — the run must re-fetch the canonical lock and verify all of the following:
 
-1. schema and lease configuration are valid;
+1. schema and lock configuration are valid;
 2. `state=HELD`;
 3. `holder.run_id` exactly equals this invocation's run ID;
 4. `expires_at` is still in the future.
 
-If any check fails, or the lock cannot be read/validated, the invocation must perform **no further project mutation**. If the lease expired, ownership changed, or the state became FREE, the run stops its writer lane and returns a coordination-blocked terminal result. It must not attempt to reacquire or extend the lease inside the same invocation.
+If any check fails, or the lock cannot be read/validated, the invocation performs **no further project mutation**. If its active window expired, it becomes read-only for project state and must not renew, extend or reacquire the lock inside the same invocation.
 
-This per-mutation liveness check closes the stale-owner race: once a 45-minute lease expires and another run becomes eligible to acquire it, the old run is procedurally forbidden from making another project write.
+Read-only polling of CI/reviews may continue for reporting after expiry. The invocation may also perform the narrowly defined **same-holder release** on the coordination branch described below, because automatic stale-lock reclamation is forbidden and release is the operation that restores availability. It must not perform any other write.
 
-Read-only polling of CI/reviews may continue after lease expiry only to report state, but it cannot be followed by a project write in that invocation. A later scheduled run must acquire a fresh lease and continue from live GitHub state.
+## Why expired HELD locks are not automatically reclaimed
 
-## Lease expiry and stale locks
+The 45-minute timestamp is a writer-liveness deadline, not an automatic fencing token. GitHub does not provide an atomic transaction that couples this coordination file to every separate PR/comment/ref/merge mutation.
 
-A lease older than 45 minutes is expired and may be reclaimed by a **different later invocation** through the same compare-and-swap protocol. Expiry is recovery from a crashed/abandoned/long-waiting run, not evidence that the prior run completed successfully.
+If another run were allowed to reclaim the lock automatically at the exact expiry boundary, an older project API call started just before expiry could complete after the new run acquired the lock. A pre-mutation time check alone cannot atomically close that cross-resource race.
 
-Never extend or renew a lease merely to keep broad work alive, and never reacquire after expiry inside the same invocation. Work that requires writes must remain bounded enough to fit the lease. If CI/review waiting exceeds the lease, the current invocation becomes read-only and terminates; a later invocation resumes after a fresh acquisition.
+Therefore an expired `HELD` lock remains **blocking** for every other automated invocation. This conservative rule preserves one-writer safety without pretending that a timestamp provides server-side fencing.
+
+Normal runs should release promptly. If a run is delayed beyond 45 minutes but remains alive, it becomes project-read-only and should release its own stale lock. If the holder crashed and cannot release, recovery requires the explicit human procedure below.
 
 ## Release protocol
 
-On a normal terminal path after durable project state has been persisted, and only while the lease is still live:
+Release is a coordination-only operation and is permitted for the **exact current holder**, even after its project-write active window expired, provided ownership has not changed.
 
 1. Fetch the current lock and exact blob SHA.
-2. Verify schema/configuration, `state=HELD`, `holder.run_id` equals the releasing invocation, and `expires_at` is still in the future.
-3. Update the file using that exact blob SHA to `state=FREE`, `holder=null`, preserving `lease_minutes=45` and recording a `RELEASE` transition.
-4. Re-fetch and verify `state=FREE`.
+2. Validate schema/configuration and require `state=HELD` plus `holder.run_id` exactly equal to the releasing invocation's run ID. Do not require future `expires_at` for release.
+3. Update the file using that exact blob SHA to `state=FREE`, `holder=null`, preserving `lease_minutes=45` and recording a unique `RELEASE` transition with current UTC time and the releasing run ID.
+4. Re-fetch and verify valid schema/configuration plus `state=FREE` and `holder=null`.
 
-A run must never release another run's lease. If its lease already expired or ownership changed, it does not mutate the coordination file; it terminates and lets expiry/reclamation provide recovery. A release write failure while the lease is still owned is a coordination blocker; the run stops further project writes and reports the failure.
+A run must never release another run's lock. A release compare-and-swap failure is not retried blindly; re-read only. If ownership changed, stop. If the same holder is still present but release cannot be verified, report `COORDINATION_RELEASE_BLOCKED` and perform no project writes.
+
+## Explicit stale-lock recovery
+
+Automation must never clear or overwrite an expired HELD lock owned by another run.
+
+If a holder crashed and left a stale lock, recovery requires **explicit human instruction**. Before resetting it, the recovery operator must re-read the canonical lock, confirm it is expired, confirm the identified run is no longer performing project writes to the best available live evidence, and record the recovery reason in `last_transition`. The reset uses the exact observed blob SHA and must be re-read afterward as `FREE`.
+
+This is intentionally fail-closed. A rare manual stale-lock recovery is preferable to silently permitting two project writers without a true cross-resource fencing primitive.
 
 ## Bootstrap rule
 
@@ -97,4 +108,4 @@ Creation of the canonical coordination branch/file is a one-time bootstrap opera
 
 ## Evidence and non-claims
 
-Acquiring this guard proves only single-writer coordination for POM-RX automation that follows this protocol and performs the mandatory pre-mutation liveness checks. It does not provide distributed transaction semantics for arbitrary GitHub users, does not secure GitHub itself, and does not replace branch protection, CI, independent review, post-merge assurance, or application/runtime locking.
+Acquiring this guard proves only single-writer coordination for POM-RX automation that follows this protocol. It does not provide distributed transaction semantics for arbitrary GitHub users, does not secure GitHub itself, and does not replace branch protection, CI, independent review, post-merge assurance, or application/runtime locking.
