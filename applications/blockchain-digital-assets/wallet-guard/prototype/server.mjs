@@ -365,9 +365,14 @@ function sameChainView(left, right) {
     && left.latest_block_hash === right.latest_block_hash;
 }
 
-async function defaultCaptureNodeChainView({ rpcUrl, profile, anchorBlockNumber = null }) {
-  const chainId = await rpcCall(rpcUrl, 101, 'eth_chainId', [], profile.rpcTimeoutMs);
-  const genesis = await rpcCall(
+export async function captureWalletGuardPrototypeNodeChainView({
+  rpcUrl,
+  profile,
+  anchorBlockNumber = null,
+  rpcRequest = rpcCall,
+}) {
+  const chainId = await rpcRequest(rpcUrl, 101, 'eth_chainId', [], profile.rpcTimeoutMs);
+  const genesis = await rpcRequest(
     rpcUrl,
     102,
     'eth_getBlockByNumber',
@@ -375,14 +380,14 @@ async function defaultCaptureNodeChainView({ rpcUrl, profile, anchorBlockNumber 
     profile.rpcTimeoutMs,
   );
   const anchor = anchorBlockNumber === null
-    ? await rpcCall(
+    ? await rpcRequest(
       rpcUrl,
       103,
       'eth_getBlockByNumber',
       [profile.chainViewTag, false],
       profile.rpcTimeoutMs,
     )
-    : await rpcCall(
+    : await rpcRequest(
       rpcUrl,
       103,
       'eth_getBlockByNumber',
@@ -390,7 +395,7 @@ async function defaultCaptureNodeChainView({ rpcUrl, profile, anchorBlockNumber 
       profile.rpcTimeoutMs,
     );
   if (profile.network === 'sepolia') {
-    const safeHead = await rpcCall(
+    const safeHead = await rpcRequest(
       rpcUrl,
       104,
       'eth_getBlockByNumber',
@@ -400,6 +405,17 @@ async function defaultCaptureNodeChainView({ rpcUrl, profile, anchorBlockNumber 
     if (!safeHead || canonicalQuantity(safeHead.number, 'observer safe block')
       < canonicalQuantity(anchor?.number, 'observer anchor block')) {
       throw new Error('observer cannot prove the wallet anchor is safe');
+    }
+    const revalidatedAnchor = await rpcRequest(
+      rpcUrl,
+      105,
+      'eth_getBlockByNumber',
+      [anchor.number, false],
+      profile.rpcTimeoutMs,
+    );
+    if (!revalidatedAnchor || revalidatedAnchor.number !== anchor.number
+        || revalidatedAnchor.hash !== anchor.hash) {
+      throw new Error('observer anchor changed while binding the safe checkpoint');
     }
   }
   if (!genesis || genesis.number !== '0x0'
@@ -753,7 +769,7 @@ export function createWalletGuardPrototypeServer({
   commandTimeoutMs = 90_000,
   observeTransaction = defaultObserveTransaction,
   captureObservationBaseline = null,
-  captureNodeChainView = defaultCaptureNodeChainView,
+  captureNodeChainView = captureWalletGuardPrototypeNodeChainView,
 } = {}) {
   if (typeof createControlledCallbackTransport !== 'function'
       || typeof createTrustedGateway !== 'function'
@@ -1258,11 +1274,21 @@ export function createWalletGuardPrototypeServer({
         if (originalObserver !== null && originalObserver !== undefined
             && typeof originalObserver.chain_id === 'string'
             && typeof originalObserver.account_nonce === 'string') {
-          const dispatchObserver = await captureBaseline({
-            rpcUrl: profile.observerRpcUrl,
-            account: state.account,
-            profile,
-          });
+          let dispatchObserver;
+          try {
+            dispatchObserver = await captureBaseline({
+              rpcUrl: profile.observerRpcUrl,
+              account: state.account,
+              profile,
+            });
+          } catch {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            pending.reportFailure('CONTEXT_CHANGED');
+            send(res, 409, 'dispatch-boundary observer preflight failed');
+            return;
+          }
           if (state.pending !== pending || state.closed) {
             send(res, 409, 'pending command expired during dispatch preflight');
             return;

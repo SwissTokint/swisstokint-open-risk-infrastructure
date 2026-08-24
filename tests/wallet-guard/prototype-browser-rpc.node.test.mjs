@@ -12,6 +12,7 @@ import {
 } from '../../applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs';
 
 const {
+  captureWalletGuardPrototypeNodeChainView,
   createWalletGuardPrototypePublicLookup,
   createWalletGuardPrototypeServer,
   observeWalletGuardPrototypeTransaction,
@@ -1138,6 +1139,37 @@ test('Sepolia observer never emits MATCH while the safe head lags the receipt bl
   );
 });
 
+test('Sepolia chain binding revalidates the exact anchor after reading safe', async () => {
+  const profile = Object.freeze({
+    network: 'sepolia',
+    chainId: SEPOLIA_CHAIN_ID,
+    chainViewTag: 'safe',
+    rpcTimeoutMs: 10,
+  });
+  const changedAnchorHash = `0x${'c'.repeat(64)}`;
+  const rpcRequest = async (_url, id, method, params) => {
+    if (method === 'eth_chainId') return SEPOLIA_CHAIN_ID;
+    if (method === 'eth_getBlockByNumber' && params[0] === '0x0') {
+      return { number: '0x0', hash: GENESIS_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && id === 103) {
+      return { number: '0x20', hash: BLOCK_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && id === 104) {
+      return { number: '0x21', hash: LATEST_BLOCK_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && id === 105) {
+      return { number: '0x20', hash: changedAnchorHash };
+    }
+    throw new Error(`unexpected chain-binding RPC method ${method}`);
+  };
+  await assert.rejects(captureWalletGuardPrototypeNodeChainView({
+    rpcUrl: 'https://observer.example.test/',
+    profile,
+    rpcRequest,
+  }), /anchor changed while binding the safe checkpoint/u);
+});
+
 function rpcResultForHandshake({ method, params }) {
   if (method === 'eth_chainId') return ANVIL_CHAIN_ID;
   if (method === 'eth_blockNumber') return LATEST_BLOCK_NUMBER;
@@ -1483,6 +1515,63 @@ test('a nonce change after view binding refuses the dispatch-boundary arm', asyn
       }),
     })).status, 409);
     assert.equal((await allowPromise).status, 400);
+  } finally {
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
+  }
+});
+
+test('a failed dispatch-boundary nonce recapture closes the command before timeout', async () => {
+  let baselineCaptures = 0;
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => {
+      baselineCaptures += 1;
+      if (baselineCaptures === 2) throw new Error('pending nonce appeared');
+      return baseline();
+    },
+    observeTransaction: async () => assert.fail('a preflight-failed command must not be observed'),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    let next;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      next = await http(info.origin, '/bridge/next', { cookie });
+      if (next.status === 200) break;
+      assert.equal(next.status, 204);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(next.status, 200);
+    const command = JSON.parse(next.body);
+    const walletView = JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      chain_id: command.expected_chain_id,
+      account: command.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    assert.equal((await http(info.origin, '/bridge/view', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    const arm = await http(info.origin, '/bridge/arm', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    });
+    assert.equal(arm.status, 409);
+    assert.match(arm.body, /observer preflight failed/u);
+    assert.equal(baselineCaptures, 2);
+    assert.equal((await allowPromise).status, 400);
+    const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+    assert.equal(status.closed, true);
+    assert.equal(status.command_pending, false);
+    assert.equal(status.ambiguous, null);
   } finally {
     await prototype.close();
     if (allowPromise !== null) await allowPromise.catch(() => {});
