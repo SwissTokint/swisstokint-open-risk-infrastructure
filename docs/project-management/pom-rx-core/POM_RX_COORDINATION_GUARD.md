@@ -71,6 +71,14 @@ Initial acquisition is not sufficient for a long-running invocation. **Immediate
 
 If any check fails, or the lock cannot be read/validated, the invocation performs **no further project mutation**. If its active window expired, it becomes read-only for project state and must not renew, extend or reacquire the lock inside the same invocation.
 
+### Serialization requirement
+
+Project mutations are strictly serialized within an invocation: **at most one state-changing project API call may be in flight at a time**. The next project mutation may begin only after the prior mutation call has returned a terminal success/failure response and the canonical lock has been revalidated again.
+
+The coordination lock must never be released while a project mutation is still in flight. Release is allowed only after all project mutation calls have completed and the invocation has entered its terminal coordination phase.
+
+This rule prevents a same-run parallel write from surviving beyond lock release and overlapping a subsequent holder.
+
 Read-only polling of CI/reviews may continue for reporting after expiry. The invocation may also perform the narrowly defined **same-holder release** on the coordination branch described below, because automatic stale-lock reclamation is forbidden and release is the operation that restores availability. It must not perform any other write.
 
 ## Why expired HELD locks are not automatically reclaimed
@@ -81,16 +89,17 @@ If another run were allowed to reclaim the lock automatically at the exact expir
 
 Therefore an expired `HELD` lock remains **blocking** for every other automated invocation. This conservative rule preserves one-writer safety without pretending that a timestamp provides server-side fencing.
 
-Normal runs should release promptly. If a run is delayed beyond 45 minutes but remains alive, it becomes project-read-only and should release its own stale lock. If the holder crashed and cannot release, recovery requires the explicit human procedure below.
+Normal runs should release promptly. If a run is delayed beyond 45 minutes but remains alive, it becomes project-read-only and should release its own stale lock once no project mutation remains in flight. If the holder crashed and cannot release, recovery requires the explicit human procedure below.
 
 ## Release protocol
 
-Release is a coordination-only operation and is permitted for the **exact current holder**, even after its project-write active window expired, provided ownership has not changed.
+Release is a coordination-only operation and is permitted for the **exact current holder**, even after its project-write active window expired, provided ownership has not changed and no project mutation is in flight.
 
-1. Fetch the current lock and exact blob SHA.
-2. Validate schema/configuration and require `state=HELD` plus `holder.run_id` exactly equal to the releasing invocation's run ID. Do not require future `expires_at` for release.
-3. Update the file using that exact blob SHA to `state=FREE`, `holder=null`, preserving `lease_minutes=45` and recording a unique `RELEASE` transition with current UTC time and the releasing run ID.
-4. Re-fetch and verify valid schema/configuration plus `state=FREE` and `holder=null`.
+1. Confirm locally that every state-changing project API call issued by this invocation has returned and no project mutation is in flight.
+2. Fetch the current lock and exact blob SHA.
+3. Validate schema/configuration and require `state=HELD` plus `holder.run_id` exactly equal to the releasing invocation's run ID. Do not require future `expires_at` for release.
+4. Update the file using that exact blob SHA to `state=FREE`, `holder=null`, preserving `lease_minutes=45` and recording a unique `RELEASE` transition with current UTC time and the releasing run ID.
+5. Re-fetch and verify valid schema/configuration plus `state=FREE` and `holder=null`.
 
 A run must never release another run's lock. A release compare-and-swap failure is not retried blindly; re-read only. If ownership changed, stop. If the same holder is still present but release cannot be verified, report `COORDINATION_RELEASE_BLOCKED` and perform no project writes.
 
@@ -98,7 +107,7 @@ A run must never release another run's lock. A release compare-and-swap failure 
 
 Automation must never clear or overwrite an expired HELD lock owned by another run.
 
-If a holder crashed and left a stale lock, recovery requires **explicit human instruction**. Before resetting it, the recovery operator must re-read the canonical lock, confirm it is expired, confirm the identified run is no longer performing project writes to the best available live evidence, and record the recovery reason in `last_transition`. The reset uses the exact observed blob SHA and must be re-read afterward as `FREE`.
+If a holder crashed and left a stale lock, recovery requires **explicit human instruction**. Before resetting it, the recovery operator must re-read the canonical lock, confirm it is expired, confirm the identified run is no longer performing or holding an in-flight project write to the best available live evidence, and record the recovery reason in `last_transition`. The reset uses the exact observed blob SHA and must be re-read afterward as `FREE`.
 
 This is intentionally fail-closed. A rare manual stale-lock recovery is preferable to silently permitting two project writers without a true cross-resource fencing primitive.
 
