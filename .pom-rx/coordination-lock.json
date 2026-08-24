@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pr131-reconcile-20260824T111957Z-gpt56sol",
+    "acquired_at": "2026-08-24T11:19:57Z",
+    "expires_at": "2026-08-24T12:04:57Z",
+    "base_main": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
+    "purpose": "Reconcile PR #131 onto current trusted main while preserving the complete validated control plane; freeze the new head for fresh exact-head evidence. No merge, no wallet execution."
+  },
   "last_transition": {
-    "type": "RECOVER_STALE",
-    "at": "2026-08-24T11:19:38Z",
-    "actor": "human-authorized-recovery-20260824T1119Z-gpt56sol",
-    "reason": "Explicit user-authorized recovery of expired holder manual-repair-20260824T0727Z-gpt56sol after verifying PR #136 terminal assurance, unchanged live main since 2026-08-24T07:58:50Z, no visible subsequent project mutation, and lock expiry at 2026-08-24T08:12:00Z."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T11:19:57Z",
+    "actor": "pr131-reconcile-20260824T111957Z-gpt56sol",
+    "reason": "User-authorized single-writer reconciliation of PR #131 after verified stale-lock recovery."
   }
 }
