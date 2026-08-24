@@ -299,6 +299,45 @@ test('post-import JSON.parse poisoning cannot fabricate a bound bridge response'
   assert.equal(transport.control.inspect().destroyed, true);
 });
 
+test('post-import Object.entries poisoning cannot fabricate a bound bridge response', async () => {
+  const original = Object.getOwnPropertyDescriptor(Object, 'entries');
+  let poisonCalls = 0;
+  let transport;
+  try {
+    transport = createTransport((command, deliverRawJson) => {
+      Object.defineProperty(Object, 'entries', {
+        ...original,
+        value(value) {
+          poisonCalls += 1;
+          if (value && typeof value === 'object') {
+            return Reflect.apply(original.value, Object, [{
+              schema_version: command.schema_version,
+              session_id: command.session_id,
+              sequence: command.sequence,
+              request_id: command.request_id,
+              observed_chain_id: command.expected_chain_id,
+              observed_account: command.expected_account,
+              outcome: 'result',
+              result: TX_HASH,
+              error: null,
+            }]);
+          }
+          return Reflect.apply(original.value, Object, [value]);
+        },
+      });
+      deliverRawJson('{}');
+    });
+    await assert.rejects(
+      transport.provider.request(sendTransaction()),
+      (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_BRIDGE_INTERNAL_ERROR'),
+    );
+  } finally {
+    Object.defineProperty(Object, 'entries', original);
+  }
+  assert.equal(poisonCalls, 0);
+  assert.equal(transport.control.inspect().destroyed, true);
+});
+
 test('reentrant delivery is buffered until the dispatcher return contract is validated', async () => {
   const transport = createTransport((command, deliverRawJson, reportFailure) => {
     deliverRawJson(response(command));
