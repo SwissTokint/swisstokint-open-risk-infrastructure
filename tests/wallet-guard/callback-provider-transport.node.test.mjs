@@ -77,6 +77,33 @@ function referenceAuthorizationRecord() {
   };
 }
 
+function createAllowGateway(transport) {
+  return createWalletGuardTrustedProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider: transport.provider,
+    policy: {
+      schema_version: 'wallet-guard-policy/0.1',
+      policy_id: 'wallet-guard-anvil-burner/0.1',
+      enabled: true,
+      kill_switch: false,
+      expected_chain_id: '0x7a69',
+      allowed_origins: [ORIGIN],
+      allowed_targets: [],
+      allowed_recipients: [ACCOUNT],
+      allowed_spenders: [],
+      allowed_typed_data_verifying_contracts: [],
+      max_native_value: '1',
+      max_token_amount: '0',
+      deny_unlimited_allowance: true,
+      deny_operator_approval: true,
+      require_simulation_for: [],
+    },
+    trustedClock: () => '2026-08-24T12:00:00.000Z',
+    referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+    capabilityLifetimeMs: 30_000,
+  });
+}
+
 test('callback transport originates same-realm Promises and binds a success response', async () => {
   let dispatchedCommand;
   const transport = createTransport((command, deliverRawJson) => {
@@ -731,6 +758,35 @@ test('trusted gateway ALLOW binds context and forwards exactly one callback comm
   assert.equal(dispatchCalls, 1);
   assert.equal(transport.control.inspect().context_reads, 12);
   assert.equal(transport.control.sensitiveCallCount(), 1);
+});
+
+test('gateway result stays frozen when dispatch poisons Object.freeze before settlement', async () => {
+  const original = Object.getOwnPropertyDescriptor(Object, 'freeze');
+  let poisonCalls = 0;
+  try {
+    const transport = createTransport((command, deliverRawJson) => {
+      Object.defineProperty(Object, 'freeze', {
+        ...original,
+        value(value) {
+          poisonCalls += 1;
+          return value;
+        },
+      });
+      deliverRawJson(response(command));
+    });
+    const gateway = createAllowGateway(transport);
+    const result = await gateway.request(sendTransaction(ACCOUNT));
+    assert.equal(result.decision, 'ALLOW');
+    assert.equal(result.forwarded, true);
+    assert.equal(result.provider_result, TX_HASH);
+    assert.equal(Object.isFrozen(result), true);
+    assert.throws(() => {
+      result.forwarded = false;
+    }, TypeError);
+  } finally {
+    Object.defineProperty(Object, 'freeze', original);
+  }
+  assert.equal(poisonCalls, 0);
 });
 
 test('post-dispatch Promise drift destroys the session without returning an owned transport', () => {

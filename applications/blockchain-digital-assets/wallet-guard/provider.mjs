@@ -22,6 +22,7 @@ export const WALLET_GUARD_BINDING_PROFILE = 'pom-rx-wallet-guard/0.1';
 export const WALLET_GUARD_CONTEXT_SCHEMA_VERSION = 'wallet_guard_context/0.1';
 export const WALLET_GUARD_PREPARED_EXECUTION_VERSION = 'wallet_guard_prepared_execution/0.1';
 
+const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-context:v1:';
 const METHOD_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-method:v1:';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
@@ -371,7 +372,7 @@ function exactContextMatches(prepared, context) {
 }
 
 function makeDecisionResult(policyResult, committed, forwarded, providerResult = null) {
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     decision: policyResult.decision,
     reasons: policyResult.reasons,
     policy_hash: policyResult.policy_hash,
