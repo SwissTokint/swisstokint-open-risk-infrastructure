@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "manual-repair-20260824T0727Z-gpt56sol",
-    "acquired_at": "2026-08-24T07:27:00Z",
-    "expires_at": "2026-08-24T08:12:00Z",
-    "base_main": "8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970",
-    "purpose": "Bootstrap and document canonical POM-RX single-flight coordination guard, then re-enable the existing scheduled task."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T07:27:00Z",
-    "actor": "manual-repair-20260824T0727Z-gpt56sol",
-    "reason": "Explicit user-directed repair of previously unavailable coordination guard."
+    "type": "RECOVER_STALE",
+    "at": "2026-08-24T11:19:38Z",
+    "actor": "human-authorized-recovery-20260824T1119Z-gpt56sol",
+    "reason": "Explicit user-authorized recovery of expired holder manual-repair-20260824T0727Z-gpt56sol after verifying PR #136 terminal assurance, unchanged live main since 2026-08-24T07:58:50Z, no visible subsequent project mutation, and lock expiry at 2026-08-24T08:12:00Z."
   }
 }
