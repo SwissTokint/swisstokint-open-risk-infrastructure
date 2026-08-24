@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "wallet-guard-sepolia-review-fixes-20260824T151528061Z-gpt56sol",
-    "acquired_at": "2026-08-24T15:15:28.061Z",
-    "expires_at": "2026-08-24T16:00:28.061Z",
-    "base_main": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5",
-    "purpose": "Close exact-head review findings for the bounded Wallet Guard Sepolia burner prototype without control-plane, core, custody, mainnet, deployment, or meaningful-funds mutation."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T15:15:28.061Z",
+    "type": "RELEASE",
+    "at": "2026-08-24T15:57:17.667Z",
     "actor": "wallet-guard-sepolia-review-fixes-20260824T151528061Z-gpt56sol",
-    "reason": "Continue user-authorized development after independent review surfaced hash-retention, final nonce-boundary, and IPv6 SSRF hardening gaps."
+    "reason": "Published final Wallet Guard burner prototype exact head, closed known review findings, and handed remaining CI and human wallet gates back as read-only blockers."
   }
 }
