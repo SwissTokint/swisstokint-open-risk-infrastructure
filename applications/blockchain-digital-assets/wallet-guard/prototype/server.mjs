@@ -30,6 +30,10 @@ function randomHex32() {
   return randomBytes(32).toString('hex');
 }
 
+function monotonicMilliseconds() {
+  return Number(process.hrtime.bigint() / 1_000_000n);
+}
+
 function isNonPublicIpv4Address(address) {
   if (isIP(address) !== 4) return true;
   const [first, second] = address.split('.').map(Number);
@@ -508,8 +512,8 @@ export async function observeWalletGuardPrototypeTransaction({
   let finalSafeHead = null;
   let confirmationCount = 0n;
   let finalityReached = false;
-  const deadline = Date.now() + profile.receiptTimeoutMs;
-  for (let attempt = 0; Date.now() < deadline; attempt += 1) {
+  const deadline = monotonicMilliseconds() + profile.receiptTimeoutMs;
+  for (let attempt = 0; monotonicMilliseconds() < deadline; attempt += 1) {
     receipt = await rpcRequest(
       rpcUrl,
       attempt + 10,
@@ -985,7 +989,7 @@ export function createWalletGuardPrototypeServer({
       observationBaseline: state.activeObservationBaseline,
       nodeCheckpoint: null,
       timer: null,
-      deadlineAt: Date.now() + commandTimeoutMs,
+      deadlineAtMonotonicMs: monotonicMilliseconds() + commandTimeoutMs,
     };
     pending.timer = setTimeout(() => {
       if (state.pending !== pending) return;
@@ -1324,7 +1328,11 @@ export function createWalletGuardPrototypeServer({
             throw error;
           }
         }
-        if (state.pending !== pending || state.closed || Date.now() >= pending.deadlineAt) {
+        if (
+          state.pending !== pending
+          || state.closed
+          || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
+        ) {
           if (state.pending === pending && !state.closed) {
             state.pending = null;
             clearTimeout(pending.timer);
@@ -1337,7 +1345,7 @@ export function createWalletGuardPrototypeServer({
         }
         clearTimeout(pending.timer);
         pending.armed = true;
-        pending.deadlineAt = Date.now() + commandTimeoutMs;
+        pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending || !pending.armed || pending.dispatched) return;
           state.pending = null;
@@ -1376,7 +1384,11 @@ export function createWalletGuardPrototypeServer({
             throw error;
           }
         }
-        if (state.pending !== pending || state.closed || Date.now() >= pending.deadlineAt) {
+        if (
+          state.pending !== pending
+          || state.closed
+          || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
+        ) {
           if (state.pending === pending && !state.closed) {
             state.pending = null;
             clearTimeout(pending.timer);
@@ -1389,7 +1401,7 @@ export function createWalletGuardPrototypeServer({
         }
         clearTimeout(pending.timer);
         pending.dispatched = true;
-        pending.deadlineAt = Date.now() + commandTimeoutMs;
+        pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending) return;
           state.pending = null;
