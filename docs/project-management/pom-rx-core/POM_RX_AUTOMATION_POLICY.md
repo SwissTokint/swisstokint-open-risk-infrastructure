@@ -64,24 +64,28 @@ Canonical state is stored only at:
 - branch `automation/pom-rx-coordination`;
 - file `.pom-rx/coordination-lock.json`;
 - schema `pom-rx-coordination-lock/1`;
-- lease duration 45 minutes.
+- active-window duration 45 minutes.
 
-Acquisition and release use the GitHub contents blob SHA as a compare-and-swap token. A run may enter a writer lane only after it has successfully updated the lock from the exact blob SHA it observed and then re-read the file to verify that `state=HELD`, `holder.run_id` equals its own unique run ID and `expires_at` is still in the future. A stale compare-and-swap failure is not retried as an acquisition shortcut; the run re-reads only to classify `SKIPPED_PREVIOUS_RUN_ACTIVE` versus `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`.
+Acquisition uses the GitHub contents blob SHA as a compare-and-swap token. Automation may acquire **only `state=FREE`**. A run may enter a writer lane only after it has successfully updated that exact FREE blob SHA and then re-read the file to verify `state=HELD`, exact own `holder.run_id` and a future `expires_at`.
 
-**Initial acquisition does not authorize writes for the full lifetime of a long run. Immediately before every state-changing project action, the invocation must re-read the canonical lock and require valid schema/configuration, `state=HELD`, exact own `holder.run_id`, and an unexpired `expires_at`.** If the lease expired, ownership changed, the state became FREE, or verification fails, the invocation performs no further project mutation. It must not renew, extend or reacquire the lease inside the same invocation. Read-only CI/review polling may continue only for reporting; a later invocation resumes after a fresh acquisition.
+A `HELD` lock with a future expiry means `SKIPPED_PREVIOUS_RUN_ACTIVE`. A `HELD` lock whose expiry has passed is **stale but still blocking**: automation must return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and must not overwrite or reclaim it. This is deliberate because the coordination file cannot atomically fence separate GitHub PR/ref/comment/merge mutations at an expiry boundary.
 
-Lock writes occur only on the coordination branch. Normal lock acquisition/release must not move `main`, a feature PR, or a control-plane PR. No issue, label, comment, workflow artifact, local file, chat state or alternate branch may serve as a competing lock.
+Immediately before every state-changing project action, the invocation must re-read the canonical lock and require valid schema/configuration, `state=HELD`, exact own `holder.run_id`, and future `expires_at`. After its active window expires it performs no more project writes and must not renew, extend or reacquire in the same invocation.
+
+The exact current holder may still perform the narrowly scoped coordination-only release after expiry, because other automation is forbidden from reclaiming the stale lock. Release uses the exact current blob SHA, sets `FREE`/`holder=null` with a unique RELEASE transition, and must be re-read as FREE. A crashed holder's stale lock requires explicit human recovery; automation never clears another holder.
+
+Lock writes occur only on the coordination branch. Normal acquisition/release must not move `main`, a feature PR, or a control-plane PR. No issue, label, comment, workflow artifact, local file, chat state or alternate branch may serve as a competing lock.
 
 The coordination branch/file may be bootstrapped only under explicit human instruction when the canonical guard is absent. After bootstrap, automation must never recreate, rename, replace or fork the mechanism. Future changes require a scoped reviewed control-plane PR.
 
 ## Prime level 3 cycle
 
-1. Acquire and verify the canonical single-flight coordination lock **before entering a writer lane**, exactly as defined in `POM_RX_COORDINATION_GUARD.md`. Acquisition is mandatory, never best-effort. If an active lock is younger than 45 minutes, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing. If lock acquisition or lock-state verification cannot be completed, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing. Do not invent a competing lock mechanism.
+1. Acquire and verify the canonical single-flight coordination lock **before entering a writer lane**, exactly as defined in `POM_RX_COORDINATION_GUARD.md`. Acquisition is mandatory, never best-effort. Active unexpired HELD => `SKIPPED_PREVIOUS_RUN_ACTIVE`; expired/malformed/unreadable/unverifiable HELD or failed acquisition => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`. Those paths modify no project state and do not reclaim the lock.
 2. Revalidate live `main`, open/merged PRs, actual heads, reviews, threads and CI.
 3. Reconcile versioned snapshot facts using the non-self-referential continuity rule above. Do not restart an unfocused global audit every hour and do not generate an endless docs-only loop merely to chase a merge SHA.
 4. Select exactly one bounded READY task with measurable acceptance and exclusive file ownership. Prefer the smallest dependency-closing lot.
 5. Route only justified specialist roles; one writer, reviewers read-only.
-6. Before **every** project mutation after acquisition, revalidate the live lease exactly as required by `POM_RX_COORDINATION_GUARD.md`. Loss/expiry/unverifiability of the lease immediately ends the writer lane; do not renew or reacquire inside the same invocation.
+6. Before **every** project mutation after acquisition, revalidate the canonical lock. Require same holder and future expiry. Loss/expiry/unverifiability immediately ends project-writing authority; do not renew, extend or reacquire in the same invocation.
 7. Apply the mandatory five-stage merge gate defined in `POM_RX_SKEPTICAL_REVIEW_GATE.md`: Review pass 1, Control pass 1, Skeptical challenge, Review pass 2 on the exact frozen head, Control pass 2 / release gate.
 8. Control passes include targeted tests plus relevant regression, compatibility, expected-red, checksum, secret-scan, dependency-audit and `git diff --check` evidence where applicable. A changed head invalidates exact-head evidence.
 9. Commit and push every useful lot to a dedicated branch. Never force-push and never edit `main` directly.
@@ -89,7 +93,7 @@ The coordination branch/file may be bootstrapped only under explicit human instr
 11. After every non-trivial merge, run the exact-merge-SHA post-merge assurance in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as trusted.
 12. A merged lot without `POST_MERGE_ASSURANCE_PASS` **must not be used as trusted evidence** for later readiness, release, deployment or dependent Tier-B work. Conditional/block findings are repaired through a new PR, never patched directly on `main`.
 13. Persist the exact live terminal state in the merge/active PR checkpoint and reconcile versioned durable facts only when required by the snapshot rule.
-14. On a normal terminal path, release a still-live canonical lease only after durable state has been persisted. Revalidate same-holder/live-expiry immediately before the release write, then verify the release by re-reading the coordination file and requiring `state=FREE`. If the lease already expired or ownership changed, do not mutate the coordination file; terminate and let expiry/reclamation recover. A release write failure while still owner stops further project writes and is reported as a coordination blocker.
+14. Release the canonical lock on every terminal path where this invocation is still the exact holder. Project-writing authority still requires future expiry, but coordination-only same-holder release is allowed after expiry. Re-fetch exact blob SHA, verify same holder, CAS to `FREE`/`holder=null`, then re-read FREE. Never release another holder. A release failure or stale lock left by a crashed holder is a coordination blocker; clearing another holder requires explicit human recovery.
 
 ## Post-merge assurance discipline
 
