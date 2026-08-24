@@ -1,6 +1,6 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-24T09:31:00+02:00`
+Updated: `2026-08-24T09:38:00+02:00`
 
 Purpose: compact durable cross-chat **versioned snapshot**. Conversation history is not project state. Every run first reads live GitHub. Embedded SHAs are authoring-time anchors, not claims that they remain the forever-current GitHub state after this snapshot's own merge.
 
@@ -37,17 +37,29 @@ Under explicit human instruction on 2026-08-24 to repair and relaunch the automa
 
 The manual repair run then acquired the lock through the exact file blob SHA and re-read the state to verify holder `manual-repair-20260824T0727Z-gpt56sol`; acquisition commit `05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e`. A deliberately stale compare-and-swap attempt using the previous blob SHA was rejected by GitHub with HTTP 409, demonstrating that a contender cannot overwrite the same observed lock state after another acquisition has changed the blob SHA.
 
-The scoped control-plane repair branch is `docs/pom-rx-canonical-coordination-lock-20260824`, created from `snapshot_base_main`. It adds `POM_RX_COORDINATION_GUARD.md` and binds the automation policy to that single canonical mechanism. Normal lock writes occur only on the coordination branch; they do not move `main` or a feature/control-plane PR head.
+The scoped control-plane repair is PR #136 on branch `docs/pom-rx-canonical-coordination-lock-20260824`, created from `snapshot_base_main`. It adds `POM_RX_COORDINATION_GUARD.md` and binds the automation policy, tasks, blockers and writer routing to that single canonical mechanism. Normal lock writes occur only on the coordination branch; they do not move `main` or a feature/control-plane PR head.
 
-The lock protocol is fail-closed:
+### Stale-owner race discovered and repaired before release
 
-- active unexpired lease => `SKIPPED_PREVIOUS_RUN_ACTIVE`, modify no project state;
+The release-owner skeptical pass found an additional concurrency flaw in the first repair draft: initial acquisition alone cannot authorize project writes after the 45-minute lease expires. Otherwise a later invocation could reclaim the expired lease while the older invocation, still waiting on CI/review, later resumes writing.
+
+The candidate therefore requires a **fresh canonical lock read immediately before every state-changing project action**. Every such read must prove valid schema/configuration, `state=HELD`, exact own `holder.run_id`, and future `expires_at`. If the lease expired, ownership changed, state became FREE or verification fails, that invocation performs no further project mutation. It must not renew, extend or reacquire the lease inside the same invocation. It may continue read-only polling/reporting only; a later invocation acquires a fresh lease and resumes from live GitHub state.
+
+Release is likewise permitted only while the same holder still owns an unexpired lease: fetch exact blob SHA, verify own live holder, CAS to `FREE`, then re-read and require `state=FREE`. An expired/displaced former holder never releases another run's lease.
+
+This closes the stale-owner overlap in addition to the stale-CAS acquisition race.
+
+The lock protocol is now fail-closed:
+
+- active unexpired lease held by another run => `SKIPPED_PREVIOUS_RUN_ACTIVE`, modify no project state;
 - malformed/unreadable/unverifiable guard or failed acquisition without a now-active competing lease => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, modify no project state;
-- acquisition uses the exact fetched blob SHA as a compare-and-swap token and is followed by same-run holder verification;
-- release requires same-holder verification, compare-and-swap update to `FREE`, and a final re-read verifying `state=FREE`;
+- acquisition uses the exact fetched blob SHA as a compare-and-swap token and is followed by same-run holder plus expiry verification;
+- immediately before every project mutation, same-holder/unexpired lease must be re-proved;
+- lease loss/expiry => no further project mutation and no same-run renewal/reacquisition;
+- release while still live requires same-holder verification, CAS to `FREE`, and a final re-read verifying `state=FREE`;
 - no issue, label, comment, local file, chat state, workflow artifact or alternate branch may become a competing lock.
 
-The scheduled task remains disabled until this repair itself passes exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI and `POST_MERGE_ASSURANCE_PASS`. The repair run must then release and verify the coordination lock before the existing task is re-enabled.
+The existing scheduled task remains disabled until PR #136 itself passes exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI and `POST_MERGE_ASSURANCE_PASS`. On the normal trusted terminal path, the repair run releases and verifies a still-live coordination lease before the existing task is re-enabled. If this invocation's lease expires while waiting for CI/review, it becomes read-only and a later invocation must acquire a fresh lease to perform remaining writes.
 
 ## Next Tier-B workstream — PR #131
 
@@ -62,7 +74,7 @@ Authoring-time live state:
 
 ### Stable transition rule for #131
 
-If the coordination-guard repair receives full pre-merge gates, merge, exact-main CI/status success and `POST_MERGE_ASSURANCE_PASS`, then PR #131 becomes `READY_TO_RECONCILE`. Use exactly one writer to reconcile it onto the then-live trusted `main`. Any moved #131 head invalidates old exact-head release evidence and requires fresh canonical CI, five-stage owner review and genuinely distinct exact-head review.
+If PR #136 receives full pre-merge gates, merge, exact-main CI/status success and `POST_MERGE_ASSURANCE_PASS`, and the existing scheduled task can subsequently acquire the canonical lease, then PR #131 becomes `READY_TO_RECONCILE`. Use exactly one writer to reconcile it onto the then-live trusted `main`. Any moved #131 head invalidates old exact-head release evidence and requires fresh canonical CI, five-stage owner review and genuinely distinct exact-head review.
 
 No additional docs-only reconciliation is required merely because the guard-repair PR's own merge changes the exact `main` SHA.
 
@@ -77,7 +89,7 @@ Shared canonicalization, hashing, verifier, Witness, exact authorization, Gate, 
 ## Historical branches
 
 - PR #120: `CLOSED / NOT MERGED / STALE`; final historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`; six P1/P2 findings remain attack history. Never revive wholesale.
-- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; live search still reports it open and historical. Reconstruct useful durable Gate composition later from then-current trusted main after PR #131 becomes trusted.
+- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct useful durable Gate composition later from then-current trusted main after PR #131 becomes trusted.
 - PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later from then-current trusted main; never merge stale history wholesale.
 
 ## Architecture and claim boundary
@@ -88,7 +100,7 @@ Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: loca
 
 ## Next safe action rule
 
-Freeze the canonical coordination-guard repair candidate, require canonical exact-head CI success, run the mandatory five-stage owner gate and obtain a genuinely distinct exact-head review. Merge only with zero unresolved P0/P1/P2 and unchanged decision-time state. Immediately run exact-merge post-merge assurance. If and only if the repair receives `POST_MERGE_ASSURANCE_PASS`, release and verify the canonical lease, re-enable the existing hourly POM-RX task with the guard protocol in its prompt, and resume PR #131 reconciliation on a later invocation.
+Freeze the final PR #136 candidate, require canonical exact-head CI success, run the mandatory five-stage owner gate and obtain a genuinely distinct exact-head review. Merge only with zero unresolved P0/P1/P2 and unchanged decision-time state, while the canonical lease is still live for the acting invocation. Immediately run exact-merge post-merge assurance. If and only if the repair receives `POST_MERGE_ASSURANCE_PASS`, persist terminal state, release and verify a still-owned/live canonical lease, then re-enable the existing hourly POM-RX task with the guard protocol in its prompt. Resume PR #131 reconciliation only on a later invocation with a freshly acquired lease.
 
 ## Safety boundary
 
