@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer, request as requestHttp } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 
@@ -9,7 +11,11 @@ import {
   createWalletGuardTrustedProviderGateway,
 } from '../../applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs';
 
-const { createWalletGuardPrototypeServer } = await import(
+const {
+  createWalletGuardPrototypePublicLookup,
+  createWalletGuardPrototypeServer,
+  observeWalletGuardPrototypeTransaction,
+} = await import(
   '../../applications/blockchain-digital-assets/wallet-guard/prototype/server.mjs'
 );
 
@@ -19,6 +25,7 @@ const BROWSER_BRIDGE_SOURCE = await readFile(new URL(
 ), 'utf8');
 
 const ANVIL_CHAIN_ID = '0x7a69';
+const SEPOLIA_CHAIN_ID = '0xaa36a7';
 const MAINNET_CHAIN_ID = '0x1';
 const ACCOUNT = `0x${'1'.repeat(40)}`;
 const OTHER_ACCOUNT = `0x${'2'.repeat(40)}`;
@@ -210,6 +217,9 @@ class FakeWindow {
 function browserHarness({
   provider,
   nextResponses,
+  configResponse = null,
+  connectionCheckpoint = null,
+  commandCheckpoint = null,
   announcements = null,
   boundary = {},
   viewResponse = null,
@@ -236,11 +246,17 @@ function browserHarness({
     fetchCalls.push({ path, options, body });
     trace.push(`fetch:${path}`);
     if (path === '/api/config') {
-      return response(200, {
+      return response(200, configResponse ?? {
         chain_id: ANVIL_CHAIN_ID,
         rpc_url: 'http://127.0.0.1:8545/',
         host_origin: 'http://127.0.0.1:8787',
       });
+    }
+    if (path === '/api/checkpoint' && connectionCheckpoint !== null) {
+      return response(200, connectionCheckpoint);
+    }
+    if (path === '/bridge/checkpoint' && commandCheckpoint !== null) {
+      return response(200, commandCheckpoint);
     }
     if (path === '/api/handshake') {
       return response(200, {
@@ -488,6 +504,72 @@ test('browser explicitly switches after wallet_addEthereumChain before handshake
   );
 });
 
+test('Sepolia is switch-only and never injects an RPC URL into MetaMask', async () => {
+  const provider = new DeterministicEip1193Provider({
+    chainId: MAINNET_CHAIN_ID,
+    switchMissingOnce: true,
+  });
+  const harness = browserHarness({
+    provider,
+    nextResponses: [],
+    configResponse: {
+      chain_id: SEPOLIA_CHAIN_ID,
+      chain_name: 'Sepolia POM-RX burner',
+      host_origin: 'http://127.0.0.1:8787',
+      native_currency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+      network: 'sepolia',
+      required_confirmations: 2,
+    },
+  });
+  await harness.elements.get('#connect').click();
+  assert.deepEqual(
+    provider.calls
+      .filter(({ method }) => method.startsWith('wallet_'))
+      .map(({ method }) => method),
+    ['wallet_switchEthereumChain'],
+  );
+  assert.equal(provider.calls.some(({ method }) => method === 'wallet_addEthereumChain'), false);
+  assert.match(harness.elements.get('#wallet-status').textContent, /manuellement/u);
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/api/handshake'), false);
+});
+
+test('Sepolia handshake reads the exact safe checkpoint selected by Node', async () => {
+  const checkpoint = {
+    chain_id: SEPOLIA_CHAIN_ID,
+    genesis_hash: GENESIS_HASH,
+    latest_block_number: LATEST_BLOCK_NUMBER,
+    latest_block_hash: LATEST_BLOCK_HASH,
+  };
+  const harness = browserHarness({
+    provider: new DeterministicEip1193Provider({ chainId: SEPOLIA_CHAIN_ID }),
+    nextResponses: [response(410, { error: 'SESSION_CLOSED' })],
+    configResponse: {
+      chain_id: SEPOLIA_CHAIN_ID,
+      chain_name: 'Sepolia POM-RX burner',
+      host_origin: 'http://127.0.0.1:8787',
+      native_currency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+      network: 'sepolia',
+      required_confirmations: 2,
+    },
+    connectionCheckpoint: checkpoint,
+  });
+  await harness.elements.get('#connect').click();
+  const handshake = harness.fetchCalls.find(({ path }) => path === '/api/handshake');
+  assert.ok(handshake);
+  assert.deepEqual(JSON.parse(JSON.stringify(handshake.body)), {
+    chain_id: SEPOLIA_CHAIN_ID,
+    account: ACCOUNT,
+    genesis_hash: GENESIS_HASH,
+    latest_block_number: LATEST_BLOCK_NUMBER,
+    latest_block_hash: LATEST_BLOCK_HASH,
+  });
+  assert.equal(
+    harness.provider.calls.some(({ method, params }) => method === 'eth_getBlockByNumber'
+      && params[0] === LATEST_BLOCK_NUMBER),
+    true,
+  );
+});
+
 test('a transaction hash returned during a late context change remains observable', async () => {
   const provider = new DeterministicEip1193Provider({
     afterSend(instance) {
@@ -712,30 +794,65 @@ async function fakeRpc(handler) {
   return Object.freeze({ server, calls, url: `http://127.0.0.1:${port}/` });
 }
 
-async function authenticateAndHandshake(prototype) {
+async function fakeRawRpc(handler) {
+  const calls = [];
+  const server = createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const request = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    calls.push(request);
+    const response = await handler(request, calls);
+    const payload = response.body;
+    res.writeHead(response.status ?? 200, {
+      ...(response.contentType === null
+        ? {}
+        : { 'content-type': response.contentType ?? 'application/json' }),
+      'content-length': Buffer.byteLength(payload),
+    });
+    res.end(payload);
+  });
+  const port = await listen(server);
+  return Object.freeze({ server, calls, url: `http://127.0.0.1:${port}/` });
+}
+
+async function authenticateOnly(prototype) {
   const info = await prototype.listen();
   const launch = new URL(info.launch_url);
   const bootstrap = await http(info.origin, `${launch.pathname}${launch.search}`);
   assert.equal(bootstrap.status, 303);
   const cookie = bootstrap.headers['set-cookie'][0].split(';')[0];
+  return { info, cookie };
+}
+
+async function authenticateAndHandshake(prototype, {
+  chainId = ANVIL_CHAIN_ID,
+  latestBlockNumber = LATEST_BLOCK_NUMBER,
+  latestBlockHash = LATEST_BLOCK_HASH,
+} = {}) {
+  const { info, cookie } = await authenticateOnly(prototype);
   const handshake = await http(info.origin, '/api/handshake', {
     method: 'POST',
     cookie,
     requestOrigin: info.origin,
     body: JSON.stringify({
-      chain_id: ANVIL_CHAIN_ID,
+      chain_id: chainId,
       account: ACCOUNT,
       genesis_hash: GENESIS_HASH,
-      latest_block_number: LATEST_BLOCK_NUMBER,
-      latest_block_hash: LATEST_BLOCK_HASH,
+      latest_block_number: latestBlockNumber,
+      latest_block_hash: latestBlockHash,
     }),
   });
   assert.equal(handshake.status, 200);
   return { info, cookie };
 }
 
-async function executeAllowedTransaction(prototype) {
-  const { info, cookie } = await authenticateAndHandshake(prototype);
+async function executeAllowedTransaction(prototype, fixture = {}) {
+  const {
+    chainId = ANVIL_CHAIN_ID,
+    latestBlockNumber = LATEST_BLOCK_NUMBER,
+    latestBlockHash = LATEST_BLOCK_HASH,
+  } = fixture;
+  const { info, cookie } = await authenticateAndHandshake(prototype, fixture);
   const allowedPromise = http(info.origin, '/api/allow', {
     method: 'POST',
     cookie,
@@ -763,8 +880,8 @@ async function executeAllowedTransaction(prototype) {
       chain_id: bridgeCommand.expected_chain_id,
       account: bridgeCommand.expected_account,
       genesis_hash: GENESIS_HASH,
-      latest_block_number: LATEST_BLOCK_NUMBER,
-      latest_block_hash: LATEST_BLOCK_HASH,
+      latest_block_number: latestBlockNumber,
+      latest_block_hash: latestBlockHash,
     }),
   });
   assert.equal(viewBound.status, 204);
@@ -780,8 +897,8 @@ async function executeAllowedTransaction(prototype) {
       chain_id: bridgeCommand.expected_chain_id,
       account: bridgeCommand.expected_account,
       genesis_hash: GENESIS_HASH,
-      latest_block_number: LATEST_BLOCK_NUMBER,
-      latest_block_hash: LATEST_BLOCK_HASH,
+      latest_block_number: latestBlockNumber,
+      latest_block_hash: latestBlockHash,
     }),
   });
   assert.equal(armed.status, 204);
@@ -806,7 +923,7 @@ async function executeAllowedTransaction(prototype) {
       session_id: bridgeCommand.session_id,
       sequence: bridgeCommand.sequence,
       request_id: bridgeCommand.request_id,
-      observed_chain_id: bridgeCommand.expected_chain_id,
+      observed_chain_id: chainId,
       observed_account: bridgeCommand.expected_account,
       outcome: 'result',
       result: TX_HASH,
@@ -867,8 +984,12 @@ function fixedChainRpc(method, params) {
   if (method === 'eth_getBlockByNumber' && params[0] === '0x0') {
     return { number: '0x0', hash: GENESIS_HASH };
   }
-  if (method === 'eth_getBlockByNumber' && params[0] === LATEST_BLOCK_NUMBER) {
+  if (method === 'eth_getBlockByNumber'
+      && (params[0] === LATEST_BLOCK_NUMBER || params[0] === 'latest')) {
     return { number: LATEST_BLOCK_NUMBER, hash: LATEST_BLOCK_HASH };
+  }
+  if (method === 'eth_getBlockByNumber' && params[0] === '0x6') {
+    return { number: '0x6', hash: BLOCK_HASH };
   }
   return undefined;
 }
@@ -895,7 +1016,7 @@ test('default RPC observer polls a real JSON-RPC endpoint and records the matchi
       return receiptCalls === 1 ? null : receipt();
     }
     if (method === 'eth_getTransactionByHash') return transaction();
-    throw new Error(`unexpected RPC method ${method}`);
+    throw new Error(`unexpected RPC method ${method} ${JSON.stringify(params)}`);
   });
   t.after(() => close(rpc.server));
   const prototype = prototypeFor(rpc.url);
@@ -917,7 +1038,7 @@ test('default RPC observer marks a receipt mismatch ambiguous and closes the ses
     if (fixed !== undefined) return fixed;
     if (method === 'eth_getTransactionReceipt') return receipt({ to: OTHER_ACCOUNT });
     if (method === 'eth_getTransactionByHash') return transaction();
-    throw new Error(`unexpected RPC method ${method}`);
+    throw new Error(`unexpected RPC method ${method} ${JSON.stringify(params)}`);
   });
   t.after(() => close(rpc.server));
   const prototype = prototypeFor(rpc.url);
@@ -957,7 +1078,7 @@ test('default RPC observer rejects a semantically different transaction behind a
       return transaction({ value: '0x1' });
     }
     if (method === 'eth_getTransactionReceipt') return receipt();
-    throw new Error(`unexpected RPC method ${method}`);
+    throw new Error(`unexpected RPC method ${method} ${JSON.stringify(params)}`);
   });
   const prototype = prototypeFor(rpc.url);
   try {
@@ -969,5 +1090,510 @@ test('default RPC observer rejects a semantically different transaction behind a
   } finally {
     await prototype.close();
     await close(rpc.server);
+  }
+});
+
+test('Sepolia observer never emits MATCH while the safe head lags the receipt block', async () => {
+  const sepoliaProfile = Object.freeze({
+    network: 'sepolia',
+    chainId: '0xaa36a7',
+    chainName: 'Sepolia POM-RX burner',
+    rpcTimeoutMs: 10,
+    receiptPollMs: 1,
+    receiptTimeoutMs: 5,
+    requiredConfirmations: 2,
+    observerEndpointSeparateConfigured: true,
+  });
+  const sepoliaReceipt = receipt();
+  const rpcRequest = async (_url, _id, method, params) => {
+    if (method === 'eth_chainId') return sepoliaProfile.chainId;
+    if (method === 'eth_getTransactionReceipt') return sepoliaReceipt;
+    if (method === 'eth_blockNumber') return '0x20';
+    if (method === 'eth_getBlockByNumber' && params[0] === 'safe') {
+      return { number: '0x5', hash: LATEST_BLOCK_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && params[0] === '0x6') {
+      return { number: '0x6', hash: BLOCK_HASH };
+    }
+    if (method === 'eth_getTransactionByHash') {
+      return transaction({ chainId: sepoliaProfile.chainId });
+    }
+    throw new Error(`unexpected Sepolia RPC method ${method}`);
+  };
+
+  await assert.rejects(
+    observeWalletGuardPrototypeTransaction({
+      rpcUrl: 'https://observer.example.test/',
+      txHash: TX_HASH,
+      account: ACCOUNT,
+      baseline: {
+        chain_id: sepoliaProfile.chainId,
+        block_number: LATEST_BLOCK_NUMBER,
+        account_nonce: '0x0',
+      },
+      profile: sepoliaProfile,
+      rpcRequest,
+    }),
+    /receipt does not match/u,
+  );
+});
+
+function rpcResultForHandshake({ method, params }) {
+  if (method === 'eth_chainId') return ANVIL_CHAIN_ID;
+  if (method === 'eth_blockNumber') return LATEST_BLOCK_NUMBER;
+  if (method === 'eth_getBlockByNumber' && params[0] === '0x0') {
+    return { number: '0x0', hash: GENESIS_HASH };
+  }
+  if (method === 'eth_getBlockByNumber'
+      && (params[0] === LATEST_BLOCK_NUMBER || params[0] === 'latest')) {
+    return { number: LATEST_BLOCK_NUMBER, hash: LATEST_BLOCK_HASH };
+  }
+  throw new Error(`unexpected handshake RPC method ${method}`);
+}
+
+async function postHandshake(info, cookie, {
+  chainId = ANVIL_CHAIN_ID,
+  latestBlockNumber = LATEST_BLOCK_NUMBER,
+  latestBlockHash = LATEST_BLOCK_HASH,
+} = {}) {
+  return http(info.origin, '/api/handshake', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      chain_id: chainId,
+      account: ACCOUNT,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: latestBlockNumber,
+      latest_block_hash: latestBlockHash,
+    }),
+  });
+}
+
+async function dispatchWithoutResult(prototype) {
+  const { info, cookie } = await authenticateAndHandshake(prototype);
+  const allowedPromise = http(info.origin, '/api/allow', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: '{}',
+  });
+  const next = await (async () => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = await http(info.origin, '/bridge/next', { cookie });
+      if (candidate.status === 200) return candidate;
+      assert.equal(candidate.status, 204);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.fail('sensitive command was not delivered');
+  })();
+  const bridgeCommand = JSON.parse(next.body);
+  const view = JSON.stringify({
+    schema_version: bridgeCommand.schema_version,
+    session_id: bridgeCommand.session_id,
+    sequence: bridgeCommand.sequence,
+    request_id: bridgeCommand.request_id,
+    chain_id: bridgeCommand.expected_chain_id,
+    account: bridgeCommand.expected_account,
+    genesis_hash: GENESIS_HASH,
+    latest_block_number: LATEST_BLOCK_NUMBER,
+    latest_block_hash: LATEST_BLOCK_HASH,
+  });
+  assert.equal((await http(info.origin, '/bridge/view', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: view,
+  })).status, 204);
+  assert.equal((await http(info.origin, '/bridge/arm', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: view,
+  })).status, 204);
+  assert.equal((await http(info.origin, '/bridge/dispatched', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: bridgeCommand.schema_version,
+      session_id: bridgeCommand.session_id,
+      sequence: bridgeCommand.sequence,
+      request_id: bridgeCommand.request_id,
+    }),
+  })).status, 204);
+  return { allowedPromise, bridgeCommand, info, cookie };
+}
+
+function publicLookupResult(addresses, options = { all: true }) {
+  let resolverCalls = 0;
+  const lookup = createWalletGuardPrototypePublicLookup({
+    dnsLookup(hostname, resolverOptions, callback) {
+      resolverCalls += 1;
+      assert.equal(hostname, 'rpc.example.test');
+      assert.deepEqual(resolverOptions, { all: true, verbatim: true });
+      callback(null, addresses);
+    },
+  });
+  const result = new Promise((resolve, reject) => {
+    lookup('rpc.example.test', options, (error, ...values) => {
+      if (error) reject(error);
+      else resolve(values);
+    });
+  });
+  return { result, resolverCalls: () => resolverCalls };
+}
+
+test('public RPC lookup rejects private or mixed DNS before yielding a socket address', async () => {
+  for (const addresses of [
+    [{ address: '127.0.0.1', family: 4 }],
+    [
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ],
+    [{ address: '::1', family: 6 }],
+  ]) {
+    const lookup = publicLookupResult(addresses);
+    await assert.rejects(lookup.result, /non-public address/u);
+    assert.equal(lookup.resolverCalls(), 1);
+  }
+
+  const publicOnly = publicLookupResult([
+    { address: '93.184.216.34', family: 4 },
+    { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+  ]);
+  assert.deepEqual(await publicOnly.result, [[{ address: '93.184.216.34', family: 4 }]]);
+  assert.equal(publicOnly.resolverCalls(), 1);
+});
+
+test('Sepolia observer credentials and RPC URLs stay entirely server-only', async (t) => {
+  const observerRpcUrl = 'https://sepolia-observer.example/v3/DO_NOT_EXPOSE_THIS_TOKEN';
+  const directory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-config-journal-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let prototype = null;
+  try {
+    prototype = createWalletGuardPrototypeServer({
+      createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+      createTrustedGateway: createWalletGuardTrustedProviderGateway,
+      network: 'sepolia',
+      rpcUrl: observerRpcUrl,
+      walletRpcUrl: null,
+      journalPath: join(directory, 'operation.json'),
+      port: 0,
+      captureNodeChainView: async () => ({
+        chain_id: SEPOLIA_CHAIN_ID,
+        genesis_hash: GENESIS_HASH,
+        latest_block_number: LATEST_BLOCK_NUMBER,
+        latest_block_hash: LATEST_BLOCK_HASH,
+      }),
+    });
+    const { info, cookie } = await authenticateOnly(prototype);
+    const response = await http(info.origin, '/api/config', { cookie });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.includes(observerRpcUrl), false);
+    assert.equal(response.body.includes('DO_NOT_EXPOSE_THIS_TOKEN'), false);
+    assert.equal(response.body.includes('sepolia-observer.example'), false);
+    assert.equal(response.body.includes('rpc_url'), false);
+    const config = JSON.parse(response.body);
+    assert.deepEqual(Object.keys(config).sort(), [
+      'chain_id',
+      'chain_name',
+      'host_origin',
+      'native_currency',
+      'network',
+      'required_confirmations',
+    ]);
+    assert.equal(config.network, 'sepolia');
+    assert.equal(config.chain_id, SEPOLIA_CHAIN_ID);
+    assert.equal(Number.isSafeInteger(config.required_confirmations), true);
+    assert.ok(config.required_confirmations > 1);
+    const checkpoint = await http(info.origin, '/api/checkpoint', { cookie });
+    assert.equal(checkpoint.status, 200);
+    assert.deepEqual(JSON.parse(checkpoint.body), {
+      chain_id: SEPOLIA_CHAIN_ID,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    const handshake = await postHandshake(info, cookie, { chainId: SEPOLIA_CHAIN_ID });
+    assert.equal(handshake.status, 200);
+  } finally {
+    if (prototype !== null) await prototype.close();
+  }
+});
+
+test('RPC response Content-Type and duplicate JSON keys fail closed during chain binding', async (t) => {
+  const cases = [
+    {
+      label: 'wrong content type',
+      responder(request) {
+        return {
+          contentType: 'text/plain',
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: request.id, result: rpcResultForHandshake(request),
+          }),
+        };
+      },
+    },
+    {
+      label: 'duplicate result key',
+      responder(request) {
+        if (request.method === 'eth_chainId') {
+          return {
+            contentType: 'application/json',
+            body: `{"jsonrpc":"2.0","id":${String(request.id)},"result":"0x1","result":"${ANVIL_CHAIN_ID}"}`,
+          };
+        }
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: request.id, result: rpcResultForHandshake(request),
+          }),
+        };
+      },
+    },
+    {
+      label: 'redirect response',
+      responder(request) {
+        return {
+          status: 302,
+          contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: request.id, result: ANVIL_CHAIN_ID }),
+        };
+      },
+    },
+  ];
+
+  for (const { label, responder } of cases) {
+    await t.test(label, async () => {
+      const rpc = await fakeRawRpc(responder);
+      const prototype = prototypeFor(rpc.url);
+      try {
+        const { info, cookie } = await authenticateOnly(prototype);
+        const handshake = await postHandshake(info, cookie);
+        assert.equal(handshake.status, 400);
+        assert.equal(JSON.parse(handshake.body).error, 'REQUEST_REJECTED');
+      } finally {
+        await prototype.close();
+        await close(rpc.server);
+      }
+    });
+  }
+});
+
+test('a pending nonce different from latest refuses dispatch before MetaMask is called', async () => {
+  const rpc = await fakeRpc(({ method, params }) => {
+    if (method === 'eth_chainId') return ANVIL_CHAIN_ID;
+    if (method === 'eth_blockNumber') return LATEST_BLOCK_NUMBER;
+    if (method === 'eth_getTransactionCount') {
+      if (params[1] === 'latest') return '0x0';
+      if (params[1] === 'pending') return '0x1';
+    }
+    throw new Error(`unexpected nonce-baseline RPC method ${method}`);
+  });
+  const prototype = prototypeFor(rpc.url, {
+    captureNodeChainView: async () => chainView(),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    const outcome = await Promise.race([
+      allowPromise,
+      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 250)),
+    ]);
+    assert.notEqual(outcome, 'still-pending');
+    assert.ok([400, 409].includes(outcome.status));
+    assert.deepEqual(
+      rpc.calls
+        .filter(({ method }) => method === 'eth_getTransactionCount')
+        .map(({ params }) => params[1]),
+      ['latest', 'pending'],
+    );
+    assert.equal((await http(info.origin, '/bridge/next', { cookie })).status, 204);
+  } finally {
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
+    await close(rpc.server);
+  }
+});
+
+test('Sepolia receipt is not MATCH_REFERENCE before the required confirmations', async () => {
+  const transactionBlock = '0x20';
+  const profile = Object.freeze({
+    network: 'sepolia',
+    chainId: SEPOLIA_CHAIN_ID,
+    chainName: 'Sepolia POM-RX burner',
+    rpcTimeoutMs: 10,
+    receiptPollMs: 1,
+    receiptTimeoutMs: 5,
+    requiredConfirmations: 2,
+    observerEndpointSeparateConfigured: true,
+  });
+  const rpcRequest = async (_url, _id, method, params) => {
+    if (method === 'eth_chainId') return SEPOLIA_CHAIN_ID;
+    if (method === 'eth_getTransactionReceipt') {
+      return receipt({ blockNumber: transactionBlock });
+    }
+    if (method === 'eth_getTransactionByHash') {
+      return transaction({ chainId: SEPOLIA_CHAIN_ID, blockNumber: transactionBlock });
+    }
+    if (method === 'eth_blockNumber') return transactionBlock;
+    if (method === 'eth_getBlockByNumber' && params[0] === 'safe') {
+      return { number: transactionBlock, hash: BLOCK_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && params[0] === transactionBlock) {
+      return { number: transactionBlock, hash: BLOCK_HASH };
+    }
+    throw new Error(`unexpected finality RPC method ${method}`);
+  };
+  await assert.rejects(observeWalletGuardPrototypeTransaction({
+    rpcUrl: 'https://observer.example.test/',
+    txHash: TX_HASH,
+    account: ACCOUNT,
+    baseline: {
+      chain_id: SEPOLIA_CHAIN_ID,
+      block_number: LATEST_BLOCK_NUMBER,
+      account_nonce: '0x0',
+    },
+    profile,
+    rpcRequest,
+  }), /receipt does not match/u);
+});
+
+test('a receipt whose inclusion block was reorged is never MATCH_REFERENCE', async () => {
+  const transactionBlock = '0x6';
+  const reorgedBlockHash = `0x${'c'.repeat(64)}`;
+  const profile = Object.freeze({
+    network: 'sepolia',
+    chainId: SEPOLIA_CHAIN_ID,
+    chainName: 'Sepolia POM-RX burner',
+    rpcTimeoutMs: 10,
+    receiptPollMs: 1,
+    receiptTimeoutMs: 5,
+    requiredConfirmations: 2,
+    observerEndpointSeparateConfigured: true,
+  });
+  const rpcRequest = async (_url, _id, method, params) => {
+    if (method === 'eth_chainId') return SEPOLIA_CHAIN_ID;
+    if (method === 'eth_getTransactionReceipt') {
+      return receipt({ blockNumber: transactionBlock });
+    }
+    if (method === 'eth_getTransactionByHash') {
+      return transaction({
+        chainId: SEPOLIA_CHAIN_ID,
+        blockNumber: transactionBlock,
+      });
+    }
+    if (method === 'eth_blockNumber') return '0x40';
+    if (method === 'eth_getBlockByNumber' && params[0] === 'safe') {
+      return { number: '0x40', hash: LATEST_BLOCK_HASH };
+    }
+    if (method === 'eth_getBlockByNumber' && params[0] === transactionBlock) {
+      return { number: transactionBlock, hash: reorgedBlockHash };
+    }
+    throw new Error(`unexpected reorg RPC method ${method}`);
+  };
+  await assert.rejects(observeWalletGuardPrototypeTransaction({
+    rpcUrl: 'https://observer.example.test/',
+    txHash: TX_HASH,
+    account: ACCOUNT,
+    baseline: {
+      chain_id: SEPOLIA_CHAIN_ID,
+      block_number: LATEST_BLOCK_NUMBER,
+      account_nonce: '0x0',
+    },
+    profile,
+    rpcRequest,
+  }), /receipt does not match/u);
+});
+
+test('an unresolved dispatched operation durably blocks a fresh host after restart', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-journal-'));
+  const journalPath = join(temporaryDirectory, 'operations.jsonl');
+  const createPrototype = () => createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    network: 'anvil',
+    rpcUrl: 'http://127.0.0.1:8545/',
+    walletRpcUrl: null,
+    journalPath,
+    port: 0,
+    commandTimeoutMs: 5_000,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      throw new Error('an unresolved dispatch must not be observed without a hash');
+    },
+  });
+  let first = createPrototype();
+  let second = null;
+  let secondListening = false;
+  try {
+    const { allowedPromise } = await dispatchWithoutResult(first);
+    await first.close();
+    first = null;
+    await allowedPromise;
+
+    second = createPrototype();
+    await assert.rejects(async () => {
+      await second.listen();
+      secondListening = true;
+    }, /journal|unresolved|recovery|manual/i);
+  } finally {
+    if (first !== null) await first.close();
+    if (second !== null && secondListening) await second.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('a previously ambiguous operation stays ambiguous after a late matching hash', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-ambiguous-journal-'));
+  const journalPath = join(temporaryDirectory, 'operation.json');
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    journalPath,
+    port: 0,
+    commandTimeoutMs: 1_000,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async ({ txHash, account }) => ({
+      status: 'MATCH_REFERENCE',
+      transaction_hash: txHash,
+      from: account,
+      to: account,
+      reference_only: true,
+      external_world_proved: false,
+    }),
+  });
+  try {
+    const {
+      allowedPromise, bridgeCommand, info, cookie,
+    } = await dispatchWithoutResult(prototype);
+    const timedOut = await allowedPromise;
+    assert.equal(timedOut.status, 202);
+    assert.equal(JSON.parse(timedOut.body).operation.status, 'AMBIGUOUS');
+
+    const late = await http(info.origin, '/bridge/result', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+        observed_chain_id: bridgeCommand.expected_chain_id,
+        observed_account: bridgeCommand.expected_account,
+        outcome: 'result',
+        result: TX_HASH,
+        error: null,
+      }),
+    });
+    assert.equal(late.status, 202);
+    assert.equal(JSON.parse(late.body).operation.status, 'AMBIGUOUS');
+    const durable = JSON.parse(await readFile(journalPath, 'utf8'));
+    assert.equal(durable.state, 'TERMINAL');
+    assert.equal(durable.terminal, 'AMBIGUOUS_MATCH_REFERENCE');
+  } finally {
+    await prototype.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });

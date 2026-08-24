@@ -1,4 +1,5 @@
 const ANVIL_CHAIN_ID = '0x7a69';
+const SEPOLIA_CHAIN_ID = '0xaa36a7';
 const POLL_MS = 250;
 const EIP6963_ANNOUNCE_WAIT_MS = 250;
 const POST_SEND_CONTEXT_TIMEOUT_MS = 250;
@@ -17,6 +18,7 @@ const resultView = document.querySelector('#result');
 let activeAccount = null;
 let activeProvider = null;
 let activeProviderInfo = null;
+let activeConfig = null;
 let bridgeRunning = false;
 let sessionClosed = false;
 
@@ -114,18 +116,50 @@ async function assertCleanBrowserBoundary() {
 
 function validateConfig(input) {
   const keys = Object.keys(input ?? {}).sort();
-  if (keys.join(',') !== 'chain_id,host_origin,rpc_url'
-      || input.chain_id !== ANVIL_CHAIN_ID
-      || input.host_origin !== window.location.origin) {
+  if (input?.host_origin !== window.location.origin) {
     throw new Error('Configuration hôte invalide');
   }
-  const rpc = new URL(input.rpc_url);
-  if (rpc.protocol !== 'http:' || rpc.hostname !== '127.0.0.1'
-      || rpc.port === '' || rpc.pathname !== '/' || rpc.search !== '' || rpc.hash !== ''
-      || rpc.username !== '' || rpc.password !== '') {
-    throw new Error('RPC Anvil loopback invalide');
+  if (keys.join(',') === 'chain_id,host_origin,rpc_url'
+      && input.chain_id === ANVIL_CHAIN_ID) {
+    const rpc = new URL(input.rpc_url);
+    if (rpc.protocol !== 'http:' || rpc.hostname !== '127.0.0.1'
+        || rpc.port === '' || rpc.pathname !== '/' || rpc.search !== '' || rpc.hash !== ''
+        || rpc.username !== '' || rpc.password !== '') {
+      throw new Error('RPC Anvil loopback invalide');
+    }
+    return Object.freeze({
+      network: 'anvil',
+      chainId: input.chain_id,
+      chainName: 'Anvil POM-RX (local)',
+      chainViewTag: 'latest',
+      rpcUrl: rpc.href,
+      requiredConfirmations: 1,
+    });
   }
-  return { chainId: input.chain_id, rpcUrl: rpc.href };
+  const sepoliaKeys = [
+    'chain_id',
+    'chain_name',
+    'host_origin',
+    'native_currency',
+    'network',
+    'required_confirmations',
+  ].sort().join(',');
+  if (keys.join(',') !== sepoliaKeys || input.network !== 'sepolia'
+      || input.chain_id !== SEPOLIA_CHAIN_ID
+      || input.chain_name !== 'Sepolia POM-RX burner'
+      || input.required_confirmations !== 2
+      || JSON.stringify(input.native_currency)
+        !== JSON.stringify({ name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 })) {
+    throw new Error('Configuration Sepolia fail-closed invalide');
+  }
+  return Object.freeze({
+    network: input.network,
+    chainId: input.chain_id,
+    chainName: input.chain_name,
+    chainViewTag: 'safe',
+    rpcUrl: null,
+    requiredConfirmations: input.required_confirmations,
+  });
 }
 
 async function postJson(path, value) {
@@ -140,7 +174,7 @@ async function postJson(path, value) {
   return response.json();
 }
 
-async function ensureAnvil(config, provider) {
+async function ensureNetwork(config, provider) {
   let chainId = await provider.request({ method: 'eth_chainId', params: [] });
   if (chainId !== config.chainId) {
     try {
@@ -150,11 +184,16 @@ async function ensureAnvil(config, provider) {
       });
     } catch (error) {
       if (error?.code !== 4902) throw error;
+      if (config.network === 'sepolia') {
+        throw new Error(
+          'Sepolia n’est pas déjà configuré dans MetaMask; ajoutez-le manuellement puis relancez',
+        );
+      }
       await provider.request({
         method: 'wallet_addEthereumChain',
         params: [{
           chainId: config.chainId,
-          chainName: 'Anvil POM-RX (local)',
+          chainName: config.chainName,
           nativeCurrency: { name: 'Anvil ETH', symbol: 'ETH', decimals: 18 },
           rpcUrls: [config.rpcUrl],
         }],
@@ -166,7 +205,7 @@ async function ensureAnvil(config, provider) {
     }
     chainId = await provider.request({ method: 'eth_chainId', params: [] });
   }
-  if (chainId !== config.chainId) throw new Error('MetaMask n’est pas sur Anvil 31337');
+  if (chainId !== config.chainId) throw new Error(`MetaMask n’est pas sur ${config.chainName}`);
   const accounts = await provider.request({ method: 'eth_requestAccounts', params: [] });
   const account = lowerAccount(accounts?.[0]);
   if (!/^0x[0-9a-f]{40}$/u.test(account ?? '')) throw new Error('Compte burner invalide');
@@ -210,17 +249,19 @@ async function settleWithin(promise, timeoutMs, label) {
   }
 }
 
-async function sampleWalletChainView() {
+async function sampleWalletChainView(anchorBlockNumber = null) {
   const context = await sampleWalletContext();
   const genesis = canonicalBlock(
     await activeProvider.request({ method: 'eth_getBlockByNumber', params: ['0x0', false] }),
     '0x0',
     'Bloc genesis MetaMask',
   );
-  const latestBlockNumber = canonicalQuantity(
-    await activeProvider.request({ method: 'eth_blockNumber', params: [] }),
-    'Numéro de bloc MetaMask',
-  );
+  const latestBlockNumber = anchorBlockNumber === null
+    ? canonicalQuantity(
+      await activeProvider.request({ method: 'eth_blockNumber', params: [] }),
+      'Numéro de bloc MetaMask',
+    )
+    : canonicalQuantity(anchorBlockNumber, 'Checkpoint Node');
   const latest = canonicalBlock(
     await activeProvider.request({
       method: 'eth_getBlockByNumber',
@@ -235,6 +276,43 @@ async function sampleWalletChainView() {
     latestBlockNumber,
     latestBlockHash: latest.hash,
   });
+}
+
+function validateNodeCheckpoint(input, command = null) {
+  const identityKeys = command === null
+    ? []
+    : ['schema_version', 'session_id', 'sequence', 'request_id'];
+  const keys = Object.keys(input ?? {}).sort();
+  const expected = [
+    ...identityKeys,
+    'chain_id',
+    'genesis_hash',
+    'latest_block_number',
+    'latest_block_hash',
+  ].sort();
+  if (keys.length !== expected.length
+      || keys.some((key, index) => key !== expected[index])
+      || input.chain_id !== activeConfig.chainId
+      || typeof input.genesis_hash !== 'string'
+      || !BLOCK_HASH_PATTERN.test(input.genesis_hash)
+      || typeof input.latest_block_hash !== 'string'
+      || !BLOCK_HASH_PATTERN.test(input.latest_block_hash)) {
+    throw new Error('Checkpoint Node invalide');
+  }
+  canonicalQuantity(input.latest_block_number, 'Numéro du checkpoint Node');
+  if (command !== null && (input.schema_version !== command.schema_version
+      || input.session_id !== command.session_id || input.sequence !== command.sequence
+      || input.request_id !== command.request_id)) {
+    throw new Error('Checkpoint Node non lié à la commande');
+  }
+  return input;
+}
+
+function walletViewMatchesCheckpoint(view, checkpoint) {
+  return view.chainId === checkpoint.chain_id
+    && view.genesisHash === checkpoint.genesis_hash
+    && view.latestBlockNumber === checkpoint.latest_block_number
+    && view.latestBlockHash === checkpoint.latest_block_hash;
 }
 
 function sameWalletChainView(left, right) {
@@ -302,10 +380,15 @@ async function deliver(command, outcome, observed) {
 }
 
 async function processCommand(command) {
-  const first = await sampleWalletChainView();
-  const second = await sampleWalletChainView();
+  const checkpoint = activeConfig.network === 'sepolia'
+    ? validateNodeCheckpoint(await getJson('/bridge/checkpoint'), command)
+    : null;
+  const checkpointNumber = checkpoint?.latest_block_number ?? null;
+  const first = await sampleWalletChainView(checkpointNumber);
+  const second = await sampleWalletChainView(checkpointNumber);
   if (!contextMatches(command, first) || !contextMatches(command, second)
-      || !sameWalletChainView(first, second)) {
+      || !sameWalletChainView(first, second)
+      || (checkpoint !== null && !walletViewMatchesCheckpoint(second, checkpoint))) {
     await deliver(command, { errorCode: 'CONTEXT_CHANGED' }, second);
     sessionClosed = true;
     return;
@@ -326,7 +409,7 @@ async function processCommand(command) {
   if (sessionClosed) return;
   let beforeSend;
   try {
-    beforeSend = await sampleWalletChainView();
+    beforeSend = await sampleWalletChainView(checkpointNumber);
   } catch {
     await closeForContextChange();
     return;
@@ -441,13 +524,18 @@ connectButton.addEventListener('click', async () => {
   try {
     await assertCleanBrowserBoundary();
     const config = validateConfig(await getJson('/api/config'));
+    activeConfig = config;
     const selection = await selectUnambiguousMetaMask();
     activeProvider = selection.provider;
     activeProviderInfo = selection.info;
-    const context = await ensureAnvil(config, activeProvider);
+    const context = await ensureNetwork(config, activeProvider);
     activeAccount = context.account;
-    const chainView = await sampleWalletChainView();
-    if (chainView.chainId !== context.chainId || chainView.account !== context.account) {
+    const checkpoint = config.network === 'sepolia'
+      ? validateNodeCheckpoint(await getJson('/api/checkpoint'))
+      : null;
+    const chainView = await sampleWalletChainView(checkpoint?.latest_block_number ?? null);
+    if (chainView.chainId !== context.chainId || chainView.account !== context.account
+        || (checkpoint !== null && !walletViewMatchesCheckpoint(chainView, checkpoint))) {
       throw new Error('Contexte MetaMask instable avant handshake');
     }
     const handshake = await postJson('/api/handshake', {
