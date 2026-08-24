@@ -211,3 +211,88 @@ test('pre-import Promise constructor Proxy is rejected without executing descrip
     'pre-import Promise constructor Proxy',
   );
 });
+
+
+test('post-import node:util.types.isProxy drift fails closed without executing the replacement', () => {
+  const source = `
+    import { types as utilTypes } from 'node:util';
+    const module = await import(${JSON.stringify(MODULE_URL)});
+    const originalDescriptor = Object.getOwnPropertyDescriptor(utilTypes, 'isProxy');
+    let poisonCalls = 0;
+    Object.defineProperty(utilTypes, 'isProxy', {
+      ...originalDescriptor,
+      value() {
+        poisonCalls += 1;
+        return false;
+      },
+    });
+
+    let observedCode = null;
+    try {
+      module.createWalletGuardControlledProviderTransport({
+        chainId: '0x1',
+        accounts: [${JSON.stringify(ACCOUNT)}],
+        providerResult: ${JSON.stringify(TX_RESULT)},
+        maxSensitiveCalls: 4,
+      });
+    } catch (error) {
+      observedCode = error?.code ?? null;
+    } finally {
+      Object.defineProperty(utilTypes, 'isProxy', originalDescriptor);
+    }
+
+    if (observedCode !== 'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY') {
+      throw new Error('post-import isProxy drift did not fail closed: ' + observedCode);
+    }
+    if (poisonCalls !== 0) {
+      throw new Error('replacement isProxy executed ' + String(poisonCalls) + ' time(s)');
+    }
+  `;
+
+  assertStrictChildPassed(
+    runStrictChild(source),
+    'post-import node:util.types.isProxy drift',
+  );
+});
+
+test('post-import node:util.types.isPromise drift fails closed without execution or orphaned rejection', () => {
+  const source = `
+    import { types as utilTypes } from 'node:util';
+    const module = await import(${JSON.stringify(MODULE_URL)});
+    const originalDescriptor = Object.getOwnPropertyDescriptor(utilTypes, 'isPromise');
+    let poisonCalls = 0;
+    Object.defineProperty(utilTypes, 'isPromise', {
+      ...originalDescriptor,
+      value() {
+        poisonCalls += 1;
+        throw new Error('replacement isPromise executed');
+      },
+    });
+
+    let observedCode = null;
+    try {
+      module.createWalletGuardControlledProviderTransport({
+        chainId: '0x1',
+        accounts: [${JSON.stringify(ACCOUNT)}],
+        providerResult: ${JSON.stringify(TX_RESULT)},
+        maxSensitiveCalls: 4,
+      });
+    } catch (error) {
+      observedCode = error?.code ?? null;
+    } finally {
+      Object.defineProperty(utilTypes, 'isPromise', originalDescriptor);
+    }
+
+    if (observedCode !== 'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY') {
+      throw new Error('post-import isPromise drift did not fail closed: ' + observedCode);
+    }
+    if (poisonCalls !== 0) {
+      throw new Error('replacement isPromise executed ' + String(poisonCalls) + ' time(s)');
+    }
+  `;
+
+  assertStrictChildPassed(
+    runStrictChild(source),
+    'post-import node:util.types.isPromise drift',
+  );
+});

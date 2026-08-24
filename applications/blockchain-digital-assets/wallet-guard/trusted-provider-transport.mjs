@@ -8,6 +8,14 @@ import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
 
+// Bootstrap TCB: this Node-only transport must be imported in a clean,
+// application-owned process before any untrusted same-process code. The
+// built-in node:vm implementation and node:util.types exports are trusted at
+// that boundary. Pre-import mutation of shared node: built-ins is therefore
+// out of contract and requires a separately reviewed process/worker/RPC
+// isolation boundary. Covered pre-import poisoning remains limited to the
+// ECMAScript globals explicitly validated below.
+
 const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   const getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
@@ -82,9 +90,31 @@ const TRUSTED_WEAK_SET_CONSTRUCTOR = PRISTINE_RUNTIME.weakSetConstructor;
 const TRUSTED_WEAK_SET_ADD = PRISTINE_RUNTIME.weakSetAdd;
 const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 
+export class WalletGuardTrustedProviderTransportError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'WalletGuardTrustedProviderTransportError';
+    this.code = code;
+  }
+}
+
+function fail(code, message) {
+  throw new WalletGuardTrustedProviderTransportError(code, message);
+}
+
 const PROMISE_SPECIES_KEY = PRISTINE_RUNTIME.speciesKey;
-const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
-const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const UTIL_TYPES_IS_PROMISE_DESCRIPTOR = trustedApply(
+  TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR,
+  null,
+  [utilTypes, 'isPromise'],
+);
+const UTIL_TYPES_IS_PROXY_DESCRIPTOR = trustedApply(
+  TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR,
+  null,
+  [utilTypes, 'isProxy'],
+);
+const UTIL_TYPES_IS_PROMISE = UTIL_TYPES_IS_PROMISE_DESCRIPTOR?.value;
+const UTIL_TYPES_IS_PROXY = UTIL_TYPES_IS_PROXY_DESCRIPTOR?.value;
 const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
 
 function trustedApply(fn, receiver, args) {
@@ -95,11 +125,34 @@ function trustedOwnDescriptor(value, key) {
   return trustedApply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR, null, [value, key]);
 }
 
+function nodeUtilDetectorRuntimeMatchesBootstrap() {
+  return typeof UTIL_TYPES_IS_PROMISE === 'function'
+    && typeof UTIL_TYPES_IS_PROXY === 'function'
+    && sameDescriptor(
+      trustedOwnDescriptor(utilTypes, 'isPromise'),
+      UTIL_TYPES_IS_PROMISE_DESCRIPTOR,
+    )
+    && sameDescriptor(
+      trustedOwnDescriptor(utilTypes, 'isProxy'),
+      UTIL_TYPES_IS_PROXY_DESCRIPTOR,
+    );
+}
+
+function assertNodeUtilDetectorRuntime() {
+  if (!nodeUtilDetectorRuntimeMatchesBootstrap()) {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'trusted Node util type detectors drifted after bootstrap',
+    );
+  }
+}
+
 function trustedPrototypeOf(value) {
   return trustedApply(TRUSTED_GET_PROTOTYPE_OF, null, [value]);
 }
 
 function trustedIsProxy(value) {
+  assertNodeUtilDetectorRuntime();
   return Boolean(value)
     && (typeof value === 'object' || typeof value === 'function')
     && trustedApply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
@@ -123,9 +176,7 @@ function freeze(value) {
 }
 
 function isProxy(value) {
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
-    && apply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+  return trustedIsProxy(value);
 }
 
 const ARRAY_PROTOTYPE = trustedPrototypeOf([]);
@@ -178,18 +229,6 @@ const TRUSTED_GATEWAY_KEYS = freeze([
   'capabilityLifetimeMs',
 ]);
 const MAX_CONTEXT_ACCOUNTS = 64;
-
-export class WalletGuardTrustedProviderTransportError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = 'WalletGuardTrustedProviderTransportError';
-    this.code = code;
-  }
-}
-
-function fail(code, message) {
-  throw new WalletGuardTrustedProviderTransportError(code, message);
-}
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
@@ -245,7 +284,8 @@ function promiseRuntimeMatchesTrustedPrimordial() {
 }
 
 function runtimeBaselineWasSupported() {
-  return promiseRuntimeMatchesTrustedPrimordial()
+  return nodeUtilDetectorRuntimeMatchesBootstrap()
+    && promiseRuntimeMatchesTrustedPrimordial()
     && sameDescriptor(
       PROMISE_PROTOTYPE_DESCRIPTOR,
       trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'prototype'),
@@ -265,6 +305,7 @@ const INITIAL_RUNTIME_SUPPORTED = runtimeBaselineWasSupported();
 
 function assertPromiseTransportRuntime() {
   if (!INITIAL_RUNTIME_SUPPORTED
+      || !nodeUtilDetectorRuntimeMatchesBootstrap()
       || !promiseRuntimeMatchesTrustedPrimordial()
       || !sameDescriptor(
         trustedOwnDescriptor(PROMISE_CONSTRUCTOR, 'prototype'),
@@ -394,7 +435,8 @@ function assertOwnedPromise(value) {
   // so caller-controlled decoration cannot race this check before return.
   // Require the native Promise brand, direct same-realm prototype, and no own
   // string properties; runtime-owned symbol metadata is not an attacker input.
-  if (!apply(UTIL_TYPES_IS_PROMISE, utilTypes, [value])
+  if (!nodeUtilDetectorRuntimeMatchesBootstrap()
+      || !apply(UTIL_TYPES_IS_PROMISE, utilTypes, [value])
       || trustedPrototypeOf(value) !== PROMISE_PROTOTYPE
       || apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [value]).length !== 0) {
     fail(
