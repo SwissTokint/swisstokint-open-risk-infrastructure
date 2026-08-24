@@ -1,6 +1,6 @@
 # POM-RX Core — Durable Blockers Snapshot
 
-Updated: `2026-08-24T09:33:00+02:00`
+Updated: `2026-08-24T09:36:00+02:00`
 
 This file records durable blocker rules at authoring time. It does **not** claim that its embedded SHA is the forever-current GitHub `main`. Read live GitHub first. Exact post-merge state and current blocker resolution are persisted in the relevant PR terminal checkpoint.
 
@@ -26,6 +26,8 @@ Under explicit human instruction on 2026-08-24, the one-time canonical mechanism
 
 The repair run acquired the lease using the exact fetched blob SHA and re-read the lock to verify holder `manual-repair-20260824T0727Z-gpt56sol`, acquisition commit `05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e`. A stale contender using the previous blob SHA was rejected by GitHub with HTTP 409, providing direct evidence that the contents blob SHA acts as the required compare-and-swap token.
 
+A release-owner skeptical pass then identified an additional stale-owner race that must be closed in the same repair: initial acquisition alone is insufficient if a run waits beyond its 45-minute lease. Therefore the canonical protocol requires a fresh same-holder/unexpired lease read **immediately before every state-changing project action**. Expired/displaced/unverifiable holders become read-only and terminate; they may not renew, extend or reacquire inside the same invocation. This ensures a later invocation may reclaim an expired lease without allowing the former holder to write concurrently.
+
 Closure requirements:
 
 - merge a scoped control-plane repair that defines `POM_RX_COORDINATION_GUARD.md` and binds automation policy/roster/tasks/checkpoint to exactly this mechanism;
@@ -33,8 +35,9 @@ Closure requirements:
 - full five-stage release-owner gate;
 - genuinely distinct exact-head review with zero unresolved P0/P1/P2;
 - merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`;
-- release the repair run's lease only after durable terminal state is persisted, and verify `state=FREE` by re-reading the canonical lock;
-- only then re-enable the **existing** POM-RX scheduled task with the canonical guard protocol in its prompt.
+- on a normal terminal path while still owner, release the repair run's lease only after durable terminal state is persisted, and verify `state=FREE` by re-reading the canonical lock;
+- if the lease has already expired or ownership changed, do not release another holder's lease; terminate read-only and let expiry/reclamation recover;
+- only after the repair is trusted and canonical lock state is safe may the **existing** POM-RX scheduled task be re-enabled with the guard protocol in its prompt.
 
 Until those conditions hold, automated writer work remains blocked.
 
@@ -42,13 +45,15 @@ Until those conditions hold, automated writer work remains blocked.
 
 The fail-closed semantics from PR #135 remain mandatory and are now bound to the canonical mechanism above:
 
-- acquire the canonical lease before any state-changing project action;
+- acquire the canonical lease before entering a writer lane;
 - active unexpired lease => `SKIPPED_PREVIOUS_RUN_ACTIVE`, modify nothing;
 - malformed/unreadable/unverifiable guard or failed acquisition without a now-active competing lease => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, modify nothing;
-- acquisition must use the exact fetched file blob SHA as compare-and-swap token and must be followed by a same-run holder re-read;
+- acquisition must use the exact fetched file blob SHA as compare-and-swap token and must be followed by a same-run holder/unexpired re-read;
+- **immediately before every project mutation**, re-read and require valid schema/configuration, `state=HELD`, exact own `holder.run_id`, and future `expires_at`;
+- expiry/ownership change/FREE/unverifiability => no further project mutation in that invocation; no renewal, extension or reacquisition by the same invocation;
 - normal lock writes occur only on `automation/pom-rx-coordination`, never `main` or a feature/control-plane PR head;
 - no issue, label, comment, workflow artifact, local file, chat state or alternate branch may be used as a competing lock;
-- release must verify same holder, CAS to `FREE`, then re-read and verify `state=FREE`.
+- release while still owner must verify same holder/live expiry, CAS to `FREE`, then re-read and verify `state=FREE`.
 
 ## `PR131_RELEASE_BLOCKED_RECONCILIATION_REQUIRED`
 
