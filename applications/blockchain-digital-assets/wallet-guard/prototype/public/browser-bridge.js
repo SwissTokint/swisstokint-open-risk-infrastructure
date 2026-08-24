@@ -1,6 +1,7 @@
 const ANVIL_CHAIN_ID = '0x7a69';
 const POLL_MS = 250;
 const EIP6963_ANNOUNCE_WAIT_MS = 250;
+const POST_SEND_CONTEXT_TIMEOUT_MS = 250;
 const METAMASK_RDNS = 'io.metamask';
 const BLOCK_HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -176,6 +177,23 @@ async function sampleWalletContext() {
   return { chainId, account: lowerAccount(accounts?.[0]) };
 }
 
+async function sampleWalletContextBounded() {
+  let timeout;
+  try {
+    return await Promise.race([
+      sampleWalletContext(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('Lecture du contexte MetaMask expirée')),
+          POST_SEND_CONTEXT_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function sampleWalletChainView() {
   const context = await sampleWalletContext();
   const genesis = canonicalBlock(
@@ -338,7 +356,7 @@ async function processCommand(command) {
   }
   const outcome = await walletOutcome;
   if (Object.hasOwn(outcome, 'error')) {
-    const after = await sampleWalletContext().catch(() => second);
+    const after = await sampleWalletContextBounded().catch(() => second);
     if (dispatchAcknowledged) {
       await deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after);
     }
@@ -347,7 +365,7 @@ async function processCommand(command) {
   }
   const result = outcome.result;
 
-  const after = await sampleWalletContext().catch(() => ({
+  const after = await sampleWalletContextBounded().catch(() => ({
     chainId: 'unavailable',
     account: 'unavailable',
   }));

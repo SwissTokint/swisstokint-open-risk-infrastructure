@@ -92,12 +92,15 @@ class DeterministicEip1193Provider {
     rejectSend = false,
     switchMissingOnce = false,
     afterSend = null,
+    postSendHangMethod = null,
   } = {}) {
     this.chainId = chainId;
     this.account = account;
     this.rejectSend = rejectSend;
     this.switchMissingOnce = switchMissingOnce;
     this.afterSend = afterSend;
+    this.postSendHangMethod = postSendHangMethod;
+    this.sendCompleted = false;
     this.switchCount = 0;
     this.calls = [];
     this.listeners = new Map();
@@ -120,6 +123,9 @@ class DeterministicEip1193Provider {
   async request(input) {
     this.calls.push(JSON.parse(JSON.stringify(input)));
     this.trace?.push(`provider:${input.method}`);
+    if (this.sendCompleted && input.method === this.postSendHangMethod) {
+      return new Promise(() => {});
+    }
     switch (input.method) {
       case 'eth_chainId':
         return this.chainId;
@@ -153,6 +159,7 @@ class DeterministicEip1193Provider {
           throw error;
         }
         if (this.afterSend !== null) await this.afterSend(this);
+        this.sendCompleted = true;
         return TX_HASH;
       }
       default:
@@ -493,6 +500,35 @@ test('a transaction hash returned during a late context change remains observabl
     harness.fetchCalls.some(({ body }) => JSON.stringify(body).includes(TX_HASH)),
     true,
   );
+});
+
+test('a post-send wallet context stall cannot suppress the transaction hash', async (t) => {
+  for (const method of ['eth_chainId', 'eth_accounts']) {
+    await t.test(method, async () => {
+      const provider = new DeterministicEip1193Provider({ postSendHangMethod: method });
+      const harness = browserHarness({
+        provider,
+        nextResponses: [response(200, command())],
+      });
+      await harness.elements.get('#connect').click();
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/result'),
+        `hash delivery after stalled ${method}`,
+      );
+      const delivery = harness.fetchCalls.find(({ path }) => path === '/bridge/result').body;
+      assert.equal(delivery.outcome, 'result');
+      assert.equal(delivery.result, TX_HASH);
+      assert.equal(delivery.observed_chain_id, 'unavailable');
+      assert.equal(delivery.observed_account, 'unavailable');
+      assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/dispatched'), true);
+      assert.equal(provider.calls.some(({ method: called }) => called === method), true);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      assert.equal(
+        harness.fetchCalls.filter(({ path }) => path === '/bridge/next').length,
+        1,
+      );
+    });
+  }
 });
 
 test('browser rejects duplicated MetaMask EIP-6963 announcements', async () => {
