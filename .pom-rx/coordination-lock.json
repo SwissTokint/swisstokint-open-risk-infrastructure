@@ -1,12 +1,21 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pr131-exact-head-review-20260824T112722Z-gpt56sol",
+    "actor": "gpt-5.6-sol",
+    "purpose": "Record exact-head CI/owner SKEPTIC_BLOCK evidence and request a distinct Codex review for PR #131.",
+    "acquired_at": "2026-08-24T11:27:22Z",
+    "expires_at": "2026-08-24T12:12:22Z",
+    "base_main_sha": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
+    "target_pr": 131,
+    "target_head_sha": "dcd28d67bbe66e657bc549249958084ae2419344"
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T11:22:17Z",
-    "actor": "pr131-reconcile-20260824T111957Z-gpt56sol",
-    "reason": "PR #131 reconciliation completed at exact head dcd28d67bbe66e657bc549249958084ae2419344; branch update and continuity checkpoint returned terminal success; no project mutation remains in flight. CI/review waiting is read-only."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T11:27:22Z",
+    "actor": "pr131-exact-head-review-20260824T112722Z-gpt56sol",
+    "reason": "Canonical lock was FREE; acquire exact-blob-SHA CAS before serialized PR #131 comments."
   }
 }
