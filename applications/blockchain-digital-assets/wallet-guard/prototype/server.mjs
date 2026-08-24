@@ -30,24 +30,60 @@ function randomHex32() {
   return randomBytes(32).toString('hex');
 }
 
+function isNonPublicIpv4Address(address) {
+  if (isIP(address) !== 4) return true;
+  const [first, second] = address.split('.').map(Number);
+  return first === 0 || first === 10 || first === 127 || first >= 224
+    || (first === 100 && second >= 64 && second <= 127)
+    || (first === 169 && second === 254)
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && [0, 2, 168].includes(second))
+    || (first === 198 && [18, 19, 51].includes(second))
+    || (first === 203 && second === 0 && address.startsWith('203.0.113.'));
+}
+
+function ipv6Words(address) {
+  let normalized = address.toLowerCase();
+  const dottedTail = normalized.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})$/u)?.[1];
+  if (dottedTail !== undefined) {
+    if (isIP(dottedTail) !== 4) return null;
+    const octets = dottedTail.split('.').map(Number);
+    normalized = `${normalized.slice(0, -dottedTail.length)}${(
+      (octets[0] << 8) | octets[1]
+    ).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`;
+  }
+  const compressed = normalized.split('::');
+  if (compressed.length > 2) return null;
+  const left = compressed[0] === '' ? [] : compressed[0].split(':');
+  const right = compressed.length === 1 || compressed[1] === '' ? [] : compressed[1].split(':');
+  const missing = 8 - left.length - right.length;
+  if ((compressed.length === 1 && missing !== 0) || missing < 0) return null;
+  const words = [...left, ...Array(missing).fill('0'), ...right]
+    .map((word) => Number.parseInt(word, 16));
+  return words.length === 8 && words.every((word) => Number.isInteger(word) && word <= 0xffff)
+    ? words
+    : null;
+}
+
 function isNonPublicIpAddress(value) {
   if (typeof value !== 'string') return true;
-  const address = value.startsWith('::ffff:') ? value.slice(7) : value;
-  if (isIP(address) === 4) {
-    const [first, second] = address.split('.').map(Number);
-    return first === 0 || first === 10 || first === 127 || first >= 224
-      || (first === 100 && second >= 64 && second <= 127)
-      || (first === 169 && second === 254)
-      || (first === 172 && second >= 16 && second <= 31)
-      || (first === 192 && [0, 2, 168].includes(second))
-      || (first === 198 && [18, 19, 51].includes(second))
-      || (first === 203 && second === 0 && address.startsWith('203.0.113.'));
+  if (isIP(value) === 4) {
+    return isNonPublicIpv4Address(value);
   }
-  if (isIP(address) === 6) {
-    const normalized = address.toLowerCase();
-    return normalized === '::' || normalized === '::1'
-      || normalized.startsWith('fc') || normalized.startsWith('fd')
-      || /^fe[89ab]/u.test(normalized) || normalized.startsWith('2001:db8:');
+  if (isIP(value) === 6) {
+    const words = ipv6Words(value);
+    if (words === null) return true;
+    if (words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff) {
+      const mapped = `${words[6] >> 8}.${words[6] & 0xff}.${words[7] >> 8}.${words[7] & 0xff}`;
+      return isNonPublicIpv4Address(mapped);
+    }
+    const [first, second] = words;
+    return words.slice(0, 7).every((word) => word === 0) && words[7] <= 1
+      || (first & 0xfe00) === 0xfc00
+      || (first & 0xffc0) === 0xfe80
+      || (first & 0xffc0) === 0xfec0
+      || (first & 0xff00) === 0xff00
+      || (first === 0x2001 && second === 0x0db8);
   }
   return true;
 }
@@ -453,6 +489,8 @@ export async function observeWalletGuardPrototypeTransaction({
   if (chainId !== profile.chainId) throw new Error('observer chain mismatch');
   let receipt = null;
   let transaction = null;
+  let canonicalBlock = null;
+  let finalSafeHead = null;
   let confirmationCount = 0n;
   let finalityReached = false;
   const deadline = Date.now() + profile.receiptTimeoutMs;
@@ -497,37 +535,67 @@ export async function observeWalletGuardPrototypeTransaction({
     }
     await new Promise((resolve) => setTimeout(resolve, profile.receiptPollMs));
   }
-  if (receipt !== null) {
+  const candidateReceipt = receipt;
+  if (candidateReceipt !== null) {
+    if (profile.network === 'sepolia') {
+      const finalLatestNumber = canonicalQuantity(
+        await rpcRequest(
+          rpcUrl,
+          5_000,
+          'eth_blockNumber',
+          [],
+          profile.rpcTimeoutMs,
+        ),
+        'final observer latest block',
+      );
+      const candidateReceiptNumber = canonicalQuantity(
+        candidateReceipt.blockNumber,
+        'candidate receipt block',
+      );
+      confirmationCount = finalLatestNumber >= candidateReceiptNumber
+        ? finalLatestNumber - candidateReceiptNumber + 1n
+        : 0n;
+      finalSafeHead = await rpcRequest(
+        rpcUrl,
+        5_001,
+        'eth_getBlockByNumber',
+        ['safe', false],
+        profile.rpcTimeoutMs,
+      );
+      finalityReached = finalSafeHead !== null
+        && confirmationCount >= BigInt(profile.requiredConfirmations)
+        && canonicalQuantity(finalSafeHead.number, 'final safe head') >= candidateReceiptNumber;
+    } else {
+      confirmationCount = 1n;
+      finalityReached = true;
+    }
     receipt = await rpcRequest(
       rpcUrl,
-      5_000,
+      5_002,
       'eth_getTransactionReceipt',
       [txHash],
       profile.rpcTimeoutMs,
     );
     transaction = await rpcRequest(
       rpcUrl,
-      5_001,
+      5_003,
       'eth_getTransactionByHash',
       [txHash],
       profile.rpcTimeoutMs,
     );
+    canonicalBlock = receipt === null ? null : await rpcRequest(
+      rpcUrl,
+      5_004,
+      'eth_getBlockByNumber',
+      [receipt.blockNumber, false],
+      profile.rpcTimeoutMs,
+    );
   }
-  const canonicalBlock = receipt === null ? null : await rpcRequest(
-    rpcUrl,
-    5_002,
-    'eth_getBlockByNumber',
-    [receipt.blockNumber, false],
-    profile.rpcTimeoutMs,
-  );
-  const finalSafeHead = receipt === null || profile.network !== 'sepolia' ? null : await rpcRequest(
-    rpcUrl,
-    5_003,
-    'eth_getBlockByNumber',
-    ['safe', false],
-    profile.rpcTimeoutMs,
-  );
-  if (!receipt || receipt.transactionHash?.toLowerCase() !== txHash
+  if (!candidateReceipt
+      || !receipt
+      || candidateReceipt.blockNumber !== receipt.blockNumber
+      || candidateReceipt.blockHash !== receipt.blockHash
+      || receipt.transactionHash?.toLowerCase() !== txHash
       || receipt.status !== '0x1'
       || typeof receipt.blockHash !== 'string'
       || !TX_HASH_PATTERN.test(receipt.blockHash)

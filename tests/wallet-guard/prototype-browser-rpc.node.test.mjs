@@ -1246,6 +1246,9 @@ test('public RPC lookup rejects private or mixed DNS before yielding a socket ad
       { address: '169.254.169.254', family: 4 },
     ],
     [{ address: '::1', family: 6 }],
+    [{ address: '::ffff:7f00:1', family: 6 }],
+    [{ address: '::ffff:a9fe:a9fe', family: 6 }],
+    [{ address: 'fec0::1', family: 6 }],
   ]) {
     const lookup = publicLookupResult(addresses);
     await assert.rejects(lookup.result, /non-public address/u);
@@ -1489,6 +1492,59 @@ test('a receipt whose inclusion block was reorged is never MATCH_REFERENCE', asy
       return { number: transactionBlock, hash: reorgedBlockHash };
     }
     throw new Error(`unexpected reorg RPC method ${method}`);
+  };
+  await assert.rejects(observeWalletGuardPrototypeTransaction({
+    rpcUrl: 'https://observer.example.test/',
+    txHash: TX_HASH,
+    account: ACCOUNT,
+    baseline: {
+      chain_id: SEPOLIA_CHAIN_ID,
+      block_number: LATEST_BLOCK_NUMBER,
+      account_nonce: '0x0',
+    },
+    profile,
+    rpcRequest,
+  }), /receipt does not match/u);
+});
+
+test('a re-included receipt cannot reuse confirmations from its earlier block', async () => {
+  const firstBlock = '0x6';
+  const secondBlock = '0x40';
+  const secondBlockHash = `0x${'d'.repeat(64)}`;
+  let receiptCalls = 0;
+  const profile = Object.freeze({
+    network: 'sepolia',
+    chainId: SEPOLIA_CHAIN_ID,
+    chainName: 'Sepolia POM-RX burner',
+    rpcTimeoutMs: 10,
+    receiptPollMs: 1,
+    receiptTimeoutMs: 5,
+    requiredConfirmations: 2,
+    observerEndpointSeparateConfigured: true,
+  });
+  const rpcRequest = async (_url, _id, method, params) => {
+    if (method === 'eth_chainId') return SEPOLIA_CHAIN_ID;
+    if (method === 'eth_getTransactionReceipt') {
+      receiptCalls += 1;
+      return receiptCalls === 1
+        ? receipt({ blockNumber: firstBlock })
+        : receipt({ blockNumber: secondBlock, blockHash: secondBlockHash });
+    }
+    if (method === 'eth_getTransactionByHash') {
+      return transaction({
+        chainId: SEPOLIA_CHAIN_ID,
+        blockNumber: secondBlock,
+        blockHash: secondBlockHash,
+      });
+    }
+    if (method === 'eth_blockNumber') return secondBlock;
+    if (method === 'eth_getBlockByNumber' && params[0] === 'safe') {
+      return { number: secondBlock, hash: secondBlockHash };
+    }
+    if (method === 'eth_getBlockByNumber' && params[0] === secondBlock) {
+      return { number: secondBlock, hash: secondBlockHash };
+    }
+    throw new Error(`unexpected re-inclusion RPC method ${method}`);
   };
   await assert.rejects(observeWalletGuardPrototypeTransaction({
     rpcUrl: 'https://observer.example.test/',
