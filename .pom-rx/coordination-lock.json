@@ -1,21 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pr131-release-20260824T114459Z-gpt56sol",
-    "actor": "gpt-5.6-sol",
-    "purpose": "Close exact-head P1 threads, decision-time revalidate, merge PR #131, and record exact-merge assurance.",
-    "acquired_at": "2026-08-24T11:44:59Z",
-    "expires_at": "2026-08-24T12:29:59Z",
-    "base_main_sha": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
-    "target_pr": 131,
-    "target_head_sha": "37a46fd5400350ed58d82d3a43a6bb8762e81005"
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T11:44:59Z",
+    "type": "RELEASE",
+    "at": "2026-08-24T11:50:38Z",
     "actor": "pr131-release-20260824T114459Z-gpt56sol",
-    "reason": "Canonical lock was FREE; acquire exact-blob-SHA CAS for serialized thread closure and conditional merge."
+    "reason": "PR #131 merged as 5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5; exact-main CI 882 and pom-rx/exact-main-ci passed; POST_MERGE_ASSURANCE_PASS comment 5394778431 recorded; no project mutation remains in flight."
   }
 }
