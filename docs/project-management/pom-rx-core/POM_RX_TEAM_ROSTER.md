@@ -1,104 +1,103 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-23`.
+Updated: `2026-08-24T09:56:00+02:00`
 
 ## Purpose
 
-This roster defines accountable roles and evidence requirements. It does **not** claim that a named model, human or agent actually ran merely because a role is listed. GitHub review/runtime evidence is authoritative for reviewer identity.
+This roster defines accountable roles and evidence requirements. It does not claim that a named model, human or agent actually ran merely because a role is listed. GitHub review/runtime evidence is authoritative for reviewer identity and current activity.
+
+This is a **versioned snapshot**. Embedded SHAs/branch names are authoring-time anchors, not claims that they remain the exact live GitHub state after this file's own merge. Read live GitHub first.
+
+Snapshot anchors:
+
+- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970`;
+- base state: PR #135 exact merge, exact-main CI 859 success, post-merge assurance `5387715186 = POST_MERGE_ASSURANCE_PASS`;
+- terminal checkpoint: `5387722428`.
 
 ## Invariants
 
 - One durable repository: `SwissTokint/swisstokint-open-risk-infrastructure`.
 - One writer per bounded lot and one owner per file set.
+- Single-flight coordination is mandatory before entering or continuing any writer lane and uses only `POM_RX_COORDINATION_GUARD.md`.
+- Canonical lock state lives only at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`, active window 45 minutes.
+- Automation may acquire only `FREE`, using the exact fetched file blob SHA as compare-and-swap token, followed by a same-run re-read verifying `state=HELD`, exact `holder.run_id` and future `expires_at`.
+- Active unexpired HELD lock held by another run means `SKIPPED_PREVIOUS_RUN_ACTIVE`; expired HELD is stale/blocking and means `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`. Automation never reclaims an expired lock owned by another run.
+- Immediately before every state-changing project action, the writer re-reads the canonical lock and requires valid schema/configuration, `state=HELD`, exact own `holder.run_id` and future `expires_at`.
+- Expiry, ownership change, FREE state or unverifiable lock means the invocation performs no further project mutation and never renews, extends or reacquires in the same invocation.
+- The exact current holder may perform coordination-only release even after expiry, using current blob SHA to set `FREE`/`holder=null` and re-read verification. An abandoned stale lock owned by another run requires explicit human recovery.
+- No issue, label, comment, workflow artifact, local file, chat state or alternate branch may be used as a competing lock.
 - Maximum three active specialist lanes and two code worktrees.
 - Review lanes are read-only unless a separate implementation assignment is created after review.
-- Useful work is committed and pushed to a dedicated branch; no direct `main` edits and no force-push.
+- Useful work is committed/pushed to a dedicated branch; no direct `main` edits and no force-push.
 - A moved head invalidates exact-head CI/review evidence.
 - Release-owner/Prime/self-review is never independent evidence.
 - Missing independent review is `INDEPENDENT_REVIEW_PENDING`, never an invented reviewer.
+- Live GitHub determines which branch/PR is actually active; this file provides routing rules, not a self-expiring active-branch declaration.
 
-## Active role matrix
+## Role matrix
 
 | Role | Accountability | Mode | Required evidence | Forbidden |
 | --- | --- | --- | --- | --- |
 | Prime Lead / Integrator | live GitHub state, dependency order, scope, ownership, integration | accountable / non-independent | exact main/head/CI/review reconciliation + durable checkpoint | claiming independence; direct `main` edits |
 | Protocol / Systems Architect | Core/application boundary, schemas, canonicalization, compatibility, simpler design | read-only | architecture verdict tied to reviewed scope/head | writing the same lot |
 | Security / Adversarial Skeptic | replay, substitution, TOCTOU, object/intrinsic poisoning, fail-open, overclaim | read-only | concrete Tier-B falsification hypotheses + P0/P1/P2 classification | implementation writes; generic approval |
-| Single Implementer | smallest bounded accepted solution | exclusive writer | branch/file ownership, tests, commit/push evidence | second writer or scope widening |
+| Single Implementer | smallest bounded accepted solution | exclusive writer | verified canonical lock at entry and before each project mutation + branch/file ownership + tests + commit/push evidence | second writer, scope widening, writing after active-window loss/expiry, same-run renewal/reacquisition |
 | QA / Conformance | positive/negative tests, expected-red, compatibility, false-PASS resistance | read-only relative to writer | reproducible exact-head evidence | approving unexecuted tests |
 | Code Quality / Optimization | TCB size, duplication, deterministic behavior, maintainability, boundedness | read-only | scoped PASS/CONDITIONAL/BLOCK | weakening fail-closed behavior for optimization |
 | Independent Release Gate | distinct skeptical/security release evidence | genuinely distinct exact-head reviewer | actual exact-head review with no unresolved P0/P1/P2 | owner/self/moved-head/invented review |
-| Context / State Ledger | durable cross-chat continuation | coordination | RESUME + TASKS/BLOCKERS/CAPABILITY reconciliation when facts change | parallel PM system or chat-only continuity |
+| Context / State Ledger | durable cross-chat continuation | coordination | RESUME + TASKS/BLOCKERS/CAPABILITY snapshot plus live terminal checkpoint | parallel PM system or chat-only continuity |
 
 ## Independent-review rule
 
-A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit has moved the head. The independent-review waiver remains limited to PR #60.
+A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, canonical exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit moved the head. The independent-review waiver remains limited to PR #60.
 
-## Current trusted coordination state
+## Coordination-guard bootstrap repair routing
 
-Trusted main is `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`, the exact PR #130 merge.
+After PR #135 merged and passed post-merge assurance, the next automation invocation correctly stopped because the policy required a single-flight lock but no canonical operational mechanism existed. The existing hourly task was disabled rather than allowing repeated writer attempts without verified mutual exclusion.
 
-- source head `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa`;
-- source-head CI `32635882670` / CI 820 attempt 1 = `success`;
-- owner five-stage review `5002253211` = `PASS_NON_INDEPENDENT / 0-0-0`;
-- genuinely distinct exact-head evidence `5385715573`, reviewed `ce1f2ca2f9`, no major issues;
-- exact-main CI `32638722306` / CI 821 attempt 1 = `success`;
-- exact-merge assurance `5385948152` = `POST_MERGE_ASSURANCE_PASS`;
-- terminal trusted reconciliation checkpoint `5385949730`.
+Under explicit human direction on 2026-08-24, the one-time canonical coordination branch/file was bootstrapped and a manual repair run acquired it by blob-SHA compare-and-swap. A stale compare-and-swap attempt using the previous FREE blob SHA was rejected by GitHub with HTTP 409.
 
-## Current single-writer lane — fresh Tier-B provider transport
+The dedicated Codex lane and owner skeptical pass exposed two material concurrency/routing issues in earlier #136 heads: stale-writer continuation at expiry and a capability map that could still route #131 through already-completed #135 rather than the new guard prerequisite. The successor candidate repairs both and additionally forbids automatic reclamation of expired HELD locks because the coordination file cannot server-side fence a separate in-flight GitHub mutation.
 
-Branch `automation/wg-trusted-provider-transport-20260823` is the active single-writer lane, created directly from trusted main `87ed6ac...`.
+The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` and owns only:
 
-Owned file set for this lot:
-
-- `applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs`;
-- `tests/wallet-guard/trusted-provider-transport.node.test.mjs`;
-- `tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs`;
-- `package.json`;
+- `docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md`;
+- `docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md`;
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
 - `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
 - `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
-No second writer is authorized on those files while this lot remains active. Shared Core canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution-evidence and observation/reconciliation semantics remain outside this application's ownership unless a separately scoped shared-Core task is opened after review.
+This lot is documentation/control-plane only. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
 
-### Tier-B architecture/security boundary
+P1 `PRRT_kwDOTiNyWc6bnBYA` and P2 `PRRT_kwDOTiNyWc6bnBYE` remain unresolved until a genuinely distinct review validates the final exact head; implementation alone is not closure evidence.
 
-The local prototype uses an explicit narrow **trusted-provider transport contract**, not a claim of browser-wide or intentionally hostile-provider Promise integrity.
+The scheduled task remains disabled until the repair has exact-head CI success, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. The canonical lock must then be restored to verified `FREE` before the **existing** task is re-enabled. Same-holder release may be performed after the active window expires; no project write may.
 
-The fresh branch introduces an application-owned controlled transport that owns Promise origin and a strict gateway wrapper that accepts only module-provenanced controlled transports. Unowned or Proxy providers must be rejected before their request path executes. Provider provenance is anchored to fresh-realm trusted WeakSet primordials rather than mutable pre-import `globalThis.WeakSet`. The supported Promise constructor is proxy-classified before descriptor inspection. Promise constructor/prototype/resolve/reject/then/species state and Array/Object prototype relationships are validated with fresh `node:vm` realm trusted primordials before controlled transport origin. Controlled fulfillment/rejection uses pristine Promise algorithms with the validated current-realm native Promise constructor; pre-import wrappers around current `Promise.resolve`/`Promise.reject` and current `Object.getPrototypeOf` are not trusted as security baselines.
+## Next Tier-B routing — PR #131
 
-QA/conformance must keep two evidence classes separate:
+Authoring-time snapshot: PR #131 head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`; historical CI 846 is green but stale for release; seven P1 threads remain unresolved/outdated.
 
-1. **supported-path conformance and survival:** prove the controlled transport originates only the supported same-realm native Promise shape, rejects unowned provider origins before request execution, rejects pre-import Promise/reflection/provenance poisoning without executing hostile methods/traps, and survives an in-contract rejected context transport under `--unhandled-rejections=strict` with zero reference authorization, zero sensitive forwarding and no orphaned provider rejection;
-2. **out-of-contract negative:** retain decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers as unsupported unless separately reviewed process/worker/RPC isolation is introduced.
+When live GitHub shows PR #136 has exact-merge PASS and the guard is verified FREE/acquirable, PR #131 becomes the next dependency-closing workstream. Use exactly one writer to reconcile it onto then-live main; no stale #120/#97/#93 branch is merged wholesale. A moved #131 head restarts exact-head evidence.
 
-The current branch must not represent its in-contract rejection fixture as proof that an already-originated excluded Promise can be drained safely in the same process. The fresh-realm primordial mechanism is a bounded local Node prototype control, not a browser/runtime attestation claim.
+Read-only specialist routing after reconciliation:
 
-Concrete skeptical hypotheses before release must cover rejected-Promise handling, pre-import and post-import `Promise.resolve`/`Promise.reject` substitution, pre-import `Object.getPrototypeOf` and WeakSet poisoning, Promise-constructor Proxy traps, effective `constructor`/`Symbol.species`, non-configurable unsafe constructor paths, accessors, Proxy/prototype paths, strict unhandled rejection, provider-result thenable assimilation, Array/Object inherited thenable poisoning, zero authorization/forwarding on fail-closed rejection, and any claim gap between the strict transport path and the existing controlled-host path.
+1. Protocol / Systems Architect — verify Core/application boundary, narrow trusted-provider contract and simpler TCB alternatives;
+2. Security / Adversarial Skeptic — falsify provider provenance TOCTOU, pre/post-import Promise/reflection/provenance poisoning, constructor/species/accessor/Proxy/prototype paths, thenable assimilation, strict-unhandled behavior and claim leakage;
+3. QA / Conformance — verify CI-wired negative tests, clean strict-process survival, zero reference authorization and zero sensitive forwarding.
 
-PR #131 currently has seven independent P1 review threads awaiting final same-head validation: `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`. The last three were found by the distinct Codex review of exact head `a6d9cdabbc...`; runtime repair is `d103dbc5974521dd2234eacb48ff213b47ad1939` and strict child-process regression commit is `5c3a6a5819436782f0405978d959e3d3fa0b9e21`. All six PR #120 findings remain additional historical falsification inputs: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, `PRRT_kwDOTiNyWc6bc4gh`.
+The release owner then performs the five-stage gate as non-independent evidence; a genuinely distinct exact-head review remains mandatory.
 
-Review lanes reject proposals that require process-global `unhandledRejection`/`uncaughtException` swallowing, execution of constructor/species accessors or Proxy paths, silent trust in attacker-selected species, blessing mutable pre-import Promise/reflection/provenance wrappers as trusted primordials, weakened strict tests, or fail-open forwarding.
+Seven PR #131 P1 threads remain attack inputs until same-head independent validation: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
 
-### Current review routing
-
-The candidate is not frozen until the final control-plane commit lands. CI 838, the owner review and the Codex review on `a6d9cd...` are historical after the repair head moved. Once the final branch head is frozen and canonical CI is green:
-
-1. Protocol/Systems + Security/Adversarial + QA/Conformance review the bounded design and tests read-only;
-2. Prime/Release Owner records the mandatory five-stage exact-head gate as non-independent evidence;
-3. a genuinely distinct exact-head `chatgpt-codex-connector` review is required before merge;
-4. all seven P1 threads remain unresolved until that same-head independent validation; any P0/P1/P2 or later head move reopens the gate.
+The supported path must not install process-global rejection swallowing, execute hostile constructor/species accessors or Proxy paths, silently trust attacker-selected species constructors, weaken strict-rejection tests, or claim same-process survival for an already-originated out-of-contract hostile Promise.
 
 ## Historical streams
 
-PR #120 is `CLOSED / NOT MERGED / STALE`; do not reopen or wholesale-copy it.
-
-PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable Gate composition is reconstructed later only after the fresh provider prerequisite is trusted.
-
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Simulation work remains later in dependency order.
+- PR #120: `CLOSED / NOT MERGED / STALE` at `5238b9c289476100c875ed9a88bd7e21a574fa67`; do not reopen or wholesale-copy; six P1/P2 findings remain attack history.
+- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct useful durable Gate composition later from then-current trusted main.
+- PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later from then-current trusted main.
 
 ## Operational prototype claim boundary
 

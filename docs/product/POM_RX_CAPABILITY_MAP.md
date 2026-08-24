@@ -2,15 +2,22 @@
 
 Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
-Date: 2026-08-23
+Date: 2026-08-24
 
-Trusted-main checkpoint: `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`.
+This is a **versioned snapshot**, not a self-referential claim about the forever-current GitHub head.
 
-This document organizes repository work. It does not change protocol semantics, publish a new POM-RX version, establish production readiness, or by itself activate an authorization/Gate claim. Live GitHub wins whenever volatile PR, CI, review, thread, mergeability or merge state changes after this checkpoint.
+- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge observed as live trusted main at authoring time;
+- base state: PR #135 source `8c35b486fdc73299c86388bec5517db31b6830d2`, exact-head CI 858 success, distinct exact-head review clean, exact-main CI `32657761877` / CI 859 success;
+- PR #135 post-merge assurance: `5387715186 = POST_MERGE_ASSURANCE_PASS`;
+- PR #135 terminal checkpoint: `5387722428`.
+
+Exact live `main`, active PR/head/CI/review/thread state and post-merge verdict are always read from GitHub. After a control-plane merge, the exact resulting main SHA/status/assurance belongs in the merged PR terminal checkpoint; do not create another docs-only reconciliation merely to replace `snapshot_base_main` with that merge SHA.
+
+This document organizes repository work. It does not change protocol semantics, publish a new POM-RX version, establish production readiness, or by itself activate an authorization/Gate claim.
 
 ## 1. Product rule
 
-POM-RX is the single principal technical product in this repository. Application domains, profiles, adapters, demonstrations and network integrations must not be presented as separate peer products merely because they have their own implementation work.
+POM-RX is the single principal technical product in this repository. Application domains, profiles, adapters, demonstrations and network integrations are not separate peer products merely because they have implementation work.
 
 Application blocks are not mutually exclusive; they may overlap, but shared semantics are owned once in Core. A capability block may implement only part of the lifecycle. Missing stages remain explicit and must never be inferred from a structurally valid receipt, simulation result, proof or anchor.
 
@@ -31,7 +38,7 @@ intent/context
 
 ### POM-RX Core
 
-Historical `pom-rx/0.1` compatibility remains frozen. Strict verification, exact policy/runtime/artifact binding, hostile-object/plain-data capture, Witness, exact authorization, the process-local single-use Gate, the filesystem durable claim primitive, execution evidence and observation/reconciliation are shared Core capabilities according to their merged reviewed scope.
+Historical `pom-rx/0.1` compatibility remains frozen. Strict verification, exact policy/runtime/artifact binding, hostile-object/plain-data capture, Witness, exact authorization, the process-local single-use Gate, the filesystem durable claim primitive, execution evidence and observation/reconciliation remain shared Core capabilities according to their merged reviewed scope.
 
 Application blocks may add adapters, profiles, fixtures and tests. They must not duplicate or fork Core canonicalization, hashing, verifier, Witness or Gate semantics. Shared reference-data, exact authorization, execution-evidence and observation/reconciliation semantics also remain Core-owned.
 
@@ -39,58 +46,53 @@ Strict verification is structurally non-authorizing. A valid receipt, proof, anc
 
 ### Exact authorization and Gate
 
-Trusted main contains the common exact-authorization contract, a process-local single-use Gate and a separate filesystem durable claim-store reference primitive. Reviewed composition of the durable claim primitive with the common Gate is **not** trusted on current main.
+The repository contains the common exact-authorization contract, a process-local single-use Gate and a separate filesystem durable claim-store reference primitive. Reviewed composition of the durable claim primitive with the common Gate is **not** yet a trusted dependency.
 
-Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at exact head `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable composition is reconstructed later from then-current trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted. Historical branch CI/review evidence is not current release evidence.
+Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable composition is reconstructed later from then-live trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted.
 
-### Trusted coordination checkpoint
+### Repository continuity and canonical coordination guard
 
-PR #130 source head `ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa` merged as exact main `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`.
+PR #135 closed the earlier control-plane self-reference/liveness defect and received exact-merge `POST_MERGE_ASSURANCE_PASS`. Its non-self-referential rule remains: live exact state comes from GitHub plus merged-PR terminal checkpoints; versioned files carry historical-at-authoring anchors and durable transition rules. No new docs-only PR is required solely because a control-plane merge creates a new exact `main` SHA.
 
-- source-head CI `32635882670` / CI 820 attempt 1 passed;
-- release-owner five-stage review `5002253211` was `PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`;
-- genuinely distinct exact-head evidence is `chatgpt-codex-connector[bot]` comment `5385715573`, reviewed `ce1f2ca2f9`, no major issues;
-- exact-main push CI `32638722306` / CI 821 attempt 1 passed;
-- exact-merge assurance is PR #130 comment `5385948152 = POST_MERGE_ASSURANCE_PASS`;
-- terminal trusted reconciliation checkpoint is PR #130 comment `5385949730`.
+The next scheduled invocation exposed a different operational prerequisite: the policy required mandatory single-flight coordination but no canonical lock location/acquisition/release mechanism existed. It correctly failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and the existing hourly task was disabled.
 
-PR #130 changed only canonical coordination/product-position documents. It is trusted coordination evidence, not runtime or production-security evidence.
+Under explicit human instruction, the canonical coordination state was bootstrapped at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`. PR #136 (`docs/pom-rx-canonical-coordination-lock-20260824`) is the bounded control-plane repair that documents and gates this mechanism.
 
-### Active fresh provider-transport prerequisite
+The accepted guard model is intentionally conservative:
 
-PR #131 on branch `automation/wg-trusted-provider-transport-20260823` starts directly from trusted main `87ed6ac...` and is the current Tier-B single-writer lane. Closed PR #120 is not reopened, rebased or copied wholesale.
+- automation acquires only `FREE` by exact-blob-SHA compare-and-swap;
+- active unexpired `HELD` skips as previous run active;
+- expired `HELD` remains stale/blocking and is **not** automatically reclaimed;
+- same-holder/unexpired state is re-read before every project mutation;
+- after expiry the holder loses project-writing authority, but the exact holder may perform coordination-only release;
+- a crashed holder's stale lock requires explicit human recovery;
+- normal lock writes stay on the coordination branch and never move `main` or a feature/control-plane PR head.
 
-The accepted direction is an explicit narrow **trusted-provider transport contract** for the local prototype. The fresh branch introduces an application-owned controlled provider transport plus `createWalletGuardTrustedProviderGateway()`.
+This avoids claiming that a timestamp can atomically fence an in-flight write on another GitHub resource. PR #136 must pass exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`, after which canonical lock state must be verified FREE before the existing scheduled task is re-enabled.
 
-The supported path uses module-private provider provenance so an arbitrary/unowned provider is rejected before its `request()` path can originate transport. Provider provenance is anchored to fresh-realm trusted WeakSet primordials rather than mutable pre-import `globalThis.WeakSet`. The controlled transport owns native Promise creation. A proxied global Promise constructor is classified before constructor descriptor introspection, and supported Promise state is checked against fresh-realm trusted primordials before origin. Array/Object prototype relationships and transport-value/Promise prototype admission use the fresh-realm trusted prototype reflector, not mutable current `Object.getPrototypeOf`. A same-realm native Promise may carry runtime-owned async-hook symbol metadata; the boundary still requires native Promise brand, direct intrinsic Promise prototype and no caller-controlled own string properties.
+### Next application prerequisite — PR #131
 
-Independent review has produced seven P1 attack inputs so far. The first three came from moved head `d92417f151...`, the fourth from exact head `95591a214e113ea0fc4cdb6884d86e60b3893100`, and the latest three from exact head `a6d9cdabbc62469a460e82d5d8adfa4c1252c4e7`. None is release evidence for a later moved head:
+PR #131 on `automation/wg-trusted-provider-transport-20260823` remains the next dependency-closing Tier-B workstream, but it is **blocked until PR #136 is trusted and the canonical coordination guard is operational/verified FREE**. It is not enough that PR #135 already passed.
 
-- `PRRT_kwDOTiNyWc6bfPvR`: native Node async-hook Promise symbols were incorrectly rejected. Commit `364b1d6a741a1d0f587da14407f91644d09c8b18` repairs that false rejection while retaining native-brand/direct-prototype/no-own-string requirements.
-- `PRRT_kwDOTiNyWc6bfPvI`: provider provenance could be checked on one bootstrap provider value and bypassed when the original object was re-read. Commit `62fdd59002e71c35f55e9881af6acb5198e58204` rejects Proxy bootstrap objects, requires own data properties, binds provenance to the exact descriptor value and forwards an accessor-free frozen snapshot. Regression `8eb166488283cd1232159bd0453d8d41b309a510` requires zero provider-accessor execution, zero Proxy traps and zero unowned forwarding.
-- `PRRT_kwDOTiNyWc6bfPvO`: an intermediate object between `Array.prototype` and `Object.prototype` could contribute an inherited `then` accessor. Commit `62fdd59002e71c35f55e9881af6acb5198e58204` binds the supported `Array.prototype -> Object.prototype -> null` relationship; regression `8eb166488283cd1232159bd0453d8d41b309a510` requires fail-closed behavior with zero getter execution.
-- `PRRT_kwDOTiNyWc6bfWeN`: import-time capture could bless `Promise.resolve`/`Promise.reject` poisoned before module import. The independent reviewer reproduced a `Promise.resolve` wrapper that substituted `0x1 -> 0x2` while returning an otherwise supported native Promise. Repair `b1210dce83207f5e1b03ae1065f079edf4a7daa1` introduces a fresh `node:vm` realm trusted primordial for Promise/reflection evidence, validates current-realm Promise builtin sources/descriptors and the intrinsic Promise prototype derived from an async-function Promise, and creates controlled fulfillment/rejection with pristine Promise algorithms plus the validated current-realm native constructor. Regression `bd1674b3b95d18601b534a315fe4755ae49b8ff5`, wired by `6dc74bdd09d930ced0459e5c7c2bca786bf92bda`, poisons both methods before dynamic import and requires runtime-integrity rejection with zero poisoned-method execution.
-- `PRRT_kwDOTiNyWc6bfel5`: current `Object.getPrototypeOf` could be replaced before import so the Array prototype-chain check accepted an attacker-hidden intermediate prototype with inherited `then`. Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` uses the fresh-realm trusted prototype reflector for baseline/runtime chain checks and transport/Promise prototype admission. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` requires fail-closed runtime-integrity rejection with zero inherited getter execution.
-- `PRRT_kwDOTiNyWc6bfel6`: a poisoned pre-import global WeakSet whose `has()` always returns true could bless arbitrary unowned providers. Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` uses fresh-realm trusted WeakSet constructor/add/has primordials for the private provenance registry. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` requires `POMRX_WG_TRANSPORT_E_UNTRUSTED_PROVIDER` and zero unowned-provider calls.
-- `PRRT_kwDOTiNyWc6bfel7`: a proxied global Promise constructor could execute descriptor traps during module initialization before the later integrity rejection. Repair `d103dbc5974521dd2234eacb48ff213b47ad1939` proxy-classifies the constructor first and conditionally avoids all constructor descriptor inspection. Regression `5c3a6a5819436782f0405978d959e3d3fa0b9e21` requires runtime-integrity rejection with zero constructor descriptor-trap calls.
+Authoring-time snapshot:
 
-All seven threads remain unresolved until a fresh genuinely distinct review validates the same final exact head that has green canonical CI. Earlier reviews are attack evidence only. CI 838 and the owner/Codex reviews on `a6d9cd...` became historical when the repair head moved.
+- head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
+- historical CI `32645853067` / CI 846 = `success`, but not current release evidence;
+- seven P1 threads unresolved/outdated: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
 
-Inside this supported contract, rejection handling must prove fail-closed behavior, zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
+The branch contains attempted repairs/regressions for provider binding, complete Array prototype-chain checks, Node Promise bookkeeping allowances, pre-import Promise/reflection/provenance poisoning and proxied Promise-constructor traps. None becomes trusted until #131 is reconciled onto then-live main after #136 is trusted, freezes a new exact head, reruns canonical CI, passes the full owner gate, receives a fresh genuinely distinct exact-head review, closes all P0/P1/P2 on same-head evidence, merges, and receives exact-merge assurance PASS.
 
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe-constructor Promise objects from arbitrary providers remain excluded. An already-originated excluded rejected Promise remains an explicit unsupported negative limitation. The in-contract survival regression must not be represented as proof that the hostile object can be drained safely in the same process. If that future property is desired, it requires separately reviewed process/worker/RPC isolation and a direct hostile-case regression across the isolation boundary.
+#### Accepted provider-transport boundary
 
-The fresh-realm primordial mechanism is a bounded local Node prototype control. It is not a browser-wide hostile-runtime attestation claim. The generic historical `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded by this lot into a hostile-provider-wide Promise-integrity claim. The fresh supported claim is limited to the controlled transport + trusted gateway path. The existing `controlled-host.mjs` path is not rebound by this prerequisite; therefore no broader Wallet Guard operational-readiness claim changes in PR #131.
+The accepted direction is the explicit narrow **trusted-provider transport contract** for the local Node prototype. The controlled provider/adapter must be rejected before origin when provenance or runtime integrity is ambiguous. Inside the supported contract, an in-contract rejected context transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
 
-The selected direction must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors, traverse hostile Proxy constructor/species paths, silently trust attacker-selected species constructors, bless mutable pre-import Promise/reflection/provenance wrappers as trusted primordials, weaken strict rejection tests, or convert unknown/failure into authorization/forwarding.
+Decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise objects from arbitrary providers remain excluded. An already-originated excluded rejected Promise is an explicit unsupported negative unless separately reviewed process/worker/RPC isolation is introduced. The in-contract survival regression must not be represented as same-process survival proof for that hostile object.
 
-Six PR #120 review threads remain mandatory attack history: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, and final P1 `PRRT_kwDOTiNyWc6bc4gh`.
+The generic `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded into a hostile-provider-wide Promise-integrity claim. The existing `controlled-host.mjs` path is not rebound by this prerequisite; broader Wallet Guard operational readiness therefore does not advance merely because PR #131 eventually passes.
 
-ECMAScript 2026 §27.2.5.4 remains a load-bearing feasibility constraint: ordinary `Promise.prototype.then` performs `SpeciesConstructor` and `NewPromiseCapability` before `PerformPromiseThen`, so a reorder-only repair is not accepted as a universal drain proof for hostile effective constructor/species paths.
+The selected direction must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors or Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or convert unknown/failure into authorization/forwarding.
 
-Normative reference:
-
-`https://tc39.es/ecma262/2026/multipage/control-abstraction-objects.html#sec-promise.prototype.then`
+Six closed PR #120 P1/P2 threads remain additional mandatory attack history: `PRRT_kwDOTiNyWc6bZjxp`, `PRRT_kwDOTiNyWc6bZ6tx`, `PRRT_kwDOTiNyWc6bZ6tz`, `PRRT_kwDOTiNyWc6baFkR`, `PRRT_kwDOTiNyWc6baIxZ`, `PRRT_kwDOTiNyWc6bc4gh`. PR #120 remains `CLOSED / NOT MERGED / STALE` and must not be reopened or wholesale-merged.
 
 ### Witness
 
@@ -155,9 +157,11 @@ controlled dApp
   -> reconciliation
 ```
 
-The fresh provider transport prerequisite is **in progress, not yet trusted**. PR #131 currently has seven independent P1 attack inputs with repairs awaiting wholly fresh final exact-head CI, five-stage owner review and genuinely distinct exact-head validation. No moved-head CI or review counts as release evidence, and no P1 thread is closed solely because code/tests were added.
+The provider-transport prerequisite remains untrusted until the live transition rule above is satisfied. Historical green CI alone does not advance a readiness claim.
 
-PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at exact head `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconstruct useful simulation work later rather than merging stale history wholesale.
+Historical PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconstruct useful simulation work later from then-current trusted main instead of merging stale history wholesale.
+
+Even after simulation evidence eventually merges, simulation-to-forwarding atomic binding remains a separate reviewed requirement. A simulation result never authorizes forwarding by itself.
 
 ## 5. Integration and adapter block
 
@@ -196,22 +200,22 @@ compatibility/
   pom-rx-v0.1/
 ```
 
-## 7. Current maturity by block
+## 7. Snapshot maturity by block
 
-| Block | Current trusted-main state | Missing / active |
+| Block | Durable state / transition rule | Missing / blocked |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation | fresh provider prerequisite active; durable Gate composition remains later/untrusted; production trust/time, distributed semantics and external effect truth remain missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation; PR #135 continuity model trusted | canonical coordination guard PR #136 must receive exact-merge PASS and restore verified FREE state; PR #131 then reconciles/freshly gates; durable Gate composition later; production trust/time/distributed semantics/external effect truth missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable composition requires later reconstruction |
 | Witness | source/Witness primitives, process-local trust lifecycle | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces already trusted to merged scope | PR #131 fresh strict trusted-provider transport is active but not yet trusted; seven independent P1 attack inputs are repaired but await fresh same-head CI/review validation; controlled-host is not rebound by this prerequisite; PR #120 is attack history; PR #93 simulation work later |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces trusted only to merged scope | #136 coordination prerequisite first; then provider transport PR #131 remains untrusted with seven P1 attack inputs and must be reconciled/freshly gated |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
 ## 8. Merge and safety boundary
 
-Standing authorization applies only after the mandatory five-stage pre-merge gate, all applicable technical/security gates, exact-head CI, every required genuinely distinct exact-head independent review and zero unresolved P0/P1/P2 on the same frozen SHA. A moved head invalidates exact-head evidence. The independent-review waiver remains limited to PR #60. Every non-trivial merge requires exact-main CI plus exact-merge post-merge assurance before it becomes a trusted dependency.
+Standing authorization applies only after the mandatory five-stage pre-merge gate, all applicable technical/security gates, exact-head CI, every required genuinely distinct exact-head independent review and zero unresolved P0/P1/P2 on the same frozen SHA. A moved head invalidates exact-head evidence. The independent-review waiver remains limited to PR #60. Every non-trivial merge requires exact-main CI/status plus exact-merge post-merge assurance before it becomes a trusted dependency.
 
 The maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: a local, deterministic, synthetic, bounded demonstration. It is not production readiness, audit, certification, wallet safety, financial safety or deployment authorization.
 

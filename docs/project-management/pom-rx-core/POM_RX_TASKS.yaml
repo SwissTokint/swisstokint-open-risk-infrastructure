@@ -1,184 +1,118 @@
 {
-  "schema_version": "pom-rx-tasks/1",
-  "updated_at": "2026-08-23",
-  "current_main": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-  "canonical_control_directory": "docs/project-management/pom-rx-core",
-  "continuity": {
-    "mode": "GITHUB_BACKED_CROSS_CHAT",
-    "compact_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-    "source_of_truth_order": ["live_github", "canonical_control_plane", "repository_architecture_and_specs"],
-    "rule": "Scheduled-task chat history is not project state. Reconstruct from live GitHub and this versioned control plane on every run."
+  "schema_version": "pom-rx-tasks/3-canonical-coordination-guard",
+  "updated_at": "2026-08-24T09:55:00+02:00",
+  "continuity_model": {
+    "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
+    "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
+    "versioned_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
+    "snapshot_base_main": "8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970",
+    "snapshot_base_main_state": "PR135 exact merge; exact-main CI859 success; POST_MERGE_ASSURANCE_PASS comment 5387715186",
+    "rule": "Embedded SHAs are authoring-time anchors. Exact live state is re-read every run and terminal state is persisted in the active/merged PR. Do not create docs-only loops solely to chase a control-plane merge SHA."
   },
-  "trusted_main": {
-    "sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "source_pr": 130,
-    "source_head": "ce1f2ca2f9358c11e836f1717dcedd9cb5c0caaa",
-    "source_head_ci": {
-      "run_id": 32635882670,
-      "run_number": 820,
-      "run_attempt": 1,
-      "conclusion": "success"
-    },
-    "owner_premerge_evidence": "REVIEW_5002253211_PASS_NON_INDEPENDENT_0_0_0",
-    "independent_premerge_evidence": "CHATGPT_CODEX_CONNECTOR_COMMENT_5385715573_ON_ce1f2ca2f9",
-    "exact_main_ci": {
-      "run_id": 32638722306,
-      "run_number": 821,
-      "run_attempt": 1,
-      "conclusion": "success",
-      "status_context": "pom-rx/exact-main-ci"
-    },
-    "post_merge_assurance": "POST_MERGE_ASSURANCE_PASS_COMMENT_5385948152",
-    "terminal_checkpoint": "COMMENT_5385949730",
-    "scope": "bounded_non_tier_b_control_plane_reconciliation"
-  },
-  "active_task": {
-    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
-    "title": "Reconstruct the Wallet Guard provider transport prerequisite under the accepted narrow trusted-provider contract",
-    "class": "TIER_B_APPLICATION_SECURITY",
-    "status": "IN_PROGRESS_REPAIRING_SEVEN_INDEPENDENT_P1_FINDINGS",
-    "pr": 131,
-    "branch": "automation/wg-trusted-provider-transport-20260823",
-    "base_sha": "87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "single_writer": true,
-    "historical_source_pr": 120,
-    "wholesale_history_reuse": false,
+  "coordination_guard": {
+    "id": "POM-RX-CANONICAL-SINGLE-FLIGHT-GUARD",
+    "class": "NON_TIER_B_CONTROL_PLANE_OPERATIONAL_REPAIR",
+    "status": "PR136_OPEN_BLOCKED_UNTIL_FRESH_EXACT_HEAD_GATES",
+    "canonical_branch": "automation/pom-rx-coordination",
+    "canonical_path": ".pom-rx/coordination-lock.json",
+    "schema": "pom-rx-coordination-lock/1",
+    "lease_minutes": 45,
+    "protocol": "docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md",
+    "bootstrap_commit": "8a6fa63770b3244c693000979081bdd2d594058b",
+    "first_verified_acquisition_commit": "05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e",
+    "first_verified_holder": "manual-repair-20260824T0727Z-gpt56sol",
+    "cas_falsification": "stale update using previous FREE blob SHA was rejected HTTP 409",
+    "repair_pr": 136,
+    "repair_branch": "docs/pom-rx-canonical-coordination-lock-20260824",
     "owned_files": [
-      "applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs",
-      "tests/wallet-guard/trusted-provider-transport.node.test.mjs",
-      "tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs",
-      "package.json",
+      "docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md",
+      "docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md",
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
       "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
       "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
       "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
-    "independent_review_history": {
-      "release_evidence": false,
-      "findings": [
-        {
-          "reviewed_head": "d92417f151",
-          "thread": "PRRT_kwDOTiNyWc6bfPvR",
-          "severity": "P1",
-          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
-          "repair_commit": "364b1d6a741a1d0f587da14407f91644d09c8b18",
-          "summary": "native Promise runtime-owned async-hook symbols must not be treated as caller decoration"
-        },
-        {
-          "reviewed_head": "d92417f151",
-          "thread": "PRRT_kwDOTiNyWc6bfPvI",
-          "severity": "P1",
-          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
-          "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
-          "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
-          "summary": "bind the exact provider that passed provenance and reject bootstrap accessor/Proxy TOCTOU"
-        },
-        {
-          "reviewed_head": "d92417f151",
-          "thread": "PRRT_kwDOTiNyWc6bfPvO",
-          "severity": "P1",
-          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
-          "repair_commit": "62fdd59002e71c35f55e9881af6acb5198e58204",
-          "regression_commit": "8eb166488283cd1232159bd0453d8d41b309a510",
-          "summary": "bind the supported Array/Object prototype chain so intermediate inherited then accessors fail closed before origin"
-        },
-        {
-          "reviewed_head": "95591a214e113ea0fc4cdb6884d86e60b3893100",
-          "thread": "PRRT_kwDOTiNyWc6bfWeN",
-          "severity": "P1",
-          "state": "OUTDATED_REPAIRED_PENDING_FRESH_EXACT_HEAD_VALIDATION",
-          "repair_commit": "b1210dce83207f5e1b03ae1065f079edf4a7daa1",
-          "regression_commit": "bd1674b3b95d18601b534a315fe4755ae49b8ff5",
-          "wiring_commit": "6dc74bdd09d930ced0459e5c7c2bca786bf92bda",
-          "summary": "pre-import Promise.resolve/reject poisoning must be rejected against a trusted primordial without executing poisoned methods"
-        },
-        {
-          "reviewed_head": "a6d9cdabbc62469a460e82d5d8adfa4c1252c4e7",
-          "thread": "PRRT_kwDOTiNyWc6bfel5",
-          "severity": "P1",
-          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_INDEPENDENT_VALIDATION",
-          "repair_commit": "d103dbc5974521dd2234eacb48ff213b47ad1939",
-          "regression_commit": "5c3a6a5819436782f0405978d959e3d3fa0b9e21",
-          "summary": "pre-import Object.getPrototypeOf poisoning must not hide an inherited Array thenable from the trusted prototype-chain check"
-        },
-        {
-          "reviewed_head": "a6d9cdabbc62469a460e82d5d8adfa4c1252c4e7",
-          "thread": "PRRT_kwDOTiNyWc6bfel6",
-          "severity": "P1",
-          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_INDEPENDENT_VALIDATION",
-          "repair_commit": "d103dbc5974521dd2234eacb48ff213b47ad1939",
-          "regression_commit": "5c3a6a5819436782f0405978d959e3d3fa0b9e21",
-          "summary": "provider provenance registry must use trusted WeakSet primordials rather than a pre-import replaceable global WeakSet"
-        },
-        {
-          "reviewed_head": "a6d9cdabbc62469a460e82d5d8adfa4c1252c4e7",
-          "thread": "PRRT_kwDOTiNyWc6bfel7",
-          "severity": "P1",
-          "state": "REPAIRED_PENDING_FRESH_EXACT_HEAD_CI_AND_INDEPENDENT_VALIDATION",
-          "repair_commit": "d103dbc5974521dd2234eacb48ff213b47ad1939",
-          "regression_commit": "5c3a6a5819436782f0405978d959e3d3fa0b9e21",
-          "summary": "a proxied global Promise constructor must be classified before constructor descriptor inspection and rejected with zero descriptor-trap execution"
-        }
-      ]
+    "runtime_semantics_changed": false,
+    "test_semantics_changed": false,
+    "historical_review_findings": [
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYA",
+        "severity": "P1",
+        "state": "UNRESOLVED_OUTDATED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "old writer could continue after automatic lease reclamation"
+      },
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYE",
+        "severity": "P2",
+        "state": "UNRESOLVED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "capability map still routed PR131 through completed PR135 rather than new guard prerequisite"
+      }
+    ],
+    "acceptance": [
+      "canonical coordination branch/file exists and schema is readable",
+      "only FREE may be acquired automatically and acquisition uses exact fetched blob SHA as CAS token",
+      "successful acquisition is re-read and same run_id plus unexpired active window verified before writer entry",
+      "active unexpired HELD lock causes SKIPPED_PREVIOUS_RUN_ACTIVE with no project writes",
+      "expired HELD lock is never reclaimed automatically; other runs return SKIPPED_COORDINATION_GUARD_UNAVAILABLE and perform no project or lock mutation",
+      "immediately before every state-changing project action the canonical lock is re-read and must still be valid, HELD by the same run_id and within its active window",
+      "if active window expires, ownership changes, state becomes FREE or verification fails, the current invocation performs no further project mutation and never renews/extends/reacquires",
+      "the exact holder may perform coordination-only release even after its active window expires, provided ownership is unchanged",
+      "release uses exact fetched blob SHA, writes FREE with unique RELEASE transition, then re-reads state=FREE and holder=null",
+      "an abandoned expired HELD lock requires explicit human recovery; automation never overwrites another holder",
+      "normal lock writes never move main or a feature/control-plane PR head",
+      "no competing issue/label/comment/local/chat/workflow/alternate-branch lock",
+      "capability map routes PR131 only after PR136 exact-merge PASS and verified FREE canonical lock",
+      "existing scheduled task remains disabled until repair merge and POST_MERGE_ASSURANCE_PASS",
+      "after PASS, restore canonical lock to verified FREE before re-enabling the existing task"
+    ],
+    "security_rationale": "Automatic expiry reclamation is forbidden because the lock state and separate GitHub project mutations cannot be fenced atomically; a project API call started before expiry could otherwise complete after another run took over.",
+    "release_gate": "fresh exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + POST_MERGE_ASSURANCE_PASS"
+  },
+  "next_dependency_closing_workstream": {
+    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
+    "pr": 131,
+    "class": "TIER_B_APPLICATION_SECURITY",
+    "transition_rule": "READY_TO_RECONCILE only after PR136 has POST_MERGE_ASSURANCE_PASS and canonical coordination state is verified FREE",
+    "snapshot_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
+    "historical_exact_head_ci": "32645853067 / CI846 = success but stale for release",
+    "release_state": "BLOCKED_UNTIL_GUARD_REPAIR_TRUSTED_THEN_RECONCILED_AND_FRESHLY_GATED",
+    "review_threads": [
+      {"id": "PRRT_kwDOTiNyWc6bfPvI", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfPvO", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfPvR", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfWeN", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfel5", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfel6", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
+      {"id": "PRRT_kwDOTiNyWc6bfel7", "severity": "P1", "state": "UNRESOLVED_OUTDATED"}
+    ],
+    "accepted_boundary": {
+      "name": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
+      "requirements": [
+        "fail closed before unowned provider transport origin",
+        "zero reference authorization on rejected/invalid context transport",
+        "zero sensitive forwarding on rejected/invalid context transport",
+        "clean process survival under --unhandled-rejections=strict for in-contract rejected transport",
+        "no orphaned provider-rejection termination for in-contract transport"
+      ],
+      "out_of_contract": "Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers remain unsupported without separately reviewed process/worker/RPC isolation."
     },
-    "implemented_so_far": [
-      "application-owned controlled provider transport with module-private provenance",
-      "trusted gateway rejects unowned provider before provider.request transport origin",
-      "trusted gateway validates own data-property bootstrap fields and forwards an accessor-free snapshot containing the exact validated provider",
-      "provider provenance registry uses fresh-realm trusted WeakSet constructor/add/has primordials",
-      "supported Promise runtime and Array/Object prototype-chain checks before controlled transport origin",
-      "fresh node:vm realm supplies trusted Promise/reflection primordial evidence rather than blessing pre-import current Promise method wrappers",
-      "Array/Object prototype-chain checks and transport-value/Promise prototype admission use the fresh-realm trusted prototype reflector",
-      "global Promise constructor is proxy-classified before constructor descriptor inspection",
-      "current realm native Promise constructor is validated against async-function intrinsic Promise prototype and trusted builtin source/descriptor shape",
-      "controlled fulfillment/rejection uses pristine built-in Promise.resolve/reject algorithms with the validated current-realm Promise constructor",
-      "in-contract controlled rejected native Promise transport for strict survival regression",
-      "runtime-owned native Promise symbol metadata tolerated while native brand/direct same-realm prototype/no own string properties remain required",
-      "CI-wired regressions for bootstrap accessor zero execution, Proxy bootstrap zero traps, intermediate Array-prototype then accessor zero execution, pre-import Promise.resolve/reject poisoning, pre-import Object.getPrototypeOf poisoning, pre-import WeakSet poisoning, Promise-constructor Proxy zero traps, native transport shape, species drift, direct Array then poisoning and strict rejection survival"
-    ],
-    "current_limitations": [
-      "generic createWalletGuardReferenceProviderGateway remains outside the fresh hostile-provider-wide transport claim",
-      "existing controlled-host path is not rebound by this prerequisite and broader operational-readiness claim does not advance",
-      "already-originated excluded hostile rejected Promise remains unsupported without reviewed process/worker/RPC isolation",
-      "the fresh-realm primordial boundary is a local Node prototype mechanism, not a browser-wide hostile-runtime attestation claim"
-    ],
-    "supported_rejection_requirements": [
-      "fail closed",
-      "zero reference authorization",
-      "zero sensitive forwarding",
-      "clean process survival under --unhandled-rejections=strict",
-      "no orphaned provider-rejection termination"
-    ],
-    "prohibited_shortcuts": [
-      "process-global unhandledRejection swallowing",
-      "process-global uncaughtException swallowing",
-      "executing hostile constructor/species accessors",
-      "executing Proxy constructor/species paths",
-      "silently trusting attacker-selected species constructors",
-      "blessing pre-import Promise/reflection/provenance wrappers as trusted primordials",
-      "weakening strict rejection regressions"
-    ],
-    "release_requirements": [
-      "freeze one final exact head after all code/test/control-plane repairs",
-      "canonical exact-head CI success on that frozen head including all pre-import primordial-poisoning regressions",
-      "mandatory five-stage release-owner review with provider-bootstrap TOCTOU, pre/post-import Promise/reflection/provenance poisoning, species/accessor/Proxy/prototype/strict-unhandled/thenable/Array-poisoning and claim-gap hypotheses",
-      "fresh genuinely distinct chatgpt-codex-connector review on the same frozen SHA",
-      "same-head independent validation before resolving all seven PR131 P1 threads",
-      "zero unresolved P0/P1/P2",
-      "decision-time unchanged main/base/head/CI/review/thread state",
-      "mandatory exact-merge post-merge assurance"
-    ],
-    "attack_history": [
-      {"id": "PRRT_kwDOTiNyWc6bZjxp", "severity": "P1"},
-      {"id": "PRRT_kwDOTiNyWc6bZ6tx", "severity": "P1"},
-      {"id": "PRRT_kwDOTiNyWc6bZ6tz", "severity": "P2"},
-      {"id": "PRRT_kwDOTiNyWc6baFkR", "severity": "P1"},
-      {"id": "PRRT_kwDOTiNyWc6baIxZ", "severity": "P1"},
-      {"id": "PRRT_kwDOTiNyWc6bc4gh", "severity": "P1", "final_historical_finding": true}
+    "resume_procedure": [
+      "acquire and verify the canonical single-flight guard only from FREE",
+      "read then-live main and PR131 metadata",
+      "reconcile PR131 with exactly one writer and preserve canonical control-plane semantics",
+      "before every subsequent project mutation revalidate same-holder and unexpired active window",
+      "freeze new exact head",
+      "run canonical exact-head CI",
+      "run full five-stage owner gate with concrete provenance/Promise/reflection/species/accessor/Proxy/prototype/thenable/strict-unhandled/Array-poisoning hypotheses",
+      "obtain genuinely distinct exact-head review",
+      "resolve seven P1 threads only on same-head evidence and zero new P0/P1/P2",
+      "merge only after all gates pass and the canonical active window is still live for the same run",
+      "run exact-merge assurance immediately",
+      "persist terminal checkpoint then release/verify canonical lock; same-holder release is allowed after active-window expiry, but no project write is"
     ]
   },
-  "historical_state": {
+  "historical_streams": {
     "pr120": {
       "status": "CLOSED_NOT_MERGED_STALE_ATTACK_HISTORY",
       "head": "5238b9c289476100c875ed9a88bd7e21a574fa67",
@@ -186,46 +120,43 @@
     },
     "pr97": {
       "status": "OPEN_STALE_MUST_NOT_MERGE",
-      "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "rule": "Reconstruct durable Gate composition later from then-current trusted main only after the fresh provider prerequisite is trusted."
+      "rule": "Reconstruct useful durable Gate composition later from then-current trusted main after the provider prerequisite is trusted."
     },
     "pr93": {
       "status": "OPEN_STALE_UNTRUSTED_LATER",
-      "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "rule": "Reconstruct useful simulation work later from then-current trusted main."
+      "rule": "Reconstruct useful simulation work later from then-current trusted main; never wholesale-merge stale history."
     }
   },
-  "queue": [
+  "queue_after_pr131_trusted": [
     {
       "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
       "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-      "status": "BLOCKED_ON_TRUSTED_FRESH_PROVIDER_TRANSPORT_POST_MERGE_PASS",
-      "historical_source_pr": 97
+      "historical_source_pr": 97,
+      "status_rule": "blocked until fresh provider transport exact-merge assurance PASS"
     },
     {
       "id": "WALLET-GUARD-SIMULATION-RECONSTRUCTION",
       "historical_pr": 93,
       "class": "TIER_B_APPLICATION_SECURITY",
-      "status": "BLOCKED_DEPENDENCY_AND_FRESH_RECONSTRUCTION"
+      "status_rule": "later after dependency closure and fresh reconstruction"
     },
     {
       "id": "DAGR-SOURCE-GATE",
-      "class": "SOURCE_GATED_NORMATIVE_PROFILE",
       "status": "BLOCKED",
       "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
     },
     {
       "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "class": "HUMAN_AUTHORIZATION_AND_PRODUCTION_TRUST",
       "status": "BLOCKED"
     }
   ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
-    "standing_authorization": "Applicable only after mandatory gates, exact-head CI, required distinct exact-head independent review, and zero unresolved P0/P1/P2.",
+    "standing_authorization": "Only after mandatory gates, exact-head CI, required distinct exact-head independent review and zero unresolved P0/P1/P2.",
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
-    "post_merge_rule": "Every non-trivial merge requires exact-merge-SHA assurance before dependent work may trust it."
+    "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it.",
+    "single_flight_rule": "Use only automation/pom-rx-coordination:.pom-rx/coordination-lock.json per POM_RX_COORDINATION_GUARD.md; only FREE auto-acquires by CAS; HELD expired is fail-closed and never auto-reclaimed; same-holder active-window check before every project mutation; same-holder CAS release/re-read FREE is coordination-only and may occur after expiry."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
