@@ -1,12 +1,17 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "actor": "wallet-guard-pr137-json-p1-20260824T123531Z-gpt56sol",
+    "acquired_at": "2026-08-24T12:35:31Z",
+    "expires_at": "2026-08-24T13:20:31Z",
+    "purpose": "Publish exact-head JSON parser capture repair on draft PR #137, refresh evidence, and request successor-head review."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T12:23:14Z",
-    "actor": "wallet-guard-lot1-20260824T120120Z-gpt56sol",
-    "reason": "PR #137 draft opened at exact head 8b61caa181f7619c97a037cc4386031ed5a326ab; local exact-tree evidence and independent narrow security PASS recorded; CI 883 and distinct GitHub exact-head review requested; no further project mutation in flight."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T12:35:31Z",
+    "actor": "wallet-guard-pr137-json-p1-20260824T123531Z-gpt56sol",
+    "reason": "Manual recovery policy already selected; canonical lock is FREE at exact blob d5d3ac97137f94fb8936f6bbd1f20e44cde0bab3. Acquire by exact-SHA CAS for serial PR #137 repair mutations."
   }
 }
