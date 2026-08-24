@@ -827,6 +827,9 @@ export function createWalletGuardPrototypeServer({
       } else {
         state.closed = true;
       }
+      if (state.ambiguous !== null) {
+        state.ambiguous.cause_code = 'JOURNAL_FAILURE';
+      }
       pending?.reportFailure?.('BRIDGE_CLOSED');
       if (state.ambiguous !== null && state.ambiguous.transaction_hash === null) {
         state.ambiguous.transaction_hash = candidate.transaction_hash;
@@ -1409,7 +1412,7 @@ export function createWalletGuardPrototypeServer({
             // A delivered wallet request remains ambiguous when its response is
             // malformed or reports a changed wallet context.
           }
-          markAmbiguous(pending, 'UNTRUSTED_LATE_CONTEXT', candidate);
+          markAmbiguous(pending, 'UNTRUSTED_LATE_CONTEXT');
         }
         await retainCandidateInJournal(candidate, pending);
         if (!pending.viewBound) {
@@ -1420,7 +1423,10 @@ export function createWalletGuardPrototypeServer({
               // The missing pre-send view makes any delivered outcome ambiguous.
             }
           }
-          markAmbiguous(pending, 'VIEW_BINDING_MISSING', candidate);
+          markAmbiguous(pending, 'VIEW_BINDING_MISSING');
+          if (candidate !== null && state.ambiguous.transaction_hash === null) {
+            reconcileAmbiguousCandidate(candidate);
+          }
           pending.reportFailure('CONTEXT_CHANGED');
           if (state.ambiguous.reconciliationPromise !== null) {
             await state.ambiguous.reconciliationPromise;
@@ -1428,11 +1434,17 @@ export function createWalletGuardPrototypeServer({
           sendJson(res, 202, { operation: ambiguousView() });
           return;
         }
+        if (state.ambiguous !== null && candidate !== null
+            && state.ambiguous.transaction_hash === null) {
+          reconcileAmbiguousCandidate(candidate);
+        }
         if (parsed?.outcome === 'error' && parsed.error_code !== 'USER_REJECTED') {
           markAmbiguous(pending, parsed.error_code);
         }
         if (parsed?.outcome === 'error') {
-          await terminateJournal(`WALLET_${parsed.error_code}`);
+          await terminateJournal(parsed.error_code === 'USER_REJECTED'
+            ? 'WALLET_USER_REJECTED'
+            : `AMBIGUOUS_WALLET_${parsed.error_code}`);
         }
         pending.deliverRawJson(raw);
         if (parsed?.outcome === 'error' || state.transport.control.inspect().destroyed) {
