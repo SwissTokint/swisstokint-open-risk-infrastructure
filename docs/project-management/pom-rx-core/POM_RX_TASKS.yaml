@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/3-canonical-coordination-guard",
-  "updated_at": "2026-08-24T09:32:00+02:00",
+  "updated_at": "2026-08-24T09:35:00+02:00",
   "continuity_model": {
     "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
     "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
@@ -36,10 +36,14 @@
     "acceptance": [
       "canonical coordination branch/file exists and schema is readable",
       "acquisition uses exact fetched blob SHA as CAS token",
-      "successful acquisition is re-read and same run_id verified before writer entry",
+      "successful acquisition is re-read and same run_id plus unexpired lease verified before writer entry",
+      "immediately before every state-changing project action the canonical lease is re-read and must still be valid, HELD by the same run_id and unexpired",
+      "if lease expires, ownership changes, state becomes FREE or verification fails, the current invocation performs no further project mutation",
+      "the same invocation never renews, extends or reacquires an expired lease; a later invocation resumes from live state",
       "active unexpired lease causes SKIPPED_PREVIOUS_RUN_ACTIVE with no project writes",
       "unverifiable/malformed/failed acquisition causes SKIPPED_COORDINATION_GUARD_UNAVAILABLE with no project writes",
-      "release verifies same holder, writes FREE by CAS, then re-reads state=FREE",
+      "release while still owner verifies same holder/live expiry, writes FREE by CAS, then re-reads state=FREE",
+      "an expired or displaced former holder never releases another run's lease",
       "normal lock writes never move main or a feature/control-plane PR head",
       "no competing issue/label/comment/local/chat/workflow/alternate-branch lock",
       "existing scheduled task remains disabled until repair merge and POST_MERGE_ASSURANCE_PASS",
@@ -79,14 +83,15 @@
       "acquire and verify the canonical single-flight guard",
       "read then-live main and PR131 metadata",
       "reconcile PR131 with exactly one writer and preserve canonical control-plane semantics",
+      "before every subsequent project mutation revalidate same-holder unexpired lease",
       "freeze new exact head",
       "run canonical exact-head CI",
       "run full five-stage owner gate with concrete provenance/Promise/reflection/species/accessor/Proxy/prototype/thenable/strict-unhandled/Array-poisoning hypotheses",
       "obtain genuinely distinct exact-head review",
       "resolve seven P1 threads only on same-head evidence and zero new P0/P1/P2",
-      "merge only after all gates pass",
+      "merge only after all gates pass and the canonical lease is still live for the same run",
       "run exact-merge assurance immediately",
-      "persist terminal checkpoint then release/verify the canonical lock"
+      "persist terminal checkpoint then release/verify the canonical lock while still owner; otherwise terminate read-only and let a later invocation resume"
     ]
   },
   "historical_streams": {
@@ -133,7 +138,7 @@
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
     "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it.",
-    "single_flight_rule": "Use only automation/pom-rx-coordination:.pom-rx/coordination-lock.json per POM_RX_COORDINATION_GUARD.md; CAS acquire/re-read verify before writes; same-holder CAS release/re-read FREE on terminal path."
+    "single_flight_rule": "Use only automation/pom-rx-coordination:.pom-rx/coordination-lock.json per POM_RX_COORDINATION_GUARD.md; CAS acquire/re-read verify before writer entry; re-read same-holder unexpired lease before every project mutation; never renew/reacquire in the same invocation; same-holder CAS release/re-read FREE on terminal path if lease is still live."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
