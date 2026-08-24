@@ -968,8 +968,13 @@ export function createWalletGuardPrototypeServer({
         observation: null,
         command: pending.command,
         baseline: pending.observationBaseline,
+        dispatchCommitPromise: pending.dispatchCommitPromise,
         reconciliationPromise: null,
       };
+    }
+    if (state.ambiguous.dispatchCommitPromise === null
+        && pending.dispatchCommitPromise !== null) {
+      state.ambiguous.dispatchCommitPromise = pending.dispatchCommitPromise;
     }
     state.closed = true;
     if (candidate !== null) reconcileAmbiguousCandidate(candidate);
@@ -1401,6 +1406,7 @@ export function createWalletGuardPrototypeServer({
               state.pending = null;
               clearTimeout(pending.timer);
               const ambiguous = markAmbiguous(pending, 'JOURNAL_FAILURE');
+              ambiguous.cause_code = 'JOURNAL_FAILURE';
               ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
               pending.reportFailure('BRIDGE_CLOSED');
               throw error;
@@ -1443,7 +1449,8 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/result') {
         const raw = await readStrictBody(req);
-        const dispatchCommitPromise = state.pending?.dispatchCommitPromise;
+        const dispatchCommitPromise = state.pending?.dispatchCommitPromise
+          ?? state.ambiguous?.dispatchCommitPromise;
         if (dispatchCommitPromise !== null && dispatchCommitPromise !== undefined) {
           await dispatchCommitPromise;
         }

@@ -1749,6 +1749,9 @@ test('a durable dispatch mark completing after expiry never renews the command',
       }),
     });
     assert.equal(duplicateDispatch.status, 409);
+    const allowed = await allowPromise;
+    assert.equal(allowed.status, 202);
+    assert.equal(JSON.parse(allowed.body).operation.cause_code, 'DISPATCH_ACK_TIMEOUT');
     const resultPromise = http(info.origin, '/bridge/result', {
       method: 'POST',
       cookie,
@@ -1765,9 +1768,8 @@ test('a durable dispatch mark completing after expiry never renews the command',
         error: null,
       }),
     });
-    const allowed = await allowPromise;
-    assert.equal(allowed.status, 202);
-    assert.equal(JSON.parse(allowed.body).operation.cause_code, 'DISPATCH_ACK_TIMEOUT');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(retainedHash, null);
     releaseDispatch();
     const dispatched = await dispatchPromise;
     assert.equal(dispatched.status, 409);
