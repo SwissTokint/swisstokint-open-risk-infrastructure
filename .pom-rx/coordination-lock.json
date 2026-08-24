@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "wallet-guard-sepolia-20260824T143501146Z-gpt56sol",
+    "acquired_at": "2026-08-24T14:35:01.146Z",
+    "expires_at": "2026-08-24T15:20:01.146Z",
+    "base_main": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5",
+    "purpose": "Bounded Wallet Guard lot: extend draft PR #138 from Anvil-only to fail-closed Sepolia burner readiness without control-plane, core, custody, mainnet, deployment, or meaningful-funds mutation."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T14:14:07.488Z",
-    "actor": "wallet-guard-pr138-latehash-20260824T134927417Z-gpt56sol",
-    "reason": "PR #138 exact head fdb30b10300a0da1666c6238f7af06b7a21070fb: CI 32736869397 success, exact review no major issue, 0 unresolved P0/P1/P2, local Anvil burner human-test gate recorded; no project mutation in flight."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T14:35:01.146Z",
+    "actor": "wallet-guard-sepolia-20260824T143501146Z-gpt56sol",
+    "reason": "User requested continuation toward a real Sepolia burner prototype; acquire before the single serialized writer lane."
   }
 }
