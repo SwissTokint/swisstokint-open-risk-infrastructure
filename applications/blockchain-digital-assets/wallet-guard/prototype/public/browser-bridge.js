@@ -223,7 +223,11 @@ function boundedErrorCode(error) {
 }
 
 async function bindWalletView(command, view) {
-  await postJson('/bridge/view', {
+  await postJson('/bridge/view', walletViewEnvelope(command, view));
+}
+
+function walletViewEnvelope(command, view) {
+  return {
     schema_version: command.schema_version,
     session_id: command.session_id,
     sequence: command.sequence,
@@ -233,6 +237,19 @@ async function bindWalletView(command, view) {
     genesis_hash: view.genesisHash,
     latest_block_number: view.latestBlockNumber,
     latest_block_hash: view.latestBlockHash,
+  };
+}
+
+async function armWalletDispatch(command, view) {
+  await postJson('/bridge/arm', walletViewEnvelope(command, view));
+}
+
+async function signalWalletDispatched(command) {
+  await postJson('/bridge/dispatched', {
+    schema_version: command.schema_version,
+    session_id: command.session_id,
+    sequence: command.sequence,
+    request_id: command.request_id,
   });
 }
 
@@ -287,15 +304,48 @@ async function processCommand(command) {
     return;
   }
 
-  let result;
   try {
-    result = await activeProvider.request(command.request);
+    await armWalletDispatch(command, beforeSend);
   } catch (error) {
-    const after = await sampleWalletContext().catch(() => second);
-    await deliver(command, { errorCode: boundedErrorCode(error) }, after);
+    resultView.textContent = `Armement expiré avant envoi: ${error.message}`;
     sessionClosed = true;
     return;
   }
+  if (sessionClosed) return;
+
+  let walletTransport;
+  let dispatchSignal;
+  try {
+    // No await is permitted between the final session check, the sensitive
+    // invocation and creation of the dispatch signal request.
+    walletTransport = activeProvider.request(command.request);
+    dispatchSignal = signalWalletDispatched(command);
+  } catch (error) {
+    await closeForContextChange();
+    return;
+  }
+
+  const walletOutcome = walletTransport.then(
+    (result) => ({ result }),
+    (error) => ({ error }),
+  );
+  let dispatchAcknowledged = true;
+  try {
+    await dispatchSignal;
+  } catch {
+    dispatchAcknowledged = false;
+    sessionClosed = true;
+  }
+  const outcome = await walletOutcome;
+  if (Object.hasOwn(outcome, 'error')) {
+    const after = await sampleWalletContext().catch(() => second);
+    if (dispatchAcknowledged) {
+      await deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after);
+    }
+    sessionClosed = true;
+    return;
+  }
+  const result = outcome.result;
 
   const after = await sampleWalletContext().catch(() => ({
     chainId: 'unavailable',

@@ -123,6 +123,39 @@ async function bindView(info, cookie, command) {
   });
 }
 
+async function armView(info, cookie, command) {
+  return http(info.origin, '/bridge/arm', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      chain_id: command.expected_chain_id,
+      account: command.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    }),
+  });
+}
+
+async function signalDispatched(info, cookie, command) {
+  return http(info.origin, '/bridge/dispatched', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+    }),
+  });
+}
+
 async function nextCommand(info, cookie) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const response = await http(info.origin, '/bridge/next', { cookie });
@@ -295,6 +328,8 @@ test('loopback prototype authenticates one page and executes DENY then one bound
     data: '0x',
   });
   assert.equal((await bindView(info, cookie, command)).status, 204);
+  assert.equal((await armView(info, cookie, command)).status, 204);
+  assert.equal((await signalDispatched(info, cookie, command)).status, 204);
 
   const resultEnvelope = JSON.stringify({
     schema_version: command.schema_version,
@@ -424,6 +459,37 @@ test('delivered MetaMask timeout stays AMBIGUOUS, retains a late hash, and forbi
   assert.equal(status.ambiguous.retry_allowed, false);
 });
 
+test('arm rejects when the pre-send resample outlives the original pending deadline', async (t) => {
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    port: 0,
+    commandTimeoutMs: 1_000,
+    captureObservationBaseline: async () => Object.freeze({ marker: 'before-dispatch' }),
+    captureNodeChainView: async () => nodeChainView(),
+    observeTransaction: async () => assert.fail('observer must not run'),
+  });
+  const info = await prototype.listen();
+  t.after(() => prototype.close());
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+
+  const allowPromise = http(info.origin, '/api/allow', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: '{}',
+  });
+  const command = await nextCommand(info, cookie);
+  assert.equal((await bindView(info, cookie, command)).status, 204);
+
+  const timedOut = await allowPromise;
+  assert.equal(timedOut.status, 202);
+  assert.equal(parseJson(timedOut).operation.cause_code, 'TIMEOUT');
+  assert.equal((await armView(info, cookie, command)).status, 409);
+  assert.equal((await signalDispatched(info, cookie, command)).status, 409);
+});
+
 test('late Node chain-view validation cannot acknowledge an expired pending command', async (t) => {
   let captureCount = 0;
   let markViewCaptureStarted;
@@ -510,6 +576,8 @@ test('post-prompt chain/account mismatch preserves and observes the bound transa
   });
   const command = await nextCommand(info, cookie);
   assert.equal((await bindView(info, cookie, command)).status, 204);
+  assert.equal((await armView(info, cookie, command)).status, 204);
+  assert.equal((await signalDispatched(info, cookie, command)).status, 204);
   const mismatched = await http(info.origin, '/bridge/result', {
     method: 'POST',
     cookie,

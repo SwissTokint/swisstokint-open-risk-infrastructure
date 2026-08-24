@@ -427,6 +427,23 @@ function parseBoundWalletView(raw, command) {
   });
 }
 
+function parseBoundCommandIdentity(raw, command, label) {
+  const input = parseWalletGuardBoundedJsonData(raw);
+  exactKeys(input, [
+    'schema_version',
+    'session_id',
+    'sequence',
+    'request_id',
+  ], label);
+  if (input.schema_version !== command.schema_version
+      || input.session_id !== command.session_id
+      || input.sequence !== command.sequence
+      || input.request_id !== command.request_id) {
+    throw new TypeError(`${label} is not bound to the pending command`);
+  }
+  return input;
+}
+
 export function createWalletGuardPrototypeServer({
   createControlledCallbackTransport,
   createTrustedGateway,
@@ -575,6 +592,8 @@ export function createWalletGuardPrototypeServer({
       reportFailure,
       delivered: false,
       viewBound: false,
+      armed: false,
+      dispatched: false,
       observationBaseline: state.activeObservationBaseline,
       timer: null,
     };
@@ -781,6 +800,64 @@ export function createWalletGuardPrototypeServer({
         return;
       }
 
+      if (url.pathname === '/bridge/arm') {
+        if (state.pending === null || !state.pending.delivered
+            || !state.pending.viewBound || state.pending.armed) {
+          send(res, 409, 'no live view-bound command to arm');
+          return;
+        }
+        const pending = state.pending;
+        const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
+        if (state.pending !== pending || state.closed) {
+          send(res, 409, 'pending command expired before arm');
+          return;
+        }
+        const boundView = pending.observationBaseline?.wallet_before_send;
+        if (boundView === undefined
+            || walletView.account !== boundView.account
+            || !sameChainView(walletView, boundView)) {
+          state.pending = null;
+          clearTimeout(pending.timer);
+          state.closed = true;
+          pending.reportFailure('CONTEXT_CHANGED');
+          send(res, 409, 'armed wallet view differs from the bound view');
+          return;
+        }
+        clearTimeout(pending.timer);
+        pending.timer = null;
+        pending.armed = true;
+        send(res, 204);
+        return;
+      }
+
+      if (url.pathname === '/bridge/dispatched') {
+        if (state.pending === null || !state.pending.armed
+            || state.pending.dispatched || state.closed) {
+          send(res, 409, 'no armed command awaiting dispatch');
+          return;
+        }
+        const pending = state.pending;
+        parseBoundCommandIdentity(
+          await readStrictBody(req),
+          pending.command,
+          'wallet dispatch signal',
+        );
+        if (state.pending !== pending || state.closed || pending.dispatched) {
+          send(res, 409, 'armed command is no longer dispatchable');
+          return;
+        }
+        pending.dispatched = true;
+        pending.timer = setTimeout(() => {
+          if (state.pending !== pending) return;
+          state.pending = null;
+          state.closed = true;
+          markAmbiguous(pending, 'TIMEOUT');
+          pending.reportFailure('TIMEOUT');
+        }, commandTimeoutMs);
+        send(res, 204);
+        return;
+      }
+
       if (url.pathname === '/bridge/result') {
         const raw = await readStrictBody(req);
         if (state.pending === null || !state.pending.delivered) {
@@ -795,6 +872,10 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         const pending = state.pending;
+        if (!pending.dispatched) {
+          send(res, 409, 'wallet result requires a dispatched command');
+          return;
+        }
         state.pending = null;
         clearTimeout(pending.timer);
         let parsed = null;

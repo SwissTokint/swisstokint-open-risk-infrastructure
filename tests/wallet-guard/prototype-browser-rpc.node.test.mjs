@@ -103,6 +103,7 @@ class DeterministicEip1193Provider {
     this.listeners = new Map();
     this.latestBlockNumber = LATEST_BLOCK_NUMBER;
     this.latestBlockHash = LATEST_BLOCK_HASH;
+    this.trace = null;
   }
 
   on(type, listener) {
@@ -118,6 +119,7 @@ class DeterministicEip1193Provider {
 
   async request(input) {
     this.calls.push(JSON.parse(JSON.stringify(input)));
+    this.trace?.push(`provider:${input.method}`);
     switch (input.method) {
       case 'eth_chainId':
         return this.chainId;
@@ -204,6 +206,7 @@ function browserHarness({
   announcements = null,
   boundary = {},
   viewResponse = null,
+  armResponse = null,
 } = {}) {
   const elements = new Map([
     ['#connect', new FakeElement()],
@@ -216,10 +219,13 @@ function browserHarness({
   elements.get('#allow').disabled = true;
 
   const fetchCalls = [];
+  const trace = [];
+  provider.trace = trace;
   const queue = [...nextResponses];
   const fetch = async (path, options = {}) => {
     const body = options.body === undefined ? null : JSON.parse(options.body);
     fetchCalls.push({ path, options, body });
+    trace.push(`fetch:${path}`);
     if (path === '/api/config') {
       return response(200, {
         chain_id: ANVIL_CHAIN_ID,
@@ -237,7 +243,9 @@ function browserHarness({
     }
     if (path === '/bridge/next') return queue.shift() ?? response(410, { error: 'SESSION_CLOSED' });
     if (path === '/bridge/view' && viewResponse !== null) return viewResponse;
-    if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view') {
+    if (path === '/bridge/arm' && armResponse !== null) return armResponse;
+    if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view'
+        || path === '/bridge/arm' || path === '/bridge/dispatched') {
       return response(204);
     }
     throw new Error(`unexpected browser fetch ${path}`);
@@ -274,7 +282,7 @@ function browserHarness({
     window,
   }, { filename: 'browser-bridge.js' });
 
-  return Object.freeze({ elements, fetchCalls, provider });
+  return Object.freeze({ elements, fetchCalls, provider, trace });
 }
 
 async function waitFor(predicate, label) {
@@ -328,6 +336,13 @@ test('browser bridge forwards one bound command through a deterministic EIP-1193
     harness.fetchCalls.indexOf(viewCall)
       < harness.fetchCalls.findIndex(({ path }) => path === '/bridge/result'),
   );
+  const armIndex = harness.trace.indexOf('fetch:/bridge/arm');
+  const sendIndex = harness.trace.indexOf('provider:eth_sendTransaction');
+  const dispatchedIndex = harness.trace.indexOf('fetch:/bridge/dispatched');
+  const resultIndex = harness.trace.indexOf('fetch:/bridge/result');
+  assert.ok(armIndex >= 0 && armIndex < sendIndex);
+  assert.ok(sendIndex < dispatchedIndex);
+  assert.ok(dispatchedIndex < resultIndex);
   await waitFor(
     () => harness.fetchCalls.filter(({ path }) => path === '/bridge/next').length === 2,
     'bridge loop shutdown',
@@ -349,6 +364,35 @@ test('browser bridge maps MetaMask rejection to the bounded USER_REJECTED outcom
   assert.equal(delivery.outcome, 'error');
   assert.equal(delivery.result, null);
   assert.deepEqual(JSON.parse(JSON.stringify(delivery.error)), { code: 'USER_REJECTED' });
+});
+
+test('an expired arm after a stalled final resample performs zero sensitive sends', async () => {
+  let releaseArm;
+  const stalledArm = new Promise((resolve) => {
+    releaseArm = resolve;
+  });
+  const provider = new DeterministicEip1193Provider();
+  const harness = browserHarness({
+    provider,
+    nextResponses: [response(200, command())],
+    armResponse: stalledArm,
+  });
+
+  await harness.elements.get('#connect').click();
+  await waitFor(
+    () => harness.fetchCalls.some(({ path }) => path === '/bridge/arm'),
+    'stalled arm request',
+  );
+  assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
+
+  releaseArm(response(409, { error: 'pending command expired' }));
+  await waitFor(
+    () => /Armement expiré avant envoi/u.test(harness.elements.get('#result').textContent),
+    'expired arm rejection',
+  );
+  assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/dispatched'), false);
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/result'), false);
 });
 
 test('browser context events close the loopback bridge without another provider request', async () => {
@@ -633,6 +677,35 @@ async function executeAllowedTransaction(prototype) {
     }),
   });
   assert.equal(viewBound.status, 204);
+  const armed = await http(info.origin, '/bridge/arm', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: bridgeCommand.schema_version,
+      session_id: bridgeCommand.session_id,
+      sequence: bridgeCommand.sequence,
+      request_id: bridgeCommand.request_id,
+      chain_id: bridgeCommand.expected_chain_id,
+      account: bridgeCommand.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    }),
+  });
+  assert.equal(armed.status, 204);
+  const dispatched = await http(info.origin, '/bridge/dispatched', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: bridgeCommand.schema_version,
+      session_id: bridgeCommand.session_id,
+      sequence: bridgeCommand.sequence,
+      request_id: bridgeCommand.request_id,
+    }),
+  });
+  assert.equal(dispatched.status, 204);
   const delivered = await http(info.origin, '/bridge/result', {
     method: 'POST',
     cookie,
