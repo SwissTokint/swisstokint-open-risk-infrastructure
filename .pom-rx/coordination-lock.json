@@ -1,17 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "wallet-guard-pr137-tojson-20260824T130525841Z-gpt56sol",
-    "acquired_at": "2026-08-24T13:05:26.529Z",
-    "expires_at": "2026-08-24T13:50:26.529Z",
-    "purpose": "Repair PR #137 exact head for inherited toJSON serialization P1, then publish the stacked Anvil + MetaMask draft prototype after exact-head gates."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T13:05:26.529Z",
+    "type": "RELEASE",
+    "at": "2026-08-24T13:44:18.407Z",
     "actor": "wallet-guard-pr137-tojson-20260824T130525841Z-gpt56sol",
-    "reason": "Explicit writer lane for PR #137 P1 repair and stacked prototype publication; manual stale-lock recovery is authorized by the human but not needed because the canonical lock is FREE."
+    "reason": "PR #137 exact foundation d7735866e0a00472208f00e68b8ba461ca6bcf44 gated with 0 open threads; PR #138 advanced to exact prototype successor 0233d326ada91f9380b5884cbf474412e997cfff with 230/230 local tests and exact-head CI/review requested. No project mutation remains in flight."
   }
 }
