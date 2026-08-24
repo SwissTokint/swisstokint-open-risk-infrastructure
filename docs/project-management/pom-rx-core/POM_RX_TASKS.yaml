@@ -1,23 +1,31 @@
 {
-  "schema_version": "pom-rx-tasks/2-non-self-referential",
-  "updated_at": "2026-08-23T20:12:00+02:00",
+  "schema_version": "pom-rx-tasks/3-canonical-coordination-guard",
+  "updated_at": "2026-08-24T09:55:00+02:00",
   "continuity_model": {
     "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
     "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
     "versioned_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-    "snapshot_base_main": "e45869bf77025566d6be4edac58424f6002ad08e",
-    "snapshot_base_main_state": "PR134 exact merge; CI852 success; POST_MERGE_ASSURANCE_CONDITIONAL due self-reference P2",
-    "last_assured_main_before_snapshot": "ed0cc5936a12fcd420890ee1553690569b2d4ec7",
-    "last_assured_main_evidence": "PR133 comment 5387034808 = POST_MERGE_ASSURANCE_PASS; terminal 5387039387",
-    "rule": "Embedded SHAs are authoring-time anchors, not claims of forever-current main. Exact post-merge main/CI/status/verdict is persisted in the merged PR terminal checkpoint and re-read live every run. Do not create a docs-only loop solely to chase a control-plane merge SHA."
+    "snapshot_base_main": "8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970",
+    "snapshot_base_main_state": "PR135 exact merge; exact-main CI859 success; POST_MERGE_ASSURANCE_PASS comment 5387715186",
+    "rule": "Embedded SHAs are authoring-time anchors. Exact live state is re-read every run and terminal state is persisted in the active/merged PR. Do not create docs-only loops solely to chase a control-plane merge SHA."
   },
-  "snapshot_repair_lot": {
-    "id": "CONTROL-PLANE-NON-SELF-REFERENTIAL-CONTINUITY",
-    "class": "NON_TIER_B_DOCUMENTATION_CONTROL_PLANE_REPAIR",
-    "branch_at_authoring": "docs/pom-rx-non-self-referential-continuity-20260823-1923",
-    "base_sha": "e45869bf77025566d6be4edac58424f6002ad08e",
-    "trigger": "PR134 post-merge assurance comment 5387352052 identified a P2 continuity/liveness defect: the old model made each control-plane reconciliation immediately stale after its own merge.",
+  "coordination_guard": {
+    "id": "POM-RX-CANONICAL-SINGLE-FLIGHT-GUARD",
+    "class": "NON_TIER_B_CONTROL_PLANE_OPERATIONAL_REPAIR",
+    "status": "PR136_OPEN_BLOCKED_UNTIL_FRESH_EXACT_HEAD_GATES",
+    "canonical_branch": "automation/pom-rx-coordination",
+    "canonical_path": ".pom-rx/coordination-lock.json",
+    "schema": "pom-rx-coordination-lock/1",
+    "lease_minutes": 45,
+    "protocol": "docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md",
+    "bootstrap_commit": "8a6fa63770b3244c693000979081bdd2d594058b",
+    "first_verified_acquisition_commit": "05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e",
+    "first_verified_holder": "manual-repair-20260824T0727Z-gpt56sol",
+    "cas_falsification": "stale update using previous FREE blob SHA was rejected HTTP 409",
+    "repair_pr": 136,
+    "repair_branch": "docs/pom-rx-canonical-coordination-lock-20260824",
     "owned_files": [
+      "docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md",
       "docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md",
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
@@ -27,33 +35,48 @@
     ],
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
-    "active_review_blocker": {
-      "severity": "P2",
-      "thread": "PRRT_kwDOTiNyWc6bg6TG",
-      "review_id": 5002957358,
-      "reviewed_predecessor_head": "8dc1648f65dce0de59f314d7080e2408de95292b",
-      "finding": "The policy made single-flight guard acquisition conditional, permitting an overlapping invocation to enter the writer lane without verified mutual exclusion.",
-      "repair_requirements": [
-        "mandatory single-flight lock acquisition before any state-changing action",
-        "active lock younger than 45 minutes => SKIPPED_PREVIOUS_RUN_ACTIVE and modify nothing",
-        "unverifiable or failed acquisition => SKIPPED_COORDINATION_GUARD_UNAVAILABLE and modify nothing",
-        "do not invent a competing lock mechanism",
-        "release any acquired lock on every terminal path after durable state persistence"
-      ],
-      "evidence_freshness": "CI853, owner review 5002957417 and Codex review 5002957358 are historical after the repair head moves",
-      "closure_rule": "fresh canonical exact-head CI + fresh five-stage owner gate + fresh genuinely distinct exact-head review + zero unresolved P0/P1/P2; resolve the thread only on same-head evidence"
-    },
-    "closure_rule": "normal exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + exact-merge POST_MERGE_ASSURANCE_PASS"
+    "historical_review_findings": [
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYA",
+        "severity": "P1",
+        "state": "UNRESOLVED_OUTDATED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "old writer could continue after automatic lease reclamation"
+      },
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYE",
+        "severity": "P2",
+        "state": "UNRESOLVED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "capability map still routed PR131 through completed PR135 rather than new guard prerequisite"
+      }
+    ],
+    "acceptance": [
+      "canonical coordination branch/file exists and schema is readable",
+      "only FREE may be acquired automatically and acquisition uses exact fetched blob SHA as CAS token",
+      "successful acquisition is re-read and same run_id plus unexpired active window verified before writer entry",
+      "active unexpired HELD lock causes SKIPPED_PREVIOUS_RUN_ACTIVE with no project writes",
+      "expired HELD lock is never reclaimed automatically; other runs return SKIPPED_COORDINATION_GUARD_UNAVAILABLE and perform no project or lock mutation",
+      "immediately before every state-changing project action the canonical lock is re-read and must still be valid, HELD by the same run_id and within its active window",
+      "if active window expires, ownership changes, state becomes FREE or verification fails, the current invocation performs no further project mutation and never renews/extends/reacquires",
+      "the exact holder may perform coordination-only release even after its active window expires, provided ownership is unchanged",
+      "release uses exact fetched blob SHA, writes FREE with unique RELEASE transition, then re-reads state=FREE and holder=null",
+      "an abandoned expired HELD lock requires explicit human recovery; automation never overwrites another holder",
+      "normal lock writes never move main or a feature/control-plane PR head",
+      "no competing issue/label/comment/local/chat/workflow/alternate-branch lock",
+      "capability map routes PR131 only after PR136 exact-merge PASS and verified FREE canonical lock",
+      "existing scheduled task remains disabled until repair merge and POST_MERGE_ASSURANCE_PASS",
+      "after PASS, restore canonical lock to verified FREE before re-enabling the existing task"
+    ],
+    "security_rationale": "Automatic expiry reclamation is forbidden because the lock state and separate GitHub project mutations cannot be fenced atomically; a project API call started before expiry could otherwise complete after another run took over.",
+    "release_gate": "fresh exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + POST_MERGE_ASSURANCE_PASS"
   },
   "next_dependency_closing_workstream": {
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
     "pr": 131,
     "class": "TIER_B_APPLICATION_SECURITY",
-    "transition_rule": "READY_TO_RECONCILE only after the latest continuity-model repair has POST_MERGE_ASSURANCE_PASS; live GitHub exact state must be read at that time",
+    "transition_rule": "READY_TO_RECONCILE only after PR136 has POST_MERGE_ASSURANCE_PASS and canonical coordination state is verified FREE",
     "snapshot_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
-    "snapshot_compare_to_e45869bf": "diverged ahead 32 behind 18 merge-base 87ed6ac814f868dc4599cb5d236babdeea8c3cc9",
-    "historical_exact_head_ci": "32645853067 / CI 846 attempt 1 = success but stale for release",
-    "release_state": "BLOCKED_UNTIL_RECONCILED_AND_FRESHLY_GATED",
+    "historical_exact_head_ci": "32645853067 / CI846 = success but stale for release",
+    "release_state": "BLOCKED_UNTIL_GUARD_REPAIR_TRUSTED_THEN_RECONCILED_AND_FRESHLY_GATED",
     "review_threads": [
       {"id": "PRRT_kwDOTiNyWc6bfPvI", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
       {"id": "PRRT_kwDOTiNyWc6bfPvO", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
@@ -72,26 +95,21 @@
         "clean process survival under --unhandled-rejections=strict for in-contract rejected transport",
         "no orphaned provider-rejection termination for in-contract transport"
       ],
-      "out_of_contract": "Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers remain unsupported without separately reviewed process/worker/RPC isolation.",
-      "prohibited_shortcuts": [
-        "process-global unhandledRejection swallowing",
-        "process-global uncaughtException swallowing",
-        "executing hostile constructor/species accessors",
-        "executing Proxy constructor/species paths",
-        "silently trusting attacker-selected species constructors",
-        "weakening strict rejection regressions"
-      ]
+      "out_of_contract": "Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers remain unsupported without separately reviewed process/worker/RPC isolation."
     },
     "resume_procedure": [
+      "acquire and verify the canonical single-flight guard only from FREE",
       "read then-live main and PR131 metadata",
       "reconcile PR131 with exactly one writer and preserve canonical control-plane semantics",
+      "before every subsequent project mutation revalidate same-holder and unexpired active window",
       "freeze new exact head",
       "run canonical exact-head CI",
       "run full five-stage owner gate with concrete provenance/Promise/reflection/species/accessor/Proxy/prototype/thenable/strict-unhandled/Array-poisoning hypotheses",
       "obtain genuinely distinct exact-head review",
       "resolve seven P1 threads only on same-head evidence and zero new P0/P1/P2",
-      "merge only after all gates pass",
-      "run exact-merge assurance immediately"
+      "merge only after all gates pass and the canonical active window is still live for the same run",
+      "run exact-merge assurance immediately",
+      "persist terminal checkpoint then release/verify canonical lock; same-holder release is allowed after active-window expiry, but no project write is"
     ]
   },
   "historical_streams": {
@@ -102,13 +120,11 @@
     },
     "pr97": {
       "status": "OPEN_STALE_MUST_NOT_MERGE",
-      "head": "0efb462f0b4b8cff62d664a51d13ad71306b6bbb",
-      "snapshot_compare_to_e45869bf": "diverged ahead 66 behind 267 merge-base 0564aecd42cf0794894c12842980969ff59c9f73"
+      "rule": "Reconstruct useful durable Gate composition later from then-current trusted main after the provider prerequisite is trusted."
     },
     "pr93": {
       "status": "OPEN_STALE_UNTRUSTED_LATER",
-      "head": "c4e40ceb286f4e59657767661daed15d2b68e9a7",
-      "snapshot_compare_to_e45869bf": "diverged ahead 86 behind 312 merge-base 818718955c9e4136e9e55754a31be2f1c7b610f8"
+      "rule": "Reconstruct useful simulation work later from then-current trusted main; never wholesale-merge stale history."
     }
   },
   "queue_after_pr131_trusted": [
@@ -140,7 +156,7 @@
     "independent_review_waiver": "PR_60_ONLY",
     "moved_head_rule": "Any moved head invalidates exact-head CI/review evidence.",
     "post_merge_rule": "Every non-trivial merge requires exact-merge assurance before dependent work may trust it.",
-    "single_flight_rule": "Mandatory before any state-changing action; active lock under 45 minutes or unverifiable acquisition means modify nothing; release acquired lock on every terminal path."
+    "single_flight_rule": "Use only automation/pom-rx-coordination:.pom-rx/coordination-lock.json per POM_RX_COORDINATION_GUARD.md; only FREE auto-acquires by CAS; HELD expired is fail-closed and never auto-reclaimed; same-holder active-window check before every project mutation; same-holder CAS release/re-read FREE is coordination-only and may occur after expiry."
   },
   "safety": {
     "real_wallet": "NOT_AUTHORIZED",
