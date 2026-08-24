@@ -368,6 +368,28 @@ test('post-import descriptor poisoning cannot substitute the expected bridge ide
   assert.equal(transport.control.inspect().destroyed, true);
 });
 
+test('post-import descriptor poisoning cannot rewrite callback request capture', async () => {
+  const original = Object.getOwnPropertyDescriptor(Object, 'getOwnPropertyDescriptors');
+  let poisonCalls = 0;
+  const transport = createTransport((command, deliverRawJson) => {
+    deliverRawJson(response(command));
+  });
+  try {
+    Object.defineProperty(Object, 'getOwnPropertyDescriptors', {
+      ...original,
+      value(value) {
+        poisonCalls += 1;
+        return Reflect.apply(original.value, Object, [value]);
+      },
+    });
+    assert.equal(await transport.provider.request(sendTransaction()), TX_HASH);
+  } finally {
+    Object.defineProperty(Object, 'getOwnPropertyDescriptors', original);
+  }
+  assert.equal(poisonCalls, 0);
+  assert.equal(transport.control.sensitiveCallCount(), 1);
+});
+
 test('post-import Object.freeze poisoning cannot turn a bounded error into success', async () => {
   const original = Object.getOwnPropertyDescriptor(Object, 'freeze');
   let poisonCalls = 0;

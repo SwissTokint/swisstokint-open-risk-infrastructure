@@ -9,6 +9,7 @@ import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
 import {
+  makeWalletGuardBridgeCommand,
   parseWalletGuardBridgeResponse,
 } from './bridge-json-envelope.mjs';
 
@@ -97,8 +98,6 @@ const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
 const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
-const TRUSTED_STRING_SLICE = PRISTINE_RUNTIME.stringSlice;
-const TRUSTED_STRING_PAD_START = PRISTINE_RUNTIME.stringPadStart;
 const TRUSTED_REGEXP_EXEC = PRISTINE_RUNTIME.regexpExec;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
@@ -251,7 +250,6 @@ const TRUSTED_GATEWAY_KEYS = freeze([
   'capabilityLifetimeMs',
 ]);
 const MAX_CONTEXT_ACCOUNTS = 64;
-const BRIDGE_SCHEMA_VERSION = 'wallet_guard_bridge/0.1';
 const SESSION_ID_PATTERN = /^[0-9a-f]{64}$/u;
 const CHAIN_ID_PATTERN = /^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
 const ACCOUNT_PATTERN = /^0x[0-9a-f]{40}$/u;
@@ -534,6 +532,51 @@ function copySensitiveCalls(calls) {
   return captureReferencePlainData(calls, 'trusted provider sensitive calls');
 }
 
+function copyCallbackSensitiveCalls(calls) {
+  const output = [];
+  for (let index = 0; index < calls.length; index += 1) {
+    defineArrayElement(output, index, calls[index]);
+  }
+  return freeze(output);
+}
+
+function inspectCallbackRequest(request) {
+  const prototype = request && typeof request === 'object' && !isProxy(request)
+    ? trustedPrototypeOf(request)
+    : undefined;
+  if (!request || typeof request !== 'object' || isProxy(request)
+      || apply(TRUSTED_ARRAY_IS_ARRAY, null, [request])
+      || (prototype !== OBJECT_PROTOTYPE && prototype !== null)
+      || apply(TRUSTED_GET_OWN_PROPERTY_SYMBOLS, null, [request]).length !== 0) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request must be a plain object');
+  }
+  const names = apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [request]);
+  if (names.length < 1 || names.length > 2) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request has invalid fields');
+  }
+  const descriptors = apply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS, null, [request]);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    if (key !== 'method' && key !== 'params') {
+      fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request has unknown fields');
+    }
+    const descriptor = descriptors[key];
+    if (!descriptor || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
+        || descriptor.enumerable !== true
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'set')) {
+      fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request fields must be data');
+    }
+  }
+  if (!descriptors.method || typeof descriptors.method.value !== 'string') {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request method is invalid');
+  }
+  return freeze({
+    method: descriptors.method.value,
+    params: descriptors.params?.value,
+  });
+}
+
 function bridgeFailureCodeSupported(code) {
   for (let index = 0; index < BRIDGE_FAILURE_CODES.length; index += 1) {
     if (BRIDGE_FAILURE_CODES[index] === code) return true;
@@ -575,19 +618,13 @@ function createSessionId() {
 }
 
 function makeCapturedBridgeCommand(sessionId, sequence, chainId, account, request) {
-  const sequenceText = `${sequence}`;
-  const sessionPrefix = trustedApply(TRUSTED_STRING_SLICE, sessionId, [0, 16]);
-  const paddedSequence = trustedApply(TRUSTED_STRING_PAD_START, sequenceText, [8, '0']);
-  const command = freeze({
-    schema_version: BRIDGE_SCHEMA_VERSION,
-    session_id: sessionId,
+  return makeWalletGuardBridgeCommand({
+    sessionId,
     sequence,
-    request_id: `wg-bridge-${sessionPrefix}-${paddedSequence}`,
-    expected_chain_id: chainId,
-    expected_account: account,
+    expectedChainId: chainId,
+    expectedAccount: account,
     request,
   });
-  return captureReferencePlainData(command, 'trusted callback provider command');
 }
 
 export function createWalletGuardControlledProviderTransport(rawOptions) {
@@ -737,17 +774,14 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
       assertPromiseTransportRuntime();
 
       try {
-        const requestSnapshot = captureReferencePlainData(
-          request,
-          'trusted callback provider request',
-        );
+        const requestShape = inspectCallbackRequest(request);
         if (state.destroyed) {
           throw new WalletGuardTrustedProviderTransportError(
             'POMRX_WG_TRANSPORT_E_SESSION_CLOSED',
             'captured provider session is closed and must be re-armed',
           );
         }
-        const method = requestSnapshot?.method;
+        const method = requestShape.method;
         if (method === 'eth_chainId' || method === 'eth_accounts') {
           state.contextReads += 1;
           const value = method === 'eth_chainId'
@@ -782,7 +816,7 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
           state.nextSequence,
           state.chainId,
           state.accounts[0],
-          requestSnapshot,
+          request,
         );
         const pending = constructPendingTransport();
         state.nextSequence += 1;
@@ -896,7 +930,7 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
         session_id: state.sessionId,
         context_reads: state.contextReads,
         sensitive_call_count: state.sensitiveCalls.length,
-        sensitive_calls: copySensitiveCalls(state.sensitiveCalls),
+        sensitive_calls: copyCallbackSensitiveCalls(state.sensitiveCalls),
         in_flight: state.inFlight,
         next_sequence: state.nextSequence,
         destroyed: state.destroyed,
