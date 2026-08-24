@@ -1,6 +1,6 @@
 {
   "schema_version": "pom-rx-tasks/3-canonical-coordination-guard",
-  "updated_at": "2026-08-24T09:44:00+02:00",
+  "updated_at": "2026-08-24T09:55:00+02:00",
   "continuity_model": {
     "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
     "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
@@ -12,7 +12,7 @@
   "coordination_guard": {
     "id": "POM-RX-CANONICAL-SINGLE-FLIGHT-GUARD",
     "class": "NON_TIER_B_CONTROL_PLANE_OPERATIONAL_REPAIR",
-    "status": "BOOTSTRAPPED_REPAIR_PR_REQUIRED_BEFORE_AUTOMATION_REENABLE",
+    "status": "PR136_OPEN_BLOCKED_UNTIL_FRESH_EXACT_HEAD_GATES",
     "canonical_branch": "automation/pom-rx-coordination",
     "canonical_path": ".pom-rx/coordination-lock.json",
     "schema": "pom-rx-coordination-lock/1",
@@ -22,6 +22,7 @@
     "first_verified_acquisition_commit": "05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e",
     "first_verified_holder": "manual-repair-20260824T0727Z-gpt56sol",
     "cas_falsification": "stale update using previous FREE blob SHA was rejected HTTP 409",
+    "repair_pr": 136,
     "repair_branch": "docs/pom-rx-canonical-coordination-lock-20260824",
     "owned_files": [
       "docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md",
@@ -29,10 +30,25 @@
       "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
       "docs/project-management/pom-rx-core/POM_RX_TASKS.yaml",
       "docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md",
-      "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md"
+      "docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md",
+      "docs/product/POM_RX_CAPABILITY_MAP.md"
     ],
     "runtime_semantics_changed": false,
     "test_semantics_changed": false,
+    "historical_review_findings": [
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYA",
+        "severity": "P1",
+        "state": "UNRESOLVED_OUTDATED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "old writer could continue after automatic lease reclamation"
+      },
+      {
+        "thread": "PRRT_kwDOTiNyWc6bnBYE",
+        "severity": "P2",
+        "state": "UNRESOLVED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "finding": "capability map still routed PR131 through completed PR135 rather than new guard prerequisite"
+      }
+    ],
     "acceptance": [
       "canonical coordination branch/file exists and schema is readable",
       "only FREE may be acquired automatically and acquisition uses exact fetched blob SHA as CAS token",
@@ -46,6 +62,7 @@
       "an abandoned expired HELD lock requires explicit human recovery; automation never overwrites another holder",
       "normal lock writes never move main or a feature/control-plane PR head",
       "no competing issue/label/comment/local/chat/workflow/alternate-branch lock",
+      "capability map routes PR131 only after PR136 exact-merge PASS and verified FREE canonical lock",
       "existing scheduled task remains disabled until repair merge and POST_MERGE_ASSURANCE_PASS",
       "after PASS, restore canonical lock to verified FREE before re-enabling the existing task"
     ],
@@ -56,7 +73,7 @@
     "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
     "pr": 131,
     "class": "TIER_B_APPLICATION_SECURITY",
-    "transition_rule": "READY_TO_RECONCILE only after the canonical coordination-guard repair has POST_MERGE_ASSURANCE_PASS and the existing automation can start from a verified FREE canonical guard",
+    "transition_rule": "READY_TO_RECONCILE only after PR136 has POST_MERGE_ASSURANCE_PASS and canonical coordination state is verified FREE",
     "snapshot_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
     "historical_exact_head_ci": "32645853067 / CI846 = success but stale for release",
     "release_state": "BLOCKED_UNTIL_GUARD_REPAIR_TRUSTED_THEN_RECONCILED_AND_FRESHLY_GATED",
