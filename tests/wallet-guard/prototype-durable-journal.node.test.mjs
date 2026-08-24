@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -120,4 +120,19 @@ test('only one process can own a journal path at a time', async (t) => {
     /POMRX_WG_JOURNAL_RECOVERY_REQUIRED:LOCK_PRESENT/u,
   );
   await first.close();
+});
+
+test('journal refuses a parent directory accessible to another user', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pomrx-wg-journal-public-parent-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await chmod(directory, 0o755);
+  const journal = createWalletGuardDurableOperationJournal({
+    journalPath: join(directory, 'operation.json'),
+    network: 'sepolia',
+    chainId: '0xaa36a7',
+  });
+  await assert.rejects(
+    journal.initialize(),
+    /directory must be private, owned, and symlink-free/u,
+  );
 });

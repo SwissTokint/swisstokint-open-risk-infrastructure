@@ -78,12 +78,11 @@ function isNonPublicIpAddress(value) {
       return isNonPublicIpv4Address(mapped);
     }
     const [first, second] = words;
-    return words.slice(0, 7).every((word) => word === 0) && words[7] <= 1
-      || (first & 0xfe00) === 0xfc00
-      || (first & 0xffc0) === 0xfe80
-      || (first & 0xffc0) === 0xfec0
-      || (first & 0xff00) === 0xff00
-      || (first === 0x2001 && second === 0x0db8);
+    return (first & 0xe000) !== 0x2000
+      || first === 0x2002
+      || first === 0x3ffe
+      || (first === 0x3fff && (second & 0xf000) === 0)
+      || (first === 0x2001 && (second <= 0x01ff || second === 0x0db8));
   }
   return true;
 }
@@ -829,8 +828,21 @@ export function createWalletGuardPrototypeServer({
         state.closed = true;
       }
       pending?.reportFailure?.('BRIDGE_CLOSED');
-      if (state.ambiguous?.transaction_hash === null) {
-        reconcileAmbiguousCandidate(candidate);
+      if (state.ambiguous !== null && state.ambiguous.transaction_hash === null) {
+        state.ambiguous.transaction_hash = candidate.transaction_hash;
+        state.ambiguous.observed_chain_id = candidate.observed_chain_id;
+        state.ambiguous.observed_account = candidate.observed_account;
+        state.ambiguous.context_matches = candidate.context_matches;
+        state.ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+        const observation = Object.freeze({
+          status: 'AMBIGUOUS',
+          detail: 'transaction hash could not be durably retained',
+          transaction_hash: candidate.transaction_hash,
+          reference_only: true,
+          external_world_proved: false,
+        });
+        state.ambiguous.observation = observation;
+        state.lastObservation = observation;
       }
       throw error;
     }
@@ -1238,6 +1250,36 @@ export function createWalletGuardPrototypeServer({
           pending.reportFailure('CONTEXT_CHANGED');
           send(res, 409, 'armed wallet view differs from the bound view');
           return;
+        }
+        const originalObserver = pending.observationBaseline?.observer;
+        if (originalObserver !== null && originalObserver !== undefined
+            && typeof originalObserver.chain_id === 'string'
+            && typeof originalObserver.account_nonce === 'string') {
+          const dispatchObserver = await captureBaseline({
+            rpcUrl: profile.observerRpcUrl,
+            account: state.account,
+            profile,
+          });
+          if (state.pending !== pending || state.closed) {
+            send(res, 409, 'pending command expired during dispatch preflight');
+            return;
+          }
+          if (dispatchObserver?.chain_id !== profile.chainId
+              || canonicalQuantity(
+                dispatchObserver.account_nonce,
+                'dispatch-boundary account nonce',
+              ) !== canonicalQuantity(originalObserver.account_nonce, 'baseline account nonce')) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            pending.reportFailure('CONTEXT_CHANGED');
+            send(res, 409, 'burner nonce changed before dispatch');
+            return;
+          }
+          pending.observationBaseline = Object.freeze({
+            ...pending.observationBaseline,
+            observer_before_dispatch: dispatchObserver,
+          });
         }
         if (journal !== null) {
           try {

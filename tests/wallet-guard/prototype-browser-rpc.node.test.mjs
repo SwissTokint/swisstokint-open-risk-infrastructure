@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer, request as requestHttp } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1248,6 +1248,12 @@ test('public RPC lookup rejects private or mixed DNS before yielding a socket ad
     [{ address: '::1', family: 6 }],
     [{ address: '::ffff:7f00:1', family: 6 }],
     [{ address: '::ffff:a9fe:a9fe', family: 6 }],
+    [{ address: '::ffff:0:7f00:1', family: 6 }],
+    [{ address: '64:ff9b::7f00:1', family: 6 }],
+    [{ address: '64:ff9b:1::7f00:1', family: 6 }],
+    [{ address: '2002:7f00:1::1', family: 6 }],
+    [{ address: '2001::7f00:1', family: 6 }],
+    [{ address: '::7f00:1', family: 6 }],
     [{ address: 'fec0::1', family: 6 }],
   ]) {
     const lookup = publicLookupResult(addresses);
@@ -1414,6 +1420,72 @@ test('a pending nonce different from latest refuses dispatch before MetaMask is 
     await prototype.close();
     if (allowPromise !== null) await allowPromise.catch(() => {});
     await close(rpc.server);
+  }
+});
+
+test('a nonce change after view binding refuses the dispatch-boundary arm', async () => {
+  let baselineCaptures = 0;
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => {
+      baselineCaptures += 1;
+      return {
+        ...baseline(),
+        account_nonce: baselineCaptures === 1 ? '0x0' : '0x1',
+      };
+    },
+    observeTransaction: async () => assert.fail('a nonce-drifted command must not be observed'),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    let next;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      next = await http(info.origin, '/bridge/next', { cookie });
+      if (next.status === 200) break;
+      assert.equal(next.status, 204);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(next.status, 200);
+    const command = JSON.parse(next.body);
+    const walletView = JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      chain_id: command.expected_chain_id,
+      account: command.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    assert.equal((await http(info.origin, '/bridge/view', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    const arm = await http(info.origin, '/bridge/arm', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    });
+    assert.equal(arm.status, 409);
+    assert.match(arm.body, /nonce changed/u);
+    assert.equal(baselineCaptures, 2);
+    assert.equal((await http(info.origin, '/bridge/dispatched', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: command.schema_version,
+        session_id: command.session_id,
+        sequence: command.sequence,
+        request_id: command.request_id,
+      }),
+    })).status, 409);
+    assert.equal((await allowPromise).status, 400);
+  } finally {
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
   }
 });
 
@@ -1648,6 +1720,61 @@ test('a previously ambiguous operation stays ambiguous after a late matching has
     const durable = JSON.parse(await readFile(journalPath, 'utf8'));
     assert.equal(durable.state, 'TERMINAL');
     assert.equal(durable.terminal, 'AMBIGUOUS_MATCH_REFERENCE');
+  } finally {
+    await prototype.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('hash-retention failure leaves the dispatched journal unresolved and never observes', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-retain-failure-'));
+  const journalPath = join(temporaryDirectory, 'operation.json');
+  let observationCalls = 0;
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      observationCalls += 1;
+      return Object.freeze({ status: 'MATCH_REFERENCE' });
+    },
+  });
+  try {
+    const {
+      allowedPromise,
+      bridgeCommand,
+      info,
+      cookie,
+    } = await dispatchWithoutResult(prototype);
+    await chmod(journalPath, 0o644);
+    const result = await http(info.origin, '/bridge/result', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+        observed_chain_id: bridgeCommand.expected_chain_id,
+        observed_account: bridgeCommand.expected_account,
+        outcome: 'result',
+        result: TX_HASH,
+        error: null,
+      }),
+    });
+    assert.equal(result.status, 400);
+    const allowed = await allowedPromise;
+    assert.equal(allowed.status, 202);
+    const operation = JSON.parse(allowed.body).operation;
+    assert.equal(operation.cause_code, 'JOURNAL_FAILURE');
+    assert.equal(operation.reconciliation_status, 'JOURNAL_FAILURE');
+    assert.equal(operation.transaction_hash, TX_HASH);
+    assert.equal(observationCalls, 0);
+    const durable = JSON.parse(await readFile(journalPath, 'utf8'));
+    assert.equal(durable.state, 'DISPATCHED');
+    assert.equal(durable.operation.transaction_hash, null);
+    assert.equal(durable.terminal, null);
   } finally {
     await prototype.close();
     await rm(temporaryDirectory, { recursive: true, force: true });

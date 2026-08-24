@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { lstat, open, readFile, rename, rm } from 'node:fs/promises';
-import { dirname, isAbsolute } from 'node:path';
+import { lstat, open, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { parseWalletGuardBoundedJsonData } from '../json-ingress.mjs';
 
@@ -127,6 +127,17 @@ async function requireRegularPrivateFile(path) {
   }
 }
 
+async function requirePrivateOwnedDirectory(path) {
+  const directoryPath = dirname(path);
+  const stat = await lstat(directoryPath);
+  const effectiveUid = typeof process.getuid === 'function' ? process.getuid() : null;
+  if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0
+      || (effectiveUid !== null && stat.uid !== effectiveUid)
+      || await realpath(directoryPath) !== resolve(directoryPath)) {
+    throw new TypeError('operation journal directory must be private, owned, and symlink-free');
+  }
+}
+
 async function writeDurably(path, record) {
   const temporary = `${path}.${process.pid}.${randomBytes(12).toString('hex')}.tmp`;
   let handle = null;
@@ -215,6 +226,7 @@ export function createWalletGuardDurableOperationJournal({
       };
       next.record_sha256 = hashRecord(next);
       const validated = validateRecord(next);
+      await requirePrivateOwnedDirectory(journalPath);
       await requireRegularPrivateFile(journalPath);
       await writeDurably(journalPath, validated);
       current = validated;
@@ -227,6 +239,7 @@ export function createWalletGuardDurableOperationJournal({
   return Object.freeze({
     async initialize() {
       if (current !== null) throw new TypeError('operation journal is already initialized');
+      await requirePrivateOwnedDirectory(journalPath);
       try {
         ownershipHandle = await open(ownershipPath, 'wx', 0o600);
         await ownershipHandle.sync();
