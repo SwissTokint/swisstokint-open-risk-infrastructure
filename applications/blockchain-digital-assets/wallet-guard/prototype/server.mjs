@@ -1376,8 +1376,20 @@ export function createWalletGuardPrototypeServer({
             throw error;
           }
         }
+        if (state.pending !== pending || state.closed || Date.now() >= pending.deadlineAt) {
+          if (state.pending === pending && !state.closed) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            markAmbiguous(pending, 'DISPATCH_ACK_TIMEOUT');
+            pending.reportFailure('TIMEOUT');
+          }
+          send(res, 409, 'command expired during durable dispatch acknowledgement');
+          return;
+        }
         clearTimeout(pending.timer);
         pending.dispatched = true;
+        pending.deadlineAt = Date.now() + commandTimeoutMs;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending) return;
           state.pending = null;
@@ -1489,6 +1501,7 @@ export function createWalletGuardPrototypeServer({
               : `AMBIGUOUS_WALLET_${parsed.error_code}`);
           } catch (error) {
             markAmbiguous(pending, 'JOURNAL_FAILURE');
+            state.ambiguous.cause_code = 'JOURNAL_FAILURE';
             state.ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
             pending.reportFailure('BRIDGE_CLOSED');
             throw error;

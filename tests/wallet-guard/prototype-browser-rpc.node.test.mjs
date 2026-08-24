@@ -1651,6 +1651,91 @@ test('a durable arm completing after command expiry never acknowledges wallet di
   }
 });
 
+test('a durable dispatch mark completing after expiry never renews the command', async () => {
+  let releaseDispatch;
+  let reportDispatchStarted;
+  const dispatchHold = new Promise((resolve) => { releaseDispatch = resolve; });
+  const dispatchStarted = new Promise((resolve) => { reportDispatchStarted = resolve; });
+  const journal = Object.freeze({
+    async initialize() { return Object.freeze({ state: 'READY' }); },
+    async arm() { return Object.freeze({ state: 'ARMED' }); },
+    async markDispatched() {
+      reportDispatchStarted();
+      await dispatchHold;
+      return Object.freeze({ state: 'DISPATCHED' });
+    },
+    async close() {},
+    inspect() { return Object.freeze({ state: 'ARMED' }); },
+  });
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath: '/tmp/pomrx-wallet-slow-dispatch-test.json',
+    commandTimeoutMs: 1_000,
+    createOperationJournal: () => journal,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => assert.fail('a missing dispatch ack must await a hash'),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    let next;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      next = await http(info.origin, '/bridge/next', { cookie });
+      if (next.status === 200) break;
+      assert.equal(next.status, 204);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(next.status, 200);
+    const command = JSON.parse(next.body);
+    const walletView = JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      chain_id: command.expected_chain_id,
+      account: command.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    assert.equal((await http(info.origin, '/bridge/view', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    assert.equal((await http(info.origin, '/bridge/arm', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    const dispatchPromise = http(info.origin, '/bridge/dispatched', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: command.schema_version,
+        session_id: command.session_id,
+        sequence: command.sequence,
+        request_id: command.request_id,
+      }),
+    });
+    await dispatchStarted;
+    const allowed = await allowPromise;
+    assert.equal(allowed.status, 202);
+    assert.equal(JSON.parse(allowed.body).operation.cause_code, 'DISPATCH_ACK_TIMEOUT');
+    releaseDispatch();
+    const dispatched = await dispatchPromise;
+    assert.equal(dispatched.status, 409);
+    assert.match(dispatched.body, /expired during durable dispatch acknowledgement/u);
+    const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+    assert.equal(status.closed, true);
+    assert.equal(status.command_pending, false);
+  } finally {
+    releaseDispatch();
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
+  }
+});
+
 test('Sepolia receipt is not MATCH_REFERENCE before the required confirmations', async () => {
   const transactionBlock = '0x20';
   const profile = Object.freeze({
@@ -1977,7 +2062,7 @@ test('wallet-error journal failure settles the callback and stays durably unreso
         observed_account: bridgeCommand.expected_account,
         outcome: 'error',
         result: null,
-        error: { code: 'USER_REJECTED' },
+        error: { code: 'INTERNAL_ERROR' },
       }),
     });
     assert.equal(result.status, 400);
