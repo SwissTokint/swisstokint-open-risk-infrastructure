@@ -53,7 +53,7 @@ Roles describe responsibilities, not fictitious running agents. A role counts as
 
 Do not claim that Claude, another model, another human or another agent performed a review unless the evidence identifies that route. Missing independence is `INDEPENDENT_REVIEW_PENDING`/BLOCK, never an invented lane.
 
-Use one writer. Reviewers remain read-only. Maximum three active specialist lanes and two code worktrees. Single-flight coordination is mandatory: two overlapping automation invocations must never both enter a writer lane.
+Use one writer. Reviewers remain read-only. Maximum three active specialist lanes and two code worktrees. Single-flight coordination is mandatory: two overlapping automation invocations must never both enter or continue a writer lane concurrently.
 
 ## Canonical single-flight coordination guard
 
@@ -66,7 +66,9 @@ Canonical state is stored only at:
 - schema `pom-rx-coordination-lock/1`;
 - lease duration 45 minutes.
 
-Acquisition and release use the GitHub contents blob SHA as a compare-and-swap token. A run may enter a writer lane only after it has successfully updated the lock from the exact blob SHA it observed and then re-read the file to verify that `state=HELD` and `holder.run_id` equals its own unique run ID. A stale compare-and-swap failure is not retried as an acquisition shortcut; the run re-reads only to classify `SKIPPED_PREVIOUS_RUN_ACTIVE` versus `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`.
+Acquisition and release use the GitHub contents blob SHA as a compare-and-swap token. A run may enter a writer lane only after it has successfully updated the lock from the exact blob SHA it observed and then re-read the file to verify that `state=HELD`, `holder.run_id` equals its own unique run ID and `expires_at` is still in the future. A stale compare-and-swap failure is not retried as an acquisition shortcut; the run re-reads only to classify `SKIPPED_PREVIOUS_RUN_ACTIVE` versus `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`.
+
+**Initial acquisition does not authorize writes for the full lifetime of a long run. Immediately before every state-changing project action, the invocation must re-read the canonical lock and require valid schema/configuration, `state=HELD`, exact own `holder.run_id`, and an unexpired `expires_at`.** If the lease expired, ownership changed, the state became FREE, or verification fails, the invocation performs no further project mutation. It must not renew, extend or reacquire the lease inside the same invocation. Read-only CI/review polling may continue only for reporting; a later invocation resumes after a fresh acquisition.
 
 Lock writes occur only on the coordination branch. Normal lock acquisition/release must not move `main`, a feature PR, or a control-plane PR. No issue, label, comment, workflow artifact, local file, chat state or alternate branch may serve as a competing lock.
 
@@ -74,19 +76,20 @@ The coordination branch/file may be bootstrapped only under explicit human instr
 
 ## Prime level 3 cycle
 
-1. Acquire and verify the canonical single-flight coordination lock **before any state-changing project action**, exactly as defined in `POM_RX_COORDINATION_GUARD.md`. Acquisition is mandatory, never best-effort. If an active lock is younger than 45 minutes, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing. If lock acquisition or lock-state verification cannot be completed, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing. Do not invent a competing lock mechanism.
+1. Acquire and verify the canonical single-flight coordination lock **before entering a writer lane**, exactly as defined in `POM_RX_COORDINATION_GUARD.md`. Acquisition is mandatory, never best-effort. If an active lock is younger than 45 minutes, return `SKIPPED_PREVIOUS_RUN_ACTIVE` and modify nothing. If lock acquisition or lock-state verification cannot be completed, return `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and modify nothing. Do not invent a competing lock mechanism.
 2. Revalidate live `main`, open/merged PRs, actual heads, reviews, threads and CI.
 3. Reconcile versioned snapshot facts using the non-self-referential continuity rule above. Do not restart an unfocused global audit every hour and do not generate an endless docs-only loop merely to chase a merge SHA.
 4. Select exactly one bounded READY task with measurable acceptance and exclusive file ownership. Prefer the smallest dependency-closing lot.
 5. Route only justified specialist roles; one writer, reviewers read-only.
-6. Apply the mandatory five-stage merge gate defined in `POM_RX_SKEPTICAL_REVIEW_GATE.md`: Review pass 1, Control pass 1, Skeptical challenge, Review pass 2 on the exact frozen head, Control pass 2 / release gate.
-7. Control passes include targeted tests plus relevant regression, compatibility, expected-red, checksum, secret-scan, dependency-audit and `git diff --check` evidence where applicable. A changed head invalidates exact-head evidence.
-8. Commit and push every useful lot to a dedicated branch. Never force-push and never edit `main` directly.
-9. Standing authorization permits POM-RX merges without per-PR approval only after the **full five-stage gate is satisfied**, all applicable technical/security gates pass on the exact current head, canonical exact-head CI is green, required independent exact-head review is present, and zero P0/P1/P2 remains unresolved. The independent-review waiver remains limited to PR #60.
-10. After every non-trivial merge, run the exact-merge-SHA post-merge assurance in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as trusted.
-11. A merged lot without `POST_MERGE_ASSURANCE_PASS` **must not be used as trusted evidence** for later readiness, release, deployment or dependent Tier-B work. Conditional/block findings are repaired through a new PR, never patched directly on `main`.
-12. Persist the exact live terminal state in the merge/active PR checkpoint and reconcile versioned durable facts only when required by the snapshot rule.
-13. Release any canonical single-flight lock acquired by this run cleanly on every terminal path after durable state has been persisted. Verify the release by re-reading the coordination file and requiring `state=FREE`. A release failure stops further project writes and is reported as a coordination blocker; the 45-minute lease expiry is the fail-safe recovery path.
+6. Before **every** project mutation after acquisition, revalidate the live lease exactly as required by `POM_RX_COORDINATION_GUARD.md`. Loss/expiry/unverifiability of the lease immediately ends the writer lane; do not renew or reacquire inside the same invocation.
+7. Apply the mandatory five-stage merge gate defined in `POM_RX_SKEPTICAL_REVIEW_GATE.md`: Review pass 1, Control pass 1, Skeptical challenge, Review pass 2 on the exact frozen head, Control pass 2 / release gate.
+8. Control passes include targeted tests plus relevant regression, compatibility, expected-red, checksum, secret-scan, dependency-audit and `git diff --check` evidence where applicable. A changed head invalidates exact-head evidence.
+9. Commit and push every useful lot to a dedicated branch. Never force-push and never edit `main` directly.
+10. Standing authorization permits POM-RX merges without per-PR approval only after the **full five-stage gate is satisfied**, all applicable technical/security gates pass on the exact current head, canonical exact-head CI is green, required independent exact-head review is present, and zero P0/P1/P2 remains unresolved. The independent-review waiver remains limited to PR #60.
+11. After every non-trivial merge, run the exact-merge-SHA post-merge assurance in `POM_RX_POST_MERGE_ASSURANCE_GATE.md` before treating the lot as trusted.
+12. A merged lot without `POST_MERGE_ASSURANCE_PASS` **must not be used as trusted evidence** for later readiness, release, deployment or dependent Tier-B work. Conditional/block findings are repaired through a new PR, never patched directly on `main`.
+13. Persist the exact live terminal state in the merge/active PR checkpoint and reconcile versioned durable facts only when required by the snapshot rule.
+14. On a normal terminal path, release a still-live canonical lease only after durable state has been persisted. Revalidate same-holder/live-expiry immediately before the release write, then verify the release by re-reading the coordination file and requiring `state=FREE`. If the lease already expired or ownership changed, do not mutate the coordination file; terminate and let expiry/reclamation recover. A release write failure while still owner stops further project writes and is reported as a coordination blocker.
 
 ## Post-merge assurance discipline
 
