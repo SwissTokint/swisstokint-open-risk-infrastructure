@@ -1,12 +1,17 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "actor": "wallet-guard-lot1-20260824T120120Z-gpt56sol",
+    "acquired_at": "2026-08-24T12:01:20Z",
+    "expires_at": "2026-08-24T12:46:20Z",
+    "purpose": "Tier-B wallet prototype lot 1: additive captured MetaMask transport, strict bridge envelopes, tests and draft PR; preserve trusted control-plane."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T11:50:38Z",
-    "actor": "pr131-release-20260824T114459Z-gpt56sol",
-    "reason": "PR #131 merged as 5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5; exact-main CI 882 and pom-rx/exact-main-ci passed; POST_MERGE_ASSURANCE_PASS comment 5394778431 recorded; no project mutation remains in flight."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T12:01:20Z",
+    "actor": "wallet-guard-lot1-20260824T120120Z-gpt56sol",
+    "reason": "User requested operational Anvil then Sepolia burner prototype with MetaMask EIP-1193; first fail-closed transport lot only."
   }
 }
