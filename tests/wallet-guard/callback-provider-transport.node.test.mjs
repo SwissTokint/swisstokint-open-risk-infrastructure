@@ -263,6 +263,34 @@ test('post-import RegExp.prototype.exec poisoning cannot bless an invalid transa
   assert.equal(poisonCalls, 0);
 });
 
+test('post-import Array.prototype.toJSON poisoning cannot alter serialized command arrays', () => {
+  const command = makeWalletGuardBridgeCommand({
+    sessionId: SESSION_ID,
+    sequence: 1,
+    expectedChainId: '0x7a69',
+    expectedAccount: ACCOUNT,
+    request: sendTransaction(),
+  });
+  const original = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON');
+  let poisonCalls = 0;
+  let serialized;
+  try {
+    Object.defineProperty(Array.prototype, 'toJSON', {
+      configurable: true,
+      value() {
+        poisonCalls += 1;
+        return ['POISONED'];
+      },
+    });
+    serialized = serializeWalletGuardBridgeCommand(command);
+  } finally {
+    if (original === undefined) delete Array.prototype.toJSON;
+    else Object.defineProperty(Array.prototype, 'toJSON', original);
+  }
+  assert.equal(poisonCalls, 0);
+  assert.deepEqual(JSON.parse(serialized).request.params, sendTransaction().params);
+});
+
 test('post-import JSON.parse poisoning cannot fabricate a bound bridge response', async () => {
   const original = Object.getOwnPropertyDescriptor(JSON, 'parse');
   let poisonCalls = 0;

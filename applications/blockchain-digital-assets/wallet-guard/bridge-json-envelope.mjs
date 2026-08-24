@@ -22,6 +22,7 @@ const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
 const TRUSTED_OBJECT_KEYS = Object.keys;
 const TRUSTED_OBJECT_PROTOTYPE = Object.prototype;
+const TRUSTED_OBJECT_SET_PROTOTYPE_OF = Object.setPrototypeOf;
 const UTIL_TYPES_IS_PROXY_DESCRIPTOR = TRUSTED_REFLECT_APPLY(
   TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR,
   null,
@@ -92,10 +93,13 @@ function assertProxyDetectorIntegrity() {
   }
 }
 
-function captureBridgePlainData(value, label) {
+function captureBridgePlainData(value, label, detachArrayPrototype = false) {
   assertProxyDetectorIntegrity();
   try {
-    return captureBridgeValue(value, label, 0, { remaining: 1_000 });
+    return captureBridgeValue(value, label, 0, {
+      remaining: 1_000,
+      detachArrayPrototype,
+    });
   } catch {
     fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be bounded plain data`);
   }
@@ -154,6 +158,9 @@ function captureBridgeArray(value, label, depth, budget) {
     fail('POMRX_WG_BRIDGE_E_SHAPE', `${label} must be a dense bounded array`);
   }
   const output = [];
+  if (budget.detachArrayPrototype) {
+    TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT_SET_PROTOTYPE_OF, null, [output, null]);
+  }
   for (let index = 0; index < length; index += 1) {
     const key = `${index}`;
     const descriptor = descriptors[key];
@@ -354,7 +361,7 @@ export function makeWalletGuardBridgeCommand(rawInput) {
 }
 
 export function serializeWalletGuardBridgeCommand(rawCommand) {
-  const command = captureBridgePlainData(rawCommand, 'bridge command');
+  const command = captureBridgePlainData(rawCommand, 'bridge command', true);
   exactKeys(command, COMMAND_KEYS, 'bridge command');
   validateIdentity(command, 'bridge command');
   validateContext(command.expected_chain_id, command.expected_account, 'bridge command');
