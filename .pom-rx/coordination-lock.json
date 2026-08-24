@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "manual-repair-20260824T0727Z-gpt56sol",
+    "acquired_at": "2026-08-24T07:27:00Z",
+    "expires_at": "2026-08-24T08:12:00Z",
+    "base_main": "8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970",
+    "purpose": "Bootstrap and document canonical POM-RX single-flight coordination guard, then re-enable the existing scheduled task."
+  },
   "last_transition": {
-    "type": "BOOTSTRAP",
-    "at": "2026-08-24T07:26:07Z",
-    "actor": "explicit-human-directed-bootstrap",
-    "reason": "Restore the canonical single-flight guard required by POM_RX_AUTOMATION_POLICY.md. This coordination branch is the sole lock mechanism; it is not a project-management or release-evidence branch."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T07:27:00Z",
+    "actor": "manual-repair-20260824T0727Z-gpt56sol",
+    "reason": "Explicit user-directed repair of previously unavailable coordination guard."
   }
 }
