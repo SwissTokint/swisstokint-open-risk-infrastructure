@@ -39,6 +39,7 @@ The current repository contains a bounded local reference slice for:
 - a Gate-owned prepared request re-normalized immediately before a controlled provider call;
 - per-request synthetic reference authorization metadata with local reuse rejection remains available for older controlled fixtures;
 - a controlled in-memory provider host whose returned `page` object graph exposes only the guarded `ethereum.request` path while the fake raw provider remains closure-owned.
+- a clean-process callback-provider foundation with CSPRNG-owned sessions, strict JSON response binding and fixed chain/account command context; this foundation has no browser or socket host yet.
 
 `json-ingress.mjs` closes one narrow parser-equivalence gap before raw JSON text from a controlled fixture is reduced to Wallet Guard request semantics. It lexically scans the supplied JavaScript string before `JSON.parse`, rejects duplicate decoded object keys (including escaped aliases such as `m\u0065thod` versus `method`), prototype-pollution keys, unpaired Unicode surrogates, non-canonical JSON number spellings, excessive bytes/depth/nodes/string/key sizes and ambiguous top-level envelopes. It then emits a frozen `{method, params}` request together with a raw-text SHA-256 and a shared-canonical-request SHA-256.
 
@@ -92,6 +93,31 @@ already retained an independent provider reference, or compromise of trusted
 runtime/bootstrap dependencies. The controlled host performs no network I/O,
 holds no wallet keys and does not upgrade its synthetic reference authorization
 supplier merely because the separate Witness adapter exists.
+
+`trusted-provider-transport.mjs` also exposes a separate callback-provider
+foundation for a later loopback MetaMask host. The factory owns a fresh
+256-bit Node CSPRNG session, fixes one lowercase EVM account and one canonical
+chain id, creates the native Promise inside the clean Node process, and admits
+the resulting provider through the same private provenance registry. A
+sensitive command carries the exact session, monotonically increasing
+sequence, request id, expected chain/account and frozen request. The only
+trusted dispatcher contract is synchronous
+`dispatchSensitive(command, deliverRawJson, reportFailure) => undefined`.
+Raw JSON success/error responses are parsed and bound inside the trusted
+transport; duplicate keys, wrong session/sequence/request id, wrong observed
+chain/account, unknown error codes and malformed transaction hashes fail
+closed. Any ambiguous terminal failure destroys the session, so callers must
+explicitly create a new transport rather than retry within a possibly live
+wallet prompt.
+
+This callback foundation does not yet authenticate an HTTP Host, browser
+origin, page/extension, IPC peer or byte-frame boundary. It does not own a
+timeout or cancellation mechanism, cannot prove that a displayed wallet prompt
+was cancelled, and does not expose an EIP-1193 provider outside controlled
+tests. The future host must bind its loopback listener and page origin, perform
+fresh wallet chain/account sampling before the only `window.ethereum.request`
+call, close the session on wallet context events, and treat a timeout or crash
+after dispatch as an ambiguous incident rather than retrying.
 
 This is **not** yet the complete Wallet Guard security claim. In particular:
 

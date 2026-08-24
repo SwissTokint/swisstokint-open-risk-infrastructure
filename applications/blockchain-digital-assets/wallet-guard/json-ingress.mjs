@@ -24,6 +24,29 @@ export class WalletGuardJsonIngressError extends Error {
   }
 }
 
+export function parseWalletGuardBoundedJsonData(raw) {
+  if (typeof raw !== 'string') {
+    fail('POMRX_WG_JSON_E_INPUT', 'Wallet Guard JSON ingress requires a string');
+  }
+  const rawBytes = Buffer.byteLength(raw, 'utf8');
+  if (rawBytes < 2 || rawBytes > MAX_RAW_BYTES) {
+    fail('POMRX_WG_JSON_E_BOUNDS', 'Wallet Guard JSON ingress exceeds the byte bounds');
+  }
+  if (raw.charCodeAt(0) === 0xfeff) {
+    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress does not accept a leading BOM');
+  }
+
+  new StrictJsonScanner(raw).scan();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
+  }
+  return cloneParsed(parsed);
+}
+
 function fail(code, message) {
   throw new WalletGuardJsonIngressError(code, message);
 }
@@ -348,27 +371,7 @@ function canonicalRequestHash(request) {
 }
 
 export function parseWalletGuardJsonIngress(raw) {
-  if (typeof raw !== 'string') {
-    fail('POMRX_WG_JSON_E_INPUT', 'Wallet Guard JSON ingress requires a string');
-  }
-  const rawBytes = Buffer.byteLength(raw, 'utf8');
-  if (rawBytes < 2 || rawBytes > MAX_RAW_BYTES) {
-    fail('POMRX_WG_JSON_E_BOUNDS', 'Wallet Guard JSON ingress exceeds the byte bounds');
-  }
-  if (raw.charCodeAt(0) === 0xfeff) {
-    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress does not accept a leading BOM');
-  }
-
-  new StrictJsonScanner(raw).scan();
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
-  }
-
-  const snapshot = cloneParsed(parsed);
+  const snapshot = parseWalletGuardBoundedJsonData(raw);
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
     fail('POMRX_WG_JSON_E_SHAPE', 'Wallet Guard JSON ingress root must be an object');
   }

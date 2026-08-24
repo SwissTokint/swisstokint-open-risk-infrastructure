@@ -1,5 +1,6 @@
 import { runInNewContext } from 'node:vm';
 import { types as utilTypes } from 'node:util';
+import { randomBytes } from 'node:crypto';
 
 import {
   captureReferencePlainData,
@@ -7,6 +8,9 @@ import {
 import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
+import {
+  parseWalletGuardBridgeResponse,
+} from './bridge-json-envelope.mjs';
 
 // Bootstrap TCB: this Node-only transport must be imported in a clean,
 // application-owned process before any untrusted same-process code. The
@@ -30,12 +34,17 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const arrayPush = Array.prototype.push;
   const numberIsSafeInteger = Number.isSafeInteger;
   const functionToString = Function.prototype.toString;
+  const stringSlice = String.prototype.slice;
+  const stringPadStart = String.prototype.padStart;
+  const regexpExec = RegExp.prototype.exec;
   const reflectApply = Reflect.apply;
+  const reflectConstruct = Reflect.construct;
   const speciesKey = Symbol.species;
   const promisePrototype = Promise.prototype;
   const speciesDescriptor = getOwnPropertyDescriptor(Promise, speciesKey);
   return {
     reflectApply,
+    reflectConstruct,
     getOwnPropertyDescriptor,
     getOwnPropertyDescriptors,
     getOwnPropertyNames,
@@ -49,6 +58,9 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     arrayPush,
     numberIsSafeInteger,
     functionToString,
+    stringSlice,
+    stringPadStart,
+    regexpExec,
     promiseResolve: Promise.resolve,
     promiseReject: Promise.reject,
     weakSetConstructor: WeakSet,
@@ -71,6 +83,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
 })()`);
 
 const TRUSTED_REFLECT_APPLY = PRISTINE_RUNTIME.reflectApply;
+const TRUSTED_REFLECT_CONSTRUCT = PRISTINE_RUNTIME.reflectConstruct;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR = PRISTINE_RUNTIME.getOwnPropertyDescriptor;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = PRISTINE_RUNTIME.getOwnPropertyDescriptors;
 const TRUSTED_GET_OWN_PROPERTY_NAMES = PRISTINE_RUNTIME.getOwnPropertyNames;
@@ -84,6 +97,9 @@ const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
 const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
+const TRUSTED_STRING_SLICE = PRISTINE_RUNTIME.stringSlice;
+const TRUSTED_STRING_PAD_START = PRISTINE_RUNTIME.stringPadStart;
+const TRUSTED_REGEXP_EXEC = PRISTINE_RUNTIME.regexpExec;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
 const TRUSTED_WEAK_SET_CONSTRUCTOR = PRISTINE_RUNTIME.weakSetConstructor;
@@ -220,6 +236,12 @@ const OPTIONS_KEYS = freeze([
   'providerResult',
   'maxSensitiveCalls',
 ]);
+const CALLBACK_OPTIONS_KEYS = freeze([
+  'chainId',
+  'accounts',
+  'maxSensitiveCalls',
+  'dispatchSensitive',
+]);
 const TRUSTED_GATEWAY_KEYS = freeze([
   'captureTrustedOrigin',
   'provider',
@@ -229,6 +251,19 @@ const TRUSTED_GATEWAY_KEYS = freeze([
   'capabilityLifetimeMs',
 ]);
 const MAX_CONTEXT_ACCOUNTS = 64;
+const BRIDGE_SCHEMA_VERSION = 'wallet_guard_bridge/0.1';
+const SESSION_ID_PATTERN = /^[0-9a-f]{64}$/u;
+const CHAIN_ID_PATTERN = /^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
+const ACCOUNT_PATTERN = /^0x[0-9a-f]{40}$/u;
+const TX_HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
+const BRIDGE_FAILURE_CODES = freeze([
+  'BRIDGE_CLOSED',
+  'CONTEXT_CHANGED',
+  'INTERNAL_ERROR',
+  'TIMEOUT',
+  'USER_REJECTED',
+  'WALLET_UNAVAILABLE',
+]);
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
@@ -461,6 +496,32 @@ function rejectedTransport(error) {
   return assertOwnedPromise(transport);
 }
 
+function constructPendingTransport() {
+  assertPromiseTransportRuntime();
+  let resolveTransport;
+  let rejectTransport;
+  const transport = trustedApply(
+    TRUSTED_REFLECT_CONSTRUCT,
+    null,
+    [PROMISE_CONSTRUCTOR, [(resolve, reject) => {
+      resolveTransport = resolve;
+      rejectTransport = reject;
+    }], PROMISE_CONSTRUCTOR],
+  );
+  assertPromiseTransportRuntime();
+  if (typeof resolveTransport !== 'function' || typeof rejectTransport !== 'function') {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'native Promise constructor did not provide settlement functions',
+    );
+  }
+  return freeze({
+    transport: assertOwnedPromise(transport),
+    resolve: resolveTransport,
+    reject: rejectTransport,
+  });
+}
+
 function trustedTransportHas(provider) {
   return trustedApply(TRUSTED_WEAK_SET_HAS, WEAK_SET, [provider]);
 }
@@ -471,6 +532,62 @@ function trustedTransportAdd(provider) {
 
 function copySensitiveCalls(calls) {
   return captureReferencePlainData(calls, 'trusted provider sensitive calls');
+}
+
+function bridgeFailureCodeSupported(code) {
+  for (let index = 0; index < BRIDGE_FAILURE_CODES.length; index += 1) {
+    if (BRIDGE_FAILURE_CODES[index] === code) return true;
+  }
+  return false;
+}
+
+function trustedPatternTest(pattern, value) {
+  return trustedApply(TRUSTED_REGEXP_EXEC, pattern, [value]) !== null;
+}
+
+function localBridgeFailure(code) {
+  const safeCode = bridgeFailureCodeSupported(code) ? code : 'INTERNAL_ERROR';
+  return new WalletGuardTrustedProviderTransportError(
+    `POMRX_WG_TRANSPORT_E_BRIDGE_${safeCode}`,
+    `captured provider bridge failed with ${safeCode}`,
+  );
+}
+
+function createSessionId() {
+  const bytes = randomBytes(32);
+  if (!bytes || bytes.length !== 32) {
+    fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned an invalid session id');
+  }
+  const alphabet = '0123456789abcdef';
+  let output = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    const value = bytes[index];
+    if (!apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [value]) || value < 0 || value > 255) {
+      fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned invalid bytes');
+    }
+    output += alphabet[(value >>> 4) & 15];
+    output += alphabet[value & 15];
+  }
+  if (!trustedPatternTest(SESSION_ID_PATTERN, output)) {
+    fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG session encoding failed');
+  }
+  return output;
+}
+
+function makeCapturedBridgeCommand(sessionId, sequence, chainId, account, request) {
+  const sequenceText = `${sequence}`;
+  const sessionPrefix = trustedApply(TRUSTED_STRING_SLICE, sessionId, [0, 16]);
+  const paddedSequence = trustedApply(TRUSTED_STRING_PAD_START, sequenceText, [8, '0']);
+  const command = freeze({
+    schema_version: BRIDGE_SCHEMA_VERSION,
+    session_id: sessionId,
+    sequence,
+    request_id: `wg-bridge-${sessionPrefix}-${paddedSequence}`,
+    expected_chain_id: chainId,
+    expected_account: account,
+    request,
+  });
+  return captureReferencePlainData(command, 'trusted callback provider command');
 }
 
 export function createWalletGuardControlledProviderTransport(rawOptions) {
@@ -568,6 +685,221 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
         context_reads: state.contextReads,
         sensitive_call_count: state.sensitiveCalls.length,
         sensitive_calls: copySensitiveCalls(state.sensitiveCalls),
+      });
+    },
+  });
+
+  return freeze({ provider, control });
+}
+
+export function createWalletGuardControlledCallbackProviderTransport(rawOptions) {
+  exactKeys(rawOptions, CALLBACK_OPTIONS_KEYS, 'trusted callback provider transport options');
+  assertPromiseTransportRuntime();
+
+  if (typeof rawOptions.chainId !== 'string'
+      || !trustedPatternTest(CHAIN_ID_PATTERN, rawOptions.chainId)
+      || typeof rawOptions.dispatchSensitive !== 'function'
+      || isProxy(rawOptions.dispatchSensitive)
+      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [rawOptions.maxSensitiveCalls])
+      || rawOptions.maxSensitiveCalls < 1
+      || rawOptions.maxSensitiveCalls > 1_000) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback provider transport options are invalid');
+  }
+
+  const accounts = snapshotTransportValue(
+    rawOptions.accounts,
+    'trusted callback provider accounts',
+  );
+  if (accounts.length !== 1
+      || typeof accounts[0] !== 'string'
+      || !trustedPatternTest(ACCOUNT_PATTERN, accounts[0])) {
+    fail(
+      'POMRX_WG_TRANSPORT_E_INVALID',
+      'trusted callback provider requires exactly one lowercase EVM account',
+    );
+  }
+
+  const state = {
+    chainId: rawOptions.chainId,
+    accounts,
+    sessionId: createSessionId(),
+    maxSensitiveCalls: rawOptions.maxSensitiveCalls,
+    dispatchSensitive: rawOptions.dispatchSensitive,
+    contextReads: 0,
+    sensitiveCalls: [],
+    inFlight: false,
+    nextSequence: 1,
+    destroyed: false,
+  };
+
+  const provider = freeze({
+    request(request) {
+      assertPromiseTransportRuntime();
+
+      try {
+        const requestSnapshot = captureReferencePlainData(
+          request,
+          'trusted callback provider request',
+        );
+        if (state.destroyed) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_SESSION_CLOSED',
+            'captured provider session is closed and must be re-armed',
+          );
+        }
+        const method = requestSnapshot?.method;
+        if (method === 'eth_chainId' || method === 'eth_accounts') {
+          state.contextReads += 1;
+          const value = method === 'eth_chainId'
+            ? state.chainId
+            : snapshotTransportValue(state.accounts, 'trusted callback provider accounts result');
+          assertPromiseTransportRuntime();
+          return fulfilledTransport(value);
+        }
+
+        if (method !== 'eth_sendTransaction') {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_METHOD',
+            'captured provider supports eth_sendTransaction only',
+          );
+        }
+        if (state.inFlight) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_IN_FLIGHT',
+            'captured provider permits one sensitive command in flight',
+          );
+        }
+        if (state.sensitiveCalls.length >= state.maxSensitiveCalls
+            || state.nextSequence > 99_999_999) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_LOG_FULL',
+            'captured provider sensitive-call capacity is exhausted',
+          );
+        }
+
+        const command = makeCapturedBridgeCommand(
+          state.sessionId,
+          state.nextSequence,
+          state.chainId,
+          state.accounts[0],
+          requestSnapshot,
+        );
+        const pending = constructPendingTransport();
+        state.nextSequence += 1;
+        state.inFlight = true;
+        apply(TRUSTED_ARRAY_PUSH, state.sensitiveCalls, [command]);
+
+        const resolve = pending.resolve;
+        const reject = pending.reject;
+        {
+          let settled = false;
+          let dispatchComplete = false;
+          let earlyOutcome = null;
+
+          const finish = (outcome) => {
+            if (settled) return undefined;
+            settled = true;
+            state.inFlight = false;
+            try {
+              if (outcome.kind === 'raw') {
+                const parsed = parseWalletGuardBridgeResponse(outcome.raw, {
+                  session_id: command.session_id,
+                  sequence: command.sequence,
+                  request_id: command.request_id,
+                  expected_chain_id: command.expected_chain_id,
+                  expected_account: command.expected_account,
+                });
+                if (parsed.outcome === 'result'
+                    && typeof parsed.result === 'string'
+                    && trustedPatternTest(TX_HASH_PATTERN, parsed.result)) {
+                  trustedApply(resolve, undefined, [parsed.result]);
+                  return undefined;
+                }
+                state.destroyed = true;
+                trustedApply(reject, undefined, [localBridgeFailure(parsed.error_code)]);
+                return undefined;
+              }
+              state.destroyed = true;
+              trustedApply(reject, undefined, [localBridgeFailure(outcome.code)]);
+            } catch {
+              state.destroyed = true;
+              trustedApply(reject, undefined, [localBridgeFailure('INTERNAL_ERROR')]);
+            }
+            return undefined;
+          };
+
+          const deliverRawJson = (raw) => {
+            if (settled) return undefined;
+            const outcome = { kind: 'raw', raw };
+            if (!dispatchComplete) {
+              earlyOutcome = earlyOutcome === null
+                ? outcome
+                : { kind: 'failure', code: 'INTERNAL_ERROR' };
+              return undefined;
+            }
+            return finish(outcome);
+          };
+
+          const reportFailure = (code) => {
+            if (settled) return undefined;
+            const outcome = { kind: 'failure', code };
+            if (!dispatchComplete) {
+              earlyOutcome = earlyOutcome === null
+                ? outcome
+                : { kind: 'failure', code: 'INTERNAL_ERROR' };
+              return undefined;
+            }
+            return finish(outcome);
+          };
+
+          let dispatchReturn;
+          let dispatchThrew = false;
+          try {
+            dispatchReturn = trustedApply(
+              state.dispatchSensitive,
+              undefined,
+              [command, deliverRawJson, reportFailure],
+            );
+          } catch {
+            dispatchThrew = true;
+          }
+          dispatchComplete = true;
+          try {
+            assertPromiseTransportRuntime();
+          } catch (error) {
+            state.destroyed = true;
+            throw error;
+          }
+          if (dispatchThrew || dispatchReturn !== undefined) {
+            finish({ kind: 'failure', code: 'INTERNAL_ERROR' });
+          } else if (earlyOutcome !== null) {
+            finish(earlyOutcome);
+          }
+        }
+        return pending.transport;
+      } catch (error) {
+        assertPromiseTransportRuntime();
+        return rejectedTransport(error);
+      }
+    },
+  });
+  trustedTransportAdd(provider);
+
+  const control = freeze({
+    sensitiveCallCount() {
+      return state.sensitiveCalls.length;
+    },
+    inspect() {
+      return freeze({
+        chain_id: state.chainId,
+        accounts: snapshotTransportValue(state.accounts, 'trusted callback provider inspected accounts'),
+        session_id: state.sessionId,
+        context_reads: state.contextReads,
+        sensitive_call_count: state.sensitiveCalls.length,
+        sensitive_calls: copySensitiveCalls(state.sensitiveCalls),
+        in_flight: state.inFlight,
+        next_sequence: state.nextSequence,
+        destroyed: state.destroyed,
       });
     },
   });
