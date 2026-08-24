@@ -1,21 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pr131-node-util-tcb-repair-20260824T113326Z-gpt56sol",
-    "actor": "gpt-5.6-sol",
-    "purpose": "Apply a bounded PR #131 TCB/runtime-integrity repair after independent exact-head P1 confirmation.",
-    "acquired_at": "2026-08-24T11:33:26Z",
-    "expires_at": "2026-08-24T12:18:26Z",
-    "base_main_sha": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
-    "target_pr": 131,
-    "target_head_sha": "dcd28d67bbe66e657bc549249958084ae2419344"
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T11:33:26Z",
+    "type": "RELEASE",
+    "at": "2026-08-24T11:38:58Z",
     "actor": "pr131-node-util-tcb-repair-20260824T113326Z-gpt56sol",
-    "reason": "Canonical lock was FREE; acquire exact-blob-SHA CAS before serialized P1 repair mutations."
+    "reason": "PR #131 successor repair head 37a46fd5400350ed58d82d3a43a6bb8762e81005, updated threat boundary, and checkpoint comment 5394662359 completed; CI 881 waiting is read-only and no project mutation remains in flight."
   }
 }
