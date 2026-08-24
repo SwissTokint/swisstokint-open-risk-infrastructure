@@ -1,12 +1,17 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "actor": "wallet-guard-pr137-clone-p1-20260824T124526Z-gpt56sol",
+    "acquired_at": "2026-08-24T12:45:26Z",
+    "expires_at": "2026-08-24T13:30:26Z",
+    "purpose": "Publish exact-head captured-clone-intrinsics repair on draft PR #137 and refresh CI/review evidence."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-24T12:38:00Z",
-    "actor": "wallet-guard-pr137-json-p1-20260824T123531Z-gpt56sol",
-    "reason": "PR #137 fast-forwarded to exact successor b3e4f8d6936d22c5a57eb099b5972ed5e2f97312 with JSON parser capture regression evidence; CI and exact-head Codex review requested; draft remains blocked from merge and real-wallet claims."
+    "type": "ACQUIRE",
+    "at": "2026-08-24T12:45:26Z",
+    "actor": "wallet-guard-pr137-clone-p1-20260824T124526Z-gpt56sol",
+    "reason": "Canonical lock is FREE at exact blob f3d261fd7315d3a09474a71523017a098327533b; acquire by exact-SHA CAS for serial successor repair mutations."
   }
 }
