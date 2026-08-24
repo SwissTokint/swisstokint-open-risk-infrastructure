@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-24T09:34:00+02:00`
+Updated: `2026-08-24T09:37:00+02:00`
 
 ## Purpose
 
@@ -18,11 +18,13 @@ Snapshot anchors:
 
 - One durable repository: `SwissTokint/swisstokint-open-risk-infrastructure`.
 - One writer per bounded lot and one owner per file set.
-- Single-flight coordination is mandatory before any state-changing project action and uses only `POM_RX_COORDINATION_GUARD.md`.
+- Single-flight coordination is mandatory before entering or continuing any writer lane and uses only `POM_RX_COORDINATION_GUARD.md`.
 - Canonical lock state lives only at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`, lease 45 minutes.
-- Acquisition uses the exact fetched file blob SHA as compare-and-swap token and requires a same-run re-read verifying `state=HELD` plus exact `holder.run_id` before writer entry.
-- Active unexpired lock means `SKIPPED_PREVIOUS_RUN_ACTIVE`; failed, malformed, unreadable or unverifiable acquisition means `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; both paths modify no project state.
-- Release verifies the same holder, updates to `FREE` with the exact fetched blob SHA and re-reads to require `state=FREE`.
+- Acquisition uses the exact fetched file blob SHA as compare-and-swap token and requires a same-run re-read verifying `state=HELD`, exact `holder.run_id` and future `expires_at` before writer entry.
+- **Immediately before every state-changing project action**, the writer must re-read the canonical lock and again require valid schema/configuration, `state=HELD`, exact own `holder.run_id` and future `expires_at`.
+- Expiry, ownership change, FREE state or unverifiable lock means the invocation performs no further project mutation. It may not renew, extend or reacquire the lease inside the same invocation; a later invocation resumes from live GitHub state.
+- Active unexpired lock held by another run means `SKIPPED_PREVIOUS_RUN_ACTIVE`; failed, malformed, unreadable or unverifiable acquisition means `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; both paths modify no project state.
+- Release is allowed only while the same holder still owns an unexpired lease; it updates to `FREE` with the exact fetched blob SHA and re-reads to require `state=FREE`. An expired/displaced former holder never releases another run's lease.
 - No issue, label, comment, workflow artifact, local file, chat state or alternate branch may be used as a competing lock.
 - Maximum three active specialist lanes and two code worktrees.
 - Review lanes are read-only unless a separate implementation assignment is created after review.
@@ -39,7 +41,7 @@ Snapshot anchors:
 | Prime Lead / Integrator | live GitHub state, dependency order, scope, ownership, integration | accountable / non-independent | exact main/head/CI/review reconciliation + durable checkpoint | claiming independence; direct `main` edits |
 | Protocol / Systems Architect | Core/application boundary, schemas, canonicalization, compatibility, simpler design | read-only | architecture verdict tied to reviewed scope/head | writing the same lot |
 | Security / Adversarial Skeptic | replay, substitution, TOCTOU, object/intrinsic poisoning, fail-open, overclaim | read-only | concrete Tier-B falsification hypotheses + P0/P1/P2 classification | implementation writes; generic approval |
-| Single Implementer | smallest bounded accepted solution | exclusive writer | verified canonical lease + branch/file ownership + tests + commit/push evidence | second writer, scope widening or writer entry without the lease |
+| Single Implementer | smallest bounded accepted solution | exclusive writer | verified canonical lease at entry and before each project mutation + branch/file ownership + tests + commit/push evidence | second writer, scope widening, writing after lease loss/expiry, renewal/reacquisition in same invocation |
 | QA / Conformance | positive/negative tests, expected-red, compatibility, false-PASS resistance | read-only relative to writer | reproducible exact-head evidence | approving unexecuted tests |
 | Code Quality / Optimization | TCB size, duplication, deterministic behavior, maintainability, boundedness | read-only | scoped PASS/CONDITIONAL/BLOCK | weakening fail-closed behavior for optimization |
 | Independent Release Gate | distinct skeptical/security release evidence | genuinely distinct exact-head reviewer | actual exact-head review with no unresolved P0/P1/P2 | owner/self/moved-head/invented review |
@@ -53,7 +55,9 @@ A fresh `chatgpt-codex-connector` review may satisfy the independent release gat
 
 After PR #135 merged and passed post-merge assurance, the next automation invocation correctly stopped because the policy required a single-flight lock but no canonical operational mechanism existed. The existing hourly task was disabled rather than allowing repeated writer attempts without verified mutual exclusion.
 
-Under explicit human direction on 2026-08-24, the one-time canonical coordination branch/file was bootstrapped and a manual repair run acquired it by blob-SHA compare-and-swap. The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` and owns only:
+Under explicit human direction on 2026-08-24, the one-time canonical coordination branch/file was bootstrapped and a manual repair run acquired it by blob-SHA compare-and-swap. A stale compare-and-swap attempt using the previous blob SHA was rejected by GitHub with HTTP 409. The release-owner skeptical pass then identified the stale-owner race that exists if a run waits past its 45-minute lease; the repair therefore also requires same-holder/unexpired lock verification before **every** project mutation and forbids same-run renewal/reacquisition after expiry.
+
+The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` and owns only:
 
 - `docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md`;
 - `docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md`;
@@ -64,7 +68,7 @@ Under explicit human direction on 2026-08-24, the one-time canonical coordinatio
 
 This lot is documentation/control-plane only. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
 
-The scheduled task remains disabled until the repair has exact-head CI success, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. The repair invocation then releases and verifies the canonical lease before the **existing** task is re-enabled.
+The scheduled task remains disabled until the repair has exact-head CI success, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. On the normal terminal path the repair invocation releases and verifies its still-live canonical lease before the **existing** task is re-enabled. If its lease expires while waiting for CI/review, it becomes read-only; a later invocation must acquire a fresh lease to perform the remaining writes.
 
 ## Next Tier-B routing — PR #131
 
