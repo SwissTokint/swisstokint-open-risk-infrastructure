@@ -770,6 +770,7 @@ export function createWalletGuardPrototypeServer({
   observeTransaction = defaultObserveTransaction,
   captureObservationBaseline = null,
   captureNodeChainView = captureWalletGuardPrototypeNodeChainView,
+  createOperationJournal = createWalletGuardDurableOperationJournal,
 } = {}) {
   if (typeof createControlledCallbackTransport !== 'function'
       || typeof createTrustedGateway !== 'function'
@@ -779,14 +780,15 @@ export function createWalletGuardPrototypeServer({
       || (journalPath !== null && typeof journalPath !== 'string')
       || typeof observeTransaction !== 'function'
       || (captureObservationBaseline !== null && typeof captureObservationBaseline !== 'function')
-      || typeof captureNodeChainView !== 'function') {
+      || typeof captureNodeChainView !== 'function'
+      || typeof createOperationJournal !== 'function') {
     throw new TypeError('prototype server bootstrap is invalid');
   }
   const profile = createWalletGuardPrototypeNetworkProfile({ network, rpcUrl, walletRpcUrl });
   if (profile.network === 'sepolia' && journalPath === null) {
     throw new TypeError('Sepolia requires an explicit durable operation journal path');
   }
-  const journal = journalPath === null ? null : createWalletGuardDurableOperationJournal({
+  const journal = journalPath === null ? null : createOperationJournal({
     journalPath,
     network: profile.network,
     chainId: profile.chainId,
@@ -983,6 +985,7 @@ export function createWalletGuardPrototypeServer({
       observationBaseline: state.activeObservationBaseline,
       nodeCheckpoint: null,
       timer: null,
+      deadlineAt: Date.now() + commandTimeoutMs,
     };
     pending.timer = setTimeout(() => {
       if (state.pending !== pending) return;
@@ -1321,8 +1324,20 @@ export function createWalletGuardPrototypeServer({
             throw error;
           }
         }
+        if (state.pending !== pending || state.closed || Date.now() >= pending.deadlineAt) {
+          if (state.pending === pending && !state.closed) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            markAmbiguous(pending, 'TIMEOUT');
+            pending.reportFailure('TIMEOUT');
+          }
+          send(res, 409, 'command expired during durable arm');
+          return;
+        }
         clearTimeout(pending.timer);
         pending.armed = true;
+        pending.deadlineAt = Date.now() + commandTimeoutMs;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending || !pending.armed || pending.dispatched) return;
           state.pending = null;

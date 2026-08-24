@@ -1578,6 +1578,79 @@ test('a failed dispatch-boundary nonce recapture closes the command before timeo
   }
 });
 
+test('a durable arm completing after command expiry never acknowledges wallet dispatch', async () => {
+  let releaseArm;
+  let reportArmStarted;
+  const armHold = new Promise((resolve) => { releaseArm = resolve; });
+  const armStarted = new Promise((resolve) => { reportArmStarted = resolve; });
+  const journal = Object.freeze({
+    async initialize() { return Object.freeze({ state: 'READY' }); },
+    async arm() {
+      reportArmStarted();
+      await armHold;
+      return Object.freeze({ state: 'ARMED' });
+    },
+    async close() {},
+    inspect() { return Object.freeze({ state: 'READY' }); },
+  });
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath: '/tmp/pomrx-wallet-slow-arm-test.json',
+    commandTimeoutMs: 1_000,
+    createOperationJournal: () => journal,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => assert.fail('an expired arm must never be observed'),
+  });
+  let allowPromise = null;
+  try {
+    const { info, cookie } = await authenticateAndHandshake(prototype);
+    allowPromise = http(info.origin, '/api/allow', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+    });
+    let next;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      next = await http(info.origin, '/bridge/next', { cookie });
+      if (next.status === 200) break;
+      assert.equal(next.status, 204);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    assert.equal(next.status, 200);
+    const command = JSON.parse(next.body);
+    const walletView = JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      chain_id: command.expected_chain_id,
+      account: command.expected_account,
+      genesis_hash: GENESIS_HASH,
+      latest_block_number: LATEST_BLOCK_NUMBER,
+      latest_block_hash: LATEST_BLOCK_HASH,
+    });
+    assert.equal((await http(info.origin, '/bridge/view', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    })).status, 204);
+    const armPromise = http(info.origin, '/bridge/arm', {
+      method: 'POST', cookie, requestOrigin: info.origin, body: walletView,
+    });
+    await armStarted;
+    const allowed = await allowPromise;
+    assert.equal(allowed.status, 202);
+    assert.equal(JSON.parse(allowed.body).operation.cause_code, 'TIMEOUT');
+    releaseArm();
+    const arm = await armPromise;
+    assert.equal(arm.status, 409);
+    assert.match(arm.body, /expired during durable arm/u);
+    const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+    assert.equal(status.closed, true);
+    assert.equal(status.command_pending, false);
+  } finally {
+    releaseArm();
+    await prototype.close();
+    if (allowPromise !== null) await allowPromise.catch(() => {});
+  }
+});
+
 test('Sepolia receipt is not MATCH_REFERENCE before the required confirmations', async () => {
   const transactionBlock = '0x20';
   const profile = Object.freeze({
