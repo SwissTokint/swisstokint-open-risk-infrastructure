@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-24T09:49:00+02:00`
+Updated: `2026-08-24T09:56:00+02:00`
 
 ## Purpose
 
@@ -57,7 +57,7 @@ After PR #135 merged and passed post-merge assurance, the next automation invoca
 
 Under explicit human direction on 2026-08-24, the one-time canonical coordination branch/file was bootstrapped and a manual repair run acquired it by blob-SHA compare-and-swap. A stale compare-and-swap attempt using the previous FREE blob SHA was rejected by GitHub with HTTP 409.
 
-The owner skeptical pass found two additional concurrency requirements before release: same-holder/unexpired verification before every project mutation, and **no automatic reclamation of expired HELD locks**. The latter is necessary because GitHub does not atomically fence the coordination file together with an in-flight PR/ref/comment/merge mutation. An expired holder becomes project-read-only; the exact holder may release its own lock, while an abandoned stale lock requires explicit human recovery.
+The dedicated Codex lane and owner skeptical pass exposed two material concurrency/routing issues in earlier #136 heads: stale-writer continuation at expiry and a capability map that could still route #131 through already-completed #135 rather than the new guard prerequisite. The successor candidate repairs both and additionally forbids automatic reclamation of expired HELD locks because the coordination file cannot server-side fence a separate in-flight GitHub mutation.
 
 The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` and owns only:
 
@@ -66,9 +66,12 @@ The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` a
 - `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
 - `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
 - `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
-- `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`.
+- `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
+- `docs/product/POM_RX_CAPABILITY_MAP.md`.
 
 This lot is documentation/control-plane only. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+
+P1 `PRRT_kwDOTiNyWc6bnBYA` and P2 `PRRT_kwDOTiNyWc6bnBYE` remain unresolved until a genuinely distinct review validates the final exact head; implementation alone is not closure evidence.
 
 The scheduled task remains disabled until the repair has exact-head CI success, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. The canonical lock must then be restored to verified `FREE` before the **existing** task is re-enabled. Same-holder release may be performed after the active window expires; no project write may.
 
@@ -76,7 +79,7 @@ The scheduled task remains disabled until the repair has exact-head CI success, 
 
 Authoring-time snapshot: PR #131 head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`; historical CI 846 is green but stale for release; seven P1 threads remain unresolved/outdated.
 
-When live GitHub shows the canonical coordination-guard repair has exact-merge PASS and the guard is verified FREE/acquirable, PR #131 becomes the next dependency-closing workstream. Use exactly one writer to reconcile it onto then-live main; no stale #120/#97/#93 branch is merged wholesale. A moved #131 head restarts exact-head evidence.
+When live GitHub shows PR #136 has exact-merge PASS and the guard is verified FREE/acquirable, PR #131 becomes the next dependency-closing workstream. Use exactly one writer to reconcile it onto then-live main; no stale #120/#97/#93 branch is merged wholesale. A moved #131 head restarts exact-head evidence.
 
 Read-only specialist routing after reconciliation:
 
