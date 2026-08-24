@@ -660,6 +660,81 @@ test('result without dispatch acknowledgement is observable but never a normal s
   assert.equal(parseJson(allowed).operation.cause_code, 'DISPATCH_ACK_UNAVAILABLE');
 });
 
+test('missing dispatch signal times out AMBIGUOUS and reconciles one late wallet hash', async (t) => {
+  const observations = [];
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    port: 0,
+    commandTimeoutMs: 1_000,
+    captureObservationBaseline: async () => Object.freeze({ marker: 'before-dispatch' }),
+    captureNodeChainView: async () => nodeChainView(),
+    observeTransaction: async (input) => {
+      observations.push(input);
+      return Object.freeze({
+        status: 'MATCH_REFERENCE',
+        transaction_hash: input.txHash,
+        reference_only: true,
+        external_world_proved: false,
+      });
+    },
+  });
+  const info = await prototype.listen();
+  t.after(() => prototype.close());
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+
+  const allowPromise = http(info.origin, '/api/allow', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+  });
+  const command = await nextCommand(info, cookie);
+  assert.equal((await bindView(info, cookie, command)).status, 204);
+  assert.equal((await armView(info, cookie, command)).status, 204);
+
+  const timedOut = await allowPromise;
+  assert.equal(timedOut.status, 202);
+  const timedOutOperation = parseJson(timedOut).operation;
+  assert.equal(timedOutOperation.status, 'AMBIGUOUS');
+  assert.equal(timedOutOperation.cause_code, 'DISPATCH_ACK_TIMEOUT');
+  assert.equal(timedOutOperation.retry_allowed, false);
+  assert.equal(timedOutOperation.transaction_hash, null);
+  assert.equal(timedOutOperation.reconciliation_status, 'AWAITING_LATE_RESULT');
+
+  const statusAfterTimeout = parseJson(await http(info.origin, '/api/status', { cookie }));
+  assert.equal(statusAfterTimeout.closed, true);
+  assert.equal(statusAfterTimeout.command_pending, false);
+  const retry = await http(info.origin, '/api/allow', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+  });
+  assert.equal(retry.status, 409);
+
+  const lateEnvelope = resultEnvelope(command);
+  const late = await http(info.origin, '/bridge/result', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: lateEnvelope,
+  });
+  assert.equal(late.status, 202);
+  const lateOperation = parseJson(late).operation;
+  assert.equal(lateOperation.cause_code, 'DISPATCH_ACK_TIMEOUT');
+  assert.equal(lateOperation.retry_allowed, false);
+  assert.equal(lateOperation.transaction_hash, TX_HASH);
+  assert.equal(lateOperation.reconciliation_status, 'OBSERVED');
+  assert.equal(lateOperation.observation.status, 'MATCH_REFERENCE');
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].txHash, TX_HASH);
+  assert.equal(observations[0].baseline.observer.marker, 'before-dispatch');
+
+  const replay = await http(info.origin, '/bridge/result', {
+    method: 'POST',
+    cookie,
+    requestOrigin: info.origin,
+    body: lateEnvelope,
+  });
+  assert.equal(replay.status, 409);
+});
+
 test('wallet error without dispatch acknowledgement closes ambiguous without a success', async (t) => {
   const prototype = createWalletGuardPrototypeServer({
     createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,

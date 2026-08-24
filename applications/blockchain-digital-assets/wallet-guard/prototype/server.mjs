@@ -824,8 +824,14 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         clearTimeout(pending.timer);
-        pending.timer = null;
         pending.armed = true;
+        pending.timer = setTimeout(() => {
+          if (state.pending !== pending || !pending.armed || pending.dispatched) return;
+          state.pending = null;
+          state.closed = true;
+          markAmbiguous(pending, 'DISPATCH_ACK_TIMEOUT');
+          pending.reportFailure('TIMEOUT');
+        }, commandTimeoutMs);
         send(res, 204);
         return;
       }
@@ -846,6 +852,7 @@ export function createWalletGuardPrototypeServer({
           send(res, 409, 'armed command is no longer dispatchable');
           return;
         }
+        clearTimeout(pending.timer);
         pending.dispatched = true;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending) return;
