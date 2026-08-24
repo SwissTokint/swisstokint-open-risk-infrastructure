@@ -1,17 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "wallet-guard-pr138-latehash-20260824T134927417Z-gpt56sol",
-    "acquired_at": "2026-08-24T13:49:27.972Z",
-    "expires_at": "2026-08-24T14:34:27.972Z",
-    "purpose": "Repair PR #138 exact-head P2 so a returned wallet hash cannot be stranded behind unbounded post-prompt context reads."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-24T13:49:27.972Z",
+    "type": "RELEASE",
+    "at": "2026-08-24T14:14:07.488Z",
     "actor": "wallet-guard-pr138-latehash-20260824T134927417Z-gpt56sol",
-    "reason": "Fresh bounded successor cycle after exact-head review of 0233d326; canonical lock was verified FREE."
+    "reason": "PR #138 exact head fdb30b10300a0da1666c6238f7af06b7a21070fb: CI 32736869397 success, exact review no major issue, 0 unresolved P0/P1/P2, local Anvil burner human-test gate recorded; no project mutation in flight."
   }
 }
