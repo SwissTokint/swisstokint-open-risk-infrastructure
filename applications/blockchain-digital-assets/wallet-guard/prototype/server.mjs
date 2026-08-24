@@ -1468,9 +1468,16 @@ export function createWalletGuardPrototypeServer({
           markAmbiguous(pending, parsed.error_code);
         }
         if (parsed?.outcome === 'error') {
-          await terminateJournal(parsed.error_code === 'USER_REJECTED'
-            ? 'WALLET_USER_REJECTED'
-            : `AMBIGUOUS_WALLET_${parsed.error_code}`);
+          try {
+            await terminateJournal(parsed.error_code === 'USER_REJECTED'
+              ? 'WALLET_USER_REJECTED'
+              : `AMBIGUOUS_WALLET_${parsed.error_code}`);
+          } catch (error) {
+            markAmbiguous(pending, 'JOURNAL_FAILURE');
+            state.ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+            pending.reportFailure('BRIDGE_CLOSED');
+            throw error;
+          }
         }
         pending.deliverRawJson(raw);
         if (parsed?.outcome === 'error' || state.transport.control.inspect().destroyed) {

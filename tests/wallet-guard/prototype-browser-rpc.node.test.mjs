@@ -1869,3 +1869,58 @@ test('hash-retention failure leaves the dispatched journal unresolved and never 
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });
+
+test('wallet-error journal failure settles the callback and stays durably unresolved', async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'pomrx-wallet-error-journal-failure-'));
+  const journalPath = join(temporaryDirectory, 'operation.json');
+  let observationCalls = 0;
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    journalPath,
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      observationCalls += 1;
+      return Object.freeze({ status: 'MATCH_REFERENCE' });
+    },
+  });
+  try {
+    const {
+      allowedPromise,
+      bridgeCommand,
+      info,
+      cookie,
+    } = await dispatchWithoutResult(prototype);
+    await chmod(journalPath, 0o644);
+    const result = await http(info.origin, '/bridge/result', {
+      method: 'POST',
+      cookie,
+      requestOrigin: info.origin,
+      body: JSON.stringify({
+        schema_version: bridgeCommand.schema_version,
+        session_id: bridgeCommand.session_id,
+        sequence: bridgeCommand.sequence,
+        request_id: bridgeCommand.request_id,
+        observed_chain_id: bridgeCommand.expected_chain_id,
+        observed_account: bridgeCommand.expected_account,
+        outcome: 'error',
+        result: null,
+        error: { code: 'USER_REJECTED' },
+      }),
+    });
+    assert.equal(result.status, 400);
+    const allowed = await allowedPromise;
+    assert.equal(allowed.status, 202);
+    const operation = JSON.parse(allowed.body).operation;
+    assert.equal(operation.cause_code, 'JOURNAL_FAILURE');
+    assert.equal(operation.reconciliation_status, 'JOURNAL_FAILURE');
+    assert.equal(operation.transaction_hash, null);
+    assert.equal(observationCalls, 0);
+    const durable = JSON.parse(await readFile(journalPath, 'utf8'));
+    assert.equal(durable.state, 'DISPATCHED');
+    assert.equal(durable.operation.transaction_hash, null);
+    assert.equal(durable.terminal, null);
+  } finally {
+    await prototype.close();
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
