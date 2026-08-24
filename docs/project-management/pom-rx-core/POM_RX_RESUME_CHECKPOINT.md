@@ -1,107 +1,88 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-24T09:50:00+02:00`
+Updated: `2026-08-24T09:59:00+02:00`
 
-Purpose: compact durable cross-chat **versioned snapshot**. Conversation history is not project state. Every run first reads live GitHub. Embedded SHAs are authoring-time anchors, not claims that they remain the forever-current GitHub state after this snapshot's own merge.
-
-## How to resolve live state
-
-1. Read live GitHub `main`, open PRs, heads, CI, reviews, unresolved threads and recent merges.
-2. Read `POM_RX_AUTOMATION_POLICY.md`, `POM_RX_COORDINATION_GUARD.md`, this snapshot, TASKS/BLOCKERS/TEAM_ROSTER/CAPABILITY_MAP and the architecture/review gates.
-3. Live GitHub wins for volatile state.
-4. Exact post-merge state is persisted in the merged PR terminal `CONTINUITY_CHECKPOINT`.
-5. A new control-plane PR is required when a durable project fact changes, not solely because a control-plane PR's own merge SHA cannot have been embedded before merge.
+Purpose: compact durable cross-chat **versioned snapshot**. Conversation history is not project state. Every run reads live GitHub first. Embedded SHAs are authoring-time anchors, not claims that they remain forever-current after this snapshot's own merge.
 
 ## Snapshot anchors
 
-- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge and live trusted main observed at authoring time.
-- PR #135 source head: `8c35b486fdc73299c86388bec5517db31b6830d2`.
-- PR #135 exact-head CI: `32657444020` / CI 858 = `success`.
-- PR #135 release-owner review: `5003048413 = PASS_NON_INDEPENDENT / 0 P0 / 0 P1 / 0 P2`.
-- PR #135 genuinely distinct exact-head Codex evidence: comment `5387687366`, no major issues on `8c35b486fd...`.
-- PR #135 exact-main CI: `32657761877` / CI 859 = `success`.
-- PR #135 post-merge assurance: `5387715186 = POST_MERGE_ASSURANCE_PASS`.
-- PR #135 terminal checkpoint: `5387722428`.
+- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge observed as live trusted main;
+- PR #135 source: `8c35b486fdc73299c86388bec5517db31b6830d2`;
+- exact-head CI 858 = success; owner `5003048413 = PASS_NON_INDEPENDENT / 0-0-0`; distinct Codex `5387687366 = no major issues`;
+- exact-main CI `32657761877` / 859 = success;
+- `5387715186 = POST_MERGE_ASSURANCE_PASS`;
+- terminal checkpoint `5387722428`.
 
-## Coordination-guard bootstrap repair
+## Canonical coordination-guard repair — PR #136
 
-After PR #135 became trusted, the next scheduled invocation correctly discovered an operational bootstrap gap: policy required a mandatory single-flight lock, but the repository defined no canonical lock location or acquisition/release protocol accessible to the automation runtime. The run failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE` and the existing scheduled task was disabled to avoid repeated unsafe invocations.
+After PR #135 became trusted, the next scheduled invocation correctly discovered that the policy required mandatory single-flight coordination but no canonical operational lock mechanism existed. It failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and the existing hourly task was disabled.
 
-Under explicit human instruction on 2026-08-24 to repair and relaunch the automation, a one-time bootstrap created the canonical coordination state:
+Under explicit human instruction on 2026-08-24 to repair and relaunch the automation, a one-time bootstrap created:
 
-- branch: `automation/pom-rx-coordination`;
-- file: `.pom-rx/coordination-lock.json`;
-- schema: `pom-rx-coordination-lock/1`;
-- active window: 45 minutes;
-- bootstrap commit: `8a6fa63770b3244c693000979081bdd2d594058b`.
+- branch `automation/pom-rx-coordination`;
+- file `.pom-rx/coordination-lock.json`;
+- schema `pom-rx-coordination-lock/1`;
+- active window 45 minutes;
+- bootstrap commit `8a6fa63770b3244c693000979081bdd2d594058b`.
 
-The manual repair run then acquired the lock through the exact FREE file blob SHA and re-read the state to verify holder `manual-repair-20260824T0727Z-gpt56sol`; acquisition commit `05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e`. A deliberately stale compare-and-swap attempt using the previous FREE blob SHA was rejected by GitHub with HTTP 409, demonstrating that a contender cannot overwrite the same observed FREE state after another acquisition has changed the blob SHA.
+The manual repair run acquired FREE state using the exact file blob SHA, then re-read and verified holder `manual-repair-20260824T0727Z-gpt56sol`; acquisition commit `05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e`. A deliberately stale acquisition using the previous FREE blob SHA was rejected HTTP 409.
 
-The scoped control-plane repair is PR #136 on branch `docs/pom-rx-canonical-coordination-lock-20260824`, created from `snapshot_base_main`. It adds `POM_RX_COORDINATION_GUARD.md` and binds the automation policy, tasks, blockers and writer routing to that single canonical mechanism. Normal lock writes occur only on the coordination branch; they do not move `main` or a feature/control-plane PR head.
+PR #136 on `docs/pom-rx-canonical-coordination-lock-20260824` is bounded to the canonical guard/policy/checkpoint/tasks/blockers/roster plus `docs/product/POM_RX_CAPABILITY_MAP.md`. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
 
-### Two concurrency races found and repaired before release
+### Review findings retained until same-head validation
 
-The release-owner skeptical pass found two issues in earlier #136 drafts:
+Dedicated Codex review on an earlier #136 head found:
 
-1. **stale owner after expiry** — initial acquisition alone cannot authorize project writes indefinitely, so the exact same-holder/unexpired state must be re-read immediately before every state-changing project action;
-2. **automatic expiry takeover** — even a pre-mutation time check cannot atomically fence a GitHub API call on another resource. An old call started just before expiry could complete after a new run automatically reclaimed the lock.
+- P1 `PRRT_kwDOTiNyWc6bnBYA` — automatic expiry/reclamation could let an old writer continue concurrently;
+- P2 `PRRT_kwDOTiNyWc6bnBYE` — unchanged capability-map routing could let #131 advance after already-completed #135 instead of waiting for the new guard prerequisite.
 
-The final design therefore treats `expires_at` as a **project-writing deadline, not an automatic fencing token**.
+The current successor branch repairs both, but the threads remain unresolved until a **fresh genuinely distinct review covers the final exact head**.
 
-- Automation acquires only `state=FREE` by exact-blob-SHA compare-and-swap.
-- `HELD` with future expiry => `SKIPPED_PREVIOUS_RUN_ACTIVE`.
-- `HELD` with expired timestamp remains **STALE/BLOCKING** => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; another automated run does not overwrite or reclaim it.
-- Before every project mutation, current invocation re-reads and requires valid configuration, `state=HELD`, exact own `holder.run_id` and future `expires_at`.
-- After expiry/ownership loss/unverifiability, that invocation performs no more project mutation and never renews, extends or reacquires in the same invocation.
-- The exact current holder may perform only the coordination-only release after expiry, because other runs cannot auto-takeover while the stale lock remains HELD.
-- Release uses current exact blob SHA, writes `FREE`/`holder=null` with a unique RELEASE transition and re-reads verified FREE.
-- If the holder crashed and cannot release, recovery of that stale HELD state requires explicit human instruction and exact-SHA reset after live-state verification.
+### Final guard semantics to validate
 
-This conservative model avoids pretending that a clock boundary can fence independent GitHub resources. Rare manual recovery of an abandoned stale lock is preferable to silently permitting two project writers.
+- automation acquires **only FREE** using exact-blob-SHA CAS;
+- active unexpired HELD => `SKIPPED_PREVIOUS_RUN_ACTIVE`;
+- expired HELD remains stale/blocking => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; no automatic reclamation;
+- before every project mutation, re-read and require valid config, `state=HELD`, exact own `holder.run_id`, and future `expires_at`;
+- after expiry/loss/unverifiability, no further project mutation and no same-run renewal/extension/reacquisition;
+- exact current holder may perform coordination-only same-holder release even after expiry;
+- release uses exact current blob SHA, writes `FREE`/`holder=null` with a unique RELEASE transition, then re-reads verified FREE;
+- a crashed holder's stale HELD lock requires explicit human recovery;
+- normal lock writes remain only on the coordination branch;
+- capability map routes #131 only after #136 exact-merge PASS and verified FREE canonical state.
 
-The existing scheduled task remains disabled until PR #136 itself passes exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI and `POST_MERGE_ASSURANCE_PASS`. The canonical lock must then be restored to verified FREE before the existing task is re-enabled. Same-holder release is permitted after active-window expiry; no project write is.
+Automatic stale takeover is deliberately forbidden because the timestamp cannot server-side fence an in-flight mutation on another GitHub resource.
+
+The existing task stays disabled until #136 has final exact-head CI success, full five-stage owner gate, fresh genuinely distinct exact-head review with zero unresolved P0/P1/P2, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. Canonical state must then be restored to verified FREE before the existing task is re-enabled.
 
 ## Next Tier-B workstream — PR #131
 
-PR #131 — `feat(wallet-guard): add trusted provider transport prerequisite` — remains the next dependency-closing Tier-B workstream after the coordination guard repair is trusted.
+PR #131 remains the next dependency-closing Tier-B workstream only after #136 is trusted and the coordination lock is verified FREE.
 
-Authoring-time live state:
+Authoring-time state:
 
-- exact head: `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
-- branch remains based on historical trusted main `87ed6ac814f868dc4599cb5d236babdeea8c3cc9` and must be reconciled onto the then-live trusted main before release evidence is valid;
-- historical exact-head CI `32645853067` / CI 846 = `success` but is stale for release;
+- head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
+- historical CI `32645853067` / CI 846 = success but stale for release;
 - seven P1 threads remain unresolved/outdated: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
 
-### Stable transition rule for #131
+After #136 exact-merge PASS, use exactly one writer to reconcile #131 onto then-live trusted main. Any head move invalidates old exact-head evidence. Require fresh canonical CI, five-stage owner review, genuinely distinct exact-head review, zero unresolved P0/P1/P2, merge and exact-merge assurance.
 
-If PR #136 receives full pre-merge gates, merge, exact-main CI/status success and `POST_MERGE_ASSURANCE_PASS`, and canonical coordination state has been restored to verified FREE, then PR #131 becomes `READY_TO_RECONCILE`. Use exactly one writer to reconcile it onto the then-live trusted `main`. Any moved #131 head invalidates old exact-head release evidence and requires fresh canonical CI, five-stage owner review and genuinely distinct exact-head review.
-
-No additional docs-only reconciliation is required merely because the guard-repair PR's own merge changes the exact `main` SHA.
-
-### PR #131 security boundary retained
-
-The accepted claim remains the narrow local **trusted-provider transport contract**. The controlled transport may admit only module-provenanced controlled providers, must fail closed before unowned provider transport origin, and must prove an in-contract rejected context transport survives `--unhandled-rejections=strict` with zero reference authorization, zero sensitive forwarding and no orphaned rejection termination.
-
-Decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise objects already returned by arbitrary providers remain outside the contract. An already-originated excluded rejected Promise remains an explicit unsupported negative unless separately reviewed process/worker/RPC isolation is introduced.
-
-Shared canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution-evidence and observation/reconciliation semantics remain Core-owned.
+The accepted #131 claim remains the narrow local trusted-provider transport contract: fail closed before unowned provider transport origin; in-contract rejection must have zero reference authorization, zero sensitive forwarding, clean `--unhandled-rejections=strict` survival and no orphaned rejection termination. Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise objects remain outside that contract without separately reviewed process/worker/RPC isolation.
 
 ## Historical branches
 
-- PR #120: `CLOSED / NOT MERGED / STALE`; final historical head `5238b9c289476100c875ed9a88bd7e21a574fa67`; six P1/P2 findings remain attack history. Never revive wholesale.
-- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct useful durable Gate composition later from then-current trusted main after PR #131 becomes trusted.
-- PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later from then-current trusted main; never merge stale history wholesale.
+- PR #120: `CLOSED / NOT MERGED / STALE`; head `5238b9c289476100c875ed9a88bd7e21a574fa67`; six findings remain attack history; never revive wholesale.
+- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct durable Gate composition later from then-current trusted main.
+- PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later; never merge stale history wholesale.
 
-## Architecture and claim boundary
+## Architecture, claim and safety boundary
 
 POM-RX remains the single principal technical product. Wallet Guard remains an application profile. Shared Core owns canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution evidence and observation/reconciliation semantics.
 
 Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic, synthetic and bounded. It is not production readiness, audit, certification, wallet safety, financial safety or deployment authorization.
 
-## Next safe action rule
+No private key, seed, secret, funded-wallet credential, real/funded wallet, mainnet transaction or meaningful funds are authorized. Burner local/testnet E2E remains behind a separate explicit human gate. Public website/Vercel/funding-directory writes remain out of scope.
 
-Freeze the final PR #136 candidate, require canonical exact-head CI success, run the mandatory five-stage owner gate and obtain a genuinely distinct exact-head review. Merge only with zero unresolved P0/P1/P2 and unchanged decision-time state while the acting invocation still has project-writing authority. Immediately run exact-merge post-merge assurance. If and only if the repair receives `POST_MERGE_ASSURANCE_PASS`, persist terminal state, restore the canonical lock to verified FREE through exact same-holder release, then re-enable the existing hourly POM-RX task with the guard protocol in its prompt. Resume PR #131 reconciliation only on a later invocation with a freshly acquired FREE lock.
+## Next safe action
 
-## Safety boundary
-
-No private key, seed, secret, funded-wallet credential, real/funded wallet, mainnet transaction, meaningful funds or uncontrolled malicious-site interaction is authorized. Burner local/testnet E2E remains behind a separate explicit human gate. Public website/Vercel/funding-directory writes are outside this control plane.
+Freeze the final #136 head, run fresh canonical exact-head CI, perform the full owner five-stage gate, then obtain fresh genuinely distinct exact-head validation of P1/P2. If and only if zero P0/P1/P2 remains, revalidate decision-time main/head/CI/reviews/threads/mergeability, merge #136 and run exact-merge assurance. Persist terminal state, restore the canonical lock to verified FREE via exact same-holder release, re-enable the **existing** hourly task with this guard protocol, and let a later fresh invocation acquire FREE state before touching #131.
