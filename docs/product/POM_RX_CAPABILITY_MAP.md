@@ -2,13 +2,14 @@
 
 Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
-Date: 2026-08-23
+Date: 2026-08-24
 
 This is a **versioned snapshot**, not a self-referential claim about the forever-current GitHub head.
 
-- `snapshot_base_main`: `e45869bf77025566d6be4edac58424f6002ad08e` — live main observed when the continuity-model repair branch was created;
-- base state: PR #134 exact merge, exact-main CI `32654441831` / CI 852 = `success`, post-merge assurance `5387352052 = POST_MERGE_ASSURANCE_CONDITIONAL` due the checkpoint self-reference/liveness defect;
-- `last_assured_main_before_snapshot`: `ed0cc5936a12fcd420890ee1553690569b2d4ec7` via PR #133 assurance `5387034808 = POST_MERGE_ASSURANCE_PASS`.
+- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge observed as live trusted main at authoring time;
+- base state: PR #135 source `8c35b486fdc73299c86388bec5517db31b6830d2`, exact-head CI 858 success, distinct exact-head review clean, exact-main CI `32657761877` / CI 859 success;
+- PR #135 post-merge assurance: `5387715186 = POST_MERGE_ASSURANCE_PASS`;
+- PR #135 terminal checkpoint: `5387722428`.
 
 Exact live `main`, active PR/head/CI/review/thread state and post-merge verdict are always read from GitHub. After a control-plane merge, the exact resulting main SHA/status/assurance belongs in the merged PR terminal checkpoint; do not create another docs-only reconciliation merely to replace `snapshot_base_main` with that merge SHA.
 
@@ -47,28 +48,39 @@ Strict verification is structurally non-authorizing. A valid receipt, proof, anc
 
 The repository contains the common exact-authorization contract, a process-local single-use Gate and a separate filesystem durable claim-store reference primitive. Reviewed composition of the durable claim primitive with the common Gate is **not** yet a trusted dependency.
 
-Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`; against `snapshot_base_main` it is diverged ahead 66 / behind 267. Durable composition is reconstructed later from then-live trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted.
+Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable composition is reconstructed later from then-live trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted.
 
-### Continuity-model repair
+### Repository continuity and canonical coordination guard
 
-PR #134 post-merge assurance found a P2 project-control liveness defect: the old coordination model hard-coded its pre-merge parent as “exact current main” and listed its own branch as the current reconciliation. Every successful docs merge therefore made its files immediately stale and could trigger another docs-only reconciliation forever.
+PR #135 closed the earlier control-plane self-reference/liveness defect and received exact-merge `POST_MERGE_ASSURANCE_PASS`. Its non-self-referential rule remains: live exact state comes from GitHub plus merged-PR terminal checkpoints; versioned files carry historical-at-authoring anchors and durable transition rules. No new docs-only PR is required solely because a control-plane merge creates a new exact `main` SHA.
 
-The authoring-time repair branch is `docs/pom-rx-non-self-referential-continuity-20260823-1923`. It is bounded to `POM_RX_AUTOMATION_POLICY.md`, RESUME, TASKS, BLOCKERS, TEAM_ROSTER and this capability map. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+The next scheduled invocation exposed a different operational prerequisite: the policy required mandatory single-flight coordination but no canonical lock location/acquisition/release mechanism existed. It correctly failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and the existing hourly task was disabled.
 
-The stable rule is now: live exact state comes from GitHub plus the latest merged PR terminal checkpoint; versioned files carry snapshot anchors and durable transition rules. Once the latest continuity repair receives exact-merge `POST_MERGE_ASSURANCE_PASS`, no additional docs-only PR is required solely because that repair's own merge SHA differs from `snapshot_base_main`.
+Under explicit human instruction, the canonical coordination state was bootstrapped at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`. PR #136 (`docs/pom-rx-canonical-coordination-lock-20260824`) is the bounded control-plane repair that documents and gates this mechanism.
+
+The accepted guard model is intentionally conservative:
+
+- automation acquires only `FREE` by exact-blob-SHA compare-and-swap;
+- active unexpired `HELD` skips as previous run active;
+- expired `HELD` remains stale/blocking and is **not** automatically reclaimed;
+- same-holder/unexpired state is re-read before every project mutation;
+- after expiry the holder loses project-writing authority, but the exact holder may perform coordination-only release;
+- a crashed holder's stale lock requires explicit human recovery;
+- normal lock writes stay on the coordination branch and never move `main` or a feature/control-plane PR head.
+
+This avoids claiming that a timestamp can atomically fence an in-flight write on another GitHub resource. PR #136 must pass exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`, after which canonical lock state must be verified FREE before the existing scheduled task is re-enabled.
 
 ### Next application prerequisite — PR #131
 
-PR #131 on `automation/wg-trusted-provider-transport-20260823` remains the next dependency-closing Tier-B workstream, but is not trusted until the continuity repair is closed and #131 is reconciled onto then-live main.
+PR #131 on `automation/wg-trusted-provider-transport-20260823` remains the next dependency-closing Tier-B workstream, but it is **blocked until PR #136 is trusted and the canonical coordination guard is operational/verified FREE**. It is not enough that PR #135 already passed.
 
 Authoring-time snapshot:
 
 - head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
-- against `snapshot_base_main`: diverged ahead 32 / behind 18, merge-base `87ed6ac814f868dc4599cb5d236babdeea8c3cc9`;
-- historical CI `32645853067` / CI 846 attempt 1 = `success`, but not current release evidence;
+- historical CI `32645853067` / CI 846 = `success`, but not current release evidence;
 - seven P1 threads unresolved/outdated: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
 
-The branch contains attempted repairs/regressions for provider binding, complete Array prototype-chain checks, Node Promise bookkeeping allowances, pre-import Promise/reflection/provenance poisoning and proxied Promise-constructor traps. None becomes trusted until #131 is reconciled onto then-live main, freezes a new exact head, reruns canonical CI, passes the full owner gate, receives a fresh genuinely distinct exact-head review, closes all P0/P1/P2 on same-head evidence, merges, and receives exact-merge assurance PASS.
+The branch contains attempted repairs/regressions for provider binding, complete Array prototype-chain checks, Node Promise bookkeeping allowances, pre-import Promise/reflection/provenance poisoning and proxied Promise-constructor traps. None becomes trusted until #131 is reconciled onto then-live main after #136 is trusted, freezes a new exact head, reruns canonical CI, passes the full owner gate, receives a fresh genuinely distinct exact-head review, closes all P0/P1/P2 on same-head evidence, merges, and receives exact-merge assurance PASS.
 
 #### Accepted provider-transport boundary
 
@@ -147,7 +159,7 @@ controlled dApp
 
 The provider-transport prerequisite remains untrusted until the live transition rule above is satisfied. Historical green CI alone does not advance a readiness claim.
 
-Historical PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`, diverged from `snapshot_base_main` by ahead 86 / behind 312. Reconstruct useful simulation work later from then-current trusted main instead of merging stale history wholesale.
+Historical PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconstruct useful simulation work later from then-current trusted main instead of merging stale history wholesale.
 
 Even after simulation evidence eventually merges, simulation-to-forwarding atomic binding remains a separate reviewed requirement. A simulation result never authorizes forwarding by itself.
 
@@ -192,12 +204,12 @@ compatibility/
 
 | Block | Durable state / transition rule | Missing / blocked |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation | continuity-model repair must receive exact-merge PASS; PR #131 then reconciles/freshly gates; durable Gate composition later; production trust/time/distributed semantics/external effect truth missing |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation; PR #135 continuity model trusted | canonical coordination guard PR #136 must receive exact-merge PASS and restore verified FREE state; PR #131 then reconciles/freshly gates; durable Gate composition later; production trust/time/distributed semantics/external effect truth missing |
 | Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable composition requires later reconstruction |
 | Witness | source/Witness primitives, process-local trust lifecycle | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces trusted only to merged scope | provider transport PR #131 remains untrusted with seven P1 attack inputs and must be reconciled/freshly gated after continuity repair |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces trusted only to merged scope | #136 coordination prerequisite first; then provider transport PR #131 remains untrusted with seven P1 attack inputs and must be reconciled/freshly gated |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 
