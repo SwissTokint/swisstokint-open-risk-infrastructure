@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-vp-demo-20260825T183200Z-gpt56sol",
+    "acquired_at": "2026-08-25T18:32:00Z",
+    "expires_at": "2026-08-25T19:17:00Z",
+    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
+    "purpose": "Priority VP demo hardening in this chat for 2026-08-26: make the authenticated POM-RX member dashboard reproducible, presentation-safe and covered by browser/API regressions without weakening auth or claim boundaries."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-25T18:31:30Z",
-    "actor": "pom-rx-m4b-runner-20260825T135600Z-gpt56sol",
-    "reason": "User reprioritized the work to a vice-president-ready POM-RX member-dashboard demonstration for 2026-08-26. M4b isolated-runner development is paused without project mutations so the single writer can move to demo hardening."
+    "type": "ACQUIRE",
+    "at": "2026-08-25T18:32:00Z",
+    "actor": "pom-rx-vp-demo-20260825T183200Z-gpt56sol",
+    "reason": "User explicitly made tomorrow's vice-president POM-RX usage demonstration the highest priority."
   }
 }
