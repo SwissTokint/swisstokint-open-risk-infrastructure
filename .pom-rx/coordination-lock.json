@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "member-prototype-loop-20260825T063528Z-caff0697-gpt56sol",
-    "acquired_at": "2026-08-25T06:35:28.862988Z",
-    "expires_at": "2026-08-25T07:20:28.862988Z",
-    "base_main": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5",
-    "purpose": "Map POM-RX and establish a dashboard-testable member prototype engineering loop without merging or touching active Wallet Guard stacks."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T06:35:28.862988Z",
+    "type": "RELEASE",
+    "at": "2026-08-25T06:53:11Z",
     "actor": "member-prototype-loop-20260825T063528Z-caff0697-gpt56sol",
-    "reason": "User requested repository mapping plus a concrete engineering loop toward a member-dashboard-testable prototype."
+    "reason": "Initial member-dashboard prototype engineering loop completed: Open Risk draft PR #140 green on exact-head CI, website draft PR #196 deployed successfully to Vercel preview; no further project mutations in this run."
   }
 }
