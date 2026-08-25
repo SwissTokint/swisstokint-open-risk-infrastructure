@@ -43,6 +43,8 @@ test('strict package descriptor pins the ratified strict artifact without author
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.measured_entry_count, 16);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.immutable_source_pin_required, true);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.immutable_runtime_filesystem_required, true);
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.clean_node_process_required, true);
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.node_builtin_integrity_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.package_source_identity_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.policy_capability_required, true);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.authorization_proved, false);
@@ -75,6 +77,8 @@ test('strict bootstrap authenticates every declared artifact byte before measure
   assert.equal(report.measured_artifact_code_executed, false);
   assert.equal(report.immutable_source_pin_required, true);
   assert.equal(report.immutable_runtime_filesystem_required, true);
+  assert.equal(report.clean_node_process_required, true);
+  assert.equal(report.node_builtin_integrity_proved, false);
   assert.equal(report.package_source_identity_proved, false);
   assert.equal(report.policy_capability_required, true);
   assert.equal(report.authorization_proved, false);
@@ -108,7 +112,7 @@ test('npm package dry-run contains every strict artifact entry and runtime suppo
   assert.equal(files.has('sdk/typescript/pom-rx-strict-package.mjs'), true);
 });
 
-test('bootstrap imports no measured POM-RX code and cannot become an alternate verifier', () => {
+test('bootstrap imports no measured POM-RX code and keeps the Node TCB explicit', () => {
   const source = readFileSync(
     path.join(repositoryRoot, 'sdk', 'typescript', 'pom-rx-strict-package.mjs'),
     'utf8',
@@ -118,7 +122,11 @@ test('bootstrap imports no measured POM-RX code and cannot become an alternate v
   assert.doesNotMatch(source, /verifyPomRxChainProfiled\s*\(/u);
   assert.doesNotMatch(source, /verifyPomRxChain\s*\(/u);
   assert.doesNotMatch(source, /verificationProfile:\s*['"]pom-rx\/0\.1/u);
+  assert.match(source, /const cryptoCreateHash = createHash;/u);
+  assert.match(source, /const fsReadFileSync = readFileSync;/u);
   assert.match(source, /measured_artifact_code_executed:\s*false/u);
+  assert.match(source, /clean_node_process_required:\s*true/u);
+  assert.match(source, /node_builtin_integrity_proved:\s*false/u);
   assert.match(source, /immutable_source_pin_required:\s*true/u);
   assert.match(source, /immutable_runtime_filesystem_required:\s*true/u);
   assert.match(source, /package_source_identity_proved:\s*false/u);

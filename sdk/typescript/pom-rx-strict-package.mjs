@@ -17,16 +17,35 @@ export const POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256 =
 export const POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256 =
   '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb';
 
+// Capture the small Node bootstrap TCB immediately after module loading. This
+// protects against later replacement of exported builtin functions, but it
+// deliberately does not claim to detect pre-import/runtime compromise.
+const cryptoCreateHash = createHash;
+const fsLstatSync = lstatSync;
+const fsReadFileSync = readFileSync;
+const fsRealpathNative = realpathSync.native;
+const pathDirname = path.dirname;
+const pathIsAbsolute = path.isAbsolute;
+const pathRelative = path.relative;
+const pathResolve = path.resolve;
+const pathSep = path.sep;
+const posixIsAbsolute = path.posix.isAbsolute;
+const posixNormalize = path.posix.normalize;
+const urlFileURLToPath = fileURLToPath;
+const jsonParse = JSON.parse;
+const objectKeys = Object.keys;
+const objectFreeze = Object.freeze;
+
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
 const MAX_CLOSURE_BYTES = 8 * 1024 * 1024;
 const EXPECTED_ENTRY_COUNT = 16;
-const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
-const packageRoot = path.resolve(moduleDirectory, '../..');
+const moduleDirectory = pathDirname(urlFileURLToPath(import.meta.url));
+const packageRoot = pathResolve(moduleDirectory, '../..');
 
 function sha256(bytes) {
-  return createHash('sha256').update(bytes).digest('hex');
+  return cryptoCreateHash('sha256').update(bytes).digest('hex');
 }
 
 function assert(condition, message) {
@@ -35,15 +54,15 @@ function assert(condition, message) {
 
 function assertExactKeys(value, expected, label) {
   assert(value && typeof value === 'object' && !Array.isArray(value), `${label} must be an object`);
-  const actual = Object.keys(value).sort();
+  const actual = objectKeys(value).sort();
   const wanted = [...expected].sort();
   assert(JSON.stringify(actual) === JSON.stringify(wanted), `${label} has missing or unknown fields`);
 }
 
 function assertPackageRoot() {
-  const status = lstatSync(packageRoot, { bigint: true });
+  const status = fsLstatSync(packageRoot, { bigint: true });
   assert(status.isDirectory() && !status.isSymbolicLink(), 'POM-RX strict package root must be a regular directory');
-  assert(realpathSync.native(packageRoot) === packageRoot, 'POM-RX strict package root must use its canonical native path');
+  assert(fsRealpathNative(packageRoot) === packageRoot, 'POM-RX strict package root must use its canonical native path');
 }
 
 function resolvePinnedEntry(relativePath) {
@@ -53,20 +72,20 @@ function resolvePinnedEntry(relativePath) {
       && relativePath.length <= 512
       && !relativePath.includes('\\')
       && !relativePath.includes('\0')
-      && !path.posix.isAbsolute(relativePath)
-      && path.posix.normalize(relativePath) === relativePath
+      && !posixIsAbsolute(relativePath)
+      && posixNormalize(relativePath) === relativePath
       && relativePath !== '..'
       && !relativePath.startsWith('../'),
     'POM-RX strict artifact manifest contains an invalid entry path',
   );
 
-  const fullPath = path.resolve(packageRoot, ...relativePath.split('/'));
-  const relativeToRoot = path.relative(packageRoot, fullPath);
+  const fullPath = pathResolve(packageRoot, relativePath);
+  const relativeToRoot = pathRelative(packageRoot, fullPath);
   assert(
     relativeToRoot !== ''
-      && !path.isAbsolute(relativeToRoot)
+      && !pathIsAbsolute(relativeToRoot)
       && relativeToRoot !== '..'
-      && !relativeToRoot.startsWith(`..${path.sep}`),
+      && !relativeToRoot.startsWith(`..${pathSep}`),
     'POM-RX strict artifact entry escapes the package root',
   );
   return fullPath;
@@ -81,7 +100,7 @@ function parsePinnedManifest(bytes) {
 
   let manifest;
   try {
-    manifest = JSON.parse(bytes.toString('utf8'));
+    manifest = jsonParse(bytes.toString('utf8'));
   } catch {
     throw new TypeError('POM-RX strict artifact manifest is not valid JSON');
   }
@@ -122,15 +141,15 @@ function parsePinnedManifest(bytes) {
     assert(typeof entry.sha256 === 'string' && HASH_PATTERN.test(entry.sha256), 'POM-RX strict artifact entry digest is invalid');
     totalBytes += entry.byte_length;
     assert(totalBytes <= MAX_CLOSURE_BYTES, 'POM-RX strict artifact closure exceeds the bootstrap byte limit');
-    return Object.freeze({ ...entry });
+    return objectFreeze({ ...entry });
   });
 
   assert(seenPaths.has(POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH), 'POM-RX strict artifact scanner is missing from the measured closure');
   assert(seenPaths.has(POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH), 'POM-RX strict Unicode support data is missing from the measured closure');
 
-  return Object.freeze({
+  return objectFreeze({
     ...manifest,
-    entries: Object.freeze(entries),
+    entries: objectFreeze(entries),
   });
 }
 
@@ -138,7 +157,7 @@ function verifyEntryBytes(entry) {
   const fullPath = resolvePinnedEntry(entry.path);
   let before;
   try {
-    before = lstatSync(fullPath, { bigint: true });
+    before = fsLstatSync(fullPath, { bigint: true });
   } catch {
     throw new TypeError(`POM-RX strict artifact entry cannot be inspected: ${entry.path}`);
   }
@@ -147,16 +166,16 @@ function verifyEntryBytes(entry) {
     `POM-RX strict artifact entry is not a single-link regular file: ${entry.path}`,
   );
   assert(before.size === BigInt(entry.byte_length), `POM-RX strict artifact entry size differs: ${entry.path}`);
-  assert(realpathSync.native(fullPath) === fullPath, `POM-RX strict artifact entry path is not canonical: ${entry.path}`);
+  assert(fsRealpathNative(fullPath) === fullPath, `POM-RX strict artifact entry path is not canonical: ${entry.path}`);
 
   let bytes;
   try {
-    bytes = readFileSync(fullPath);
+    bytes = fsReadFileSync(fullPath);
   } catch {
     throw new TypeError(`POM-RX strict artifact entry cannot be read: ${entry.path}`);
   }
 
-  const after = lstatSync(fullPath, { bigint: true });
+  const after = fsLstatSync(fullPath, { bigint: true });
   assert(
     after.dev === before.dev
       && after.ino === before.ino
@@ -168,7 +187,7 @@ function verifyEntryBytes(entry) {
   assert(sha256(bytes) === entry.sha256, `POM-RX strict artifact entry digest differs: ${entry.path}`);
 }
 
-export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
+export const POM_RX_STRICT_PACKAGE_CONTRACT = objectFreeze({
   schema_version: POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
   bootstrap_entrypoint: 'sdk/typescript/pom-rx-strict-package.mjs',
   verifier_entrypoint: 'sdk/typescript/pom-rx-profiled.mjs',
@@ -181,6 +200,8 @@ export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
   measured_entry_count: EXPECTED_ENTRY_COUNT,
   immutable_source_pin_required: true,
   immutable_runtime_filesystem_required: true,
+  clean_node_process_required: true,
+  node_builtin_integrity_proved: false,
   package_source_identity_proved: false,
   policy_capability_required: true,
   authorization_proved: false,
@@ -189,8 +210,8 @@ export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
 });
 
 export function getPomRxStrictPackageHostPins() {
-  return Object.freeze({
-    artifactManifestPath: path.join(packageRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
+  return objectFreeze({
+    artifactManifestPath: pathResolve(packageRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
     expectedArtifactManifestSha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
   });
 }
@@ -198,12 +219,12 @@ export function getPomRxStrictPackageHostPins() {
 export function verifyPomRxStrictMeasuredArtifactBytes() {
   assertPackageRoot();
   const hostPins = getPomRxStrictPackageHostPins();
-  const manifestBytes = readFileSync(hostPins.artifactManifestPath);
+  const manifestBytes = fsReadFileSync(hostPins.artifactManifestPath);
   const manifest = parsePinnedManifest(manifestBytes);
 
   for (const entry of manifest.entries) verifyEntryBytes(entry);
 
-  return Object.freeze({
+  return objectFreeze({
     schema_version: POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
     measured_artifact_bytes_integrity: 'verified',
     verifier_profile: POM_RX_STRICT_PROFILE,
@@ -215,6 +236,8 @@ export function verifyPomRxStrictMeasuredArtifactBytes() {
     measured_artifact_code_executed: false,
     immutable_source_pin_required: true,
     immutable_runtime_filesystem_required: true,
+    clean_node_process_required: true,
+    node_builtin_integrity_proved: false,
     package_source_identity_proved: false,
     policy_capability_required: true,
     authorization_proved: false,
