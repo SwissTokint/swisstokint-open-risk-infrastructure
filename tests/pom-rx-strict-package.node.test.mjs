@@ -13,7 +13,7 @@ import {
   POM_RX_STRICT_PACKAGE_CONTRACT,
   POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
   getPomRxStrictPackageHostPins,
-  verifyPomRxStrictPackageIntegrity,
+  verifyPomRxStrictMeasuredArtifactIntegrity,
 } from '../sdk/typescript/pom-rx-strict-package.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,6 +39,8 @@ test('strict package descriptor pins the ratified strict artifact without author
     POM_RX_STRICT_PACKAGE_CONTRACT.implementation_artifact_sha256,
     POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
   );
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.immutable_source_pin_required, true);
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.package_source_identity_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.policy_capability_required, true);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.authorization_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.external_execution_proved, false);
@@ -56,15 +58,17 @@ test('strict package host pins bind the exact bundled artifact manifest bytes', 
   assert.equal(sha256(readFileSync(pins.artifactManifestPath)), POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256);
 });
 
-test('strict package integrity reproduces the complete measured implementation identity', {
+test('strict package helper measures only the declared implementation artifact', {
   skip: process.platform === 'win32',
 }, () => {
-  const report = verifyPomRxStrictPackageIntegrity();
-  assert.equal(report.package_integrity, 'verified');
+  const report = verifyPomRxStrictMeasuredArtifactIntegrity();
+  assert.equal(report.measured_artifact_integrity, 'verified');
   assert.equal(report.verifier_profile, 'pom-rx-v0.1/strict-errata-1');
   assert.equal(report.verifier_version, 'pom-rx-v0.1-strict-verifier/1');
   assert.equal(report.artifact_manifest_sha256, POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256);
   assert.equal(report.implementation_artifact_sha256, POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256);
+  assert.equal(report.immutable_source_pin_required, true);
+  assert.equal(report.package_source_identity_proved, false);
   assert.equal(report.policy_capability_required, true);
   assert.equal(report.authorization_proved, false);
 });
@@ -91,5 +95,7 @@ test('packaging boundary does not implement, wrap or downgrade strict verificati
   assert.doesNotMatch(source, /verifyPomRxChainProfiled\s*\(/u);
   assert.doesNotMatch(source, /verifyPomRxChain\s*\(/u);
   assert.doesNotMatch(source, /verificationProfile:\s*['"]pom-rx\/0\.1/u);
+  assert.match(source, /immutable_source_pin_required:\s*true/u);
+  assert.match(source, /package_source_identity_proved:\s*false/u);
   assert.match(source, /policy_capability_required:\s*true/u);
 });

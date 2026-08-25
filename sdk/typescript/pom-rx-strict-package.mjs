@@ -37,6 +37,8 @@ export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
   verifier_version: POM_RX_V01_STRICT_VERIFIER_VERSION,
   artifact_manifest_sha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
   implementation_artifact_sha256: POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
+  immutable_source_pin_required: true,
+  package_source_identity_proved: false,
   policy_capability_required: true,
   authorization_proved: false,
   external_execution_proved: false,
@@ -53,7 +55,7 @@ export function getPomRxStrictPackageHostPins() {
   });
 }
 
-export function verifyPomRxStrictPackageIntegrity() {
+export function verifyPomRxStrictMeasuredArtifactIntegrity() {
   const hostPins = getPomRxStrictPackageHostPins();
   const manifestBytes = readFileSync(hostPins.artifactManifestPath);
   const observedManifestSha256 = sha256(manifestBytes);
@@ -78,11 +80,13 @@ export function verifyPomRxStrictPackageIntegrity() {
 
   return Object.freeze({
     schema_version: POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
-    package_integrity: 'verified',
+    measured_artifact_integrity: 'verified',
     verifier_profile: POM_RX_V01_STRICT_PROFILE,
     verifier_version: POM_RX_V01_STRICT_VERIFIER_VERSION,
     artifact_manifest_sha256: observedManifestSha256,
     implementation_artifact_sha256: identity.implementation_artifact_sha256,
+    immutable_source_pin_required: true,
+    package_source_identity_proved: false,
     policy_capability_required: true,
     authorization_proved: false,
     external_execution_proved: false,
