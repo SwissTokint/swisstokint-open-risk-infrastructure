@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-loop-20260825T075555Z-gpt56sol-01",
-    "acquired_at": "2026-08-25T07:55:55Z",
-    "expires_at": "2026-08-25T08:40:55Z",
-    "base_main": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5",
-    "purpose": "Review and advance the bounded POM-RX member-lab/reference-verifier prototype toward strict-verifier provenance and authenticated dashboard readiness."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T07:55:55Z",
-    "actor": "pom-rx-loop-20260825T075555Z-gpt56sol-01",
-    "reason": "Scheduled POM-RX engineering loop acquired canonical single-writer guard for bounded member-lab review and next-slice advancement."
+    "type": "HUMAN_RECOVERY",
+    "at": "2026-08-25T08:54:00Z",
+    "actor": "human-requested-stale-lock-recovery-20260825",
+    "reason": "Explicit user instruction to stop the stale POM-RX automation holder. The POM-RX Engineering Loop automation was disabled; holder pom-rx-loop-20260825T075555Z-gpt56sol-01 expired at 2026-08-25T08:40:55Z; no later project mutation was observed in the checked live PR evidence before recovery."
   }
 }
