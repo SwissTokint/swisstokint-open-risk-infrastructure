@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH,
@@ -19,6 +30,37 @@ import {
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+function repositoryPath(relativePath) {
+  return path.join(repositoryRoot, ...relativePath.split('/'));
+}
+
+function copyIntoPackage(packageRoot, relativePath) {
+  const destination = path.join(packageRoot, ...relativePath.split('/'));
+  mkdirSync(path.dirname(destination), { recursive: true });
+  copyFileSync(repositoryPath(relativePath), destination);
+  return destination;
+}
+
+function makeIsolatedStrictPackage() {
+  const canonicalTmp = realpathSync.native(tmpdir());
+  const packageRoot = mkdtempSync(path.join(canonicalTmp, 'pom-rx-strict-package-'));
+  const manifest = JSON.parse(readFileSync(
+    repositoryPath(POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
+    'utf8',
+  ));
+
+  copyIntoPackage(packageRoot, 'sdk/typescript/pom-rx-strict-package.mjs');
+  copyIntoPackage(packageRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH);
+  for (const entry of manifest.entries) copyIntoPackage(packageRoot, entry.path);
+
+  return { packageRoot, manifest };
+}
+
+async function importIsolatedBootstrap(packageRoot, label) {
+  const helperPath = path.join(packageRoot, 'sdk', 'typescript', 'pom-rx-strict-package.mjs');
+  return import(`${pathToFileURL(helperPath).href}?case=${encodeURIComponent(label)}`);
+}
 
 function packedFiles() {
   const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -86,21 +128,103 @@ test('strict bootstrap authenticates every declared artifact byte before measure
 
 test('the artifact identity scanner itself is authenticated as ordinary bytes by the bootstrap', () => {
   const manifest = JSON.parse(readFileSync(
-    path.join(repositoryRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
+    repositoryPath(POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
     'utf8',
   ));
   const scanner = manifest.entries.find(({ path: entryPath }) => (
     entryPath === POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH
   ));
   assert.ok(scanner, 'strict artifact scanner must be declared in the pinned manifest');
-  const scannerBytes = readFileSync(path.join(repositoryRoot, ...scanner.path.split('/')));
+  const scannerBytes = readFileSync(repositoryPath(scanner.path));
   assert.equal(scannerBytes.length, scanner.byte_length);
   assert.equal(sha256(scannerBytes), scanner.sha256);
 });
 
+test('isolated bootstrap reproduces the clean byte-integrity result', async (t) => {
+  const fixture = makeIsolatedStrictPackage();
+  t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
+  const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'clean');
+  assert.equal(
+    bootstrap.verifyPomRxStrictMeasuredArtifactBytes().measured_artifact_bytes_integrity,
+    'verified',
+  );
+});
+
+test('isolated bootstrap rejects a same-length scanner tamper before scanner execution', async (t) => {
+  const fixture = makeIsolatedStrictPackage();
+  t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
+  const scannerPath = path.join(
+    fixture.packageRoot,
+    ...POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH.split('/'),
+  );
+  const scannerBytes = readFileSync(scannerPath);
+  scannerBytes[Math.floor(scannerBytes.length / 2)] ^= 1;
+  writeFileSync(scannerPath, scannerBytes);
+
+  const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'scanner-tamper');
+  assert.throws(
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    /artifact entry digest differs.*pom-rx-v01-artifact-identity\.mjs/u,
+  );
+});
+
+test('isolated bootstrap rejects manifest byte substitution before parsing', async (t) => {
+  const fixture = makeIsolatedStrictPackage();
+  t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
+  const manifestPath = path.join(
+    fixture.packageRoot,
+    ...POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH.split('/'),
+  );
+  const manifestBytes = readFileSync(manifestPath);
+  manifestBytes[Math.floor(manifestBytes.length / 3)] ^= 1;
+  writeFileSync(manifestPath, manifestBytes);
+
+  const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'manifest-tamper');
+  assert.throws(
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    /artifact manifest digest differs from the bootstrap pin/u,
+  );
+});
+
+test('isolated bootstrap rejects a symlinked measured artifact even with identical bytes', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const fixture = makeIsolatedStrictPackage();
+  t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
+  const targetRelativePath = POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH;
+  const copiedPath = path.join(fixture.packageRoot, ...targetRelativePath.split('/'));
+  unlinkSync(copiedPath);
+  symlinkSync(repositoryPath(targetRelativePath), copiedPath);
+
+  const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'artifact-symlink');
+  assert.throws(
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    /must be a single-link regular file/u,
+  );
+});
+
+test('isolated bootstrap rejects a symlinked manifest even with identical bytes', {
+  skip: process.platform === 'win32',
+}, async (t) => {
+  const fixture = makeIsolatedStrictPackage();
+  t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
+  const manifestPath = path.join(
+    fixture.packageRoot,
+    ...POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH.split('/'),
+  );
+  unlinkSync(manifestPath);
+  symlinkSync(repositoryPath(POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH), manifestPath);
+
+  const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'manifest-symlink');
+  assert.throws(
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    /artifact manifest must be a single-link regular file/u,
+  );
+});
+
 test('npm package dry-run contains every strict artifact entry and runtime support file', () => {
   const manifest = JSON.parse(readFileSync(
-    path.join(repositoryRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
+    repositoryPath(POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
     'utf8',
   ));
   const files = packedFiles();

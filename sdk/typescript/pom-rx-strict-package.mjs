@@ -91,8 +91,40 @@ function resolvePinnedEntry(relativePath) {
   return fullPath;
 }
 
+function readStableRegularFile(fullPath, label, maximumBytes) {
+  let before;
+  try {
+    before = fsLstatSync(fullPath, { bigint: true });
+  } catch {
+    throw new TypeError(`${label} cannot be inspected`);
+  }
+  assert(
+    before.isFile() && !before.isSymbolicLink() && before.nlink === 1n,
+    `${label} must be a single-link regular file`,
+  );
+  assert(before.size > 0n && before.size <= BigInt(maximumBytes), `${label} size is outside the bootstrap limit`);
+  assert(fsRealpathNative(fullPath) === fullPath, `${label} path is not canonical`);
+
+  let bytes;
+  try {
+    bytes = fsReadFileSync(fullPath);
+  } catch {
+    throw new TypeError(`${label} cannot be read`);
+  }
+
+  const after = fsLstatSync(fullPath, { bigint: true });
+  assert(
+    after.dev === before.dev
+      && after.ino === before.ino
+      && after.size === before.size
+      && after.mtimeNs === before.mtimeNs,
+    `${label} changed during bootstrap measurement`,
+  );
+  assert(BigInt(bytes.length) === before.size, `${label} read length differs from file metadata`);
+  return bytes;
+}
+
 function parsePinnedManifest(bytes) {
-  assert(bytes.length > 0 && bytes.length <= MAX_MANIFEST_BYTES, 'POM-RX strict artifact manifest size is invalid');
   assert(
     sha256(bytes) === POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
     'POM-RX strict artifact manifest digest differs from the bootstrap pin',
@@ -155,33 +187,10 @@ function parsePinnedManifest(bytes) {
 
 function verifyEntryBytes(entry) {
   const fullPath = resolvePinnedEntry(entry.path);
-  let before;
-  try {
-    before = fsLstatSync(fullPath, { bigint: true });
-  } catch {
-    throw new TypeError(`POM-RX strict artifact entry cannot be inspected: ${entry.path}`);
-  }
-  assert(
-    before.isFile() && !before.isSymbolicLink() && before.nlink === 1n,
-    `POM-RX strict artifact entry is not a single-link regular file: ${entry.path}`,
-  );
-  assert(before.size === BigInt(entry.byte_length), `POM-RX strict artifact entry size differs: ${entry.path}`);
-  assert(fsRealpathNative(fullPath) === fullPath, `POM-RX strict artifact entry path is not canonical: ${entry.path}`);
-
-  let bytes;
-  try {
-    bytes = fsReadFileSync(fullPath);
-  } catch {
-    throw new TypeError(`POM-RX strict artifact entry cannot be read: ${entry.path}`);
-  }
-
-  const after = fsLstatSync(fullPath, { bigint: true });
-  assert(
-    after.dev === before.dev
-      && after.ino === before.ino
-      && after.size === before.size
-      && after.mtimeNs === before.mtimeNs,
-    `POM-RX strict artifact entry changed during bootstrap measurement: ${entry.path}`,
+  const bytes = readStableRegularFile(
+    fullPath,
+    `POM-RX strict artifact entry ${entry.path}`,
+    MAX_ENTRY_BYTES,
   );
   assert(bytes.length === entry.byte_length, `POM-RX strict artifact entry byte length differs: ${entry.path}`);
   assert(sha256(bytes) === entry.sha256, `POM-RX strict artifact entry digest differs: ${entry.path}`);
@@ -219,7 +228,11 @@ export function getPomRxStrictPackageHostPins() {
 export function verifyPomRxStrictMeasuredArtifactBytes() {
   assertPackageRoot();
   const hostPins = getPomRxStrictPackageHostPins();
-  const manifestBytes = fsReadFileSync(hostPins.artifactManifestPath);
+  const manifestBytes = readStableRegularFile(
+    hostPins.artifactManifestPath,
+    'POM-RX strict artifact manifest',
+    MAX_MANIFEST_BYTES,
+  );
   const manifest = parsePinnedManifest(manifestBytes);
 
   for (const entry of manifest.entries) verifyEntryBytes(entry);
