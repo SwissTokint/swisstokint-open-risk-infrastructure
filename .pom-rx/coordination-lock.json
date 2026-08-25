@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-m4-adversarial-20260825T134110Z-gpt56sol",
+    "acquired_at": "2026-08-25T13:41:10Z",
+    "expires_at": "2026-08-25T14:26:10Z",
+    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
+    "purpose": "Interactive M4 adversarial regression hardening in this chat while external Codex review quota is unavailable: reproduce scanner tamper, manifest substitution and symlink artifact attacks against PR #141 bootstrap."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-25T13:39:00Z",
-    "actor": "pom-rx-m4-interactive-20260825T131030Z-gpt56sol",
-    "reason": "M4 PR #141 is frozen at exact head e9786c3767bcf73cd655f0f7d754abee69ef8f7f with CI #913 green and internal review lanes recorded; release writer while waiting for genuinely distinct exact-head Codex review."
+    "type": "ACQUIRE",
+    "at": "2026-08-25T13:41:10Z",
+    "actor": "pom-rx-m4-adversarial-20260825T134110Z-gpt56sol",
+    "reason": "Codex exact-head review is quota-blocked; continue safe bounded falsification by adding executable negative regressions without weakening the external-review merge gate."
   }
 }
