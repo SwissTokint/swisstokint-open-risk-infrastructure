@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-loop-20260825T075555Z-gpt56sol-01",
+    "acquired_at": "2026-08-25T07:55:55Z",
+    "expires_at": "2026-08-25T08:40:55Z",
+    "base_main": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5",
+    "purpose": "Review and advance the bounded POM-RX member-lab/reference-verifier prototype toward strict-verifier provenance and authenticated dashboard readiness."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-25T06:53:11Z",
-    "actor": "member-prototype-loop-20260825T063528Z-caff0697-gpt56sol",
-    "reason": "Initial member-dashboard prototype engineering loop completed: Open Risk draft PR #140 green on exact-head CI, website draft PR #196 deployed successfully to Vercel preview; no further project mutations in this run."
+    "type": "ACQUIRE",
+    "at": "2026-08-25T07:55:55Z",
+    "actor": "pom-rx-loop-20260825T075555Z-gpt56sol-01",
+    "reason": "Scheduled POM-RX engineering loop acquired canonical single-writer guard for bounded member-lab review and next-slice advancement."
   }
 }
