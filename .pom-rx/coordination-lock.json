@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-m4b-runner-20260825T135600Z-gpt56sol",
-    "acquired_at": "2026-08-25T13:56:00Z",
-    "expires_at": "2026-08-25T14:41:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Interactive stacked M4b development in this chat: build a dedicated clean Node child-process strict verifier runner on top of frozen PR #141 without treating #141 as trusted or mergeable."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T13:56:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-25T18:31:30Z",
     "actor": "pom-rx-m4b-runner-20260825T135600Z-gpt56sol",
-    "reason": "Continue safe adjacent POM-RX development interactively while PR #141 waits for genuinely distinct exact-head review; next lot isolates strict activation from the general Next.js process."
+    "reason": "User reprioritized the work to a vice-president-ready POM-RX member-dashboard demonstration for 2026-08-26. M4b isolated-runner development is paused without project mutations so the single writer can move to demo hardening."
   }
 }
