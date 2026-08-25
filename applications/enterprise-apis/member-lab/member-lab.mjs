@@ -6,6 +6,12 @@ import { verifyPomRxChain } from '../../../sdk/typescript/pom-rx.mjs';
 
 export const POM_RX_MEMBER_LAB_SCHEMA_VERSION = 'pom-rx-member-lab/0.1';
 
+const EXPECTED_CONTROL_HASHES = Object.freeze([
+  'be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60',
+  '3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1',
+  '638a30f42d412f8b7e84c9a8833b2e7c6b02761ee2dd43e4d24683ad03dfbfd3',
+]);
+
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const validControlPath = path.resolve(
   moduleDirectory,
@@ -100,6 +106,27 @@ function verifyStages(chain) {
   return Object.freeze(stages);
 }
 
+function hashesMatchPinnedControl(receiptHashes) {
+  return receiptHashes.length === EXPECTED_CONTROL_HASHES.length
+    && receiptHashes.every((hash, index) => hash === EXPECTED_CONTROL_HASHES[index]);
+}
+
+function rejectedControlDriftResult(scenarioId) {
+  return Object.freeze({
+    schema_version: POM_RX_MEMBER_LAB_SCHEMA_VERSION,
+    scenario_id: scenarioId,
+    verifier: 'pom-rx/0.1-reference',
+    verdict: 'rejected',
+    status: null,
+    error: 'Pinned POM-RX control verification drifted',
+    receipt_hashes: Object.freeze([]),
+    stages: Object.freeze([]),
+    authorization_proved: false,
+    external_execution_proved: false,
+    financial_safety_proved: false,
+  });
+}
+
 export function getPomRxMemberLabScenarios() {
   return SCENARIOS;
 }
@@ -107,6 +134,11 @@ export function getPomRxMemberLabScenarios() {
 export function runPomRxMemberLabScenario(scenarioId) {
   const chain = buildScenarioChain(scenarioId);
   const verification = verifyPomRxChain(chain, { allowPartial: false });
+
+  if (scenarioId === 'valid-chain'
+    && (!verification.ok || !hashesMatchPinnedControl(verification.receipt_hashes))) {
+    return rejectedControlDriftResult(scenarioId);
+  }
 
   return Object.freeze({
     schema_version: POM_RX_MEMBER_LAB_SCHEMA_VERSION,
