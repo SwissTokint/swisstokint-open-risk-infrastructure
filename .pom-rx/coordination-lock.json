@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-interactive-20260825T125900Z-gpt56sol",
-    "acquired_at": "2026-08-25T12:59:00Z",
-    "expires_at": "2026-08-25T13:44:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Interactive single-writer development in the current chat: finish website PR #196 stale-result hardening, exact-head review gates, merge if eligible, then post-merge assurance."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T12:59:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-25T13:10:00Z",
     "actor": "pom-rx-interactive-20260825T125900Z-gpt56sol",
-    "reason": "User explicitly requested that all POM-RX development continue interactively in this chat; hourly automation is disabled and the canonical lock was FREE."
+    "reason": "Website PR #196 stale-green hardening is frozen at exact head f6b2ee428a1ee624c46671a75ae5b8176aec8076 with Vercel Ready; independent exact-head review and authenticated preview E2E remain pending, so the interactive writer is released before starting the independent M4 strict-packaging lot."
   }
 }
