@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-vp-demo-20260825T183200Z-gpt56sol",
-    "acquired_at": "2026-08-25T18:32:00Z",
-    "expires_at": "2026-08-25T19:17:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Priority VP demo hardening in this chat for 2026-08-26: make the authenticated POM-RX member dashboard reproducible, presentation-safe and covered by browser/API regressions without weakening auth or claim boundaries."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T18:32:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-25T18:58:20Z",
     "actor": "pom-rx-vp-demo-20260825T183200Z-gpt56sol",
-    "reason": "User explicitly made tomorrow's vice-president POM-RX usage demonstration the highest priority."
+    "reason": "VP demo runtime is frozen on the known-green website candidate f6b2ee428a1ee624c46671a75ae5b8176aec8076 with Vercel Ready, exact-head Codex review evidence and a recorded demo runbook. Experimental browser-smoke work is isolated from the demo branch; release the single writer to avoid an overnight stale lock."
   }
 }
