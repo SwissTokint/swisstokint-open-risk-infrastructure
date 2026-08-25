@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-m4-interactive-20260825T131030Z-gpt56sol",
-    "acquired_at": "2026-08-25T13:10:30Z",
-    "expires_at": "2026-08-25T13:55:30Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Interactive M4 strict-verifier packaging and provenance lot: create a stable server-consumer boundary that uses the complete trusted Open Risk runtime closure without copying or downgrading Core semantics."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-25T13:10:30Z",
+    "type": "RELEASE",
+    "at": "2026-08-25T13:39:00Z",
     "actor": "pom-rx-m4-interactive-20260825T131030Z-gpt56sol",
-    "reason": "Website PR #196 is frozen pending external review/authenticated preview E2E; continue safe independent development in this chat on the next Open Risk milestone M4."
+    "reason": "M4 PR #141 is frozen at exact head e9786c3767bcf73cd655f0f7d754abee69ef8f7f with CI #913 green and internal review lanes recorded; release writer while waiting for genuinely distinct exact-head Codex review."
   }
 }
