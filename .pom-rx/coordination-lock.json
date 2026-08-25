@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-interactive-20260825T125900Z-gpt56sol",
+    "acquired_at": "2026-08-25T12:59:00Z",
+    "expires_at": "2026-08-25T13:44:00Z",
+    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
+    "purpose": "Interactive single-writer development in the current chat: finish website PR #196 stale-result hardening, exact-head review gates, merge if eligible, then post-merge assurance."
+  },
   "last_transition": {
-    "type": "HUMAN_RECOVERY",
-    "at": "2026-08-25T08:54:00Z",
-    "actor": "human-requested-stale-lock-recovery-20260825",
-    "reason": "Explicit user instruction to stop the stale POM-RX automation holder. The POM-RX Engineering Loop automation was disabled; holder pom-rx-loop-20260825T075555Z-gpt56sol-01 expired at 2026-08-25T08:40:55Z; no later project mutation was observed in the checked live PR evidence before recovery."
+    "type": "ACQUIRE",
+    "at": "2026-08-25T12:59:00Z",
+    "actor": "pom-rx-interactive-20260825T125900Z-gpt56sol",
+    "reason": "User explicitly requested that all POM-RX development continue interactively in this chat; hourly automation is disabled and the canonical lock was FREE."
   }
 }
