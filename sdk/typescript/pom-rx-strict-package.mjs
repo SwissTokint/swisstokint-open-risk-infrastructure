@@ -1,26 +1,27 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  verifyPomRxArtifactIdentity,
-} from './internal/pom-rx-v01-artifact-identity.mjs';
-import {
-  POM_RX_V01_STRICT_PROFILE,
-  POM_RX_V01_STRICT_VERIFIER_VERSION,
-} from './pom-rx-profiled.mjs';
-
 export const POM_RX_STRICT_PACKAGE_SCHEMA_VERSION = 'pom-rx-strict-package/1';
+export const POM_RX_STRICT_PROFILE = 'pom-rx-v0.1/strict-errata-1';
+export const POM_RX_STRICT_VERIFIER_VERSION = 'pom-rx-v0.1-strict-verifier/1';
 export const POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH =
   'core/strict-verification/pom-rx-v01-artifact-manifest.json';
 export const POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH =
   'fixtures/pom-rx/support/unicode/17.0.0/CaseFolding.txt';
+export const POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH =
+  'sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs';
 export const POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256 =
   '05c0f37091cd4aa6c97d0339cf785125e71424e3553c0d7545baf3ebf3eaca9f';
 export const POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256 =
   '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb';
 
+const HASH_PATTERN = /^[a-f0-9]{64}$/u;
+const MAX_MANIFEST_BYTES = 1024 * 1024;
+const MAX_ENTRY_BYTES = 2 * 1024 * 1024;
+const MAX_CLOSURE_BYTES = 8 * 1024 * 1024;
+const EXPECTED_ENTRY_COUNT = 16;
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(moduleDirectory, '../..');
 
@@ -28,16 +29,158 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+function assert(condition, message) {
+  if (!condition) throw new TypeError(message);
+}
+
+function assertExactKeys(value, expected, label) {
+  assert(value && typeof value === 'object' && !Array.isArray(value), `${label} must be an object`);
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  assert(JSON.stringify(actual) === JSON.stringify(wanted), `${label} has missing or unknown fields`);
+}
+
+function assertPackageRoot() {
+  const status = lstatSync(packageRoot, { bigint: true });
+  assert(status.isDirectory() && !status.isSymbolicLink(), 'POM-RX strict package root must be a regular directory');
+  assert(realpathSync.native(packageRoot) === packageRoot, 'POM-RX strict package root must use its canonical native path');
+}
+
+function resolvePinnedEntry(relativePath) {
+  assert(
+    typeof relativePath === 'string'
+      && relativePath.length > 0
+      && relativePath.length <= 512
+      && !relativePath.includes('\\')
+      && !relativePath.includes('\0')
+      && !path.posix.isAbsolute(relativePath)
+      && path.posix.normalize(relativePath) === relativePath
+      && relativePath !== '..'
+      && !relativePath.startsWith('../'),
+    'POM-RX strict artifact manifest contains an invalid entry path',
+  );
+
+  const fullPath = path.resolve(packageRoot, ...relativePath.split('/'));
+  const relativeToRoot = path.relative(packageRoot, fullPath);
+  assert(
+    relativeToRoot !== ''
+      && !path.isAbsolute(relativeToRoot)
+      && relativeToRoot !== '..'
+      && !relativeToRoot.startsWith(`..${path.sep}`),
+    'POM-RX strict artifact entry escapes the package root',
+  );
+  return fullPath;
+}
+
+function parsePinnedManifest(bytes) {
+  assert(bytes.length > 0 && bytes.length <= MAX_MANIFEST_BYTES, 'POM-RX strict artifact manifest size is invalid');
+  assert(
+    sha256(bytes) === POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
+    'POM-RX strict artifact manifest digest differs from the bootstrap pin',
+  );
+
+  let manifest;
+  try {
+    manifest = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    throw new TypeError('POM-RX strict artifact manifest is not valid JSON');
+  }
+
+  assertExactKeys(
+    manifest,
+    [
+      'artifact_manifest_schema_version',
+      'artifact_id',
+      'verifier_version',
+      'verification_root',
+      'entries',
+      'implementation_artifact_sha256',
+    ],
+    'POM-RX strict artifact manifest',
+  );
+  assert(
+    manifest.artifact_manifest_schema_version === 'pom-rx-verifier-artifact-manifest/1',
+    'POM-RX strict artifact manifest schema differs from the bootstrap contract',
+  );
+  assert(manifest.artifact_id === 'pom-rx-v0.1-strict-verifier-1', 'POM-RX strict artifact id differs from the bootstrap contract');
+  assert(manifest.verifier_version === POM_RX_STRICT_VERIFIER_VERSION, 'POM-RX strict verifier version differs from the bootstrap contract');
+  assert(manifest.verification_root === 'package-root', 'POM-RX strict artifact verification root differs from the bootstrap contract');
+  assert(
+    manifest.implementation_artifact_sha256 === POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
+    'POM-RX strict implementation artifact digest differs from the bootstrap contract',
+  );
+  assert(Array.isArray(manifest.entries) && manifest.entries.length === EXPECTED_ENTRY_COUNT, 'POM-RX strict artifact entry count differs from the bootstrap contract');
+
+  const seenPaths = new Set();
+  let totalBytes = 0;
+  const entries = manifest.entries.map((entry) => {
+    assertExactKeys(entry, ['path', 'byte_length', 'sha256'], 'POM-RX strict artifact entry');
+    resolvePinnedEntry(entry.path);
+    assert(!seenPaths.has(entry.path), 'POM-RX strict artifact manifest contains a duplicate path');
+    seenPaths.add(entry.path);
+    assert(Number.isSafeInteger(entry.byte_length) && entry.byte_length > 0 && entry.byte_length <= MAX_ENTRY_BYTES, 'POM-RX strict artifact entry byte length is invalid');
+    assert(typeof entry.sha256 === 'string' && HASH_PATTERN.test(entry.sha256), 'POM-RX strict artifact entry digest is invalid');
+    totalBytes += entry.byte_length;
+    assert(totalBytes <= MAX_CLOSURE_BYTES, 'POM-RX strict artifact closure exceeds the bootstrap byte limit');
+    return Object.freeze({ ...entry });
+  });
+
+  assert(seenPaths.has(POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH), 'POM-RX strict artifact scanner is missing from the measured closure');
+  assert(seenPaths.has(POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH), 'POM-RX strict Unicode support data is missing from the measured closure');
+
+  return Object.freeze({
+    ...manifest,
+    entries: Object.freeze(entries),
+  });
+}
+
+function verifyEntryBytes(entry) {
+  const fullPath = resolvePinnedEntry(entry.path);
+  let before;
+  try {
+    before = lstatSync(fullPath, { bigint: true });
+  } catch {
+    throw new TypeError(`POM-RX strict artifact entry cannot be inspected: ${entry.path}`);
+  }
+  assert(
+    before.isFile() && !before.isSymbolicLink() && before.nlink === 1n,
+    `POM-RX strict artifact entry is not a single-link regular file: ${entry.path}`,
+  );
+  assert(before.size === BigInt(entry.byte_length), `POM-RX strict artifact entry size differs: ${entry.path}`);
+  assert(realpathSync.native(fullPath) === fullPath, `POM-RX strict artifact entry path is not canonical: ${entry.path}`);
+
+  let bytes;
+  try {
+    bytes = readFileSync(fullPath);
+  } catch {
+    throw new TypeError(`POM-RX strict artifact entry cannot be read: ${entry.path}`);
+  }
+
+  const after = lstatSync(fullPath, { bigint: true });
+  assert(
+    after.dev === before.dev
+      && after.ino === before.ino
+      && after.size === before.size
+      && after.mtimeNs === before.mtimeNs,
+    `POM-RX strict artifact entry changed during bootstrap measurement: ${entry.path}`,
+  );
+  assert(bytes.length === entry.byte_length, `POM-RX strict artifact entry byte length differs: ${entry.path}`);
+  assert(sha256(bytes) === entry.sha256, `POM-RX strict artifact entry digest differs: ${entry.path}`);
+}
+
 export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
   schema_version: POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
+  bootstrap_entrypoint: 'sdk/typescript/pom-rx-strict-package.mjs',
   verifier_entrypoint: 'sdk/typescript/pom-rx-profiled.mjs',
   artifact_manifest_relative_path: POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH,
   case_folding_relative_path: POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH,
-  verifier_profile: POM_RX_V01_STRICT_PROFILE,
-  verifier_version: POM_RX_V01_STRICT_VERIFIER_VERSION,
+  verifier_profile: POM_RX_STRICT_PROFILE,
+  verifier_version: POM_RX_STRICT_VERIFIER_VERSION,
   artifact_manifest_sha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
-  implementation_artifact_sha256: POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
+  expected_implementation_artifact_sha256: POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
+  measured_entry_count: EXPECTED_ENTRY_COUNT,
   immutable_source_pin_required: true,
+  immutable_runtime_filesystem_required: true,
   package_source_identity_proved: false,
   policy_capability_required: true,
   authorization_proved: false,
@@ -47,45 +190,31 @@ export const POM_RX_STRICT_PACKAGE_CONTRACT = Object.freeze({
 
 export function getPomRxStrictPackageHostPins() {
   return Object.freeze({
-    artifactManifestPath: path.join(
-      packageRoot,
-      POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH,
-    ),
+    artifactManifestPath: path.join(packageRoot, POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH),
     expectedArtifactManifestSha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
   });
 }
 
-export function verifyPomRxStrictMeasuredArtifactIntegrity() {
+export function verifyPomRxStrictMeasuredArtifactBytes() {
+  assertPackageRoot();
   const hostPins = getPomRxStrictPackageHostPins();
   const manifestBytes = readFileSync(hostPins.artifactManifestPath);
-  const observedManifestSha256 = sha256(manifestBytes);
+  const manifest = parsePinnedManifest(manifestBytes);
 
-  if (observedManifestSha256 !== hostPins.expectedArtifactManifestSha256) {
-    throw new TypeError('POM-RX strict artifact manifest digest differs from the packaged host pin');
-  }
-
-  const identity = verifyPomRxArtifactIdentity({
-    packageRoot,
-    artifactManifestPath: hostPins.artifactManifestPath,
-    expectedArtifactManifestSha256: hostPins.expectedArtifactManifestSha256,
-    caseFoldingPath: path.join(packageRoot, POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH),
-  });
-
-  if (identity.verifier_version !== POM_RX_V01_STRICT_VERIFIER_VERSION
-    || identity.implementation_artifact_sha256 !== POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256
-    || identity.expected_implementation_artifact_sha256 !== POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256
-    || identity.observed_implementation_artifact_sha256 !== POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256) {
-    throw new TypeError('POM-RX strict packaged implementation identity differs from the pinned contract');
-  }
+  for (const entry of manifest.entries) verifyEntryBytes(entry);
 
   return Object.freeze({
     schema_version: POM_RX_STRICT_PACKAGE_SCHEMA_VERSION,
-    measured_artifact_integrity: 'verified',
-    verifier_profile: POM_RX_V01_STRICT_PROFILE,
-    verifier_version: POM_RX_V01_STRICT_VERIFIER_VERSION,
-    artifact_manifest_sha256: observedManifestSha256,
-    implementation_artifact_sha256: identity.implementation_artifact_sha256,
+    measured_artifact_bytes_integrity: 'verified',
+    verifier_profile: POM_RX_STRICT_PROFILE,
+    verifier_version: POM_RX_STRICT_VERIFIER_VERSION,
+    artifact_manifest_sha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
+    manifest_declared_implementation_artifact_sha256:
+      POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
+    measured_entry_count: manifest.entries.length,
+    measured_artifact_code_executed: false,
     immutable_source_pin_required: true,
+    immutable_runtime_filesystem_required: true,
     package_source_identity_proved: false,
     policy_capability_required: true,
     authorization_proved: false,
