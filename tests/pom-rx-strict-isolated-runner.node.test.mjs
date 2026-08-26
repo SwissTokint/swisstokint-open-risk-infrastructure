@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -85,6 +86,18 @@ function expectRunnerCode(error, code) {
   return true;
 }
 
+function packedFiles() {
+  const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const output = execFileSync(
+    npmExecutable,
+    ['pack', '--dry-run', '--json', '--ignore-scripts'],
+    { cwd: repositoryRoot, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
+  );
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.length, 1);
+  return new Set(parsed[0].files.map(({ path: packedPath }) => packedPath));
+}
+
 const linuxTest = process.platform === 'linux' ? test : test.skip;
 
 linuxTest('isolated strict runner exposes only the bounded scenario method', () => {
@@ -108,11 +121,23 @@ linuxTest('valid control runs in the clean child and remains explicitly non-auth
     assert.equal(result.runner_process_isolated, true);
     assert.equal(result.clean_child_environment, true);
     assert.equal(result.measured_artifact_bytes_integrity, 'verified');
+    assert.equal(
+      result.artifact_manifest_sha256,
+      '05c0f37091cd4aa6c97d0339cf785125e71424e3553c0d7545baf3ebf3eaca9f',
+    );
     assert.equal(result.verifier_profile, 'pom-rx-v0.1/strict-errata-1');
     assert.equal(result.verifier_version, 'pom-rx-v0.1-strict-verifier/1');
+    assert.equal(
+      result.implementation_artifact_sha256,
+      '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb',
+    );
     assert.equal(result.structural_status, 'conformant');
     assert.equal(result.qualification, 'STRICT_STRUCTURAL_CONFORMANCE_OBSERVED');
-    assert.equal(result.receipt_hashes.length, 3);
+    assert.deepEqual(result.receipt_hashes, [
+      'be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60',
+      '3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1',
+      '638a30f42d412f8b7e84c9a8833b2e7c6b02761ee2dd43e4d24683ad03dfbfd3',
+    ]);
     assert.deepEqual(result.diagnostic_codes, []);
     assert.equal(result.host_preconditions_proved, false);
     assert.equal(result.authorization_eligible, false);
@@ -137,6 +162,7 @@ linuxTest('duplicate receipt id is rejected by the strict profile in the isolate
   withRunner((runner) => {
     const result = runner.runScenario('duplicate-receipt-id');
     assert.equal(result.structural_status, 'nonconformant');
+    assert.equal(result.qualification, 'STRICT_STRUCTURAL_NONCONFORMANCE_OBSERVED');
     assert.ok(result.diagnostic_codes.includes('POMRX_V01_E_DUPLICATE_RECEIPT_ID'));
     assert.equal(result.authorization_proved, false);
   });
@@ -222,4 +248,17 @@ test('child source imports bootstrap before strict verifier and has no static PO
   assert.match(source, /authorization_proved: false/u);
   assert.match(source, /external_execution_proved: false/u);
   assert.match(source, /financial_safety_proved: false/u);
+});
+
+test('npm package contains both runner entrypoints and every allowlisted scenario fixture', () => {
+  const files = packedFiles();
+  for (const requiredPath of [
+    'sdk/typescript/pom-rx-strict-isolated-runner.mjs',
+    'sdk/typescript/internal/pom-rx-strict-isolated-child.mjs',
+    'fixtures/pom-rx/v0.1-compat/1/chains/valid-control.json',
+    'fixtures/pom-rx/v0.1-compat/1/chains/POMRX-001-ACTION-PREFLIGHT-EXECUTION.json',
+    'fixtures/pom-rx/v0.1-compat/1/chains/POMRX-007-DUPLICATE-RECEIPT-ID.json',
+  ]) {
+    assert.equal(files.has(requiredPath), true, `npm package omits M4b runtime file: ${requiredPath}`);
+  }
 });
