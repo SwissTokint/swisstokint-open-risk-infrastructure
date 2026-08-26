@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-m5-ci-runtime-smoke-20260826T141100Z-gpt56sol",
+    "acquired_at": "2026-08-26T14:11:00Z",
+    "expires_at": "2026-08-26T14:56:00Z",
+    "base_main": "65973789ac71b88270f118f2ff4104b4cb1c3930",
+    "purpose": "Continue website PR #197 from its live head by enabling exact-head GitHub-hosted full CI for the Strict server canary and preparing a bounded protected-preview runtime-smoke path, without enabling authorization or external execution."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-26T12:33:30Z",
-    "actor": "pom-rx-m5-strict-canary-20260826T114900Z-gpt56sol",
-    "reason": "M5 website PR #197 is intentionally left draft with M5a fingerprint evidence and M5b build/release gates recorded. Final strict /run execution is blocked only by path-scoped Vercel Deployment Protection access in this connector, so no merge or PASS is claimed. Release before lease expiry to avoid a stale writer."
+    "type": "ACQUIRE",
+    "at": "2026-08-26T14:11:00Z",
+    "actor": "pom-rx-m5-ci-runtime-smoke-20260826T141100Z-gpt56sol",
+    "reason": "Live coordination state is FREE; continue the bounded M5 Strict canary lot from current PR #197 and current trusted Open Risk main, with exact-head CI and skeptical/security gates."
   }
 }
