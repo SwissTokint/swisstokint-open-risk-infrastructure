@@ -140,6 +140,9 @@ linuxTest('valid control runs in the clean child and remains explicitly non-auth
     ]);
     assert.deepEqual(result.diagnostic_codes, []);
     assert.equal(result.host_preconditions_proved, false);
+    assert.equal(result.runner_source_identity_proved, false);
+    assert.equal(result.node_runtime_integrity_proved, false);
+    assert.equal(result.os_sandbox_proved, false);
     assert.equal(result.authorization_eligible, false);
     assert.equal(result.authorization_proved, false);
     assert.equal(result.external_execution_proved, false);
@@ -153,6 +156,9 @@ linuxTest('action-continuity mismatch is a strict nonconformance, not an infrast
     assert.equal(result.structural_status, 'nonconformant');
     assert.equal(result.qualification, 'STRICT_STRUCTURAL_NONCONFORMANCE_OBSERVED');
     assert.ok(result.diagnostic_codes.includes('POMRX_V01_E_ACTION_CONTINUITY'));
+    assert.equal(result.runner_source_identity_proved, false);
+    assert.equal(result.node_runtime_integrity_proved, false);
+    assert.equal(result.os_sandbox_proved, false);
     assert.equal(result.authorization_eligible, false);
     assert.equal(result.authorization_proved, false);
   });
@@ -204,9 +210,13 @@ linuxTest('host config cannot omit or weaken M4 pre-measurement preconditions', 
   }
 });
 
-linuxTest('inherited NODE_OPTIONS is not propagated into the isolated child', () => {
-  const previous = process.env.NODE_OPTIONS;
+linuxTest('inherited preload and loader environment is not propagated into the isolated child', () => {
+  const previousNodeOptions = process.env.NODE_OPTIONS;
+  const previousNodePath = process.env.NODE_PATH;
+  const previousLdPreload = process.env.LD_PRELOAD;
   process.env.NODE_OPTIONS = '--trace-warnings';
+  process.env.NODE_PATH = '/tmp/pom-rx-untrusted-node-path';
+  process.env.LD_PRELOAD = '/tmp/pom-rx-untrusted-preload.so';
   try {
     withRunner((runner) => {
       const result = runner.runScenario('valid-control');
@@ -214,8 +224,12 @@ linuxTest('inherited NODE_OPTIONS is not propagated into the isolated child', ()
       assert.equal(result.structural_status, 'conformant');
     });
   } finally {
-    if (previous === undefined) delete process.env.NODE_OPTIONS;
-    else process.env.NODE_OPTIONS = previous;
+    if (previousNodeOptions === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = previousNodeOptions;
+    if (previousNodePath === undefined) delete process.env.NODE_PATH;
+    else process.env.NODE_PATH = previousNodePath;
+    if (previousLdPreload === undefined) delete process.env.LD_PRELOAD;
+    else process.env.LD_PRELOAD = previousLdPreload;
   }
 });
 
@@ -244,10 +258,23 @@ test('child source imports bootstrap before strict verifier and has no static PO
   assert.ok(strictImport > bootstrapImport, 'strict verifier must load only after bootstrap');
   assert.match(source, /process\.execArgv\.length !== 0/u);
   assert.match(source, /process\.env\.NODE_OPTIONS !== undefined/u);
-  assert.match(source, /host_preconditions_proved: false/u);
+  assert.match(source, /runner_source_identity_proved: false/u);
+  assert.match(source, /node_runtime_integrity_proved: false/u);
+  assert.match(source, /os_sandbox_proved: false/u);
   assert.match(source, /authorization_proved: false/u);
   assert.match(source, /external_execution_proved: false/u);
   assert.match(source, /financial_safety_proved: false/u);
+});
+
+test('parent rejects unexpected child stderr and pins bounded scenario outcomes', () => {
+  const source = readFileSync(
+    path.join(repositoryRoot, 'sdk', 'typescript', 'pom-rx-strict-isolated-runner.mjs'),
+    'utf8',
+  );
+  assert.match(source, /child\.stderr\.length !== 0/u);
+  assert.match(source, /POMRX_V01_E_ACTION_CONTINUITY/u);
+  assert.match(source, /POMRX_V01_E_DUPLICATE_RECEIPT_ID/u);
+  assert.match(source, /638a30f42d412f8b7e84c9a8833b2e7c6b02761ee2dd43e4d24683ad03dfbfd3/u);
 });
 
 test('npm package contains both runner entrypoints and every allowlisted scenario fixture', () => {
