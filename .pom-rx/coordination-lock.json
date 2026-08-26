@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol",
+    "acquired_at": "2026-08-26T15:11:17Z",
+    "expires_at": "2026-08-26T15:56:17Z",
+    "base_main": "65973789ac71b88270f118f2ff4104b4cb1c3930",
+    "purpose": "Continue website PR #197 from live head f93fba3f37f894beed1d8cbffe9a49a38838a9fb with a bounded fail-closed diagnostic for the Strict runner rejection, then re-run exact-head deployment and council gates without enabling authorization or external execution."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-26T14:26:09Z",
-    "actor": "pom-rx-m5-ci-runtime-smoke-20260826T141100Z-gpt56sol",
-    "reason": "PR #197 advanced to exact head f93fba3f37f894beed1d8cbffe9a49a38838a9fb with corrected exact-head CI semantics and a READY exact-head Vercel deployment. Runtime smoke now reaches /run but fails closed with POMRX_CANARY_E_RUNNER_REJECTED; GitHub-hosted CI also fails before allocating any steps, matching its historical zero-step infrastructure failure. PR remains draft; no merge or assurance PASS claimed."
+    "type": "ACQUIRE",
+    "at": "2026-08-26T15:11:17Z",
+    "actor": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol",
+    "reason": "Live coordination state is FREE; acquire the single writer to localize the exact-head Strict runtime rejection on PR #197 before any further activation claim."
   }
 }
