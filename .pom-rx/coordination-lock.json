@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-m5-strict-canary-20260826T114900Z-gpt56sol",
-    "acquired_at": "2026-08-26T11:49:00Z",
-    "expires_at": "2026-08-26T12:34:00Z",
-    "base_main": "65973789ac71b88270f118f2ff4104b4cb1c3930",
-    "purpose": "Build a bounded website preview-only M5 strict server canary using trusted Open Risk M4/M4b via an exact public HTTP git submodule, without modifying the member lab or enabling authorization/external execution."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-26T11:49:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-26T12:33:30Z",
     "actor": "pom-rx-m5-strict-canary-20260826T114900Z-gpt56sol",
-    "reason": "User explicitly asked to continue POM-RX development in this chat. Start the next bounded milestone from live trusted M4/M4b state with full Security/Skeptical/CI/review gates."
+    "reason": "M5 website PR #197 is intentionally left draft with M5a fingerprint evidence and M5b build/release gates recorded. Final strict /run execution is blocked only by path-scoped Vercel Deployment Protection access in this connector, so no merge or PASS is claimed. Release before lease expiry to avoid a stale writer."
   }
 }
