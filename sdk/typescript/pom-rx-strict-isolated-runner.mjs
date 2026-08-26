@@ -19,6 +19,35 @@ const RUNNER_ERROR_PATTERN = /^POMRX_RUNNER_E_[A-Z0-9_]+$/u;
 const MAX_CHILD_INPUT_BYTES = 64 * 1024;
 const MAX_CHILD_OUTPUT_BYTES = 256 * 1024;
 const CHILD_TIMEOUT_MS = 5_000;
+const STRICT_ARTIFACT_MANIFEST_SHA256 =
+  '05c0f37091cd4aa6c97d0339cf785125e71424e3553c0d7545baf3ebf3eaca9f';
+const STRICT_IMPLEMENTATION_ARTIFACT_SHA256 =
+  '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb';
+const VALID_CONTROL_RECEIPT_HASHES = Object.freeze([
+  'be040c9939baeb3795499928ddc86ede2695c04b8ba2a178c21ce9b3e4d13f60',
+  '3e73c5b454a60686e7c72f9bbe8803b85c253c176d5e114e66e4a2d0afd85da1',
+  '638a30f42d412f8b7e84c9a8833b2e7c6b02761ee2dd43e4d24683ad03dfbfd3',
+]);
+const EXPECTED_SCENARIO_RESULTS = Object.freeze({
+  'valid-control': Object.freeze({
+    structural_status: 'conformant',
+    qualification: 'STRICT_STRUCTURAL_CONFORMANCE_OBSERVED',
+    required_diagnostic_code: null,
+    exact_receipt_hashes: VALID_CONTROL_RECEIPT_HASHES,
+  }),
+  'action-continuity-mismatch': Object.freeze({
+    structural_status: 'nonconformant',
+    qualification: 'STRICT_STRUCTURAL_NONCONFORMANCE_OBSERVED',
+    required_diagnostic_code: 'POMRX_V01_E_ACTION_CONTINUITY',
+    exact_receipt_hashes: null,
+  }),
+  'duplicate-receipt-id': Object.freeze({
+    structural_status: 'nonconformant',
+    qualification: 'STRICT_STRUCTURAL_NONCONFORMANCE_OBSERVED',
+    required_diagnostic_code: 'POMRX_V01_E_DUPLICATE_RECEIPT_ID',
+    exact_receipt_hashes: null,
+  }),
+});
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(moduleDirectory, '../..');
 const childEntrypoint = path.resolve(
@@ -149,6 +178,27 @@ function validateDiagnosticCodes(values) {
   return objectFreeze([...values]);
 }
 
+function validateExpectedScenarioEvidence(
+  expectedScenario,
+  value,
+  receiptHashes,
+  diagnosticCodes,
+) {
+  const expected = EXPECTED_SCENARIO_RESULTS[expectedScenario];
+  if (value.structural_status !== expected.structural_status
+    || value.qualification !== expected.qualification) {
+    fail('POMRX_RUNNER_E_CHILD_RESULT', 'child result contradicts the pinned scenario outcome');
+  }
+  if (expected.required_diagnostic_code !== null
+    && !diagnosticCodes.includes(expected.required_diagnostic_code)) {
+    fail('POMRX_RUNNER_E_CHILD_RESULT', 'child result lacks the pinned scenario diagnostic');
+  }
+  if (expected.exact_receipt_hashes !== null
+    && jsonStringify(receiptHashes) !== jsonStringify(expected.exact_receipt_hashes)) {
+    fail('POMRX_RUNNER_E_CHILD_RESULT', 'child result differs from the pinned control hashes');
+  }
+}
+
 function validateChildResult(value, expectedScenario, expectedPolicySha256) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_RUNNER_E_CHILD_RESULT', 'child result must be an object');
@@ -183,12 +233,10 @@ function validateChildResult(value, expectedScenario, expectedPolicySha256) {
     || value.runner_process_isolated !== true
     || value.clean_child_environment !== true
     || value.measured_artifact_bytes_integrity !== 'verified'
-    || typeof value.artifact_manifest_sha256 !== 'string'
-    || !HASH_PATTERN.test(value.artifact_manifest_sha256)
+    || value.artifact_manifest_sha256 !== STRICT_ARTIFACT_MANIFEST_SHA256
     || value.verifier_profile !== 'pom-rx-v0.1/strict-errata-1'
     || value.verifier_version !== 'pom-rx-v0.1-strict-verifier/1'
-    || typeof value.implementation_artifact_sha256 !== 'string'
-    || !HASH_PATTERN.test(value.implementation_artifact_sha256)
+    || value.implementation_artifact_sha256 !== STRICT_IMPLEMENTATION_ARTIFACT_SHA256
     || value.effective_policy_sha256 !== expectedPolicySha256
     || !['conformant', 'nonconformant', 'indeterminate'].includes(value.structural_status)
     || typeof value.qualification !== 'string'
@@ -209,6 +257,7 @@ function validateChildResult(value, expectedScenario, expectedPolicySha256) {
   if (value.structural_status !== 'conformant' && diagnosticCodes.length === 0) {
     fail('POMRX_RUNNER_E_CHILD_RESULT', 'non-conformant/indeterminate result lacks diagnostics');
   }
+  validateExpectedScenarioEvidence(expectedScenario, value, receiptHashes, diagnosticCodes);
   return objectFreeze({
     ...value,
     receipt_hashes: receiptHashes,
@@ -275,7 +324,8 @@ export function createPomRxStrictIsolatedRunner(trustedHostConfig) {
       if (child.status !== 0) {
         fail(parseChildError(child.stdout ?? ''), 'strict child process rejected the request');
       }
-      if (typeof child.stdout !== 'string' || Buffer.byteLength(child.stdout, 'utf8') > MAX_CHILD_OUTPUT_BYTES) {
+      if (typeof child.stdout !== 'string'
+        || Buffer.byteLength(child.stdout, 'utf8') > MAX_CHILD_OUTPUT_BYTES) {
         fail('POMRX_RUNNER_E_CHILD_RESULT', 'strict child output is invalid');
       }
 
