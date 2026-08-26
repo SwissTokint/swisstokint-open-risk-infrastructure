@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-prod-promotion-20260826T084900Z-gpt56sol",
+    "acquired_at": "2026-08-26T08:49:00Z",
+    "expires_at": "2026-08-26T09:34:00Z",
+    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
+    "purpose": "User-authorized production promotion of website PR #196 exact head f6b2ee428a1ee624c46671a75ae5b8176aec8076 to perform the blocked authenticated POM-RX member smoke on the production hostname where Turnstile is expected to be valid."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-08-26T08:18:00Z",
-    "actor": "pom-rx-vp-demo-turnstile-20260826T081400Z-gpt56sol",
-    "reason": "Turnstile blockage is more safely addressed by authorizing the exact immutable Vercel preview hostname in Cloudflare rather than creating a demo auth bypass. No website runtime mutation was made; release writer immediately."
+    "type": "ACQUIRE",
+    "at": "2026-08-26T08:49:00Z",
+    "actor": "pom-rx-prod-promotion-20260826T084900Z-gpt56sol",
+    "reason": "User explicitly authorized testing in production and accepting a bounded repair/rollback if needed. Keep exact-head guard, preserve claim boundaries, and perform immediate post-merge assurance."
   }
 }
