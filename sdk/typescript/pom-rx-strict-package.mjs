@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const POM_RX_STRICT_PACKAGE_SCHEMA_VERSION = 'pom-rx-strict-package/1';
+export const POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION =
+  'pom-rx-strict-bootstrap-host-preconditions/1';
 export const POM_RX_STRICT_PROFILE = 'pom-rx-v0.1/strict-errata-1';
 export const POM_RX_STRICT_VERIFIER_VERSION = 'pom-rx-v0.1-strict-verifier/1';
 export const POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH =
@@ -33,6 +35,7 @@ const posixIsAbsolute = path.posix.isAbsolute;
 const posixNormalize = path.posix.normalize;
 const urlFileURLToPath = fileURLToPath;
 const jsonParse = JSON.parse;
+const jsonStringify = JSON.stringify;
 const objectKeys = Object.keys;
 const objectFreeze = Object.freeze;
 
@@ -56,7 +59,37 @@ function assertExactKeys(value, expected, label) {
   assert(value && typeof value === 'object' && !Array.isArray(value), `${label} must be an object`);
   const actual = objectKeys(value).sort();
   const wanted = [...expected].sort();
-  assert(JSON.stringify(actual) === JSON.stringify(wanted), `${label} has missing or unknown fields`);
+  assert(jsonStringify(actual) === jsonStringify(wanted), `${label} has missing or unknown fields`);
+}
+
+function assertBootstrapHostPreconditions(hostPreconditions) {
+  assertExactKeys(
+    hostPreconditions,
+    [
+      'schema_version',
+      'immutable_source_pin_established',
+      'clean_node_process_established',
+      'immutable_runtime_filesystem_established',
+    ],
+    'POM-RX strict bootstrap host preconditions',
+  );
+  assert(
+    hostPreconditions.schema_version
+      === POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+    'POM-RX strict bootstrap host preconditions schema differs from the bootstrap contract',
+  );
+  assert(
+    hostPreconditions.immutable_source_pin_established === true,
+    'POM-RX strict immutable source pin must be established before bootstrap measurement',
+  );
+  assert(
+    hostPreconditions.clean_node_process_established === true,
+    'POM-RX strict clean Node process must be established before bootstrap measurement',
+  );
+  assert(
+    hostPreconditions.immutable_runtime_filesystem_established === true,
+    'POM-RX strict immutable runtime filesystem must be established before bootstrap measurement',
+  );
 }
 
 function assertPackageRoot() {
@@ -207,6 +240,10 @@ export const POM_RX_STRICT_PACKAGE_CONTRACT = objectFreeze({
   artifact_manifest_sha256: POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
   expected_implementation_artifact_sha256: POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
   measured_entry_count: EXPECTED_ENTRY_COUNT,
+  host_preconditions_schema_version:
+    POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+  host_preconditions_required_before_measurement: true,
+  host_preconditions_proved: false,
   immutable_source_pin_required: true,
   immutable_runtime_filesystem_required: true,
   clean_node_process_required: true,
@@ -225,7 +262,12 @@ export function getPomRxStrictPackageHostPins() {
   });
 }
 
-export function verifyPomRxStrictMeasuredArtifactBytes() {
+export function verifyPomRxStrictMeasuredArtifactBytes(hostPreconditions) {
+  // These booleans are an explicit host assertion, not proof created by this
+  // package. Requiring them before any filesystem access closes the activation
+  // ordering bug where a caller could measure mutable files and only lock them
+  // afterwards. The host must establish and preserve the properties itself.
+  assertBootstrapHostPreconditions(hostPreconditions);
   assertPackageRoot();
   const hostPins = getPomRxStrictPackageHostPins();
   const manifestBytes = readStableRegularFile(
@@ -247,6 +289,10 @@ export function verifyPomRxStrictMeasuredArtifactBytes() {
       POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
     measured_entry_count: manifest.entries.length,
     measured_artifact_code_executed: false,
+    host_preconditions_schema_version:
+      POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+    host_preconditions_required_before_measurement: true,
+    host_preconditions_proved: false,
     immutable_source_pin_required: true,
     immutable_runtime_filesystem_required: true,
     clean_node_process_required: true,
