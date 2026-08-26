@@ -210,6 +210,8 @@ async function run() {
   if (bootstrapReport.measured_artifact_bytes_integrity !== 'verified'
     || bootstrapReport.measured_artifact_code_executed !== false
     || bootstrapReport.host_preconditions_proved !== false
+    || bootstrapReport.node_builtin_integrity_proved !== false
+    || bootstrapReport.package_source_identity_proved !== false
     || bootstrapReport.authorization_proved !== false
     || bootstrapReport.external_execution_proved !== false
     || bootstrapReport.financial_safety_proved !== false) {
@@ -258,6 +260,9 @@ async function run() {
     receipt_hashes: verdict.receipt_hashes,
     diagnostic_codes: diagnosticCodes(verdict),
     host_preconditions_proved: false,
+    runner_source_identity_proved: false,
+    node_runtime_integrity_proved: false,
+    os_sandbox_proved: false,
     authorization_eligible: false,
     authorization_proved: false,
     external_execution_proved: false,
