@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-m4-close-m4b-20260826T101000Z-gpt56sol",
-    "acquired_at": "2026-08-26T10:10:00Z",
-    "expires_at": "2026-08-26T10:55:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Close M4 PR #141 now that exact-head external review is clean, perform post-merge assurance, then resume M4b isolated strict runner development on top of the trusted M4 merge without changing receipt semantics or enabling authorization/external execution."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-26T10:10:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-26T10:50:00Z",
     "actor": "pom-rx-m4-close-m4b-20260826T101000Z-gpt56sol",
-    "reason": "User asked to continue POM-RX development. Exact-head Codex review for M4 is now clean, so close M4 first and continue M4b from a trusted dependency."
+    "reason": "M4 #141 and M4b #142 are merged with exact-head CI/review/council gates and post-merge assurance complete. Release before the active writer lease expires; website strict activation remains a separate future lot."
   }
 }
