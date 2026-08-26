@@ -21,6 +21,7 @@ import {
   POM_RX_STRICT_ARTIFACT_MANIFEST_RELATIVE_PATH,
   POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256,
   POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH,
+  POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
   POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH,
   POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
   POM_RX_STRICT_PACKAGE_CONTRACT,
@@ -31,6 +32,16 @@ import {
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+function strictBootstrapHostPreconditions(overrides = {}) {
+  return Object.freeze({
+    schema_version: POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+    immutable_source_pin_established: true,
+    clean_node_process_established: true,
+    immutable_runtime_filesystem_established: true,
+    ...overrides,
+  });
+}
 
 function repositoryPath(relativePath) {
   return path.join(repositoryRoot, ...relativePath.split('/'));
@@ -77,6 +88,10 @@ function packedFiles() {
 
 test('strict package descriptor pins the ratified strict artifact without authorizing', () => {
   assert.equal(POM_RX_STRICT_PACKAGE_SCHEMA_VERSION, 'pom-rx-strict-package/1');
+  assert.equal(
+    POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+    'pom-rx-strict-bootstrap-host-preconditions/1',
+  );
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.verifier_profile, 'pom-rx-v0.1/strict-errata-1');
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.verifier_version, 'pom-rx-v0.1-strict-verifier/1');
   assert.equal(
@@ -84,6 +99,12 @@ test('strict package descriptor pins the ratified strict artifact without author
     POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256,
   );
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.measured_entry_count, 16);
+  assert.equal(
+    POM_RX_STRICT_PACKAGE_CONTRACT.host_preconditions_schema_version,
+    POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+  );
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.host_preconditions_required_before_measurement, true);
+  assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.host_preconditions_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.immutable_source_pin_required, true);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.immutable_runtime_filesystem_required, true);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.clean_node_process_required, true);
@@ -93,6 +114,31 @@ test('strict package descriptor pins the ratified strict artifact without author
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.authorization_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.external_execution_proved, false);
   assert.equal(POM_RX_STRICT_PACKAGE_CONTRACT.financial_safety_proved, false);
+});
+
+test('strict bootstrap refuses to measure before every host precondition is established', () => {
+  assert.throws(
+    () => verifyPomRxStrictMeasuredArtifactBytes(),
+    /bootstrap host preconditions must be an object/u,
+  );
+  assert.throws(
+    () => verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions({
+      immutable_source_pin_established: false,
+    })),
+    /immutable source pin must be established before bootstrap measurement/u,
+  );
+  assert.throws(
+    () => verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions({
+      clean_node_process_established: false,
+    })),
+    /clean Node process must be established before bootstrap measurement/u,
+  );
+  assert.throws(
+    () => verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions({
+      immutable_runtime_filesystem_established: false,
+    })),
+    /immutable runtime filesystem must be established before bootstrap measurement/u,
+  );
 });
 
 test('strict bootstrap host pins bind the exact bundled artifact manifest bytes', () => {
@@ -107,7 +153,7 @@ test('strict bootstrap host pins bind the exact bundled artifact manifest bytes'
 });
 
 test('strict bootstrap authenticates every declared artifact byte before measured code executes', () => {
-  const report = verifyPomRxStrictMeasuredArtifactBytes();
+  const report = verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions());
   assert.equal(report.measured_artifact_bytes_integrity, 'verified');
   assert.equal(report.verifier_profile, 'pom-rx-v0.1/strict-errata-1');
   assert.equal(report.verifier_version, 'pom-rx-v0.1-strict-verifier/1');
@@ -118,6 +164,12 @@ test('strict bootstrap authenticates every declared artifact byte before measure
   );
   assert.equal(report.measured_entry_count, 16);
   assert.equal(report.measured_artifact_code_executed, false);
+  assert.equal(
+    report.host_preconditions_schema_version,
+    POM_RX_STRICT_BOOTSTRAP_HOST_PRECONDITIONS_SCHEMA_VERSION,
+  );
+  assert.equal(report.host_preconditions_required_before_measurement, true);
+  assert.equal(report.host_preconditions_proved, false);
   assert.equal(report.immutable_source_pin_required, true);
   assert.equal(report.immutable_runtime_filesystem_required, true);
   assert.equal(report.clean_node_process_required, true);
@@ -146,7 +198,8 @@ test('isolated bootstrap reproduces the clean byte-integrity result', async (t) 
   t.after(() => rmSync(fixture.packageRoot, { recursive: true, force: true }));
   const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'clean');
   assert.equal(
-    bootstrap.verifyPomRxStrictMeasuredArtifactBytes().measured_artifact_bytes_integrity,
+    bootstrap.verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions())
+      .measured_artifact_bytes_integrity,
     'verified',
   );
 });
@@ -164,7 +217,7 @@ test('isolated bootstrap rejects a same-length scanner tamper before scanner exe
 
   const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'scanner-tamper');
   assert.throws(
-    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions()),
     /artifact entry digest differs.*pom-rx-v01-artifact-identity\.mjs/u,
   );
 });
@@ -182,7 +235,7 @@ test('isolated bootstrap rejects manifest byte substitution before parsing', asy
 
   const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'manifest-tamper');
   assert.throws(
-    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions()),
     /artifact manifest digest differs from the bootstrap pin/u,
   );
 });
@@ -199,7 +252,7 @@ test('isolated bootstrap rejects a symlinked measured artifact even with identic
 
   const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'artifact-symlink');
   assert.throws(
-    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions()),
     /must be a single-link regular file/u,
   );
 });
@@ -218,7 +271,7 @@ test('isolated bootstrap rejects a symlinked manifest even with identical bytes'
 
   const bootstrap = await importIsolatedBootstrap(fixture.packageRoot, 'manifest-symlink');
   assert.throws(
-    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(),
+    () => bootstrap.verifyPomRxStrictMeasuredArtifactBytes(strictBootstrapHostPreconditions()),
     /artifact manifest must be a single-link regular file/u,
   );
 });
@@ -249,11 +302,25 @@ test('bootstrap imports no measured POM-RX code and keeps the Node TCB explicit'
   assert.doesNotMatch(source, /verificationProfile:\s*['"]pom-rx\/0\.1/u);
   assert.match(source, /const cryptoCreateHash = createHash;/u);
   assert.match(source, /const fsReadFileSync = readFileSync;/u);
+  assert.match(source, /const jsonStringify = JSON\.stringify;/u);
   assert.match(source, /measured_artifact_code_executed:\s*false/u);
+  assert.match(source, /host_preconditions_required_before_measurement:\s*true/u);
+  assert.match(source, /host_preconditions_proved:\s*false/u);
   assert.match(source, /clean_node_process_required:\s*true/u);
   assert.match(source, /node_builtin_integrity_proved:\s*false/u);
   assert.match(source, /immutable_source_pin_required:\s*true/u);
   assert.match(source, /immutable_runtime_filesystem_required:\s*true/u);
   assert.match(source, /package_source_identity_proved:\s*false/u);
   assert.match(source, /policy_capability_required:\s*true/u);
+
+  const verificationFunctionStart = source.indexOf(
+    'export function verifyPomRxStrictMeasuredArtifactBytes(hostPreconditions)',
+  );
+  assert.notEqual(verificationFunctionStart, -1);
+  const verificationFunction = source.slice(verificationFunctionStart);
+  assert.ok(
+    verificationFunction.indexOf('assertBootstrapHostPreconditions(hostPreconditions);')
+      < verificationFunction.indexOf('assertPackageRoot();'),
+    'host preconditions must be rejected before package filesystem measurement begins',
+  );
 });
