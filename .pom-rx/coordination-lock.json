@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-prod-promotion-20260826T084900Z-gpt56sol",
-    "acquired_at": "2026-08-26T08:49:00Z",
-    "expires_at": "2026-08-26T09:34:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "User-authorized production promotion of website PR #196 exact head f6b2ee428a1ee624c46671a75ae5b8176aec8076 to perform the blocked authenticated POM-RX member smoke on the production hostname where Turnstile is expected to be valid."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-26T08:49:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-26T08:56:00Z",
     "actor": "pom-rx-prod-promotion-20260826T084900Z-gpt56sol",
-    "reason": "User explicitly authorized testing in production and accepting a bounded repair/rollback if needed. Keep exact-head guard, preserve claim boundaries, and perform immediate post-merge assurance."
+    "reason": "Website PR #196 merged as 46af40c3443d7934c8aeb26e39c5131572cd258e, production Vercel deployment is READY, reviewed-head/merge tree equivalence is confirmed, build and runtime assurance are clean. Release writer while final POST_MERGE_ASSURANCE_PASS remains pending only the real authenticated four-scenario production member smoke."
   }
 }
