@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-vp-demo-turnstile-20260826T081400Z-gpt56sol",
-    "acquired_at": "2026-08-26T08:14:00Z",
-    "expires_at": "2026-08-26T08:59:00Z",
-    "base_main": "d3493c21fd4c21cbde355d474864144b2a7f5826",
-    "purpose": "Create a dedicated VP demo preview from exact website candidate f6b2ee428a1ee624c46671a75ae5b8176aec8076 with Turnstile disabled only on that demo branch while preserving Supabase email/password authentication and leaving PR #196/production unchanged."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-26T08:14:00Z",
+    "type": "RELEASE",
+    "at": "2026-08-26T08:18:00Z",
     "actor": "pom-rx-vp-demo-turnstile-20260826T081400Z-gpt56sol",
-    "reason": "Cloudflare Turnstile is blocking the human VP demo smoke on preview. Create an isolated non-merge demo branch rather than weaken the reviewed #196 runtime or production."
+    "reason": "Turnstile blockage is more safely addressed by authorizing the exact immutable Vercel preview hostname in Cloudflare rather than creating a demo auth bypass. No website runtime mutation was made; release writer immediately."
   }
 }
