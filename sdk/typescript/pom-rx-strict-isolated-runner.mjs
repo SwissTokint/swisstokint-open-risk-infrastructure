@@ -219,6 +219,9 @@ function validateChildResult(value, expectedScenario, expectedPolicySha256) {
     'receipt_hashes',
     'diagnostic_codes',
     'host_preconditions_proved',
+    'runner_source_identity_proved',
+    'node_runtime_integrity_proved',
+    'os_sandbox_proved',
     'authorization_eligible',
     'authorization_proved',
     'external_execution_proved',
@@ -242,6 +245,9 @@ function validateChildResult(value, expectedScenario, expectedPolicySha256) {
     || typeof value.qualification !== 'string'
     || value.qualification.length === 0
     || value.host_preconditions_proved !== false
+    || value.runner_source_identity_proved !== false
+    || value.node_runtime_integrity_proved !== false
+    || value.os_sandbox_proved !== false
     || value.authorization_eligible !== false
     || value.authorization_proved !== false
     || value.external_execution_proved !== false
@@ -323,6 +329,9 @@ export function createPomRxStrictIsolatedRunner(trustedHostConfig) {
       }
       if (child.status !== 0) {
         fail(parseChildError(child.stdout ?? ''), 'strict child process rejected the request');
+      }
+      if (typeof child.stderr !== 'string' || child.stderr.length !== 0) {
+        fail('POMRX_RUNNER_E_CHILD_RESULT', 'strict child emitted unexpected stderr');
       }
       if (typeof child.stdout !== 'string'
         || Buffer.byteLength(child.stdout, 'utf8') > MAX_CHILD_OUTPUT_BYTES) {
