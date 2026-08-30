@@ -11,6 +11,7 @@ from model import EconomyConfig, StressScenario, allocation_for_burn, simulate
 PRICE_MULTIPLIERS = (0.1, 0.5, 1.0, 2.0, 10.0, 20.0)
 USAGE_MULTIPLIERS = (0.0, 0.1, 1.0, 10.0, 100.0)
 BURN_RATES = (0.0, 0.10, 0.25, 0.50, 0.75, 1.0)
+STAKED_FRACTIONS = (0.0, 0.10, 0.35)
 FEE_MODES = ("usd_indexed", "token_fixed")
 HORIZON_DAYS = (365, 1_825)
 EPSILON = 1e-9
@@ -23,26 +24,29 @@ def build_results() -> list[dict[str, object]]:
     for fee_mode in FEE_MODES:
         for burn_rate in BURN_RATES:
             security_share, treasury_share = allocation_for_burn(burn_rate)
-            config = replace(
-                base,
-                fee_mode=fee_mode,
-                burn_rate=burn_rate,
-                security_fee_share=security_share,
-                treasury_fee_share=treasury_share,
-            )
-            for days in HORIZON_DAYS:
-                for price_multiplier in PRICE_MULTIPLIERS:
-                    for usage_multiplier in USAGE_MULTIPLIERS:
-                        scenario = StressScenario(
-                            name=(
-                                f"fee={fee_mode};burn={burn_rate:.2f};days={days};"
-                                f"price_x={price_multiplier:.1f};usage_x={usage_multiplier:.1f}"
-                            ),
-                            days=days,
-                            price_multiplier=price_multiplier,
-                            usage_multiplier=usage_multiplier,
-                        )
-                        results.append(simulate(config, scenario).to_dict())
+            for staked_fraction in STAKED_FRACTIONS:
+                config = replace(
+                    base,
+                    fee_mode=fee_mode,
+                    burn_rate=burn_rate,
+                    security_fee_share=security_share,
+                    treasury_fee_share=treasury_share,
+                    staked_fraction=staked_fraction,
+                )
+                for days in HORIZON_DAYS:
+                    for price_multiplier in PRICE_MULTIPLIERS:
+                        for usage_multiplier in USAGE_MULTIPLIERS:
+                            scenario = StressScenario(
+                                name=(
+                                    f"fee={fee_mode};burn={burn_rate:.2f};stake={staked_fraction:.2f};"
+                                    f"days={days};price_x={price_multiplier:.1f};"
+                                    f"usage_x={usage_multiplier:.1f}"
+                                ),
+                                days=days,
+                                price_multiplier=price_multiplier,
+                                usage_multiplier=usage_multiplier,
+                            )
+                            results.append(simulate(config, scenario).to_dict())
 
     return results
 
@@ -113,9 +117,10 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         "horizons": horizon_counts,
         "claim_boundary": (
             "mechanical stress output only; token price is an exogenous scenario input; "
-            "bonded stake is not counted as fee liquidity; paid usage is organic only to "
-            "the configured organic_usage_fraction; nominal emissions are not treated as "
-            "realizable security funding unless an explicit realization fraction is "
+            "bonded stake is not counted as fee liquidity; validator/Witness stake is "
+            "explicitly shocked across the published matrix; paid usage is organic only "
+            "to the configured organic_usage_fraction; nominal emissions are not treated "
+            "as realizable security funding unless an explicit realization fraction is "
             "configured; not a price forecast, investment return estimate, legal "
             "conclusion, or TOKEN_NECESSITY decision"
         ),
