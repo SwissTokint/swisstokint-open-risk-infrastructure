@@ -67,7 +67,11 @@ jobs:
             exit 1
           fi
           cmp --silent "$first_manifest" "$second_manifest"
-          cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
+          if ! cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"; then
+            echo "Committed strict artifact manifest differs from deterministic generation:" >&2
+            diff -u "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json" "$first_manifest" >&2 || true
+            exit 1
+          fi
       - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
