@@ -4,7 +4,7 @@ export const MCP_TOOL_ACTION_SCHEMA_VERSION = 'pom-rx-mcp-tool-action/0.1';
 export const MCP_PROTOCOL_VERSION = '2026-07-28';
 export const MCP_TOOL_ACTION_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-tool-action:v1:';
 export const MCP_TOOL_CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-tool-context:v1:';
-export const MCP_WIRE_REQUEST_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-wire-request:v1:';
+export const MCP_RAW_TEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-raw-text:v1:';
 
 const MAX_BODY_CHARS = 64 * 1024;
 const MAX_DEPTH = 8;
@@ -25,11 +25,6 @@ const PARAM_OPTIONAL_KEYS = Object.freeze([
 const TOOL_NAME_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/u;
 const SERVER_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$/u;
 
-// This integration boundary receives a raw JSON text body plus already-normalized
-// standard MCP headers. Capture every load-bearing mutable intrinsic it relies on
-// at module initialization so later same-realm mutation cannot silently change
-// parsing, object capture, transcript encoding, validation or hashing. Poisoning
-// before module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const JSON_PARSE = JSON.parse;
 const ARRAY_CONSTRUCTOR = Array;
@@ -42,12 +37,15 @@ const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_SET_PROTOTYPE_OF = Object.setPrototypeOf;
+const OBJECT_IS = Object.is;
 const NUMBER_IS_FINITE = Number.isFinite;
+const NUMBER_IS_INTEGER = Number.isInteger;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const NUMBER_TO_STRING = Number.prototype.toString;
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const STRING_PAD_START = String.prototype.padStart;
 const STRING_SLICE = String.prototype.slice;
-const REGEXP_TEST = RegExp.prototype.test;
+const REGEXP_EXEC = RegExp.prototype.exec;
 const DATA_VIEW_CONSTRUCTOR = DataView;
 const DATA_VIEW_SET_FLOAT64 = DataView.prototype.setFloat64;
 const DATA_VIEW_GET_UINT8 = DataView.prototype.getUint8;
@@ -116,8 +114,20 @@ function hasOwn(value, key) {
   return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
 }
 
+function objectIs(left, right) {
+  return REFLECT_APPLY(OBJECT_IS, Object, [left, right]);
+}
+
 function numberIsFinite(value) {
   return REFLECT_APPLY(NUMBER_IS_FINITE, Number, [value]);
+}
+
+function numberIsInteger(value) {
+  return REFLECT_APPLY(NUMBER_IS_INTEGER, Number, [value]);
+}
+
+function numberIsSafeInteger(value) {
+  return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
 }
 
 function numberToString(value, radix) {
@@ -136,23 +146,50 @@ function sliceString(value, start, end) {
   return REFLECT_APPLY(STRING_SLICE, value, [start, end]);
 }
 
-function regexpTest(pattern, value) {
-  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+function regexpMatches(pattern, value) {
+  return REFLECT_APPLY(REGEXP_EXEC, pattern, [value]) !== null;
+}
+
+function assertUnicodeScalarString(value, label) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = charCodeAt(value, index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      if (index + 1 >= value.length) {
+        fail('POMRX_MCP_E_UNICODE', `${label} contains an unpaired high surrogate`);
+      }
+      const next = charCodeAt(value, index + 1);
+      if (next < 0xdc00 || next > 0xdfff) {
+        fail('POMRX_MCP_E_UNICODE', `${label} contains an unpaired high surrogate`);
+      }
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      fail('POMRX_MCP_E_UNICODE', `${label} contains an unpaired low surrogate`);
+    }
+  }
+  return value;
+}
+
+function validateJsonNumber(value, label) {
+  if (!numberIsFinite(value)) {
+    fail('POMRX_MCP_E_NUMBER', `${label} must be a finite JSON number`);
+  }
+  if (objectIs(value, -0)
+      || (numberIsInteger(value) && !numberIsSafeInteger(value))) {
+    fail(
+      'POMRX_MCP_E_NUMBER_ROUNDTRIP',
+      `${label} cannot be represented with exact MCP JSON dispatch identity`,
+    );
+  }
+  return value;
 }
 
 function isJsonWhitespace(character) {
   return character === ' ' || character === '\t' || character === '\n' || character === '\r';
 }
 
-/**
- * Reject duplicate object members before JSON.parse erases that information.
- * Object keys are decoded through the captured JSON parser, so lexically
- * different spellings such as "q" and "\u0071" collide as the same key.
- * This scanner validates enough JSON structure to locate every object member;
- * the complete syntax/value validation still belongs to the captured JSON.parse.
- */
-function assertNoDuplicateJsonObjectMembers(text) {
+function assertBoundedUnambiguousJson(text) {
   let index = 0;
+  let nodes = 0;
 
   function skipWhitespace() {
     while (index < text.length && isJsonWhitespace(text[index])) index += 1;
@@ -162,7 +199,17 @@ function assertNoDuplicateJsonObjectMembers(text) {
     fail('POMRX_MCP_E_JSON', 'MCP request body is not valid JSON');
   }
 
-  function parseStringToken() {
+  function consumeNode(depth) {
+    if (depth > MAX_DEPTH) {
+      fail('POMRX_MCP_E_DEPTH', 'MCP JSON exceeds maximum depth before parsing');
+    }
+    nodes += 1;
+    if (nodes > MAX_NODES) {
+      fail('POMRX_MCP_E_NODES', 'MCP JSON exceeds maximum node count before parsing');
+    }
+  }
+
+  function parseStringToken(label, maxLength) {
     if (text[index] !== '"') syntaxError();
     const start = index;
     index += 1;
@@ -171,11 +218,16 @@ function assertNoDuplicateJsonObjectMembers(text) {
       if (character === '"') {
         index += 1;
         const token = sliceString(text, start, index);
+        let decoded;
         try {
-          return parseJson(token);
+          decoded = parseJson(token);
         } catch {
           syntaxError();
         }
+        if (decoded.length > maxLength) {
+          fail('POMRX_MCP_E_STRING', `${label} exceeds the reference string/key limit`);
+        }
+        return assertUnicodeScalarString(decoded, label);
       }
       if (character === '\\') {
         index += 1;
@@ -205,15 +257,20 @@ function assertNoDuplicateJsonObjectMembers(text) {
     if (index === start) syntaxError();
   }
 
-  function parseArray() {
+  function parseArray(depth) {
     index += 1;
     skipWhitespace();
+    let elementCount = 0;
     if (text[index] === ']') {
       index += 1;
       return;
     }
     while (index < text.length) {
-      parseValue();
+      elementCount += 1;
+      if (elementCount > MAX_ARRAY_LENGTH) {
+        fail('POMRX_MCP_E_ARRAY', 'MCP JSON array exceeds maximum length before parsing');
+      }
+      parseValue(depth + 1);
       skipWhitespace();
       if (text[index] === ']') {
         index += 1;
@@ -226,7 +283,7 @@ function assertNoDuplicateJsonObjectMembers(text) {
     syntaxError();
   }
 
-  function parseObject() {
+  function parseObject(depth) {
     index += 1;
     skipWhitespace();
     const seen = createObject();
@@ -236,7 +293,7 @@ function assertNoDuplicateJsonObjectMembers(text) {
     }
     while (index < text.length) {
       if (text[index] !== '"') syntaxError();
-      const key = parseStringToken();
+      const key = parseStringToken('MCP JSON object key', MAX_KEY_LENGTH);
       if (hasOwn(seen, key)) {
         fail('POMRX_MCP_E_DUPLICATE_KEY', `MCP JSON contains duplicate object member: ${key}`);
       }
@@ -245,7 +302,7 @@ function assertNoDuplicateJsonObjectMembers(text) {
       if (text[index] !== ':') syntaxError();
       index += 1;
       skipWhitespace();
-      parseValue();
+      parseValue(depth + 1);
       skipWhitespace();
       if (text[index] === '}') {
         index += 1;
@@ -258,26 +315,27 @@ function assertNoDuplicateJsonObjectMembers(text) {
     syntaxError();
   }
 
-  function parseValue() {
+  function parseValue(depth) {
     skipWhitespace();
     if (index >= text.length) syntaxError();
+    consumeNode(depth);
     const character = text[index];
     if (character === '{') {
-      parseObject();
+      parseObject(depth);
       return;
     }
     if (character === '[') {
-      parseArray();
+      parseArray(depth);
       return;
     }
     if (character === '"') {
-      parseStringToken();
+      parseStringToken('MCP JSON string', MAX_STRING_LENGTH);
       return;
     }
     parsePrimitive();
   }
 
-  parseValue();
+  parseValue(0);
   skipWhitespace();
   if (index !== text.length) syntaxError();
 }
@@ -320,14 +378,9 @@ function captureJsonValue(value, label, depth, budget) {
     if (value.length > MAX_STRING_LENGTH) {
       fail('POMRX_MCP_E_STRING', `${label} string is too long`);
     }
-    return value;
+    return assertUnicodeScalarString(value, label);
   }
-  if (typeof value === 'number') {
-    if (!numberIsFinite(value)) {
-      fail('POMRX_MCP_E_NUMBER', `${label} must be a finite JSON number`);
-    }
-    return value;
-  }
+  if (typeof value === 'number') return validateJsonNumber(value, label);
   if (typeof value !== 'object') {
     fail('POMRX_MCP_E_TYPE', `${label} contains an unsupported value`);
   }
@@ -350,7 +403,7 @@ function captureJsonValue(value, label, depth, budget) {
   const keys = ownNames(value);
   const output = createObject();
   for (let index = 0; index < keys.length; index += 1) {
-    const key = keys[index];
+    const key = assertUnicodeScalarString(keys[index], `${label} key`);
     if (key.length > MAX_KEY_LENGTH) {
       fail('POMRX_MCP_E_KEY', `${label} contains an overlong key`);
     }
@@ -426,19 +479,19 @@ function validateToolName(value, label) {
   if (typeof value !== 'string'
       || value.length < 1
       || value.length > MAX_TOOL_NAME_LENGTH
-      || regexpTest(TOOL_NAME_CONTROL_PATTERN, value)) {
+      || regexpMatches(TOOL_NAME_CONTROL_PATTERN, value)) {
     fail('POMRX_MCP_E_TOOL_NAME', `${label} is invalid`);
   }
-  return value;
+  return assertUnicodeScalarString(value, label);
 }
 
 function validateServerRef(value) {
   if (typeof value !== 'string'
       || value.length > MAX_SERVER_REF_LENGTH
-      || !regexpTest(SERVER_REF_PATTERN, value)) {
+      || !regexpMatches(SERVER_REF_PATTERN, value)) {
     fail('POMRX_MCP_E_SERVER_REF', 'serverRef is invalid');
   }
-  return value;
+  return assertUnicodeScalarString(value, 'serverRef');
 }
 
 function validateJsonRpcId(value) {
@@ -446,10 +499,10 @@ function validateJsonRpcId(value) {
     if (value.length < 1 || value.length > 256) {
       fail('POMRX_MCP_E_JSONRPC_ID', 'JSON-RPC id string is invalid');
     }
-    return value;
+    return assertUnicodeScalarString(value, 'JSON-RPC id');
   }
-  if (typeof value === 'number' && numberIsFinite(value)) return value;
-  fail('POMRX_MCP_E_JSONRPC_ID', 'JSON-RPC id must be a bounded string or finite number');
+  if (typeof value === 'number') return validateJsonNumber(value, 'JSON-RPC id');
+  fail('POMRX_MCP_E_JSONRPC_ID', 'JSON-RPC id must be a bounded string or finite exact-dispatch number');
 }
 
 function captureParams(params) {
@@ -477,14 +530,6 @@ function captureParams(params) {
   return captureJson(params, 'MCP tools/call params');
 }
 
-/**
- * Normalize one MCP 2026-07-28 Streamable HTTP tools/call request into an
- * immutable POM-RX action snapshot.
- *
- * The downstream must dispatch `prepared_execution`; reparsing or forwarding the
- * original raw body would break the authorization-to-execution continuity this
- * boundary is designed to establish.
- */
 export function normalizeReferenceMcpToolCall({
   serverRef,
   protocolVersionHeader,
@@ -504,7 +549,7 @@ export function normalizeReferenceMcpToolCall({
     fail('POMRX_MCP_E_BODY_SIZE', 'MCP request body is empty or exceeds the reference limit');
   }
 
-  assertNoDuplicateJsonObjectMembers(bodyText);
+  assertBoundedUnambiguousJson(bodyText);
 
   let parsed;
   try {
@@ -558,9 +603,10 @@ export function normalizeReferenceMcpToolCall({
   defineDataProperty(result, 'context_commitment', commit(MCP_TOOL_CONTEXT_COMMIT_DOMAIN, context));
   defineDataProperty(
     result,
-    'wire_request_sha256',
-    sha256Hex(`${MCP_WIRE_REQUEST_COMMIT_DOMAIN}${bodyText}`),
+    'raw_text_commitment_sha256',
+    sha256Hex(`${MCP_RAW_TEXT_COMMIT_DOMAIN}${bodyText}`),
   );
+  defineDataProperty(result, 'transport_bytes_proved', false);
   defineDataProperty(result, 'prepared_execution', preparedExecution);
   return freezeValue(result);
 }
