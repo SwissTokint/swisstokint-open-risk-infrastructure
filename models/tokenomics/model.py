@@ -72,6 +72,7 @@ class SimulationResult:
     initial_staked_tokens: float
     ending_staked_tokens: float
     minimum_staked_tokens: float
+    next_day_staked_tokens: float
     ending_liquid_supply_tokens: float
     required_next_day_liquid_tokens: float
     net_supply_change_pct: float
@@ -83,9 +84,12 @@ class SimulationResult:
     security_coverage_ratio: float
     minimum_staked_value_usd: float
     stake_coverage_ratio: float
+    next_day_staked_value_usd: float
+    next_day_stake_coverage_ratio: float
     fee_affordable: bool
     security_budget_adequate: bool
     stake_adequate: bool
+    next_day_stake_adequate: bool
     ending_liquidity_adequate: bool
     usage_served: bool
     organic_fee_demand_present: bool
@@ -332,6 +336,20 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         ending_liquid_supply + EPSILON >= required_next_day_liquid_tokens
     )
 
+    # Survival must also remain serviceable through the next deterministic
+    # slashing step. Without an explicit restaking rule, a horizon that ends just
+    # before a known bonded-stake cliff is not a surviving security configuration.
+    next_day_slashing_burn_tokens = min(
+        staked_tokens,
+        staked_tokens * config.slashing_burn_rate_per_day,
+    )
+    next_day_staked_tokens = staked_tokens - next_day_slashing_burn_tokens
+    next_day_staked_value_usd = next_day_staked_tokens * token_price
+    next_day_stake_coverage = (
+        next_day_staked_value_usd / config.required_stake_value_usd
+    )
+    next_day_stake_adequate = next_day_stake_coverage >= 1.0
+
     return SimulationResult(
         scenario=scenario.name,
         fee_mode=config.fee_mode,
@@ -358,6 +376,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         initial_staked_tokens=initial_staked_tokens,
         ending_staked_tokens=staked_tokens,
         minimum_staked_tokens=minimum_staked_tokens,
+        next_day_staked_tokens=next_day_staked_tokens,
         ending_liquid_supply_tokens=ending_liquid_supply,
         required_next_day_liquid_tokens=required_next_day_liquid_tokens,
         net_supply_change_pct=(
@@ -373,9 +392,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         security_coverage_ratio=security_coverage,
         minimum_staked_value_usd=minimum_staked_value_usd,
         stake_coverage_ratio=stake_coverage,
+        next_day_staked_value_usd=next_day_staked_value_usd,
+        next_day_stake_coverage_ratio=next_day_stake_coverage,
         fee_affordable=fee_affordable,
         security_budget_adequate=security_budget_adequate,
         stake_adequate=stake_adequate,
+        next_day_stake_adequate=next_day_stake_adequate,
         ending_liquidity_adequate=ending_liquidity_adequate,
         usage_served=usage_served,
         organic_fee_demand_present=organic_fee_demand_present,
@@ -385,6 +407,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             fee_affordable
             and security_budget_adequate
             and stake_adequate
+            and next_day_stake_adequate
             and ending_liquidity_adequate
             and usage_served
             and organic_fee_demand_present
