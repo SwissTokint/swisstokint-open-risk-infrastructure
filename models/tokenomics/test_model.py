@@ -81,9 +81,44 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertEqual(result.total_burn_tokens, 0.0)
         self.assertEqual(result.total_security_fee_tokens, 0.0)
         self.assertGreater(result.total_security_emission_tokens, 0.0)
+        self.assertEqual(result.total_realizable_security_emission_tokens, 0.0)
         self.assertEqual(result.total_realizable_security_emission_usd, 0.0)
         self.assertFalse(result.organic_fee_demand_present)
         self.assertFalse(result.economic_survival)
+
+    def test_unrealizable_emissions_cannot_reenter_as_fee_inventory(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=100.0,
+            staked_fraction=0.99,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=100.0,
+            emission_realization_fraction=0.0,
+            daily_actions=50.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=2.0,
+        )
+        unrealizable = simulate(
+            config,
+            StressScenario(name="unrealizable-emissions", days=1),
+        )
+        realizable = simulate(
+            replace(config, emission_realization_fraction=1.0),
+            StressScenario(name="realizable-emissions", days=1),
+        )
+        self.assertAlmostEqual(unrealizable.ending_liquid_supply_tokens, 101.0)
+        self.assertAlmostEqual(unrealizable.ending_realizable_liquid_tokens, 1.0)
+        self.assertAlmostEqual(unrealizable.total_executed_actions, 1.0)
+        self.assertAlmostEqual(unrealizable.total_unmet_actions, 49.0)
+        self.assertEqual(unrealizable.total_realizable_security_emission_tokens, 0.0)
+        self.assertAlmostEqual(realizable.total_executed_actions, 50.0)
+        self.assertFalse(unrealizable.economic_survival)
 
     def test_supply_exhaustion_caps_burn_and_records_unmet_actions(self) -> None:
         config = replace(
@@ -105,6 +140,7 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertAlmostEqual(result.total_burn_tokens, 100.0)
         self.assertAlmostEqual(result.ending_supply_tokens, 0.0)
         self.assertAlmostEqual(result.ending_liquid_supply_tokens, 0.0)
+        self.assertAlmostEqual(result.ending_realizable_liquid_tokens, 0.0)
         self.assertGreater(result.total_unmet_actions, 0.0)
         self.assertAlmostEqual(result.supply_accounting_error_tokens, 0.0)
         self.assertTrue(result.accounting_valid)
@@ -131,7 +167,7 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertTrue(one_year.economic_survival)
         self.assertFalse(five_year.economic_survival)
         self.assertGreater(five_year.total_unmet_actions, 0.0)
-        self.assertLess(five_year.ending_liquid_supply_tokens, 1e-6)
+        self.assertLess(five_year.ending_realizable_liquid_tokens, 1e-6)
         self.assertGreater(five_year.ending_staked_tokens, 0.0)
 
     def test_zero_stake_cannot_report_economic_survival(self) -> None:
@@ -181,6 +217,7 @@ class TokenomicsModelTests(unittest.TestCase):
         )
         result = simulate(config, StressScenario(name="bonded-liquidity", days=1))
         self.assertAlmostEqual(result.ending_liquid_supply_tokens, 1.0)
+        self.assertAlmostEqual(result.ending_realizable_liquid_tokens, 1.0)
         self.assertAlmostEqual(result.total_executed_actions, 1.0)
         self.assertAlmostEqual(result.total_unmet_actions, 49.0)
         self.assertFalse(result.usage_served)
@@ -223,7 +260,7 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertTrue(result.security_budget_adequate)
         self.assertTrue(result.stake_adequate)
         self.assertAlmostEqual(result.ending_staked_tokens, 50.0)
-        self.assertAlmostEqual(result.ending_liquid_supply_tokens, 0.0)
+        self.assertAlmostEqual(result.ending_realizable_liquid_tokens, 0.0)
         self.assertAlmostEqual(result.required_next_day_liquid_tokens, 51.0)
         self.assertFalse(result.ending_liquidity_adequate)
         self.assertFalse(result.economic_survival)
@@ -270,16 +307,33 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertLess(result.next_day_stake_coverage_ratio, 1.0)
         self.assertFalse(result.next_day_stake_adequate)
         self.assertFalse(result.economic_survival)
+        summary = summarize([result.to_dict()])
+        self.assertEqual(summary["current_stake_failure_count"], 0)
+        self.assertEqual(summary["next_day_stake_failure_count"], 1)
+        self.assertEqual(summary["stake_failure_count"], 1)
 
-    def test_published_matrix_contains_five_year_affordability_and_liquidity_failures(self) -> None:
+    def test_published_matrix_contains_long_horizon_slashing_and_exit_failures(self) -> None:
         results = build_results()
         horizons = {int(result["days"]) for result in results}
+        slashing_rates = {
+            float(result["slashing_burn_rate_per_day"])
+            for result in results
+        }
         summary = summarize(results)
         self.assertEqual(horizons, {365, 1_825})
+        self.assertTrue(any(rate > 0.0 for rate in slashing_rates))
+        self.assertTrue(
+            any(
+                int(result["days"]) == 1_825
+                and float(result["total_slashing_burn_tokens"]) > 0.0
+                for result in results
+            )
+        )
         self.assertGreater(summary["fee_affordability_failure_count"], 0)
-        self.assertGreater(summary["liquid_supply_depletion_count"], 0)
+        self.assertGreater(summary["realizable_liquidity_failure_count"], 0)
         self.assertGreater(summary["unmet_demand_scenario_count"], 0)
         self.assertGreater(summary["stake_failure_count"], 0)
+        self.assertGreater(summary["next_day_stake_failure_count"], 0)
         self.assertEqual(summary["accounting_failure_count"], 0)
 
 
