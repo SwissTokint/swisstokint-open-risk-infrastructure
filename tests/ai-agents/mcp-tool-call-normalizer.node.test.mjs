@@ -159,6 +159,75 @@ test('unknown request and params fields are rejected instead of being dropped', 
   );
 });
 
+test('duplicate top-level JSON members are rejected before last-value parsing', () => {
+  const duplicated = '{"jsonrpc":"2.0","id":1,"method":"resources/read","method":"tools/call","params":{"name":"search","arguments":{}}}';
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(ingress(duplicated)),
+    expectCode('POMRX_MCP_E_DUPLICATE_KEY'),
+  );
+});
+
+test('escaped-equivalent duplicate nested members are rejected', () => {
+  const duplicated = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"q":"first","\\u0071":"second"}}}';
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(ingress(duplicated)),
+    expectCode('POMRX_MCP_E_DUPLICATE_KEY'),
+  );
+});
+
+test('captured arrays are detached from post-import Array.prototype toJSON', () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON');
+  try {
+    Object.defineProperty(Array.prototype, 'toJSON', {
+      configurable: true,
+      value() {
+        return ['substituted'];
+      },
+      writable: true,
+    });
+    const normalized = normalizeReferenceMcpToolCall(
+      ingress(body({ args: '{"items":["trusted"]}' })),
+    );
+    const captured = normalized.prepared_execution.params.arguments.items;
+    assert.equal(Array.isArray(captured), true);
+    assert.equal(Object.getPrototypeOf(captured), null);
+    assert.equal(JSON.stringify(captured), '["trusted"]');
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(Array.prototype, 'toJSON', originalDescriptor);
+    } else {
+      delete Array.prototype.toJSON;
+    }
+  }
+});
+
+test('numeric Array.prototype setter cannot intercept detached capture indices', () => {
+  const values = [];
+  for (let index = 0; index <= 500; index += 1) values.push(index);
+  const request = body({ args: `{"items":${JSON.stringify(values)}}` });
+  const originalDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, '500');
+  let setterCalls = 0;
+  try {
+    Object.defineProperty(Array.prototype, '500', {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    const normalized = normalizeReferenceMcpToolCall(ingress(request));
+    const captured = normalized.prepared_execution.params.arguments.items;
+    assert.equal(setterCalls, 0);
+    assert.equal(Object.getPrototypeOf(captured), null);
+    assert.equal(captured[500], 500);
+  } finally {
+    if (originalDescriptor) {
+      Object.defineProperty(Array.prototype, '500', originalDescriptor);
+    } else {
+      delete Array.prototype[500];
+    }
+  }
+});
+
 test('post-import JSON.parse poisoning cannot replace the captured MCP parser', () => {
   const originalParse = JSON.parse;
   try {
