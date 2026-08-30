@@ -68,6 +68,14 @@ jobs:
           fi
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
+      - name: Core durable Gate composition regressions
+        run: node --test tests/pom-rx-core-durable-gate.node.test.mjs tests/pom-rx-core-durable-gate-bootstrap-intrinsic.node.test.mjs
+      - name: Durable-store intrinsic hardening regressions
+        run: node --test tests/pom-rx-core-durable-gate-intrinsic-hardening.node.test.mjs
+      - name: Plain-data baseline regressions
+        run: node --test tests/pom-rx-reference-plain-data.node.test.mjs tests/pom-rx-reference-plain-data-prototype-boundary.node.test.mjs
+      - name: Plain-data intrinsic hardening regressions
+        run: node --test tests/pom-rx-reference-plain-data-intrinsic-hardening.node.test.mjs
       - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
