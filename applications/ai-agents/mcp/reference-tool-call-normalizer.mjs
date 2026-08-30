@@ -41,10 +41,12 @@ const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_SET_PROTOTYPE_OF = Object.setPrototypeOf;
 const NUMBER_IS_FINITE = Number.isFinite;
 const NUMBER_TO_STRING = Number.prototype.toString;
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const STRING_PAD_START = String.prototype.padStart;
+const STRING_SLICE = String.prototype.slice;
 const REGEXP_TEST = RegExp.prototype.test;
 const DATA_VIEW_CONSTRUCTOR = DataView;
 const DATA_VIEW_SET_FLOAT64 = DataView.prototype.setFloat64;
@@ -83,8 +85,10 @@ function sortArray(value) {
   return REFLECT_APPLY(ARRAY_SORT, value, []);
 }
 
-function createArray(length) {
-  return new ARRAY_CONSTRUCTOR(length);
+function createDetachedArray(length) {
+  const output = new ARRAY_CONSTRUCTOR(length);
+  REFLECT_APPLY(OBJECT_SET_PROTOTYPE_OF, Object, [output, null]);
+  return output;
 }
 
 function createObject() {
@@ -128,8 +132,154 @@ function padStart(value, targetLength, fill) {
   return REFLECT_APPLY(STRING_PAD_START, value, [targetLength, fill]);
 }
 
+function sliceString(value, start, end) {
+  return REFLECT_APPLY(STRING_SLICE, value, [start, end]);
+}
+
 function regexpTest(pattern, value) {
   return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+}
+
+function isJsonWhitespace(character) {
+  return character === ' ' || character === '\t' || character === '\n' || character === '\r';
+}
+
+/**
+ * Reject duplicate object members before JSON.parse erases that information.
+ * Object keys are decoded through the captured JSON parser, so lexically
+ * different spellings such as "q" and "\u0071" collide as the same key.
+ * This scanner validates enough JSON structure to locate every object member;
+ * the complete syntax/value validation still belongs to the captured JSON.parse.
+ */
+function assertNoDuplicateJsonObjectMembers(text) {
+  let index = 0;
+
+  function skipWhitespace() {
+    while (index < text.length && isJsonWhitespace(text[index])) index += 1;
+  }
+
+  function syntaxError() {
+    fail('POMRX_MCP_E_JSON', 'MCP request body is not valid JSON');
+  }
+
+  function parseStringToken() {
+    if (text[index] !== '"') syntaxError();
+    const start = index;
+    index += 1;
+    while (index < text.length) {
+      const character = text[index];
+      if (character === '"') {
+        index += 1;
+        const token = sliceString(text, start, index);
+        try {
+          return parseJson(token);
+        } catch {
+          syntaxError();
+        }
+      }
+      if (character === '\\') {
+        index += 1;
+        if (index >= text.length) syntaxError();
+        if (text[index] === 'u') {
+          index += 5;
+          if (index > text.length) syntaxError();
+          continue;
+        }
+        index += 1;
+        continue;
+      }
+      index += 1;
+    }
+    syntaxError();
+  }
+
+  function parsePrimitive() {
+    const start = index;
+    while (index < text.length) {
+      const character = text[index];
+      if (character === ',' || character === ']' || character === '}' || isJsonWhitespace(character)) {
+        break;
+      }
+      index += 1;
+    }
+    if (index === start) syntaxError();
+  }
+
+  function parseArray() {
+    index += 1;
+    skipWhitespace();
+    if (text[index] === ']') {
+      index += 1;
+      return;
+    }
+    while (index < text.length) {
+      parseValue();
+      skipWhitespace();
+      if (text[index] === ']') {
+        index += 1;
+        return;
+      }
+      if (text[index] !== ',') syntaxError();
+      index += 1;
+      skipWhitespace();
+    }
+    syntaxError();
+  }
+
+  function parseObject() {
+    index += 1;
+    skipWhitespace();
+    const seen = createObject();
+    if (text[index] === '}') {
+      index += 1;
+      return;
+    }
+    while (index < text.length) {
+      if (text[index] !== '"') syntaxError();
+      const key = parseStringToken();
+      if (hasOwn(seen, key)) {
+        fail('POMRX_MCP_E_DUPLICATE_KEY', `MCP JSON contains duplicate object member: ${key}`);
+      }
+      defineDataProperty(seen, key, true);
+      skipWhitespace();
+      if (text[index] !== ':') syntaxError();
+      index += 1;
+      skipWhitespace();
+      parseValue();
+      skipWhitespace();
+      if (text[index] === '}') {
+        index += 1;
+        return;
+      }
+      if (text[index] !== ',') syntaxError();
+      index += 1;
+      skipWhitespace();
+    }
+    syntaxError();
+  }
+
+  function parseValue() {
+    skipWhitespace();
+    if (index >= text.length) syntaxError();
+    const character = text[index];
+    if (character === '{') {
+      parseObject();
+      return;
+    }
+    if (character === '[') {
+      parseArray();
+      return;
+    }
+    if (character === '"') {
+      parseStringToken();
+      return;
+    }
+    parsePrimitive();
+  }
+
+  parseValue();
+  skipWhitespace();
+  if (index !== text.length) syntaxError();
 }
 
 function assertExactKeys(value, requiredKeys, optionalKeys, label) {
@@ -186,9 +336,13 @@ function captureJsonValue(value, label, depth, budget) {
     if (value.length > MAX_ARRAY_LENGTH) {
       fail('POMRX_MCP_E_ARRAY', `${label} array is too long`);
     }
-    const output = createArray(value.length);
+    const output = createDetachedArray(value.length);
     for (let index = 0; index < value.length; index += 1) {
-      output[index] = captureJsonValue(value[index], `${label}[${index}]`, depth + 1, budget);
+      defineDataProperty(
+        output,
+        index,
+        captureJsonValue(value[index], `${label}[${index}]`, depth + 1, budget),
+      );
     }
     return freezeValue(output);
   }
@@ -349,6 +503,8 @@ export function normalizeReferenceMcpToolCall({
   if (typeof bodyText !== 'string' || bodyText.length < 1 || bodyText.length > MAX_BODY_CHARS) {
     fail('POMRX_MCP_E_BODY_SIZE', 'MCP request body is empty or exceeds the reference limit');
   }
+
+  assertNoDuplicateJsonObjectMembers(bodyText);
 
   let parsed;
   try {
