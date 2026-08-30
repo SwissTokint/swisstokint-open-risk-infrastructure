@@ -35,13 +35,15 @@ const HARNESS_SORTED_KEYS = Object.freeze([
 ]);
 
 // The Gate's local provenance and exact-object boundary are security-critical.
-// Capture the constructors/reflection primitives used by the factory once at
-// module initialization so post-import replacement cannot substitute capability
-// state, rewrite detached bootstrap/observer snapshots, widen their shape, or
-// redirect sorting. Security-sensitive iteration over the module-owned key sets
-// is index-based rather than delegated to the mutable shared Array iterator.
-// Poisoning before module initialization remains outside this reference guarantee.
+// Capture the constructors/reflection/temporal primitives used by the factory once
+// at module initialization so post-import replacement cannot substitute capability
+// state, rewrite detached bootstrap/observer snapshots, widen their shape, redirect
+// sorting, or falsify validity-window checks. Security-sensitive iteration over the
+// module-owned key sets is index-based rather than delegated to the mutable shared
+// Array iterator. Poisoning before module initialization remains outside this
+// reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
+const REFLECT_CONSTRUCT = Reflect.construct;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
 const OBJECT_CREATE = Object.create;
@@ -58,6 +60,11 @@ const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const CRYPTO_RANDOM_BYTES = crypto.randomBytes;
 const BUFFER_TO_STRING = Buffer.prototype.toString.call.bind(Buffer.prototype.toString);
+const DATE_CONSTRUCTOR = Date;
+const DATE_GET_TIME = Date.prototype.getTime;
+const DATE_TO_ISO_STRING = Date.prototype.toISOString;
+const NUMBER_IS_FINITE = Number.isFinite;
+const STRING_ENDS_WITH = String.prototype.endsWith;
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -105,6 +112,26 @@ function weakMapGet(map, key) {
 
 function weakMapSet(map, key, value) {
   REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function dateFrom(value) {
+  return REFLECT_CONSTRUCT(DATE_CONSTRUCTOR, [value]);
+}
+
+function dateGetTime(value) {
+  return REFLECT_APPLY(DATE_GET_TIME, value, []);
+}
+
+function dateToISOString(value) {
+  return REFLECT_APPLY(DATE_TO_ISO_STRING, value, []);
+}
+
+function numberIsFinite(value) {
+  return REFLECT_APPLY(NUMBER_IS_FINITE, Number, [value]);
+}
+
+function stringEndsWith(value, suffix) {
+  return REFLECT_APPLY(STRING_ENDS_WITH, value, [suffix]);
 }
 
 function exactSortedKeys(value) {
@@ -205,11 +232,11 @@ function snapshotObservedRecord(value) {
 }
 
 function canonicalClockInstant(value) {
-  if (typeof value !== 'string' || !value.endsWith('Z')) {
+  if (typeof value !== 'string' || !stringEndsWith(value, 'Z')) {
     throw gateError('POMRX_GATE_E_TIME_INVALID', 'Trusted clock returned an invalid instant');
   }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+  const parsed = dateFrom(value);
+  if (!numberIsFinite(dateGetTime(parsed)) || dateToISOString(parsed) !== value) {
     throw gateError('POMRX_GATE_E_TIME_INVALID', 'Trusted clock returned an invalid instant');
   }
   return parsed;
@@ -267,9 +294,9 @@ function validateObservedBinding(value) {
 }
 
 function assertCapabilityActive(binding, now) {
-  const nowMs = now.getTime();
-  const issuedAtMs = new Date(binding.issued_at).getTime();
-  const expiresAtMs = new Date(binding.expires_at).getTime();
+  const nowMs = dateGetTime(now);
+  const issuedAtMs = dateGetTime(dateFrom(binding.issued_at));
+  const expiresAtMs = dateGetTime(dateFrom(binding.expires_at));
   if (nowMs < issuedAtMs) {
     throw gateError(
       'POMRX_GATE_E_CAPABILITY_NOT_YET_VALID',
@@ -322,7 +349,7 @@ export function createReferenceSingleUseGateHarness(options) {
 
   function sampleGateClock() {
     const now = sampleTrustedClock(trustedClock);
-    const nowMs = now.getTime();
+    const nowMs = dateGetTime(now);
     if (lastTrustedTimeMs !== null && nowMs < lastTrustedTimeMs) {
       throw gateError('POMRX_GATE_E_TIME_ROLLBACK', 'Trusted clock moved backwards');
     }
