@@ -243,6 +243,34 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertFalse(result.security_budget_adequate)
         self.assertFalse(result.economic_survival)
 
+    def test_horizon_end_requires_next_day_stake_after_deterministic_slash(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1_000.0,
+            staked_fraction=0.50,
+            slashing_burn_rate_per_day=0.10,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=0.10,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=1.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=425.0,
+            required_security_budget_usd_per_day=0.05,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="next-day-stake-cliff", days=1))
+        self.assertTrue(result.security_budget_adequate)
+        self.assertTrue(result.stake_adequate)
+        self.assertAlmostEqual(result.ending_staked_tokens, 450.0)
+        self.assertAlmostEqual(result.next_day_staked_tokens, 405.0)
+        self.assertGreater(result.stake_coverage_ratio, 1.0)
+        self.assertLess(result.next_day_stake_coverage_ratio, 1.0)
+        self.assertFalse(result.next_day_stake_adequate)
+        self.assertFalse(result.economic_survival)
+
     def test_published_matrix_contains_five_year_affordability_and_liquidity_failures(self) -> None:
         results = build_results()
         horizons = {int(result["days"]) for result in results}
