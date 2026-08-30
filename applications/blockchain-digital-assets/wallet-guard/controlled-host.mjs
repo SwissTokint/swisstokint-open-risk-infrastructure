@@ -12,6 +12,11 @@ import {
 } from './provider.mjs';
 
 const REFLECT_APPLY = Reflect.apply;
+const ARRAY_CONSTRUCTOR = Array;
+const SET_CONSTRUCTOR = Set;
+const OBJECT_PROTOTYPE = Object.prototype;
+const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -19,6 +24,7 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const ARRAY_IS_ARRAY = Array.isArray;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
@@ -39,6 +45,15 @@ function setHas(set, value) {
 
 function setAdd(set, value) {
   REFLECT_APPLY(SET_ADD, set, [value]);
+}
+
+function defineArrayElement(array, index, value) {
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  }]);
 }
 
 const HOST_KEYS = freeze([
@@ -84,7 +99,7 @@ function captureExactRecord(value, expectedKeys, label) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must be a non-Proxy plain object`);
   }
   const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
-  if (prototype !== Object.prototype && prototype !== null) {
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
   if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
@@ -100,7 +115,7 @@ function captureExactRecord(value, expectedKeys, label) {
   }
 
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const captured = Object.create(null);
+  const captured = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
   for (const key of expectedKeys) {
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
@@ -131,9 +146,9 @@ function canonicalOrigin(value) {
 }
 
 function copyFrozenArray(values) {
-  const output = new Array(values.length);
+  const output = new ARRAY_CONSTRUCTOR(values.length);
   for (let index = 0; index < values.length; index += 1) {
-    output[index] = values[index];
+    defineArrayElement(output, index, values[index]);
   }
   return freeze(output);
 }
@@ -156,8 +171,8 @@ function canonicalAccounts(value) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a dense undecorated array');
   }
   const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const normalized = new Array(value.length);
-  const seen = new Set();
+  const normalized = new ARRAY_CONSTRUCTOR(value.length);
+  const seen = new SET_CONSTRUCTOR();
   for (let index = 0; index < value.length; index += 1) {
     const key = String(index);
     const descriptor = descriptors[key];
@@ -169,17 +184,48 @@ function canonicalAccounts(value) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain duplicates');
     }
     setAdd(seen, account);
-    normalized[index] = account;
+    defineArrayElement(normalized, index, account);
   }
   return freeze(normalized);
 }
 
+/**
+ * Core deliberately returns detached Array exotics with a null prototype so a
+ * post-import Array.prototype mutation cannot rewrite inert snapshots. Historical
+ * Wallet Guard parsers, however, require ordinary Arrays. Rematerialize only
+ * after the untrusted value has crossed the hardened Core capture boundary.
+ * Elements are installed with the captured defineProperty primitive so inherited
+ * numeric setters cannot intercept the conversion itself.
+ */
+function materializeCapturedPlainData(value) {
+  if (value === null || typeof value !== 'object') return value;
+
+  if (ARRAY_IS_ARRAY(value)) {
+    const output = new ARRAY_CONSTRUCTOR(value.length);
+    for (let index = 0; index < value.length; index += 1) {
+      defineArrayElement(output, index, materializeCapturedPlainData(value[index]));
+    }
+    return freeze(output);
+  }
+
+  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+  const output = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    output[key] = materializeCapturedPlainData(descriptors[key].value);
+  }
+  return freeze(output);
+}
+
 function capturePolicy(value) {
-  return captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  const captured = captureReferencePlainData(value, 'Wallet Guard controlled host policy');
+  return materializeCapturedPlainData(captured);
 }
 
 function capturePageRequest(value) {
-  return captureReferencePlainData(value, 'Wallet Guard controlled page request');
+  const captured = captureReferencePlainData(value, 'Wallet Guard controlled page request');
+  return materializeCapturedPlainData(captured);
 }
 
 function captureSensitiveRequest(value) {
@@ -187,12 +233,12 @@ function captureSensitiveRequest(value) {
 }
 
 function inspectSensitiveCalls(calls) {
-  const output = new Array(calls.length);
+  const output = new ARRAY_CONSTRUCTOR(calls.length);
   for (let index = 0; index < calls.length; index += 1) {
-    output[index] = captureReferencePlainData(
+    defineArrayElement(output, index, captureReferencePlainData(
       calls[index],
       'Wallet Guard controlled provider recorded request',
-    );
+    ));
   }
   return freeze(output);
 }
@@ -210,7 +256,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
       'trusted clock and reference authorization supplier are required',
     );
   }
-  if (!Number.isSafeInteger(options.capabilityLifetimeMs)
+  if (!REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [options.capabilityLifetimeMs])
       || options.capabilityLifetimeMs < 1_000
       || options.capabilityLifetimeMs > 300_000) {
     fail(
@@ -236,10 +282,6 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     inFlightRequests: 0,
   };
 
-  // This fake raw provider never leaves this closure. The only externally
-  // returned request function comes from the already-reviewed provider/Gate
-  // gateway. Context mutation is available only through the separate test
-  // authority returned beside, never beneath, the controlled page graph.
   const rawProvider = freeze({
     async request(request) {
       if (request && request.method === 'eth_chainId') {
@@ -270,13 +312,6 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     capabilityLifetimeMs: options.capabilityLifetimeMs,
   });
 
-  // The page-facing boundary is stricter than the historical provider gateway:
-  // capture caller-owned request data through the shared hardened plain-data
-  // boundary before invoking gateway code that predates Proxy/decorated-array
-  // rejection. Proxy/accessor/hidden/symbol/custom-prototype request behavior
-  // therefore cannot execute inside the controlled page path. Capacity is
-  // reserved synchronously before the first gateway async boundary so a full
-  // log cannot keep issuing authorization/replay state under concurrency.
   async function request(untrustedRequest) {
     const requestSnapshot = capturePageRequest(untrustedRequest);
     if (state.sensitiveCalls.length + state.inFlightRequests >= MAX_SENSITIVE_CALLS) {
