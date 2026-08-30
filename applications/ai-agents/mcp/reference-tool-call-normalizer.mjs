@@ -15,11 +15,10 @@ const MAX_KEY_LENGTH = 256;
 const MAX_TOOL_NAME_LENGTH = 256;
 const MAX_SERVER_REF_LENGTH = 256;
 const REQUEST_KEYS = Object.freeze(['id', 'jsonrpc', 'method', 'params']);
-const PARAM_KEYS = Object.freeze([
+const PARAM_OPTIONAL_KEYS = Object.freeze([
   '_meta',
   'arguments',
   'inputResponses',
-  'name',
   'requestState',
   'task',
 ]);
@@ -27,12 +26,13 @@ const TOOL_NAME_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/u;
 const SERVER_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$/u;
 
 // This integration boundary receives a raw JSON text body plus already-normalized
-// standard MCP headers. Capture every mutable intrinsic it relies on at module
-// initialization so later same-realm mutation cannot silently change parsing,
-// object capture, transcript ordering or hashing. Poisoning before import remains
-// outside this reference guarantee.
+// standard MCP headers. Capture every load-bearing mutable intrinsic it relies on
+// at module initialization so later same-realm mutation cannot silently change
+// parsing, object capture, transcript encoding, validation or hashing. Poisoning
+// before module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const JSON_PARSE = JSON.parse;
+const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
 const OBJECT_CREATE = Object.create;
@@ -40,14 +40,22 @@ const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const NUMBER_IS_FINITE = Number.isFinite;
+const NUMBER_TO_STRING = Number.prototype.toString;
 const STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
+const STRING_PAD_START = String.prototype.padStart;
+const REGEXP_TEST = RegExp.prototype.test;
 const DATA_VIEW_CONSTRUCTOR = DataView;
 const DATA_VIEW_SET_FLOAT64 = DataView.prototype.setFloat64;
 const DATA_VIEW_GET_UINT8 = DataView.prototype.getUint8;
 const ARRAY_BUFFER_CONSTRUCTOR = ArrayBuffer;
 const CRYPTO_CREATE_HASH = crypto.createHash;
-const HASH_PROTOTYPE = Object.getPrototypeOf(crypto.createHash('sha256'));
+const HASH_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
+  Object,
+  [REFLECT_APPLY(CRYPTO_CREATE_HASH, crypto, ['sha256'])],
+);
 const HASH_UPDATE = HASH_PROTOTYPE.update;
 const HASH_DIGEST = HASH_PROTOTYPE.digest;
 
@@ -73,6 +81,10 @@ function isArray(value) {
 
 function sortArray(value) {
   return REFLECT_APPLY(ARRAY_SORT, value, []);
+}
+
+function createArray(length) {
+  return new ARRAY_CONSTRUCTOR(length);
 }
 
 function createObject() {
@@ -104,8 +116,20 @@ function numberIsFinite(value) {
   return REFLECT_APPLY(NUMBER_IS_FINITE, Number, [value]);
 }
 
+function numberToString(value, radix) {
+  return REFLECT_APPLY(NUMBER_TO_STRING, value, [radix]);
+}
+
 function charCodeAt(value, index) {
   return REFLECT_APPLY(STRING_CHAR_CODE_AT, value, [index]);
+}
+
+function padStart(value, targetLength, fill) {
+  return REFLECT_APPLY(STRING_PAD_START, value, [targetLength, fill]);
+}
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
 }
 
 function assertExactKeys(value, requiredKeys, optionalKeys, label) {
@@ -162,7 +186,7 @@ function captureJsonValue(value, label, depth, budget) {
     if (value.length > MAX_ARRAY_LENGTH) {
       fail('POMRX_MCP_E_ARRAY', `${label} array is too long`);
     }
-    const output = new Array(value.length);
+    const output = createArray(value.length);
     for (let index = 0; index < value.length; index += 1) {
       output[index] = captureJsonValue(value[index], `${label}[${index}]`, depth + 1, budget);
     }
@@ -189,10 +213,14 @@ function captureJson(value, label) {
   return captureJsonValue(value, label, 0, { remaining: MAX_NODES });
 }
 
+function hexCodeUnit(value, width) {
+  return padStart(numberToString(value, 16), width, '0');
+}
+
 function encodeUtf16(value) {
   let output = '';
   for (let index = 0; index < value.length; index += 1) {
-    output += charCodeAt(value, index).toString(16).padStart(4, '0');
+    output += hexCodeUnit(charCodeAt(value, index), 4);
   }
   return output;
 }
@@ -203,7 +231,7 @@ function encodeNumberBits(value) {
   REFLECT_APPLY(DATA_VIEW_SET_FLOAT64, view, [0, value, false]);
   let output = '';
   for (let index = 0; index < 8; index += 1) {
-    output += REFLECT_APPLY(DATA_VIEW_GET_UINT8, view, [index]).toString(16).padStart(2, '0');
+    output += hexCodeUnit(REFLECT_APPLY(DATA_VIEW_GET_UINT8, view, [index]), 2);
   }
   return output;
 }
@@ -244,7 +272,7 @@ function validateToolName(value, label) {
   if (typeof value !== 'string'
       || value.length < 1
       || value.length > MAX_TOOL_NAME_LENGTH
-      || TOOL_NAME_CONTROL_PATTERN.test(value)) {
+      || regexpTest(TOOL_NAME_CONTROL_PATTERN, value)) {
     fail('POMRX_MCP_E_TOOL_NAME', `${label} is invalid`);
   }
   return value;
@@ -253,7 +281,7 @@ function validateToolName(value, label) {
 function validateServerRef(value) {
   if (typeof value !== 'string'
       || value.length > MAX_SERVER_REF_LENGTH
-      || !SERVER_REF_PATTERN.test(value)) {
+      || !regexpTest(SERVER_REF_PATTERN, value)) {
     fail('POMRX_MCP_E_SERVER_REF', 'serverRef is invalid');
   }
   return value;
@@ -271,7 +299,7 @@ function validateJsonRpcId(value) {
 }
 
 function captureParams(params) {
-  assertExactKeys(params, ['name'], PARAM_KEYS.filter((key) => key !== 'name'), 'MCP tools/call params');
+  assertExactKeys(params, ['name'], PARAM_OPTIONAL_KEYS, 'MCP tools/call params');
   validateToolName(params.name, 'MCP params.name');
   if (hasOwn(params, 'arguments')
       && (!params.arguments || typeof params.arguments !== 'object' || isArray(params.arguments))) {
