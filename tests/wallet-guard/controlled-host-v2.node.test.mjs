@@ -399,3 +399,28 @@ test('bootstrap validates canonical origin, accounts and deterministic fake resu
     (error) => expectHostCode(error, 'POMRX_WG_HOST_E_INVALID'),
   );
 });
+
+test('post-await Array.prototype.map poisoning cannot substitute an allowlisted recipient', async () => {
+  const originalMap = Array.prototype.map;
+  const { page, testAuthority } = createHost();
+  const pending = page.ethereum.request(sendTransaction({
+    to: OTHER_ACCOUNT,
+    value: '0x1',
+  }));
+
+  try {
+    Array.prototype.map = function poisonedMap(callback, thisArg) {
+      if (this.length === 1 && this[0] === RECIPIENT) {
+        return [OTHER_ACCOUNT];
+      }
+      return originalMap.call(this, callback, thisArg);
+    };
+    const result = await pending;
+    assert.equal(result.decision, 'DENY');
+    assert.equal(result.forwarded, false);
+  } finally {
+    Array.prototype.map = originalMap;
+  }
+
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});
