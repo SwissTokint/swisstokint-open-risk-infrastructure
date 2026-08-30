@@ -12,11 +12,11 @@ PRICE_MULTIPLIERS = (0.1, 0.5, 1.0, 2.0, 10.0, 20.0)
 USAGE_MULTIPLIERS = (0.0, 0.1, 1.0, 10.0, 100.0)
 BURN_RATES = (0.0, 0.10, 0.25, 0.50, 0.75, 1.0)
 STAKE_SHOCKS = (
-    ("zero", 0.0, 0.0),
-    ("low", 0.10, 0.0),
-    ("baseline", 0.35, 0.0),
-    ("gradual-slash", 0.35, 0.001),
-    ("exit", 0.35, 0.01),
+    ("zero", 0.0, 0.0, 0.0),
+    ("low", 0.10, 0.0, 0.0),
+    ("baseline", 0.35, 0.0, 0.0),
+    ("gradual-slash", 0.35, 0.001, 0.0),
+    ("exit", 0.35, 0.0, 0.01),
 )
 FEE_MODES = ("usd_indexed", "token_fixed")
 HORIZON_DAYS = (365, 1_825)
@@ -30,7 +30,12 @@ def build_results() -> list[dict[str, object]]:
     for fee_mode in FEE_MODES:
         for burn_rate in BURN_RATES:
             security_share, treasury_share = allocation_for_burn(burn_rate)
-            for stake_profile, staked_fraction, slashing_burn_rate_per_day in STAKE_SHOCKS:
+            for (
+                stake_profile,
+                staked_fraction,
+                slashing_burn_rate_per_day,
+                validator_exit_rate_per_day,
+            ) in STAKE_SHOCKS:
                 config = replace(
                     base,
                     fee_mode=fee_mode,
@@ -39,6 +44,7 @@ def build_results() -> list[dict[str, object]]:
                     treasury_fee_share=treasury_share,
                     staked_fraction=staked_fraction,
                     slashing_burn_rate_per_day=slashing_burn_rate_per_day,
+                    validator_exit_rate_per_day=validator_exit_rate_per_day,
                 )
                 for days in HORIZON_DAYS:
                     for price_multiplier in PRICE_MULTIPLIERS:
@@ -47,7 +53,8 @@ def build_results() -> list[dict[str, object]]:
                                 name=(
                                     f"fee={fee_mode};burn={burn_rate:.2f};"
                                     f"stake_profile={stake_profile};stake={staked_fraction:.2f};"
-                                    f"slash_day={slashing_burn_rate_per_day:.4f};days={days};"
+                                    f"slash_day={slashing_burn_rate_per_day:.4f};"
+                                    f"exit_day={validator_exit_rate_per_day:.4f};days={days};"
                                     f"price_x={price_multiplier:.1f};"
                                     f"usage_x={usage_multiplier:.1f}"
                                 ),
@@ -88,8 +95,6 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         not bool(result["supply_positive"])
         for result in results
     )
-    # Nominal liquid supply can remain positive while the fee-paying inventory is
-    # economically unrealizable. Keep both signals separate.
     liquid_supply_depleted = sum(
         float(result["ending_liquid_supply_tokens"]) <= EPSILON
         and float(result["requested_actions_per_day"]) > EPSILON
@@ -105,6 +110,10 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
     )
     no_organic_demand = sum(
         not bool(result["organic_fee_demand_present"])
+        for result in results
+    )
+    insufficient_organic_demand = sum(
+        not bool(result["organic_demand_adequate"])
         for result in results
     )
     accounting_failures = sum(
@@ -136,16 +145,18 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         "realizable_liquidity_failure_count": realizable_liquidity_failures,
         "unmet_demand_scenario_count": unmet_demand,
         "no_organic_demand_scenario_count": no_organic_demand,
+        "insufficient_organic_demand_scenario_count": insufficient_organic_demand,
         "accounting_failure_count": accounting_failures,
         "horizons": horizon_counts,
         "claim_boundary": (
             "mechanical stress output only; token price is an exogenous scenario input; "
             "bonded stake is not fee liquidity; nominal emissions enter fee-paying "
-            "inventory only to the configured realization fraction; the matrix includes "
-            "zero stake, low stake, gradual slashing and validator-exit paths; paid usage "
-            "is organic only to the configured organic_usage_fraction; not a price "
-            "forecast, investment return estimate, legal conclusion, or TOKEN_NECESSITY "
-            "decision"
+            "inventory only to the configured realization fraction; validator exit is "
+            "modeled as unbonding into liquid inventory and is distinct from destructive "
+            "slashing; paid usage is organic only to the configured organic_usage_fraction, "
+            "and survival requires the explicit minimum organic usage share configured for "
+            "the scenario; not a price forecast, investment return estimate, legal "
+            "conclusion, or TOKEN_NECESSITY decision"
         ),
     }
 
