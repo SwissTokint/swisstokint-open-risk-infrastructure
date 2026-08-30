@@ -2,13 +2,17 @@
 
 This module is deliberately not a price model and does not predict investment
 returns. It tests whether a proposed fee/burn/security allocation remains
-mechanically viable under explicit price and usage shocks.
+mechanically viable under explicit price, usage, liquidity and staking shocks.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from math import inf
 from typing import Any
+
+
+EPSILON = 1e-9
 
 
 @dataclass(frozen=True)
@@ -23,7 +27,10 @@ class EconomyConfig:
     security_fee_share: float = 0.5625
     treasury_fee_share: float = 0.1875
     daily_security_emission_tokens: float = 1_000.0
+    emission_realization_fraction: float = 0.0
     staked_fraction: float = 0.35
+    required_stake_value_usd: float = 1_000_000.0
+    max_daily_token_velocity: float = 1.0
     slashing_burn_rate_per_day: float = 0.0
     required_security_budget_usd_per_day: float = 1_000.0
     max_affordable_fee_usd_per_action: float = 1.0
@@ -43,22 +50,35 @@ class SimulationResult:
     fee_mode: str
     days: int
     token_price_usd: float
-    actions_per_day: float
+    requested_actions_per_day: float
+    average_executed_actions_per_day: float
+    total_requested_actions: float
+    total_executed_actions: float
+    total_unmet_actions: float
     actual_fee_usd_per_action: float
     total_fee_tokens: float
     total_burn_tokens: float
     total_security_fee_tokens: float
     total_security_emission_tokens: float
+    total_realizable_security_emission_usd: float
     total_treasury_tokens: float
     total_slashing_burn_tokens: float
     starting_supply_tokens: float
     ending_supply_tokens: float
     net_supply_change_pct: float
+    supply_accounting_error_tokens: float
     average_security_budget_usd_per_day: float
+    minimum_security_budget_usd_per_day: float
     security_coverage_ratio: float
+    minimum_staked_value_usd: float
+    stake_coverage_ratio: float
     fee_affordable: bool
     security_budget_adequate: bool
+    stake_adequate: bool
+    usage_served: bool
+    organic_fee_demand_present: bool
     supply_positive: bool
+    accounting_valid: bool
     economic_survival: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,7 +91,9 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         "initial_price_usd": config.initial_price_usd,
         "daily_actions": config.daily_actions,
         "required_security_budget_usd_per_day": config.required_security_budget_usd_per_day,
+        "required_stake_value_usd": config.required_stake_value_usd,
         "max_affordable_fee_usd_per_action": config.max_affordable_fee_usd_per_action,
+        "max_daily_token_velocity": config.max_daily_token_velocity,
         "days": float(scenario.days),
         "price_multiplier": scenario.price_multiplier,
     }
@@ -86,6 +108,7 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         "burn_rate": config.burn_rate,
         "security_fee_share": config.security_fee_share,
         "treasury_fee_share": config.treasury_fee_share,
+        "emission_realization_fraction": config.emission_realization_fraction,
         "staked_fraction": config.staked_fraction,
         "slashing_burn_rate_per_day": config.slashing_burn_rate_per_day,
     }.items():
@@ -93,7 +116,7 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
             raise ValueError(f"{name} must be between 0 and 1")
 
     allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share
-    if abs(allocation - 1.0) > 1e-9:
+    if abs(allocation - 1.0) > EPSILON:
         raise ValueError("burn + security + treasury fee shares must equal 1")
 
     if config.fee_mode not in {"usd_indexed", "token_fixed"}:
@@ -108,81 +131,167 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     """Run a deterministic mechanical stress simulation.
 
     Token price is an explicit scenario input, never an endogenous prediction.
-    The security budget is the USD value of fee-funded security rewards plus
-    explicit security emissions. Slashing burn is modeled as a fraction of the
-    currently staked supply and is intentionally configurable to zero.
+    Fee-funded security rewards are realizable because the model observes the
+    corresponding paid fee flow. Emission-funded rewards are kept nominal unless
+    ``emission_realization_fraction`` explicitly assumes some portion can be
+    monetized without pretending the quoted token price is automatically liquid.
+
+    Fee turnover is bounded by the configured daily token velocity and by tokens
+    that can actually be burned. When token availability cannot support nominal
+    demand, the model records unmet actions instead of creating impossible fees or
+    negative supply.
     """
 
     _validate(config, scenario)
 
     token_price = config.initial_price_usd * scenario.price_multiplier
-    actions_per_day = config.daily_actions * scenario.usage_multiplier
+    requested_actions_per_day = config.daily_actions * scenario.usage_multiplier
 
     if config.fee_mode == "usd_indexed":
         actual_fee_usd_per_action = config.fee_usd_per_action
-        fee_tokens_per_action = (
-            config.fee_usd_per_action / token_price
-            if token_price > 0
-            else 0.0
-        )
+        fee_tokens_per_action = config.fee_usd_per_action / token_price
     else:
         fee_tokens_per_action = config.fixed_token_fee_per_action
         actual_fee_usd_per_action = fee_tokens_per_action * token_price
 
     supply = config.initial_supply_tokens
+    total_requested_actions = 0.0
+    total_executed_actions = 0.0
     total_fee_tokens = 0.0
     total_burn_tokens = 0.0
     total_security_fee_tokens = 0.0
     total_security_emission_tokens = 0.0
+    total_realizable_security_emission_usd = 0.0
     total_treasury_tokens = 0.0
     total_slashing_burn_tokens = 0.0
     total_security_budget_usd = 0.0
+    minimum_security_budget_usd = inf
+    minimum_staked_value_usd = inf
 
     for _ in range(scenario.days):
-        daily_fee_tokens = actions_per_day * fee_tokens_per_action
+        total_requested_actions += requested_actions_per_day
+
+        # Emissions are supply creation. Their quoted USD value is *not* assumed
+        # realizable unless the scenario explicitly supplies a realization ratio.
+        daily_emission_tokens = config.daily_security_emission_tokens
+        supply += daily_emission_tokens
+
+        daily_slashing_burn_tokens = min(
+            supply,
+            supply * config.staked_fraction * config.slashing_burn_rate_per_day,
+        )
+        supply -= daily_slashing_burn_tokens
+
+        requested_fee_tokens = requested_actions_per_day * fee_tokens_per_action
+        max_fee_turnover_tokens = supply * config.max_daily_token_velocity
+        max_fee_tokens_by_burn = (
+            supply / config.burn_rate
+            if config.burn_rate > 0
+            else inf
+        )
+        collectible_fee_tokens = min(
+            requested_fee_tokens,
+            max_fee_turnover_tokens,
+            max_fee_tokens_by_burn,
+        )
+
+        if fee_tokens_per_action > 0:
+            executed_actions = collectible_fee_tokens / fee_tokens_per_action
+        else:
+            executed_actions = requested_actions_per_day
+            collectible_fee_tokens = 0.0
+
+        executed_actions = min(executed_actions, requested_actions_per_day)
+        daily_fee_tokens = executed_actions * fee_tokens_per_action
         daily_burn_tokens = daily_fee_tokens * config.burn_rate
         daily_security_fee_tokens = daily_fee_tokens * config.security_fee_share
         daily_treasury_tokens = daily_fee_tokens * config.treasury_fee_share
-        daily_slashing_burn_tokens = (
-            supply
-            * config.staked_fraction
-            * config.slashing_burn_rate_per_day
-        )
 
-        supply += config.daily_security_emission_tokens
+        # Burn cannot create negative supply. The turnover/burn limits above make
+        # this clamp a numerical guard rather than an economic escape hatch.
+        daily_burn_tokens = min(daily_burn_tokens, supply)
         supply -= daily_burn_tokens
-        supply -= daily_slashing_burn_tokens
-        supply = max(supply, 0.0)
+        if supply < EPSILON:
+            supply = 0.0
 
+        realizable_emission_usd = (
+            daily_emission_tokens
+            * token_price
+            * config.emission_realization_fraction
+        )
         daily_security_budget_usd = (
-            daily_security_fee_tokens + config.daily_security_emission_tokens
-        ) * token_price
+            daily_security_fee_tokens * token_price
+            + realizable_emission_usd
+        )
+        daily_staked_value_usd = supply * config.staked_fraction * token_price
 
+        total_executed_actions += executed_actions
         total_fee_tokens += daily_fee_tokens
         total_burn_tokens += daily_burn_tokens
         total_security_fee_tokens += daily_security_fee_tokens
-        total_security_emission_tokens += config.daily_security_emission_tokens
+        total_security_emission_tokens += daily_emission_tokens
+        total_realizable_security_emission_usd += realizable_emission_usd
         total_treasury_tokens += daily_treasury_tokens
         total_slashing_burn_tokens += daily_slashing_burn_tokens
         total_security_budget_usd += daily_security_budget_usd
+        minimum_security_budget_usd = min(
+            minimum_security_budget_usd,
+            daily_security_budget_usd,
+        )
+        minimum_staked_value_usd = min(
+            minimum_staked_value_usd,
+            daily_staked_value_usd,
+        )
 
+    expected_ending_supply = (
+        config.initial_supply_tokens
+        + total_security_emission_tokens
+        - total_burn_tokens
+        - total_slashing_burn_tokens
+    )
+    accounting_error = supply - expected_ending_supply
     average_security_budget = total_security_budget_usd / scenario.days
-    coverage = average_security_budget / config.required_security_budget_usd_per_day
+    minimum_security_budget = (
+        minimum_security_budget_usd
+        if minimum_security_budget_usd != inf
+        else 0.0
+    )
+    security_coverage = (
+        minimum_security_budget
+        / config.required_security_budget_usd_per_day
+    )
+    minimum_stake_value = (
+        minimum_staked_value_usd
+        if minimum_staked_value_usd != inf
+        else 0.0
+    )
+    stake_coverage = minimum_stake_value / config.required_stake_value_usd
+
     fee_affordable = actual_fee_usd_per_action <= config.max_affordable_fee_usd_per_action
-    security_budget_adequate = coverage >= 1.0
-    supply_positive = supply > 0.0
+    security_budget_adequate = security_coverage >= 1.0
+    stake_adequate = stake_coverage >= 1.0
+    total_unmet_actions = max(total_requested_actions - total_executed_actions, 0.0)
+    usage_served = total_unmet_actions <= EPSILON
+    organic_fee_demand_present = total_fee_tokens > EPSILON
+    supply_positive = supply > EPSILON
+    accounting_valid = abs(accounting_error) <= 1e-6
 
     return SimulationResult(
         scenario=scenario.name,
         fee_mode=config.fee_mode,
         days=scenario.days,
         token_price_usd=token_price,
-        actions_per_day=actions_per_day,
+        requested_actions_per_day=requested_actions_per_day,
+        average_executed_actions_per_day=total_executed_actions / scenario.days,
+        total_requested_actions=total_requested_actions,
+        total_executed_actions=total_executed_actions,
+        total_unmet_actions=total_unmet_actions,
         actual_fee_usd_per_action=actual_fee_usd_per_action,
         total_fee_tokens=total_fee_tokens,
         total_burn_tokens=total_burn_tokens,
         total_security_fee_tokens=total_security_fee_tokens,
         total_security_emission_tokens=total_security_emission_tokens,
+        total_realizable_security_emission_usd=total_realizable_security_emission_usd,
         total_treasury_tokens=total_treasury_tokens,
         total_slashing_burn_tokens=total_slashing_burn_tokens,
         starting_supply_tokens=config.initial_supply_tokens,
@@ -192,20 +301,35 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             / config.initial_supply_tokens
             * 100.0
         ),
+        supply_accounting_error_tokens=accounting_error,
         average_security_budget_usd_per_day=average_security_budget,
-        security_coverage_ratio=coverage,
+        minimum_security_budget_usd_per_day=minimum_security_budget,
+        security_coverage_ratio=security_coverage,
+        minimum_staked_value_usd=minimum_stake_value,
+        stake_coverage_ratio=stake_coverage,
         fee_affordable=fee_affordable,
         security_budget_adequate=security_budget_adequate,
+        stake_adequate=stake_adequate,
+        usage_served=usage_served,
+        organic_fee_demand_present=organic_fee_demand_present,
         supply_positive=supply_positive,
+        accounting_valid=accounting_valid,
         economic_survival=(
             fee_affordable
             and security_budget_adequate
+            and stake_adequate
+            and usage_served
+            and organic_fee_demand_present
             and supply_positive
+            and accounting_valid
         ),
     )
 
 
-def allocation_for_burn(burn_rate: float, security_fraction_of_remainder: float = 0.75) -> tuple[float, float]:
+def allocation_for_burn(
+    burn_rate: float,
+    security_fraction_of_remainder: float = 0.75,
+) -> tuple[float, float]:
     """Allocate non-burn fee share between security and treasury.
 
     This helper keeps burn experiments comparable without silently deleting the
