@@ -43,7 +43,8 @@ test('normalizes an exact MCP tools/call into immutable prepared execution', () 
   assert.equal(normalized.tool_name, 'search');
   assert.match(normalized.action_commitment, /^[a-f0-9]{64}$/u);
   assert.match(normalized.context_commitment, /^[a-f0-9]{64}$/u);
-  assert.match(normalized.wire_request_sha256, /^[a-f0-9]{64}$/u);
+  assert.match(normalized.raw_text_commitment_sha256, /^[a-f0-9]{64}$/u);
+  assert.equal(normalized.transport_bytes_proved, false);
   assert.equal(normalized.prepared_execution.method, 'tools/call');
   assert.equal(normalized.prepared_execution.params.name, 'search');
   assert.equal(normalized.prepared_execution.params.arguments.q, 'otters');
@@ -54,13 +55,15 @@ test('normalizes an exact MCP tools/call into immutable prepared execution', () 
   assert.equal(Object.getPrototypeOf(normalized.prepared_execution.params), null);
 });
 
-test('JSON-RPC request id changes wire evidence but not exact action identity', () => {
+test('JSON-RPC request id changes raw-text evidence but not exact action identity', () => {
   const first = normalizeReferenceMcpToolCall(ingress(body({ id: 1 })));
   const second = normalizeReferenceMcpToolCall(ingress(body({ id: 99 })));
 
   assert.equal(first.action_commitment, second.action_commitment);
   assert.equal(first.context_commitment, second.context_commitment);
-  assert.notEqual(first.wire_request_sha256, second.wire_request_sha256);
+  assert.notEqual(first.raw_text_commitment_sha256, second.raw_text_commitment_sha256);
+  assert.equal(first.transport_bytes_proved, false);
+  assert.equal(second.transport_bytes_proved, false);
 });
 
 test('argument mutation changes action commitment and prepared execution', () => {
@@ -77,7 +80,7 @@ test('object insertion order does not change semantic action commitment', () => 
   const second = normalizeReferenceMcpToolCall(ingress(body({ args: '{"b":2,"a":1}' })));
 
   assert.equal(first.action_commitment, second.action_commitment);
-  assert.notEqual(first.wire_request_sha256, second.wire_request_sha256);
+  assert.notEqual(first.raw_text_commitment_sha256, second.raw_text_commitment_sha256);
 });
 
 test('exact transcript preserves composed versus decomposed Unicode strings', () => {
@@ -91,13 +94,20 @@ test('exact transcript preserves composed versus decomposed Unicode strings', ()
   assert.notEqual(composed.action_commitment, decomposed.action_commitment);
 });
 
-test('exact transcript distinguishes negative zero from positive zero', () => {
-  const negative = normalizeReferenceMcpToolCall(ingress(body({ args: '{"n":-0}' })));
-  const positive = normalizeReferenceMcpToolCall(ingress(body({ args: '{"n":0}' })));
+test('negative zero is rejected because JSON dispatch would collapse it to zero', () => {
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(ingress(body({ args: '{"n":-0}' }))),
+    expectCode('POMRX_MCP_E_NUMBER_ROUNDTRIP'),
+  );
+});
 
-  assert.equal(Object.is(negative.prepared_execution.params.arguments.n, -0), true);
-  assert.equal(Object.is(positive.prepared_execution.params.arguments.n, 0), true);
-  assert.notEqual(negative.action_commitment, positive.action_commitment);
+test('unsafe integers are rejected after JSON parsing instead of committing rounded values', () => {
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(
+      ingress(body({ args: '{"n":9007199254740993}' })),
+    ),
+    expectCode('POMRX_MCP_E_NUMBER_ROUNDTRIP'),
+  );
 });
 
 test('Mcp-Name mismatch fails before producing a prepared execution', () => {
@@ -175,6 +185,38 @@ test('escaped-equivalent duplicate nested members are rejected', () => {
   );
 });
 
+test('unpaired Unicode surrogates are rejected before semantic capture', () => {
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(
+      ingress(body({ args: '{"q":"\\ud800"}' })),
+    ),
+    expectCode('POMRX_MCP_E_UNICODE'),
+  );
+});
+
+test('raw lexical depth bounds apply before JSON.parse graph construction', () => {
+  const deepValue = `${'['.repeat(10)}0${']'.repeat(10)}`;
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(
+      ingress(body({ args: `{"deep":${deepValue}}` })),
+    ),
+    expectCode('POMRX_MCP_E_DEPTH'),
+  );
+});
+
+test('raw lexical node bounds apply before JSON.parse graph construction', () => {
+  const entries = [];
+  for (let index = 0; index < 1_000; index += 1) {
+    entries.push(`"k${index}":0`);
+  }
+  assert.throws(
+    () => normalizeReferenceMcpToolCall(
+      ingress(body({ args: `{${entries.join(',')}}` })),
+    ),
+    expectCode('POMRX_MCP_E_NODES'),
+  );
+});
+
 test('captured arrays are detached from post-import Array.prototype toJSON', () => {
   const originalDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON');
   try {
@@ -225,6 +267,28 @@ test('numeric Array.prototype setter cannot intercept detached capture indices',
     } else {
       delete Array.prototype[500];
     }
+  }
+});
+
+test('post-import RegExp.prototype.exec poisoning cannot bypass validation', () => {
+  const originalExec = RegExp.prototype.exec;
+  try {
+    RegExp.prototype.exec = function poisonedExec(value) {
+      if (String(value).includes('!!!')) return { 0: '!!!', index: 0, input: value };
+      return null;
+    };
+    assert.throws(
+      () => normalizeReferenceMcpToolCall(ingress(body(), { serverRef: '!!!' })),
+      expectCode('POMRX_MCP_E_SERVER_REF'),
+    );
+    assert.throws(
+      () => normalizeReferenceMcpToolCall(
+        ingress(body({ name: 'sea\u0000rch' }), { nameHeader: 'sea\u0000rch' }),
+      ),
+      expectCode('POMRX_MCP_E_TOOL_NAME'),
+    );
+  } finally {
+    RegExp.prototype.exec = originalExec;
   }
 });
 
