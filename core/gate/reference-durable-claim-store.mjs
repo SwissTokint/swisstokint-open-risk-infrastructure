@@ -1,4 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import {
+  createHash,
+  randomUUID,
+} from 'node:crypto';
 import {
   link,
   lstat,
@@ -10,11 +13,6 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import { types as utilTypes } from 'node:util';
-
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../sdk/typescript/swisstokint-proof.mjs';
 
 export const POM_RX_DURABLE_CLAIM_SCHEMA_VERSION = 'pom-rx-durable-claim/0.1';
 export const POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION = 'pom-rx-durable-terminal/0.1';
@@ -71,15 +69,14 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
   'terminal_state',
 ]);
 
-// Durable claim identity, root confinement and handle provenance are security-
-// critical. Capture exact-object reflection, identifier validation, path dispatch
-// and WeakMap state once at module initialization so a later same-realm mutation
-// cannot redirect rootDir through either a forged snapshot or mutable node:path
-// exports, admit traversal-shaped capability IDs through a poisoned RegExp test,
-// or substitute claim-handle state. Security-sensitive iteration over module-owned
-// key sets is index-based, with explicit pre-sorted companions, so later Array
-// iterator replacement cannot rewrite the exact-object contracts. Poisoning before
-// module initialization remains outside this reference guarantee.
+// Durable claim identity, root confinement, serialization and handle provenance
+// are security-critical. Capture exact-object reflection, identifier validation,
+// path/hash/JSON dispatch and WeakMap state once at module initialization so a
+// later same-realm mutation cannot redirect rootDir, alter claim/terminal truth,
+// admit traversal-shaped capability IDs, or substitute claim-handle state.
+// Security-sensitive iteration over module-owned key sets is index-based, with
+// explicit pre-sorted companions. Poisoning before module initialization remains
+// outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
@@ -87,6 +84,7 @@ const BUFFER_CONSTRUCTOR = Buffer;
 const BUFFER_BYTE_LENGTH = Buffer.byteLength;
 const JSON_OBJECT = JSON;
 const JSON_PARSE = JSON.parse;
+const JSON_STRINGIFY = JSON.stringify;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
@@ -106,6 +104,14 @@ const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
+const CRYPTO_CREATE_HASH = createHash;
+const HASH_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
+  Object,
+  [REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256'])],
+);
+const HASH_UPDATE = HASH_PROTOTYPE.update;
+const HASH_DIGEST = HASH_PROTOTYPE.digest;
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -129,6 +135,10 @@ function freezeValue(value) {
 
 function jsonParse(value) {
   return REFLECT_APPLY(JSON_PARSE, JSON_OBJECT, [value]);
+}
+
+function jsonStringify(value) {
+  return REFLECT_APPLY(JSON_STRINGIFY, JSON_OBJECT, [value]);
 }
 
 function objectGetOwnPropertyDescriptors(value) {
@@ -165,6 +175,12 @@ function weakMapGet(map, key) {
 
 function weakMapSet(map, key, value) {
   REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function sha256Hex(value) {
+  const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256']);
+  REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
+  return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
 }
 
 function sameSortedKeys(actual, wanted) {
@@ -226,6 +242,26 @@ function exactOwnData(value, expectedKeys, expectedSortedKeys, label) {
   return freezeValue(output);
 }
 
+function canonicalizeFlatRecord(value) {
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = sortArray(objectGetOwnPropertyNames(descriptors));
+  let output = '{';
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    const descriptor = descriptors[key];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record contains a non-data property');
+    }
+    const fieldValue = descriptor.value;
+    if (typeof fieldValue !== 'string' && typeof fieldValue !== 'boolean') {
+      fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record contains an unsupported field type');
+    }
+    if (index > 0) output += ',';
+    output += `${jsonStringify(key)}:${jsonStringify(fieldValue)}`;
+  }
+  return `${output}}`;
+}
+
 function validateCapabilityId(value) {
   if (typeof value !== 'string' || !regexpTest(CAPABILITY_ID_PATTERN, value)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'capabilityId has an invalid format');
@@ -258,7 +294,7 @@ function makeClaimRecord(capabilityId, authorizationCommitment) {
     capability_id: capabilityId,
     authorization_commitment: authorizationCommitment,
   });
-  const canonical = canonicalizePayload(payload);
+  const canonical = canonicalizeFlatRecord(payload);
   const claimCommitment = sha256Hex(`${CLAIM_COMMIT_DOMAIN}${canonical}`);
   return freezeValue({
     ...payload,
@@ -280,7 +316,7 @@ function makeTerminalRecord(claimRecord, terminalState) {
     claim_commitment: claimRecord.claim_commitment,
     terminal_state: terminalState,
   });
-  const canonical = canonicalizePayload(payload);
+  const canonical = canonicalizeFlatRecord(payload);
   return freezeValue({
     ...payload,
     terminal_commitment: sha256Hex(`${TERMINAL_COMMIT_DOMAIN}${canonical}`),
@@ -361,7 +397,7 @@ async function fsyncDirectory(directory) {
 }
 
 async function writeExclusiveDurable(filePath, value) {
-  const body = `${canonicalizePayload(value)}\n`;
+  const body = `${canonicalizeFlatRecord(value)}\n`;
   if (bufferByteLength(body, 'utf8') > MAX_RECORD_BYTES) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record exceeds the maximum size');
   }
