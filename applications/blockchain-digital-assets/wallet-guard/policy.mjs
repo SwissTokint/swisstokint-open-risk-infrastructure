@@ -145,12 +145,12 @@ function createObject(prototype) {
 }
 
 function defineArrayElement(array, index, value) {
-  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), {
-    value,
-    writable: true,
-    enumerable: true,
-    configurable: true,
-  }]);
+  const descriptor = createObject(null);
+  descriptor.value = value;
+  descriptor.writable = true;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), descriptor]);
 }
 
 function arrayIncludes(array, value) {
