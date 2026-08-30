@@ -13,8 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Immutable action refs prevent upstream tag retargeting. Update the SHA
+      # and its release annotation together after reviewing the upstream diff.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # POM-RX fixture conformance binds immutable artifacts to historical
+          # Git blob identities; a shallow clone must fail that proof closed.
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -38,67 +42,33 @@ jobs:
           second_tree="$scratch/second-tree"
           first_manifest="$scratch/first-manifest.json"
           second_manifest="$scratch/second-manifest.json"
+
           cleanup() {
             git worktree remove --force "$first_tree" >/dev/null 2>&1 || true
             git worktree remove --force "$second_tree" >/dev/null 2>&1 || true
             rm -rf "$scratch"
           }
           trap cleanup EXIT
+
           git worktree add --detach "$first_tree" HEAD >/dev/null
           git worktree add --detach "$second_tree" HEAD >/dev/null
-          (cd "$first_tree" && node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$first_manifest" >/dev/null)
-          (cd "$second_tree" && node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$second_manifest" >/dev/null)
-          test -f "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
+
+          (
+            cd "$first_tree"
+            node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$first_manifest" >/dev/null
+          )
+          (
+            cd "$second_tree"
+            node scripts/generate-pom-rx-v01-strict-artifact-manifest.mjs "$second_manifest" >/dev/null
+          )
+
+          if [ ! -f "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json" ]; then
+            echo "Committed strict artifact manifest is missing." >&2
+            exit 1
+          fi
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
-      - name: Diagnostic full-suite group A — baseline and proof
-        run: >-
-          npm run test:risk && npm run test:proof && npm run test:pom-rx:member-lab &&
-          npm run test:pom-rx:v01-fixtures && npm run test:pom-rx:profile-foundation &&
-          npm run test:pom-rx:action-continuity && npm run test:pom-rx:input-continuity &&
-          npm run test:pom-rx:execution-assertion-consistency &&
-          npm run test:pom-rx:reconciliation-assertion-consistency &&
-          npm run test:pom-rx:receipt-id-uniqueness
-      - name: Diagnostic full-suite group B — strict verifier, witness and authorization
-        run: >-
-          npm run test:pom-rx:strict-activation && npm run test:pom-rx:strict-package &&
-          npm run test:pom-rx:strict-isolated-runner &&
-          npm run test:pom-rx:artifact-scanner-regression &&
-          npm run test:pom-rx:witness-primitives && npm run test:pom-rx:witness-trust-lifecycle &&
-          npm run test:pom-rx:exact-authorization-input-hardening
-      - name: Diagnostic full-suite group C1 — Gate and durable consumption
-        run: >-
-          npm run test:pom-rx:core-reference-gate &&
-          npm run test:pom-rx:core-reference-gate-object-boundary &&
-          npm run test:pom-rx:core-reference-gate-temporal &&
-          npm run test:pom-rx:durable-claim-store
-      - name: Diagnostic full-suite group C2 — execution, plain data and observation
-        run: >-
-          npm run test:pom-rx:reference-execution-evidence &&
-          npm run test:pom-rx:reference-plain-data &&
-          npm run test:pom-rx:reference-observation
-      - name: Wallet Guard D1 — intent policy
-        run: npm run test:pom-rx:wallet-guard-intent-policy
-      - name: Wallet Guard D2 — policy object boundary
-        run: npm run test:pom-rx:wallet-guard-policy-object-boundary
-      - name: Wallet Guard D3 — JSON ingress
-        run: npm run test:pom-rx:wallet-guard-json-ingress
-      - name: Wallet Guard D4 — policy controller
-        run: npm run test:pom-rx:wallet-guard-policy-controller
-      - name: Wallet Guard D5 — preflight evidence
-        run: npm run test:pom-rx:wallet-guard-preflight-evidence
-      - name: Wallet Guard D6 — Witness authorization
-        run: npm run test:pom-rx:wallet-guard-witness-authorization
-      - name: Wallet Guard D7 — decoded effect
-        run: npm run test:pom-rx:wallet-guard-decoded-effect
-      - name: Wallet Guard D8 — provider Gate
-        run: npm run test:pom-rx:wallet-guard-provider-gate
-      - name: Wallet Guard D9 — controlled host
-        run: npm run test:pom-rx:wallet-guard-controlled-host
-      - name: Diagnostic full-suite group E — repository contracts
-        run: >-
-          npm run test:pom-rx:capability-map && npm run test:pom-rx:repository-layout &&
-          npm run test:pom-rx:post-merge-assurance && npm run test:public-identity
+      - run: npm test
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
