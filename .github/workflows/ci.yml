@@ -70,7 +70,9 @@ jobs:
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
       - name: Test tokenomics stress model
-        run: python models/tokenomics/test_model.py
+        run: |
+          python models/tokenomics/test_model.py
+          python models/tokenomics/test_review_regressions.py
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
