@@ -38,6 +38,12 @@ const POLICY_KEYS = Object.freeze([
   'deny_operator_approval',
   'require_simulation_for',
 ]);
+const BOOLEAN_POLICY_FIELDS = Object.freeze([
+  'enabled',
+  'kill_switch',
+  'deny_unlimited_allowance',
+  'deny_operator_approval',
+]);
 const KNOWN_REQUEST_CLASSES = new Set([
   'native_transfer',
   'erc20_approve',
@@ -60,6 +66,36 @@ const CRITICAL_UNKNOWN_CLASSES = new Set([
 ]);
 const SIMULATION_STATUSES = new Set(['not_run', 'pass', 'fail', 'unavailable', 'mismatch']);
 
+// Policy parsing can run after asynchronous provider sampling, so its inherited
+// collection helpers are part of the authorization boundary. Capture all
+// load-bearing reflection/Array/Set/RegExp/URL/BigInt operations at module load;
+// freezing an ordinary Array alone does not protect inherited methods from later
+// same-realm mutation.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_CONSTRUCTOR = Array;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_INCLUDES = Array.prototype.includes;
+const ARRAY_SORT = Array.prototype.sort;
+const ARRAY_PROTOTYPE = Array.prototype;
+const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const OBJECT_FREEZE = Object.freeze;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_PROTOTYPE = Object.prototype;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const REGEXP_TEST = RegExp.prototype.test;
+const SET_CONSTRUCTOR = Set;
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const URL_CONSTRUCTOR = URL;
+const BIGINT_CONSTRUCTOR = BigInt;
+const BIGINT_TO_STRING = BigInt.prototype.toString;
+
 export class WalletGuardPolicyError extends Error {
   constructor(code, message) {
     super(message);
@@ -73,105 +109,181 @@ function fail(code, message) {
 }
 
 function isProxy(value) {
-  return utilTypes.isProxy(value);
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function isArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
+
+function defineArrayElement(array, index, value) {
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  }]);
+}
+
+function arrayIncludes(array, value) {
+  return REFLECT_APPLY(ARRAY_INCLUDES, array, [value]);
+}
+
+function sortArray(array) {
+  return REFLECT_APPLY(ARRAY_SORT, array, []);
+}
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+}
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function setAdd(set, value) {
+  REFLECT_APPLY(SET_ADD, set, [value]);
+}
+
+function numberIsSafeInteger(value) {
+  return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
+}
+
+function bigintFrom(value) {
+  return REFLECT_APPLY(BIGINT_CONSTRUCTOR, undefined, [value]);
+}
+
+function bigintToString(value, radix) {
+  return REFLECT_APPLY(BIGINT_TO_STRING, value, [radix]);
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'enumerable')
+    && objectHasOwn(descriptor, 'enumerable')
     && descriptor.enumerable === true
-    && Object.hasOwn(descriptor, 'value')
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && objectHasOwn(descriptor, 'value')
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
 }
 
 function isOwnDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'value')
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && objectHasOwn(descriptor, 'value')
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
 }
 
 function snapshotExactDataRecord(value, expected, label) {
-  if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || isProxy(value) || isArray(value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an exact plain data object`);
   }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} cannot contain symbol keys`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const names = objectGetOwnPropertyNames(descriptors);
+  if (names.length !== expected.length) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing, hidden or unknown fields`);
   }
-  const snapshot = Object.create(null);
-  for (const key of expected) {
+  const snapshot = createObject(null);
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = expected[index];
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
-      fail('POMRX_WG_POLICY_E_INVALID', `${label} fields must be enumerable data properties`);
+      fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing, hidden or unknown fields`);
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return freezeValue(snapshot);
 }
 
 function snapshotDenseArray(values, field) {
-  if (!values || typeof values !== 'object' || isProxy(values) || !Array.isArray(values)) {
+  if (!values || typeof values !== 'object' || isProxy(values) || !isArray(values)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded plain array`);
   }
-  if (Object.getPrototypeOf(values) !== Array.prototype) {
+  if (objectGetPrototypeOf(values) !== ARRAY_PROTOTYPE) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must use the standard Array prototype`);
   }
-  if (Object.getOwnPropertySymbols(values).length !== 0) {
+  if (objectGetOwnPropertySymbols(values).length !== 0) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain symbol keys`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(values);
+  const descriptors = objectGetOwnPropertyDescriptors(values);
   const lengthDescriptor = descriptors.length;
   if (!isOwnDataDescriptor(lengthDescriptor)
-      || !Number.isSafeInteger(lengthDescriptor.value)
+      || !numberIsSafeInteger(lengthDescriptor.value)
       || lengthDescriptor.value < 0
       || lengthDescriptor.value > 256) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
   }
   const length = lengthDescriptor.value;
-  const keys = Object.keys(descriptors).filter((key) => key !== 'length');
-  if (keys.length !== length || keys.some((key, index) => key !== String(index))) {
+  if (objectGetOwnPropertyNames(descriptors).length !== length + 1) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be dense and cannot contain extra or hidden properties`);
   }
-  const snapshot = keys.map((key) => {
-    const descriptor = descriptors[key];
+  const snapshot = new ARRAY_CONSTRUCTOR(length);
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[String(index)];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} entries must be enumerable data properties`);
     }
-    return descriptor.value;
-  });
-  return Object.freeze(snapshot);
+    defineArrayElement(snapshot, index, descriptor.value);
+  }
+  return freezeValue(snapshot);
 }
 
 function normalizeOrigin(value) {
   if (typeof value !== 'string') fail('POMRX_WG_POLICY_E_INVALID', 'origin must be a string');
   let url;
   try {
-    url = new URL(value);
+    url = new URL_CONSTRUCTOR(value);
   } catch {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be an absolute URL origin');
   }
-  if (!['https:', 'http:'].includes(url.protocol) || url.origin !== value || url.username || url.password) {
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
+      || url.origin !== value
+      || url.username
+      || url.password) {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be canonical HTTP(S) origin');
   }
   return url.origin;
 }
 
 function normalizeCanonicalDecimal(value, field) {
-  if (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value)) {
+  if (typeof value !== 'string' || !regexpTest(DECIMAL_INTEGER_PATTERN, value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a canonical decimal integer string`);
   }
-  return BigInt(value).toString(10);
+  return bigintToString(bigintFrom(value), 10);
 }
 
 function normalizePolicyChainId(value) {
@@ -194,12 +306,18 @@ function normalizePolicyAddress(value, field) {
 
 function normalizeUniqueList(values, field, normalizeItem) {
   const snapshotted = snapshotDenseArray(values, field);
-  const normalized = snapshotted.map(normalizeItem);
-  const unique = new Set(normalized);
-  if (unique.size !== normalized.length) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
+  const normalized = new ARRAY_CONSTRUCTOR(snapshotted.length);
+  const seen = new SET_CONSTRUCTOR();
+  for (let index = 0; index < snapshotted.length; index += 1) {
+    const value = normalizeItem(snapshotted[index]);
+    if (setHas(seen, value)) {
+      fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
+    }
+    setAdd(seen, value);
+    defineArrayElement(normalized, index, value);
   }
-  return Object.freeze([...normalized].sort());
+  sortArray(normalized);
+  return freezeValue(normalized);
 }
 
 function normalizePolicy(policy) {
@@ -207,10 +325,11 @@ function normalizePolicy(policy) {
   if (snapshot.schema_version !== WALLET_GUARD_POLICY_SCHEMA_VERSION) {
     fail('POMRX_WG_POLICY_E_INVALID', 'unsupported Wallet Guard policy version');
   }
-  if (typeof snapshot.policy_id !== 'string' || !POLICY_ID_PATTERN.test(snapshot.policy_id)) {
+  if (typeof snapshot.policy_id !== 'string' || !regexpTest(POLICY_ID_PATTERN, snapshot.policy_id)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'policy_id has an invalid format');
   }
-  for (const field of ['enabled', 'kill_switch', 'deny_unlimited_allowance', 'deny_operator_approval']) {
+  for (let index = 0; index < BOOLEAN_POLICY_FIELDS.length; index += 1) {
+    const field = BOOLEAN_POLICY_FIELDS[index];
     if (typeof snapshot[field] !== 'boolean') {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} must be boolean`);
     }
@@ -220,14 +339,14 @@ function normalizePolicy(policy) {
     snapshot.require_simulation_for,
     'require_simulation_for',
     (value) => {
-      if (typeof value !== 'string' || !KNOWN_REQUEST_CLASSES.has(value)) {
+      if (typeof value !== 'string' || !setHas(KNOWN_REQUEST_CLASSES, value)) {
         fail('POMRX_WG_POLICY_E_INVALID', 'require_simulation_for contains an unknown request class');
       }
       return value;
     },
   );
 
-  return Object.freeze({
+  return freezeValue({
     schema_version: WALLET_GUARD_POLICY_SCHEMA_VERSION,
     policy_id: snapshot.policy_id,
     enabled: snapshot.enabled,
@@ -272,36 +391,52 @@ function validateIntent(intent) {
   if (!isLocallyNormalizedWalletGuardIntent(intent)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard policy requires a locally normalized intent');
   }
-  if (!KNOWN_REQUEST_CLASSES.has(intent.request_class)) {
+  if (!setHas(KNOWN_REQUEST_CLASSES, intent.request_class)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent request class is unknown');
   }
 }
 
 function normalizeSimulation(simulation) {
-  const value = simulation ?? Object.freeze({ status: 'not_run' });
+  const value = simulation ?? freezeValue({ status: 'not_run' });
   const snapshot = snapshotExactDataRecord(value, ['status'], 'simulation evidence');
-  if (typeof snapshot.status !== 'string' || !SIMULATION_STATUSES.has(snapshot.status)) {
+  if (typeof snapshot.status !== 'string' || !setHas(SIMULATION_STATUSES, snapshot.status)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'simulation status is invalid');
   }
   return snapshot.status;
 }
 
 function includes(list, value) {
-  return value !== null && value !== undefined && list.includes(value);
+  return value !== null && value !== undefined && arrayIncludes(list, value);
 }
 
 function greaterThan(value, limit) {
-  if (value === null || value === undefined || !DECIMAL_INTEGER_PATTERN.test(value)) {
+  if (value === null || value === undefined || !regexpTest(DECIMAL_INTEGER_PATTERN, value)) {
     return true;
   }
-  return BigInt(value) > BigInt(limit);
+  return bigintFrom(value) > bigintFrom(limit);
+}
+
+function uniqueReasons(reasons) {
+  const output = new ARRAY_CONSTRUCTOR(reasons.length);
+  const seen = new SET_CONSTRUCTOR();
+  let count = 0;
+  for (let index = 0; index < reasons.length; index += 1) {
+    const reason = reasons[index];
+    if (!setHas(seen, reason)) {
+      setAdd(seen, reason);
+      defineArrayElement(output, count, reason);
+      count += 1;
+    }
+  }
+  if (count !== output.length) output.length = count;
+  return freezeValue(output);
 }
 
 function makeResult(decision, reasons, normalizedPolicy) {
   const canonicalPolicy = canonicalizePayload(normalizedPolicy);
-  return Object.freeze({
+  return freezeValue({
     decision,
-    reasons: Object.freeze([...new Set(reasons)]),
+    reasons: uniqueReasons(reasons),
     policy_id: normalizedPolicy.policy_id,
     policy_hash: sha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
   });
@@ -316,7 +451,7 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
 
   if (!normalizedPolicy.enabled) denyReasons.push('WG_POLICY_DENY_DISABLED');
   if (normalizedPolicy.kill_switch) denyReasons.push('WG_POLICY_DENY_KILL_SWITCH');
-  if (!normalizedPolicy.allowed_origins.includes(intent.origin)) {
+  if (!includes(normalizedPolicy.allowed_origins, intent.origin)) {
     denyReasons.push('WG_POLICY_DENY_ORIGIN');
   }
   if (intent.chain_id !== normalizedPolicy.expected_chain_id) {
@@ -326,7 +461,7 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
     denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
   }
 
-  if (CRITICAL_UNKNOWN_CLASSES.has(intent.request_class)) {
+  if (setHas(CRITICAL_UNKNOWN_CLASSES, intent.request_class)) {
     indeterminateReasons.push('WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
   }
 
@@ -405,7 +540,7 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   }
 
   const simulationRequired = intent.simulation_required === true
-    || normalizedPolicy.require_simulation_for.includes(intent.request_class);
+    || includes(normalizedPolicy.require_simulation_for, intent.request_class);
   if (simulationRequired) {
     if (simulationStatus === 'fail' || simulationStatus === 'mismatch') {
       denyReasons.push('WG_POLICY_DENY_SIMULATION');
