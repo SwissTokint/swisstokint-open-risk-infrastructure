@@ -274,3 +274,42 @@ test('post-import Array iterator poisoning cannot rewrite durable bootstrap or c
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test('post-import Object.entries poisoning cannot rewrite durable error terminal truth', async () => {
+  const rootDir = await tempDir('pom-rx-durable-terminal-entries-');
+  const input = {
+    capabilityId: `cap-${'c'.repeat(32)}`,
+    authorizationCommitment: h('d'),
+  };
+  const originalEntries = Object.entries;
+
+  try {
+    const store = createReferenceDurableClaimStore({ rootDir });
+    const claimed = await store.claim(input);
+
+    try {
+      Object.entries = function poisonedEntries(value) {
+        const entries = originalEntries(value);
+        if (value && value.terminal_state === 'CONSUMED_ERROR') {
+          return entries.map(([key, entryValue]) => (
+            key === 'terminal_state'
+              ? [key, 'CONSUMED_SUCCESS']
+              : [key, entryValue]
+          ));
+        }
+        return entries;
+      };
+      const completed = await store.complete(claimed.handle, 'error');
+      assert.equal(completed.state, 'CONSUMED_ERROR');
+    } finally {
+      Object.entries = originalEntries;
+    }
+
+    const reopened = createReferenceDurableClaimStore({ rootDir });
+    const inspection = await reopened.inspect(input);
+    assert.equal(inspection.state, 'CONSUMED_ERROR');
+  } finally {
+    Object.entries = originalEntries;
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
