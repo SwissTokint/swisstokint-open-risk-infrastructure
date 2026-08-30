@@ -6,9 +6,6 @@ import {
 } from '../../../sdk/typescript/swisstokint-proof.mjs';
 import {
   MAX_UINT256_DECIMAL,
-  WalletGuardDecoderError,
-  normalizeChainId,
-  normalizeEvmAddress,
 } from './evm-decoders.mjs';
 import {
   WalletGuardIntentError,
@@ -20,6 +17,8 @@ export const WALLET_GUARD_POLICY_SCHEMA_VERSION = 'wallet-guard-policy/0.1';
 export const WALLET_GUARD_POLICY_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-policy:v1:';
 
 const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
+const HEX_QUANTITY_PATTERN = /^0x(?:0|[1-9a-fA-F][a-fA-F0-9]*)$/u;
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/u;
 const POLICY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{7,127}$/u;
 const POLICY_KEYS = Object.freeze([
   'schema_version',
@@ -66,15 +65,15 @@ const CRITICAL_UNKNOWN_CLASSES = new Set([
 ]);
 const SIMULATION_STATUSES = new Set(['not_run', 'pass', 'fail', 'unavailable', 'mismatch']);
 
-// Policy parsing can run after asynchronous provider sampling, so its inherited
-// collection helpers are part of the authorization boundary. Capture all
-// load-bearing reflection/Array/Set/RegExp/URL/BigInt operations at module load;
-// freezing an ordinary Array alone does not protect inherited methods from later
-// same-realm mutation.
+// Policy parsing can run after asynchronous provider sampling, so inherited
+// helpers and URL accessors used by normalization are part of the authorization
+// boundary. Capture the load-bearing operations at module initialization rather
+// than dispatching through mutable same-realm prototypes after an await.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_INCLUDES = Array.prototype.includes;
+const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const ARRAY_PROTOTYPE = Array.prototype;
 const OBJECT_CREATE = Object.create;
@@ -91,8 +90,14 @@ const REGEXP_TEST = RegExp.prototype.test;
 const SET_CONSTRUCTOR = Set;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const URL_CONSTRUCTOR = URL;
+const URL_PROTOTYPE_DESCRIPTORS = Object.getOwnPropertyDescriptors(URL_CONSTRUCTOR.prototype);
+const URL_PROTOCOL_GET = URL_PROTOTYPE_DESCRIPTORS.protocol.get;
+const URL_ORIGIN_GET = URL_PROTOTYPE_DESCRIPTORS.origin.get;
+const URL_USERNAME_GET = URL_PROTOTYPE_DESCRIPTORS.username.get;
+const URL_PASSWORD_GET = URL_PROTOTYPE_DESCRIPTORS.password.get;
 const BIGINT_CONSTRUCTOR = BigInt;
 const BIGINT_TO_STRING = BigInt.prototype.toString;
 
@@ -157,6 +162,10 @@ function arrayIncludes(array, value) {
   return REFLECT_APPLY(ARRAY_INCLUDES, array, [value]);
 }
 
+function arrayPush(array, value) {
+  return REFLECT_APPLY(ARRAY_PUSH, array, [value]);
+}
+
 function sortArray(array) {
   return REFLECT_APPLY(ARRAY_SORT, array, []);
 }
@@ -175,6 +184,14 @@ function setAdd(set, value) {
 
 function numberIsSafeInteger(value) {
   return REFLECT_APPLY(NUMBER_IS_SAFE_INTEGER, Number, [value]);
+}
+
+function stringToLowerCase(value) {
+  return REFLECT_APPLY(STRING_TO_LOWER_CASE, value, []);
+}
+
+function urlGet(getter, value) {
+  return REFLECT_APPLY(getter, value, []);
 }
 
 function bigintFrom(value) {
@@ -270,13 +287,17 @@ function normalizeOrigin(value) {
   } catch {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be an absolute URL origin');
   }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
-      || url.origin !== value
-      || url.username
-      || url.password) {
+  const protocol = urlGet(URL_PROTOCOL_GET, url);
+  const origin = urlGet(URL_ORIGIN_GET, url);
+  const username = urlGet(URL_USERNAME_GET, url);
+  const password = urlGet(URL_PASSWORD_GET, url);
+  if ((protocol !== 'https:' && protocol !== 'http:')
+      || origin !== value
+      || username
+      || password) {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be canonical HTTP(S) origin');
   }
-  return url.origin;
+  return origin;
 }
 
 function normalizeCanonicalDecimal(value, field) {
@@ -287,21 +308,17 @@ function normalizeCanonicalDecimal(value, field) {
 }
 
 function normalizePolicyChainId(value) {
-  try {
-    return normalizeChainId(value);
-  } catch (error) {
-    const detail = error instanceof WalletGuardDecoderError ? error.code : 'invalid-chain';
-    fail('POMRX_WG_POLICY_E_INVALID', `expected_chain_id is invalid: ${detail}`);
+  if (typeof value !== 'string' || !regexpTest(HEX_QUANTITY_PATTERN, value)) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'expected_chain_id is invalid: invalid-chain');
   }
+  return `0x${bigintToString(bigintFrom(value), 16)}`;
 }
 
 function normalizePolicyAddress(value, field) {
-  try {
-    return normalizeEvmAddress(value, field);
-  } catch (error) {
-    const detail = error instanceof WalletGuardDecoderError ? error.code : 'invalid-address';
-    fail('POMRX_WG_POLICY_E_INVALID', `${field} is invalid: ${detail}`);
+  if (typeof value !== 'string' || !regexpTest(EVM_ADDRESS_PATTERN, value)) {
+    fail('POMRX_WG_POLICY_E_INVALID', `${field} is invalid: POMRX_WG_E_ADDRESS_INVALID`);
   }
+  return stringToLowerCase(value);
 }
 
 function normalizeUniqueList(values, field, normalizeItem) {
@@ -449,93 +466,93 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   const denyReasons = [];
   const indeterminateReasons = [];
 
-  if (!normalizedPolicy.enabled) denyReasons.push('WG_POLICY_DENY_DISABLED');
-  if (normalizedPolicy.kill_switch) denyReasons.push('WG_POLICY_DENY_KILL_SWITCH');
+  if (!normalizedPolicy.enabled) arrayPush(denyReasons, 'WG_POLICY_DENY_DISABLED');
+  if (normalizedPolicy.kill_switch) arrayPush(denyReasons, 'WG_POLICY_DENY_KILL_SWITCH');
   if (!includes(normalizedPolicy.allowed_origins, intent.origin)) {
-    denyReasons.push('WG_POLICY_DENY_ORIGIN');
+    arrayPush(denyReasons, 'WG_POLICY_DENY_ORIGIN');
   }
   if (intent.chain_id !== normalizedPolicy.expected_chain_id) {
-    denyReasons.push('WG_POLICY_DENY_CHAIN');
+    arrayPush(denyReasons, 'WG_POLICY_DENY_CHAIN');
   }
   if (greaterThan(intent.native_value, normalizedPolicy.max_native_value)) {
-    denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
+    arrayPush(denyReasons, 'WG_POLICY_DENY_NATIVE_VALUE');
   }
 
   if (setHas(CRITICAL_UNKNOWN_CLASSES, intent.request_class)) {
-    indeterminateReasons.push('WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
+    arrayPush(indeterminateReasons, 'WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
   }
 
   if (intent.request_class === 'native_transfer') {
     if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
-      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_RECIPIENT');
     }
   }
 
   if (intent.request_class === 'erc20_transfer') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
-      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_RECIPIENT');
     }
     if (greaterThan(intent.token_amount, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_TOKEN_AMOUNT');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TOKEN_AMOUNT');
     }
   }
 
   if (intent.request_class === 'erc20_approve') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_SPENDER');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_SPENDER');
     }
     if (normalizedPolicy.deny_unlimited_allowance
         && intent.requested_allowance === MAX_UINT256_DECIMAL) {
-      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
     }
     if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_ALLOWANCE_LIMIT');
     }
   }
 
   if (intent.request_class === 'set_approval_for_all') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_OPERATOR');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_OPERATOR');
     }
     if (normalizedPolicy.deny_operator_approval && intent.requested_operator_approval === true) {
-      denyReasons.push('WG_POLICY_DENY_OPERATOR_APPROVAL');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_OPERATOR_APPROVAL');
     }
   }
 
   if (intent.request_class === 'permit_eip2612' || intent.request_class === 'permit2_single') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_SPENDER');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_SPENDER');
     }
     if (intent.typed_data_domain_chain_id !== intent.chain_id) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_CHAIN');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_CHAIN');
     }
     if (!includes(
       normalizedPolicy.allowed_typed_data_verifying_contracts,
       intent.typed_data_verifying_contract,
     )) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_DOMAIN');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_DOMAIN');
     }
     if (intent.request_class === 'permit_eip2612' && intent.typed_data_owner !== intent.account) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_OWNER');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_OWNER');
     }
     if (normalizedPolicy.deny_unlimited_allowance
         && intent.requested_allowance === MAX_UINT256_DECIMAL) {
-      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
     }
     if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_ALLOWANCE_LIMIT');
     }
   }
 
@@ -543,9 +560,9 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
     || includes(normalizedPolicy.require_simulation_for, intent.request_class);
   if (simulationRequired) {
     if (simulationStatus === 'fail' || simulationStatus === 'mismatch') {
-      denyReasons.push('WG_POLICY_DENY_SIMULATION');
+      arrayPush(denyReasons, 'WG_POLICY_DENY_SIMULATION');
     } else if (simulationStatus !== 'pass') {
-      indeterminateReasons.push('WG_POLICY_INDETERMINATE_SIMULATION');
+      arrayPush(indeterminateReasons, 'WG_POLICY_INDETERMINATE_SIMULATION');
     }
   }
 
