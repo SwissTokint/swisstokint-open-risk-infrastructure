@@ -4,14 +4,15 @@ Status: **reference integration foundation; not an authorization or production M
 
 Issue: #148
 
-This directory begins the MCP application profile for POM-RX. It targets the MCP `2026-07-28` Streamable HTTP request shape and deliberately starts with a narrow property: take one raw `tools/call` request, verify the standard routing headers against the body, parse it once inside the POM-RX boundary, capture the effective tool-call parameters into inert immutable data, and derive domain-separated commitments over the action and trusted routing context.
+This directory begins the MCP application profile for POM-RX. It targets the MCP `2026-07-28` Streamable HTTP request shape and deliberately starts with a narrow property: take one raw decoded-text `tools/call` request, verify the standard routing headers against the body, reject ambiguous or structurally out-of-bounds JSON before full parsing, capture the effective tool-call parameters into inert immutable data, and derive domain-separated commitments over the action and trusted routing context.
 
 ## Why parse once
 
 The security invariant is not “the JSON text was logged”. It is:
 
 ```text
-raw MCP request
+raw decoded request text
+  -> bounded/duplicate-free lexical scan
   -> POM-RX-owned parse/capture
   -> exact action commitment
   -> immutable prepared_execution
@@ -29,7 +30,7 @@ The reference normalizer receives:
 - `MCP-Protocol-Version` value already extracted by the HTTP boundary;
 - `Mcp-Method` value;
 - `Mcp-Name` value;
-- the raw JSON request body as text.
+- the decoded JSON request body as text.
 
 For the current MCP revision it requires:
 
@@ -38,11 +39,19 @@ For the current MCP revision it requires:
 - `Mcp-Method` to match the body method;
 - `Mcp-Name` to match `params.name`;
 - JSON-RPC `2.0` with a bounded request id;
+- no duplicate JSON object members at any depth, including escaped-equivalent key spellings;
+- lexical depth/node/array/string/key limits before `JSON.parse` builds the full graph;
+- Unicode scalar strings/keys (unpaired surrogates rejected);
+- finite numbers that survive ordinary JSON dispatch identity: `-0` and unsafe integers are rejected;
 - a bounded JSON-only parameter tree.
 
-The action commitment covers the complete captured `tools/call` params, including `arguments` and, when present, `_meta`, `task`, `inputResponses`, and `requestState`. The request id is deliberately excluded from action identity because it is transport correlation, while the raw wire hash still commits to the complete request text. The context commitment binds the protocol revision, target server reference and standard routing-header values.
+The action commitment covers the complete captured `tools/call` params, including `arguments` and, when present, `_meta`, `task`, `inputResponses`, and `requestState`. The request id is deliberately excluded from action identity because it is transport correlation.
 
-The exact-value transcript preserves JavaScript string code units and IEEE-754 number identity, including `-0`; object property insertion order does not change the commitment. This is intentionally stricter than using the Proof Receipt canonicalizer, whose portability semantics are a different contract and must not silently define execution identity.
+A separate `raw_text_commitment_sha256` binds the decoded request text supplied to this boundary. It is **not** a transport-byte hash. The output therefore carries `transport_bytes_proved=false`; an HTTP integration that needs byte-level evidence must capture and bind the original body bytes before text decoding.
+
+The current application-local exact-value transcript preserves well-formed JavaScript string code units and accepted IEEE-754 number identity while making object property insertion order irrelevant. Captured arrays are real Array exotics with a detached/null prototype and own data elements, so later `Array.prototype` mutation cannot rewrite the prepared snapshot under the stated same-realm assumptions.
+
+The exact transcript/hash implementation is temporary integration scaffolding. Core issue #157 owns the shared exact-value commitment contract; this MCP lot must migrate to that reviewed Core primitive before its architectural P2 can close.
 
 ## Current non-goals / non-proofs
 
@@ -52,6 +61,7 @@ This first lot does **not** prove:
 - durable single-use execution;
 - that an MCP server actually dispatched the captured call;
 - independent observation or effect reconciliation;
+- transport-byte identity from the decoded `bodyText` value;
 - prompt-injection prevention or model reasoning quality;
 - OAuth / MCP authorization correctness;
 - `Mcp-Param-*` schema-derived mirrored-header validation;
@@ -64,8 +74,9 @@ This first lot does **not** prove:
 ## Next integration lots
 
 1. exact-head review and adversarial normalization tests;
-2. tool-definition-aware `Mcp-Param-*` mirror validation;
-3. composition with the accepted shared POM-RX durable Gate rather than a private MCP Gate fork;
-4. execution evidence plus independently sourced observation/reconciliation;
-5. harmless local MCP demo;
-6. benchmark against raw tool call, logging-only and policy-gateway-only baselines.
+2. Core #157 shared exact-value commitment and migration away from the local transcript;
+3. tool-definition-aware `Mcp-Param-*` mirror validation;
+4. composition with the accepted shared POM-RX durable Gate rather than a private MCP Gate fork;
+5. execution evidence plus independently sourced observation/reconciliation;
+6. harmless local MCP demo;
+7. benchmark against raw tool call, logging-only and policy-gateway-only baselines.
