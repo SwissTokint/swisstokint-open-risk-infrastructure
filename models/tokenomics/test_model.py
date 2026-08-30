@@ -104,6 +104,7 @@ class TokenomicsModelTests(unittest.TestCase):
         result = simulate(config, StressScenario(name="depletion", days=2))
         self.assertAlmostEqual(result.total_burn_tokens, 100.0)
         self.assertAlmostEqual(result.ending_supply_tokens, 0.0)
+        self.assertAlmostEqual(result.ending_liquid_supply_tokens, 0.0)
         self.assertGreater(result.total_unmet_actions, 0.0)
         self.assertAlmostEqual(result.supply_accounting_error_tokens, 0.0)
         self.assertTrue(result.accounting_valid)
@@ -130,6 +131,8 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertTrue(one_year.economic_survival)
         self.assertFalse(five_year.economic_survival)
         self.assertGreater(five_year.total_unmet_actions, 0.0)
+        self.assertLess(five_year.ending_liquid_supply_tokens, 1e-6)
+        self.assertGreater(five_year.ending_staked_tokens, 0.0)
 
     def test_zero_stake_cannot_report_economic_survival(self) -> None:
         config = replace(
@@ -196,15 +199,16 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertFalse(result.organic_fee_demand_present)
         self.assertFalse(result.economic_survival)
 
-    def test_published_matrix_contains_five_year_and_affordability_failures(self) -> None:
+    def test_published_matrix_contains_five_year_affordability_and_liquidity_failures(self) -> None:
         results = build_results()
         horizons = {int(result["days"]) for result in results}
         summary = summarize(results)
         self.assertEqual(horizons, {365, 1_825})
         self.assertGreater(summary["fee_affordability_failure_count"], 0)
-        self.assertGreater(summary["supply_depletion_count"], 0)
+        self.assertGreater(summary["liquid_supply_depletion_count"], 0)
         self.assertGreater(summary["unmet_demand_scenario_count"], 0)
         self.assertGreater(summary["stake_failure_count"], 0)
+        self.assertEqual(summary["accounting_failure_count"], 0)
 
 
 if __name__ == "__main__":
