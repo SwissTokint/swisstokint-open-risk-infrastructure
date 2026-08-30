@@ -184,6 +184,7 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertAlmostEqual(result.total_executed_actions, 1.0)
         self.assertAlmostEqual(result.total_unmet_actions, 49.0)
         self.assertFalse(result.usage_served)
+        self.assertFalse(result.ending_liquidity_adequate)
         self.assertFalse(result.economic_survival)
 
     def test_paid_wash_activity_is_not_inferred_to_be_organic_demand(self) -> None:
@@ -197,6 +198,49 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertGreater(result.total_fee_tokens, 0.0)
         self.assertEqual(result.total_organic_fee_tokens, 0.0)
         self.assertFalse(result.organic_fee_demand_present)
+        self.assertFalse(result.economic_survival)
+
+    def test_horizon_end_requires_next_day_liquid_inventory(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=100.0,
+            staked_fraction=0.50,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=1.0,
+            security_fee_share=0.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=1.0,
+            emission_realization_fraction=1.0,
+            daily_actions=51.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="horizon-zero-liquid", days=1))
+        self.assertTrue(result.usage_served)
+        self.assertTrue(result.security_budget_adequate)
+        self.assertTrue(result.stake_adequate)
+        self.assertAlmostEqual(result.ending_staked_tokens, 50.0)
+        self.assertAlmostEqual(result.ending_liquid_supply_tokens, 0.0)
+        self.assertAlmostEqual(result.required_next_day_liquid_tokens, 51.0)
+        self.assertFalse(result.ending_liquidity_adequate)
+        self.assertFalse(result.economic_survival)
+
+    def test_tiny_organic_share_cannot_legitimize_wash_funded_security(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            daily_actions=20_000.0,
+            organic_usage_fraction=1e-12,
+            daily_security_emission_tokens=0.0,
+            required_security_budget_usd_per_day=1_000.0,
+        )
+        result = simulate(config, StressScenario(name="tiny-organic", days=1))
+        self.assertGreater(result.minimum_gross_security_budget_usd_per_day, 1_000.0)
+        self.assertLess(result.minimum_security_budget_usd_per_day, 1.0)
+        self.assertTrue(result.organic_fee_demand_present)
+        self.assertFalse(result.security_budget_adequate)
         self.assertFalse(result.economic_survival)
 
     def test_published_matrix_contains_five_year_affordability_and_liquidity_failures(self) -> None:
