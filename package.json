@@ -22,7 +22,7 @@
     "test:pom-rx:core-reference-gate": "node --test tests/pom-rx-core-reference-gate.node.test.mjs",
     "test:pom-rx:core-reference-gate-object-boundary": "node --test tests/pom-rx-core-reference-gate-object-boundary.node.test.mjs",
     "test:pom-rx:core-reference-gate-temporal": "node --test tests/pom-rx-core-reference-gate-temporal.node.test.mjs",
-    "test:pom-rx:durable-claim-store": "node --test tests/pom-rx-core-durable-gate.node.test.mjs tests/pom-rx-durable-claim-store.node.test.mjs tests/pom-rx-durable-claim-store-root.node.test.mjs tests/pom-rx-durable-claim-store-publication.node.test.mjs",
+    "test:pom-rx:durable-claim-store": "node --test tests/pom-rx-core-durable-gate.node.test.mjs tests/pom-rx-core-durable-gate-bootstrap-intrinsic.node.test.mjs tests/pom-rx-durable-claim-store.node.test.mjs tests/pom-rx-durable-claim-store-root.node.test.mjs tests/pom-rx-durable-claim-store-publication.node.test.mjs",
     "test:pom-rx:reference-execution-evidence": "node --test tests/pom-rx-reference-execution-evidence.node.test.mjs tests/pom-rx-reference-execution-evidence-canonicalization.node.test.mjs tests/pom-rx-reference-execution-evidence-hardening.node.test.mjs",
     "test:pom-rx:reference-plain-data": "node --test tests/pom-rx-reference-plain-data.node.test.mjs tests/pom-rx-reference-plain-data-prototype-boundary.node.test.mjs",
     "test:pom-rx:reference-observation": "node --test tests/pom-rx-reference-observation-reconciliation.node.test.mjs tests/pom-rx-reference-observation-object-boundary.node.test.mjs tests/pom-rx-reference-observation-return-channel.node.test.mjs",
