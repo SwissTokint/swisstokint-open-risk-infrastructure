@@ -13,6 +13,7 @@ USAGE_MULTIPLIERS = (0.0, 0.1, 1.0, 10.0, 100.0)
 BURN_RATES = (0.0, 0.10, 0.25, 0.50, 0.75, 1.0)
 FEE_MODES = ("usd_indexed", "token_fixed")
 HORIZON_DAYS = (365, 1_825)
+EPSILON = 1e-9
 
 
 def build_results() -> list[dict[str, object]]:
@@ -61,8 +62,17 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         not bool(result["fee_affordable"])
         for result in results
     )
-    depleted = sum(
+    total_supply_depleted = sum(
         not bool(result["supply_positive"])
+        for result in results
+    )
+    # Bonded stake is deliberately not fee inventory. A system can retain a
+    # positive total token supply while its usable liquid pool is exhausted and
+    # tool/action demand is therefore unserviceable. Track that failure mode
+    # separately instead of requiring total ledger supply to reach zero.
+    liquid_supply_depleted = sum(
+        float(result["ending_liquid_supply_tokens"]) <= EPSILON
+        and float(result["requested_actions_per_day"]) > EPSILON
         for result in results
     )
     unmet_demand = sum(
@@ -95,16 +105,19 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         "security_budget_failure_count": security_failures,
         "stake_failure_count": stake_failures,
         "fee_affordability_failure_count": affordability_failures,
-        "supply_depletion_count": depleted,
+        "total_supply_depletion_count": total_supply_depleted,
+        "liquid_supply_depletion_count": liquid_supply_depleted,
         "unmet_demand_scenario_count": unmet_demand,
         "no_organic_demand_scenario_count": no_organic_demand,
         "accounting_failure_count": accounting_failures,
         "horizons": horizon_counts,
         "claim_boundary": (
             "mechanical stress output only; token price is an exogenous scenario input; "
-            "nominal emissions are not treated as realizable security funding unless an "
-            "explicit realization fraction is configured; not a price forecast, investment "
-            "return estimate, legal conclusion, or TOKEN_NECESSITY decision"
+            "bonded stake is not counted as fee liquidity; paid usage is organic only to "
+            "the configured organic_usage_fraction; nominal emissions are not treated as "
+            "realizable security funding unless an explicit realization fraction is "
+            "configured; not a price forecast, investment return estimate, legal "
+            "conclusion, or TOKEN_NECESSITY decision"
         ),
     }
 
