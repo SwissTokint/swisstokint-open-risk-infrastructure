@@ -4,7 +4,7 @@ export const MCP_TOOL_ACTION_SCHEMA_VERSION = 'pom-rx-mcp-tool-action/0.1';
 export const MCP_PROTOCOL_VERSION = '2026-07-28';
 export const MCP_TOOL_ACTION_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-tool-action:v1:';
 export const MCP_TOOL_CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-tool-context:v1:';
-export const MCP_RAW_TEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-mcp-raw-text:v1:';
+export const MCP_RAW_TEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-raw-text:v1:';
 
 const MAX_BODY_CHARS = 64 * 1024;
 const MAX_DEPTH = 8;
@@ -24,6 +24,7 @@ const PARAM_OPTIONAL_KEYS = Object.freeze([
 ]);
 const TOOL_NAME_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/u;
 const SERVER_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,255}$/u;
+const JSON_NUMBER_PATTERN = /^(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?)([0-9]+))?$/u;
 
 const REFLECT_APPLY = Reflect.apply;
 const JSON_PARSE = JSON.parse;
@@ -146,8 +147,12 @@ function sliceString(value, start, end) {
   return REFLECT_APPLY(STRING_SLICE, value, [start, end]);
 }
 
+function regexpExec(pattern, value) {
+  return REFLECT_APPLY(REGEXP_EXEC, pattern, [value]);
+}
+
 function regexpMatches(pattern, value) {
-  return REFLECT_APPLY(REGEXP_EXEC, pattern, [value]) !== null;
+  return regexpExec(pattern, value) !== null;
 }
 
 function assertUnicodeScalarString(value, label) {
@@ -181,6 +186,70 @@ function validateJsonNumber(value, label) {
     );
   }
   return value;
+}
+
+function parseBoundedDecimalExponent(sign, digits) {
+  if (digits === undefined) return 0;
+  // The raw body is bounded to 64 KiB, so an exponent magnitude above 100,000
+  // cannot be cancelled by the significand into a distinct finite IEEE-754
+  // value. Rejecting it is a bounded fail-closed identity rule, not a new
+  // canonical commitment format.
+  if (digits.length > 6) return null;
+  let value = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    value = (value * 10) + (charCodeAt(digits, index) - 48);
+    if (value > 100_000) return null;
+  }
+  return sign === '-' ? -value : value;
+}
+
+function decimalNumberIdentity(token) {
+  const match = regexpExec(JSON_NUMBER_PATTERN, token);
+  if (match === null) return null;
+
+  const negative = match[1] === '-';
+  const integer = match[2];
+  const fraction = match[3] ?? '';
+  const explicitExponent = parseBoundedDecimalExponent(match[4], match[5]);
+  if (explicitExponent === null) return null;
+
+  const combined = `${integer}${fraction}`;
+  let first = 0;
+  while (first < combined.length && combined[first] === '0') first += 1;
+  if (first === combined.length) return 'zero';
+
+  let last = combined.length;
+  while (last > first && combined[last - 1] === '0') last -= 1;
+  const trailingZeros = combined.length - last;
+  const significantDigits = sliceString(combined, first, last);
+  const decimalExponent = explicitExponent - fraction.length + trailingZeros;
+  return `${negative ? '-' : '+'}:${significantDigits}:${decimalExponent}`;
+}
+
+function assertRawNumberRoundTrip(token) {
+  const rawIdentity = decimalNumberIdentity(token);
+  if (rawIdentity === null) {
+    fail('POMRX_MCP_E_JSON', 'MCP request body contains an invalid JSON number');
+  }
+
+  let parsed;
+  try {
+    parsed = parseJson(token);
+  } catch {
+    fail('POMRX_MCP_E_JSON', 'MCP request body contains an invalid JSON number');
+  }
+  if (typeof parsed !== 'number') {
+    fail('POMRX_MCP_E_JSON', 'MCP request body contains an invalid JSON number');
+  }
+  validateJsonNumber(parsed, 'MCP JSON number');
+
+  const parsedIdentity = decimalNumberIdentity(numberToString(parsed));
+  if (parsedIdentity === null || parsedIdentity !== rawIdentity) {
+    fail(
+      'POMRX_MCP_E_NUMBER_ROUNDTRIP',
+      'MCP JSON number loses exact decimal identity through ordinary JSON dispatch',
+    );
+  }
 }
 
 function isJsonWhitespace(character) {
@@ -255,6 +324,11 @@ function assertBoundedUnambiguousJson(text) {
       index += 1;
     }
     if (index === start) syntaxError();
+    const token = sliceString(text, start, index);
+    const first = token[0];
+    if (first === '-' || (first >= '0' && first <= '9')) {
+      assertRawNumberRoundTrip(token);
+    }
   }
 
   function parseArray(depth) {
