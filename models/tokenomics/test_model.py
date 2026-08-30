@@ -89,6 +89,7 @@ class TokenomicsModelTests(unittest.TestCase):
         config = replace(
             EconomyConfig(),
             initial_supply_tokens=100.0,
+            staked_fraction=0.0,
             fee_mode="token_fixed",
             fixed_token_fee_per_action=1.0,
             burn_rate=1.0,
@@ -108,10 +109,10 @@ class TokenomicsModelTests(unittest.TestCase):
         self.assertTrue(result.accounting_valid)
         self.assertFalse(result.economic_survival)
 
-    def test_five_year_horizon_catches_slow_supply_depletion(self) -> None:
+    def test_five_year_horizon_catches_slow_liquid_supply_depletion(self) -> None:
         config = replace(
             EconomyConfig(),
-            initial_supply_tokens=1_000.0,
+            initial_supply_tokens=6_000.0,
             daily_actions=10.0,
             fee_mode="token_fixed",
             fixed_token_fee_per_action=1.0,
@@ -140,6 +141,59 @@ class TokenomicsModelTests(unittest.TestCase):
         result = simulate(config, StressScenario(name="zero-stake"))
         self.assertFalse(result.stake_adequate)
         self.assertEqual(result.stake_coverage_ratio, 0.0)
+        self.assertFalse(result.economic_survival)
+
+    def test_slashing_depletes_stake_without_automatic_replacement(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            staked_fraction=0.35,
+            slashing_burn_rate_per_day=1.0,
+            emission_realization_fraction=1.0,
+            required_stake_value_usd=20_000_000.0,
+            required_security_budget_usd_per_day=1.0,
+        )
+        result = simulate(config, StressScenario(name="full-stake-slash", days=1))
+        self.assertAlmostEqual(result.initial_staked_tokens, 35_000_000.0)
+        self.assertAlmostEqual(result.total_slashing_burn_tokens, 35_000_000.0)
+        self.assertAlmostEqual(result.ending_staked_tokens, 0.0)
+        self.assertFalse(result.stake_adequate)
+        self.assertFalse(result.economic_survival)
+
+    def test_bonded_tokens_are_not_available_for_fee_turnover(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=100.0,
+            staked_fraction=0.99,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=50.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="bonded-liquidity", days=1))
+        self.assertAlmostEqual(result.ending_liquid_supply_tokens, 1.0)
+        self.assertAlmostEqual(result.total_executed_actions, 1.0)
+        self.assertAlmostEqual(result.total_unmet_actions, 49.0)
+        self.assertFalse(result.usage_served)
+        self.assertFalse(result.economic_survival)
+
+    def test_paid_wash_activity_is_not_inferred_to_be_organic_demand(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            organic_usage_fraction=0.0,
+            emission_realization_fraction=1.0,
+            required_security_budget_usd_per_day=1.0,
+        )
+        result = simulate(config, StressScenario(name="wash-only", days=1))
+        self.assertGreater(result.total_fee_tokens, 0.0)
+        self.assertEqual(result.total_organic_fee_tokens, 0.0)
+        self.assertFalse(result.organic_fee_demand_present)
         self.assertFalse(result.economic_survival)
 
     def test_published_matrix_contains_five_year_and_affordability_failures(self) -> None:
