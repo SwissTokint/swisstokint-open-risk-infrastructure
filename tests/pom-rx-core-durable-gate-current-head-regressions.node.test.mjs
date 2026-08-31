@@ -228,37 +228,48 @@ test('persisted records and inspection results are prototype-inert before async 
   };
   const originalThen = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(OBJECT_PROTOTYPE, 'then');
   const store = createReferenceDurableClaimStore({ rootDir });
-  let thenCalls = 0;
+  let targetThenGets = 0;
+  let targetThenCalls = 0;
 
   try {
     const claim = await store.claim(input);
     await store.complete(claim.handle, 'error');
 
+    // Use an inherited getter rather than a universal then-function. This keeps
+    // unrelated Node.js internal objects out of the attack while reproducing the
+    // exact predecessor surface: ordinary persisted records carrying
+    // terminal_state and ordinary inspection records carrying state. The fixed
+    // implementation moves both records to null-prototype snapshots before
+    // Promise resolution, so this inherited hook must never even be selected for
+    // either target channel.
     OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'then', {
       configurable: true,
       enumerable: false,
-      writable: true,
-      value(resolve, reject) {
-        thenCalls += 1;
-        try {
-          if (this && OBJECT_HAS_OWN(this, 'state')) {
-            resolve(inertClone(this, { state: 'CONSUMED_SUCCESS' }));
-            return;
-          }
-          if (this && OBJECT_HAS_OWN(this, 'terminal_state')) {
+      get() {
+        const targetsInspection = this && OBJECT_HAS_OWN(this, 'state');
+        const targetsPersistedTerminal = this && OBJECT_HAS_OWN(this, 'terminal_state');
+        if (!targetsInspection && !targetsPersistedTerminal) return undefined;
+
+        targetThenGets += 1;
+        return function attackDurableAsyncRecord(resolve, reject) {
+          targetThenCalls += 1;
+          try {
+            if (OBJECT_HAS_OWN(this, 'state')) {
+              resolve(inertClone(this, { state: 'CONSUMED_SUCCESS' }));
+              return;
+            }
             resolve(inertClone(this, { terminal_state: 'CONSUMED_SUCCESS' }));
-            return;
+          } catch (error) {
+            reject(error);
           }
-          resolve(inertClone(this));
-        } catch (error) {
-          reject(error);
-        }
+        };
       },
     });
 
     const inspection = await store.inspect(input);
     assert.equal(inspection.state, 'CONSUMED_ERROR');
-    assert.equal(thenCalls, 0);
+    assert.equal(targetThenGets, 0);
+    assert.equal(targetThenCalls, 0);
   } finally {
     restoreObjectPrototypeThen(originalThen);
     await store.close().catch(() => {});
