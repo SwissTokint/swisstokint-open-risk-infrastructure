@@ -14,19 +14,22 @@ const BOOTSTRAP_KEYS = Object.freeze([
   'observeBinding',
   'trustedClock',
 ]);
+const ISSUE_OPTION_KEY = 'witnessValidUntil';
 
 // This composition boundary sits in front of two independently reviewed Core
 // reference primitives. Capture the reflection/state intrinsics and constructors
 // it depends on at module initialization so a later same-realm mutation cannot
 // widen bootstrap shape, turn an accessor into a trusted dependency, substitute
 // the detached bootstrap snapshot, forge local capability provenance, or re-open
-// a wrapper-reserved capability. Security-sensitive iteration over module-owned
-// key sets is index-based so a later Array iterator replacement cannot rewrite
-// the bootstrap contract. The explicit close lifecycle prevents the composed
-// harness from retaining the durable root descriptor indefinitely and drains any
-// already-started consume before the store descriptor is released. Poisoning
-// before module initialization and a generally compromised runtime remain
-// outside this reference guarantee.
+// a wrapper-reserved capability. Caller-supplied reference issuance options are
+// captured here as exact own data before they reach the inner Gate so Proxy or
+// accessor behavior cannot run during inner destructuring. Security-sensitive
+// iteration over module-owned key sets is index-based so a later Array iterator
+// replacement cannot rewrite the bootstrap contract. The explicit close
+// lifecycle prevents the composed harness from retaining the durable root
+// descriptor indefinitely and drains any already-started consume before the
+// store descriptor is released. Poisoning before module initialization and a
+// generally compromised runtime remain outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
@@ -121,6 +124,36 @@ function captureBootstrap(value) {
   return freezeValue(snapshot);
 }
 
+function captureIssueOptions(value) {
+  if (!value || typeof value !== 'object' || isProxy(value)) {
+    throw new TypeError('Reference durable Gate issueOptions must be a non-Proxy plain object');
+  }
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+    throw new TypeError('Reference durable Gate issueOptions must use Object.prototype or a null prototype');
+  }
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError('Reference durable Gate issueOptions cannot contain symbol keys');
+  }
+
+  const names = objectGetOwnPropertyNames(value);
+  if (names.length > 1 || (names.length === 1 && names[0] !== ISSUE_OPTION_KEY)) {
+    throw new TypeError('Reference durable Gate issueOptions has hidden or unknown fields');
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const snapshot = createObject(null);
+  if (names.length === 1) {
+    const descriptor = descriptors[ISSUE_OPTION_KEY];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      throw new TypeError(
+        'Reference durable Gate issueOptions.witnessValidUntil must be an enumerable data property',
+      );
+    }
+    snapshot[ISSUE_OPTION_KEY] = descriptor.value;
+  }
+  return freezeValue(snapshot);
+}
+
 function gateError(code, message) {
   return new PomRxGateError(code, message);
 }
@@ -189,9 +222,10 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     if (lifecycleState !== 'OPEN') {
       throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
     }
+    const capturedIssueOptions = captureIssueOptions(issueOptions);
     const issued = inner.testAuthority.issueReferenceAuthorizationForTest(
       bindingInput,
-      issueOptions,
+      capturedIssueOptions,
     );
     weakMapSet(capabilityMetadata, issued.capability, freezeValue({
       capabilityId: issued.evidence.binding.capability_id,
