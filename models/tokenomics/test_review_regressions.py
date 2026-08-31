@@ -19,8 +19,48 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertTrue(result.security_budget_adequate)
         self.assertTrue(result.organic_fee_demand_present)
         self.assertLess(result.organic_usage_share, 1e-9)
+        self.assertFalse(result.organic_usage_share_adequate)
+        self.assertFalse(result.absolute_organic_demand_adequate)
         self.assertFalse(result.organic_demand_adequate)
         self.assertFalse(result.economic_survival)
+
+    def test_absolute_organic_demand_floor_blocks_tiny_usage_with_realizable_emissions(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            emission_realization_fraction=1.0,
+            required_security_budget_usd_per_day=500.0,
+        )
+        result = simulate(
+            config,
+            StressScenario(
+                name="absolute-organic-demand-floor",
+                days=365,
+                usage_multiplier=1e-12,
+            ),
+        )
+        self.assertTrue(result.security_budget_adequate)
+        self.assertTrue(result.organic_usage_share_adequate)
+        self.assertAlmostEqual(result.organic_usage_share, 1.0)
+        self.assertLess(
+            result.average_organic_executed_actions_per_day,
+            result.minimum_organic_actions_per_day_for_survival,
+        )
+        self.assertFalse(result.absolute_organic_demand_adequate)
+        self.assertFalse(result.organic_demand_adequate)
+        self.assertFalse(result.economic_survival)
+
+    def test_absolute_organic_demand_floor_must_be_finite_and_nonnegative(self) -> None:
+        for invalid in (-1.0, float("inf"), float("nan")):
+            with self.subTest(invalid=invalid):
+                config = replace(
+                    EconomyConfig(),
+                    minimum_organic_actions_per_day_for_survival=invalid,
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "minimum_organic_actions_per_day_for_survival",
+                ):
+                    simulate(config, StressScenario(name="invalid-organic-floor"))
 
     def test_validator_exit_unbonds_without_destroying_supply(self) -> None:
         config = replace(
