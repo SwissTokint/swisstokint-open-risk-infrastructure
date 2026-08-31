@@ -37,3 +37,5 @@ jobs:
           git add core/gate/reference-durable-claim-store.mjs applications/blockchain-digital-assets/wallet-guard/provider.mjs tests/pom-rx-core-durable-gate-intrinsic-hardening.node.test.mjs tests/wallet-guard/controlled-host-v2.node.test.mjs
           git commit -m "fix(core): capture root inspection and provider account intrinsics"
           git push origin HEAD:core/durable-gate-v2-20260830
+
+# Prime bounded repair retry: exact exploit anchors corrected; remove after writer commit.
