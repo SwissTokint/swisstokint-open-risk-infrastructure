@@ -48,7 +48,7 @@ function setAdd(set, value) {
 }
 
 function defineArrayElement(array, index, value) {
-  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), {
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, index, {
     value,
     writable: true,
     enumerable: true,
@@ -174,7 +174,7 @@ function canonicalAccounts(value) {
   const normalized = new ARRAY_CONSTRUCTOR(value.length);
   const seen = new SET_CONSTRUCTOR();
   for (let index = 0; index < value.length; index += 1) {
-    const key = String(index);
+    const key = index;
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must contain dense data elements only');
@@ -298,7 +298,11 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
           'controlled provider sensitive-call log is full',
         );
       }
-      state.sensitiveCalls.push(captureSensitiveRequest(request));
+      defineArrayElement(
+        state.sensitiveCalls,
+        state.sensitiveCalls.length,
+        captureSensitiveRequest(request),
+      );
       return options.providerResult;
     },
   });

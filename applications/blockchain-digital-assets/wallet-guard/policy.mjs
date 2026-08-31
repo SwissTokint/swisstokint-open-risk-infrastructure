@@ -155,7 +155,7 @@ function defineArrayElement(array, index, value) {
   descriptor.writable = true;
   descriptor.enumerable = true;
   descriptor.configurable = true;
-  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, String(index), descriptor]);
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, index, descriptor]);
 }
 
 function arrayIncludes(array, value) {
@@ -274,7 +274,7 @@ function snapshotDenseArray(values, field) {
   }
   const snapshot = new ARRAY_CONSTRUCTOR(length);
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    const descriptor = descriptors[index];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} entries must be enumerable data properties`);
     }

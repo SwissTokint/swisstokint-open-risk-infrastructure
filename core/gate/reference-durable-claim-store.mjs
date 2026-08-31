@@ -124,6 +124,8 @@ const FS_OPEN_FD = openFdCallback;
 const FS_WRITE_FILE_FD = writeFileFdCallback;
 const FS_FSYNC_FD = fsyncFdCallback;
 const FS_CLOSE_FD = closeFdCallback;
+const FS_LINK = link;
+const PROCESS_PLATFORM = process.platform;
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -482,7 +484,7 @@ async function writeExclusiveDurable(filePath, value) {
     fd = null;
 
     try {
-      await link(tempPath, filePath);
+      await REFLECT_APPLY(FS_LINK, undefined, [tempPath, filePath]);
     } catch (error) {
       if (error?.code === 'EEXIST') {
         fail('POMRX_GATE_E_DURABLE_REPLAY', 'durable terminal/claim record already exists');
@@ -586,7 +588,7 @@ export function createReferenceDurableClaimStore(options) {
         const currentUid = PROCESS_GET_UID === null
           ? null
           : REFLECT_APPLY(PROCESS_GET_UID, process, []);
-        const unsafePermissions = process.platform !== 'win32' && (stat.mode & 0o022) !== 0;
+        const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
         const wrongOwner = currentUid !== null && stat.uid !== currentUid;
         if (!stat.isDirectory()
             || stat.isSymbolicLink()

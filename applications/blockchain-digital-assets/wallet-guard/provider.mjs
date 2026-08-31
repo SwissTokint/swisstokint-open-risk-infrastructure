@@ -33,7 +33,11 @@ const MAX_REQUEST_NODES = 1_000;
 const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
 const MAX_ACCOUNTS = 64;
-const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const REFLECT_APPLY = Reflect.apply;
+const SET_CONSTRUCTOR = Set;
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const FORBIDDEN_KEYS = new SET_CONSTRUCTOR(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
   'provider',
@@ -86,6 +90,14 @@ export class WalletGuardProviderError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardProviderError(code, message);
+}
+
+function setHas(set, value) {
+  return REFLECT_APPLY(SET_HAS, set, [value]);
+}
+
+function setAdd(set, value) {
+  REFLECT_APPLY(SET_ADD, set, [value]);
 }
 
 function exactKeys(value, expected, label) {
@@ -202,7 +214,7 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
   for (const key of Object.keys(value)) {
-    if (key.length === 0 || key.length > MAX_REQUEST_KEY || FORBIDDEN_KEYS.has(key)) {
+    if (key.length === 0 || key.length > MAX_REQUEST_KEY || setHas(FORBIDDEN_KEYS, key)) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request contains an unsafe key');
     }
     const descriptor = descriptors[key];
@@ -235,7 +247,7 @@ function normalizeAccounts(value) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
   }
   const normalized = value.map(normalizeProviderAccount);
-  if (new Set(normalized).size !== normalized.length) {
+  if (new SET_CONSTRUCTOR(normalized).size !== normalized.length) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
   }
   return Object.freeze(normalized);
@@ -405,9 +417,9 @@ export function createWalletGuardReferenceProviderGateway(options) {
   }
 
   const policy = normalizeWalletGuardPolicy(options.policy);
-  const usedRunIds = new Set();
-  const usedPreflightHashes = new Set();
-  const usedWitnessHashes = new Set();
+  const usedRunIds = new SET_CONSTRUCTOR();
+  const usedPreflightHashes = new SET_CONSTRUCTOR();
+  const usedWitnessHashes = new SET_CONSTRUCTOR();
   let requestCounter = 0;
 
   const coreGateHarness = createReferenceSingleUseGateHarness({
@@ -519,9 +531,9 @@ export function createWalletGuardReferenceProviderGateway(options) {
     if (new Date(expiresAt).getTime() > witnessValidUntil.getTime()) {
       fail('POMRX_WG_PROVIDER_E_TIME_INVALID', 'capability expiry exceeds witness validity');
     }
-    if (usedRunIds.has(referenceAuthorization.run_id)
-        || usedPreflightHashes.has(referenceAuthorization.preflight_receipt_hash)
-        || usedWitnessHashes.has(referenceAuthorization.witness_ack_hash)) {
+    if (setHas(usedRunIds, referenceAuthorization.run_id)
+        || setHas(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash)
+        || setHas(usedWitnessHashes, referenceAuthorization.witness_ack_hash)) {
       fail(
         'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
         'reference authorization evidence was already used by this gateway',
@@ -553,9 +565,9 @@ export function createWalletGuardReferenceProviderGateway(options) {
       bindingInput,
       { witnessValidUntil: referenceAuthorization.witness_valid_until },
     );
-    usedRunIds.add(referenceAuthorization.run_id);
-    usedPreflightHashes.add(referenceAuthorization.preflight_receipt_hash);
-    usedWitnessHashes.add(referenceAuthorization.witness_ack_hash);
+    setAdd(usedRunIds, referenceAuthorization.run_id);
+    setAdd(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash);
+    setAdd(usedWitnessHashes, referenceAuthorization.witness_ack_hash);
 
     const providerResult = await coreGateHarness.gate.consume(
       capability,

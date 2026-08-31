@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import {
+import fsPromises, {
+  chmod,
   mkdtemp,
   open,
   rm,
 } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -356,6 +358,76 @@ test('post-claim FileHandle.writeFile poisoning cannot fake terminal persistence
     const inspection = await reopened.inspect(input);
     assert.equal(inspection.state, 'CONSUMED_ERROR');
   } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+
+test('terminal link live-binding poisoning cannot suppress durable publication', async () => {
+  const rootDir = await tempDir('pom-rx-durable-terminal-link-capture-');
+  const input = {
+    capabilityId: `cap-${'7'.repeat(32)}`,
+    authorizationCommitment: h('8'),
+  };
+  const originalLink = fsPromises.link;
+
+  try {
+    const store = createReferenceDurableClaimStore({ rootDir });
+    const claimed = await store.claim(input);
+
+    fsPromises.link = async function poisonedLink() {};
+    syncBuiltinESMExports();
+
+    const completed = await store.complete(claimed.handle, 'error');
+    assert.equal(completed.state, 'CONSUMED_ERROR');
+
+    fsPromises.link = originalLink;
+    syncBuiltinESMExports();
+    const reopened = createReferenceDurableClaimStore({ rootDir });
+    assert.equal((await reopened.inspect(input)).state, 'CONSUMED_ERROR');
+  } finally {
+    fsPromises.link = originalLink;
+    syncBuiltinESMExports();
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('process.platform poisoning cannot admit a world-writable Unix durable root', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Unix permission invariant');
+    return;
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform');
+  if (!descriptor?.configurable) {
+    t.skip('process.platform is not configurable on this runtime');
+    return;
+  }
+
+  const rootDir = await tempDir('pom-rx-durable-platform-capture-');
+  const input = {
+    capabilityId: `cap-${'9'.repeat(32)}`,
+    authorizationCommitment: h('a'),
+  };
+  await chmod(rootDir, 0o777);
+
+  try {
+    const store = createReferenceDurableClaimStore({ rootDir });
+    Object.defineProperty(process, 'platform', {
+      configurable: descriptor.configurable,
+      enumerable: descriptor.enumerable,
+      writable: descriptor.writable,
+      value: 'win32',
+    });
+    await assert.rejects(
+      store.claim(input),
+      (error) => {
+        assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
+        return true;
+      },
+    );
+  } finally {
+    Object.defineProperty(process, 'platform', descriptor);
+    await chmod(rootDir, 0o700).catch(() => {});
     await rm(rootDir, { recursive: true, force: true });
   }
 });

@@ -424,3 +424,92 @@ test('post-await Array.prototype.map poisoning cannot substitute an allowlisted 
 
   assert.equal(testAuthority.inspect().sensitive_call_count, 0);
 });
+
+
+test('post-await global String poisoning cannot erase a policy DENY', async () => {
+  const OriginalString = globalThis.String;
+  const { page, testAuthority } = createHost();
+  const pending = page.ethereum.request(sendTransaction({
+    to: OTHER_ACCOUNT,
+    value: '0x1',
+  }));
+
+  try {
+    globalThis.String = function poisonedString(value) {
+      if (typeof value === 'number') return '999999';
+      return Reflect.apply(OriginalString, undefined, [value]);
+    };
+    const result = await pending;
+    assert.equal(result.decision, 'DENY');
+    assert.equal(result.forwarded, false);
+  } finally {
+    globalThis.String = OriginalString;
+  }
+
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});
+
+test('post-await Array.prototype.push poisoning cannot suppress sensitive-call audit evidence', async () => {
+  const originalPush = Array.prototype.push;
+  let poisonInstalled = false;
+  const { page, testAuthority } = createHost({
+    referenceAuthorizationForRequest: referenceAuthorizationFactory({
+      onCall: () => {
+        if (poisonInstalled) return;
+        poisonInstalled = true;
+        Array.prototype.push = function poisonedPush(...values) {
+          if (values.length === 1
+              && values[0]
+              && typeof values[0] === 'object'
+              && values[0].method === 'eth_sendTransaction') {
+            return this.length;
+          }
+          return Reflect.apply(originalPush, this, values);
+        };
+      },
+    }),
+  });
+
+  try {
+    const result = await page.ethereum.request(sendTransaction({ value: '0x1' }));
+    assert.equal(result.decision, 'ALLOW');
+    assert.equal(result.forwarded, true);
+  } finally {
+    Array.prototype.push = originalPush;
+  }
+
+  const state = testAuthority.inspect();
+  assert.equal(state.sensitive_call_count, 1);
+  assert.equal(state.sensitive_calls[0].method, 'eth_sendTransaction');
+});
+
+test('post-await Set.prototype.has poisoning cannot replay identical reference authorization', async () => {
+  const originalHas = Set.prototype.has;
+  const repeatedAuthorization = referenceAuthorizationRecord(1);
+  let calls = 0;
+  const { page, testAuthority } = createHost({
+    referenceAuthorizationForRequest: () => {
+      calls += 1;
+      if (calls === 2) {
+        Set.prototype.has = function poisonedHas() {
+          return false;
+        };
+      }
+      return repeatedAuthorization;
+    },
+  });
+
+  try {
+    const first = await page.ethereum.request(sendTransaction({ value: '0x1' }));
+    assert.equal(first.forwarded, true);
+    await assert.rejects(
+      page.ethereum.request(sendTransaction({ value: '0x1' })),
+      (error) => error?.code === 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
+    );
+  } finally {
+    Set.prototype.has = originalHas;
+  }
+
+  assert.equal(calls, 2);
+  assert.equal(testAuthority.inspect().sensitive_call_count, 1);
+});
