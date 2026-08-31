@@ -15,9 +15,9 @@ export const POM_RX_STRICT_CASE_FOLDING_RELATIVE_PATH =
 export const POM_RX_STRICT_ARTIFACT_SCANNER_RELATIVE_PATH =
   'sdk/typescript/internal/pom-rx-v01-artifact-identity.mjs';
 export const POM_RX_STRICT_ARTIFACT_MANIFEST_SHA256 =
-  '05c0f37091cd4aa6c97d0339cf785125e71424e3553c0d7545baf3ebf3eaca9f';
+  'ff3ffa3e112352d4f07ecf09ffa75b7a298679061f80b32e9e521c815f0c1174';
 export const POM_RX_STRICT_IMPLEMENTATION_ARTIFACT_SHA256 =
-  '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb';
+  '1081f7703a51ddee649a5222edaddb588c3ef9298849328e8aca628388853779';
 
 // Capture the small Node bootstrap TCB immediately after module loading. This
 // protects against later replacement of exported builtin functions, but it
