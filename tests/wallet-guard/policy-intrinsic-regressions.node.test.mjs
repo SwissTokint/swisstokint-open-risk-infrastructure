@@ -151,3 +151,40 @@ test('post-await URL.prototype.origin poisoning cannot remap an allowlisted poli
     Object.defineProperty(URL.prototype, 'origin', descriptor);
   }
 });
+
+test('post-await inherited numeric setter cannot falsify policy DENY reason evidence', async () => {
+  const host = createHost();
+  const pending = host.page.ethereum.request(unauthorizedTransfer());
+  const priorDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+  const originalDefineProperty = Object.defineProperty;
+
+  try {
+    Object.defineProperty(Array.prototype, '0', {
+      configurable: true,
+      get() {
+        return 'WG_POLICY_ALLOW_EXACT';
+      },
+      set(value) {
+        if (typeof value === 'string' && value.startsWith('WG_POLICY_')) return;
+        Reflect.apply(originalDefineProperty, Object, [this, '0', {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value,
+        }]);
+      },
+    });
+
+    const result = await pending;
+    assert.equal(result.decision, 'DENY');
+    assert.equal(result.forwarded, false);
+    assert.deepEqual([...result.reasons], ['WG_POLICY_DENY_RECIPIENT']);
+    assert.equal(host.testAuthority.inspect().sensitive_call_count, 0);
+  } finally {
+    if (priorDescriptor) {
+      Object.defineProperty(Array.prototype, '0', priorDescriptor);
+    } else {
+      delete Array.prototype[0];
+    }
+  }
+});
