@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdtemp,
+  open,
   rm,
 } from 'node:fs/promises';
 import os from 'node:os';
@@ -310,6 +311,51 @@ test('post-import Object.entries poisoning cannot rewrite durable error terminal
     assert.equal(inspection.state, 'CONSUMED_ERROR');
   } finally {
     Object.entries = originalEntries;
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('post-claim FileHandle.writeFile poisoning cannot fake terminal persistence', async () => {
+  const rootDir = await tempDir('pom-rx-durable-terminal-filehandle-');
+  const input = {
+    capabilityId: `cap-${'e'.repeat(32)}`,
+    authorizationCommitment: h('f'),
+  };
+  const probePath = path.join(rootDir, 'filehandle-probe.tmp');
+  let prototype;
+  let writeFileDescriptor;
+
+  try {
+    const store = createReferenceDurableClaimStore({ rootDir });
+    const claimed = await store.claim(input);
+
+    const probe = await open(probePath, 'w');
+    prototype = Object.getPrototypeOf(probe);
+    writeFileDescriptor = Object.getOwnPropertyDescriptor(prototype, 'writeFile');
+    assert.equal(typeof writeFileDescriptor?.value, 'function');
+    await probe.close();
+    await rm(probePath, { force: true });
+
+    Object.defineProperty(prototype, 'writeFile', {
+      ...writeFileDescriptor,
+      value: async function poisonedWriteFile() {
+        // Vulnerable code reports success while leaving the temp inode empty.
+      },
+    });
+
+    const completed = await store.complete(claimed.handle, 'error');
+    assert.equal(completed.state, 'CONSUMED_ERROR');
+  } finally {
+    if (prototype && writeFileDescriptor) {
+      Object.defineProperty(prototype, 'writeFile', writeFileDescriptor);
+    }
+  }
+
+  try {
+    const reopened = createReferenceDurableClaimStore({ rootDir });
+    const inspection = await reopened.inspect(input);
+    assert.equal(inspection.state, 'CONSUMED_ERROR');
+  } finally {
     await rm(rootDir, { recursive: true, force: true });
   }
 });
