@@ -109,7 +109,11 @@ class TokenomicsModelTests(unittest.TestCase):
             StressScenario(name="unrealizable-emissions", days=1),
         )
         realizable = simulate(
-            replace(config, emission_realization_fraction=1.0),
+            replace(
+                config,
+                emission_realization_fraction=1.0,
+                max_daily_token_velocity=2.0,
+            ),
             StressScenario(name="realizable-emissions", days=1),
         )
         self.assertAlmostEqual(unrealizable.ending_liquid_supply_tokens, 101.0)
@@ -251,7 +255,7 @@ class TokenomicsModelTests(unittest.TestCase):
             daily_security_emission_tokens=1.0,
             emission_realization_fraction=1.0,
             daily_actions=51.0,
-            max_daily_token_velocity=1.0,
+            max_daily_token_velocity=2.0,
             required_stake_value_usd=1.0,
             required_security_budget_usd_per_day=1.0,
             max_affordable_fee_usd_per_action=1.0,
