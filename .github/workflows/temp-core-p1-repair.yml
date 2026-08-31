@@ -1,0 +1,39 @@
+name: Temporary Core P1 Repair
+
+on:
+  push:
+    branches:
+      - core/durable-gate-v2-20260830
+    paths:
+      - .github/workflows/temp-core-p1-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: core/durable-gate-v2-20260830
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Apply bounded repair
+        run: python .github/temp-core-p1-repair.py
+      - name: Run exact exploit regressions
+        run: node --test tests/pom-rx-core-durable-gate-intrinsic-hardening.node.test.mjs tests/wallet-guard/controlled-host-v2.node.test.mjs tests/wallet-guard/policy-intrinsic-regressions.node.test.mjs
+      - name: Check patch
+        run: git diff --check
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add core/gate/reference-durable-claim-store.mjs applications/blockchain-digital-assets/wallet-guard/provider.mjs tests/pom-rx-core-durable-gate-intrinsic-hardening.node.test.mjs tests/wallet-guard/controlled-host-v2.node.test.mjs
+          git commit -m "fix(core): capture root inspection and provider account intrinsics"
+          git push origin HEAD:core/durable-gate-v2-20260830
