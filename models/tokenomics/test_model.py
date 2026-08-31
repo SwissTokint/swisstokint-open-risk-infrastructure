@@ -44,6 +44,7 @@ class TokenomicsModelTests(unittest.TestCase):
         config = replace(
             EconomyConfig(),
             emission_realization_fraction=1.0,
+            security_fee_realization_fraction=1.0,
             required_security_budget_usd_per_day=1_200.0,
         )
         baseline = simulate(config, StressScenario(name="price-flat"))
@@ -160,6 +161,7 @@ class TokenomicsModelTests(unittest.TestCase):
             fixed_token_fee_per_action=1.0,
             burn_rate=0.25,
             security_fee_share=0.75,
+            security_fee_realization_fraction=1.0,
             treasury_fee_share=0.0,
             daily_security_emission_tokens=0.0,
             staked_fraction=0.50,
@@ -295,6 +297,7 @@ class TokenomicsModelTests(unittest.TestCase):
             fixed_token_fee_per_action=0.10,
             burn_rate=0.0,
             security_fee_share=1.0,
+            security_fee_realization_fraction=1.0,
             treasury_fee_share=0.0,
             daily_security_emission_tokens=0.0,
             daily_actions=1.0,
