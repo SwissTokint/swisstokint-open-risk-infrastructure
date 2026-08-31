@@ -1,4 +1,10 @@
 import {
+  close as closeFdCallback,
+  fsync as fsyncFdCallback,
+  open as openFdCallback,
+  writeFile as writeFileFdCallback,
+} from 'node:fs';
+import {
   createHash,
   randomUUID,
 } from 'node:crypto';
@@ -6,7 +12,6 @@ import {
   link,
   lstat,
   mkdir,
-  open,
   readFile,
   realpath,
   unlink,
@@ -69,11 +74,12 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
   'terminal_state',
 ]);
 
-// Durable claim identity, root confinement, serialization and handle provenance
-// are security-critical. Capture exact-object reflection, identifier validation,
-// path/hash/JSON dispatch and WeakMap state once at module initialization so a
-// later same-realm mutation cannot redirect rootDir, alter claim/terminal truth,
-// admit traversal-shaped capability IDs, or substitute claim-handle state.
+// Durable claim identity, root confinement, serialization and persistence are
+// security-critical. Capture exact-object reflection, identifier validation,
+// path/hash/JSON dispatch, fd I/O entry points and WeakMap state once at module
+// initialization so a later same-realm mutation cannot redirect rootDir, alter
+// claim/terminal truth, admit traversal-shaped capability IDs, substitute handle
+// state, or fake a successful write/fsync/close through FileHandle.prototype.
 // Security-sensitive iteration over module-owned key sets is index-based, with
 // explicit pre-sorted companions. Poisoning before module initialization remains
 // outside this reference guarantee.
@@ -105,6 +111,7 @@ const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const CRYPTO_CREATE_HASH = createHash;
+const CRYPTO_RANDOM_UUID = randomUUID;
 const HASH_PROTOTYPE = REFLECT_APPLY(
   OBJECT_GET_PROTOTYPE_OF,
   Object,
@@ -112,6 +119,11 @@ const HASH_PROTOTYPE = REFLECT_APPLY(
 );
 const HASH_UPDATE = HASH_PROTOTYPE.update;
 const HASH_DIGEST = HASH_PROTOTYPE.digest;
+const PROMISE_CONSTRUCTOR = Promise;
+const FS_OPEN_FD = openFdCallback;
+const FS_WRITE_FILE_FD = writeFileFdCallback;
+const FS_FSYNC_FD = fsyncFdCallback;
+const FS_CLOSE_FD = closeFdCallback;
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -181,6 +193,52 @@ function sha256Hex(value) {
   const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256']);
   REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
   return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
+}
+
+function openFd(filePath, flags, mode) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_OPEN_FD, undefined, [filePath, flags, mode, (error, fd) => {
+      if (error) reject(error);
+      else resolve(fd);
+    }]);
+  });
+}
+
+function writeFileFd(fd, value, encoding) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_WRITE_FILE_FD, undefined, [fd, value, encoding, (error) => {
+      if (error) reject(error);
+      else resolve();
+    }]);
+  });
+}
+
+function fsyncFd(fd) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_FSYNC_FD, undefined, [fd, (error) => {
+      if (error) reject(error);
+      else resolve();
+    }]);
+  });
+}
+
+function closeFd(fd) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_CLOSE_FD, undefined, [fd, (error) => {
+      if (error) reject(error);
+      else resolve();
+    }]);
+  });
+}
+
+async function closeFdIgnoringFailure(fd) {
+  if (fd === null) return;
+  try {
+    await closeFd(fd);
+  } catch {
+    // Best-effort cleanup only. The durable operation itself reports its own
+    // write/fsync/close failure before this path is reached.
+  }
 }
 
 function sameSortedKeys(actual, wanted) {
@@ -385,14 +443,16 @@ function validateTerminalRecord(value, claimRecord) {
 }
 
 async function fsyncDirectory(directory) {
-  let handle;
+  let fd = null;
   try {
-    handle = await open(directory, 'r');
-    await handle.sync();
+    fd = await openFd(directory, 'r', 0o600);
+    await fsyncFd(fd);
+    await closeFd(fd);
+    fd = null;
   } catch {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable directory synchronization failed');
   } finally {
-    await handle?.close().catch(() => {});
+    await closeFdIgnoringFailure(fd);
   }
 }
 
@@ -405,20 +465,21 @@ async function writeExclusiveDurable(filePath, value) {
   const directory = PATH_DIRNAME(filePath);
   const tempPath = PATH_JOIN(
     directory,
-    `.${PATH_BASENAME(filePath)}.${process.pid}.${randomUUID()}.tmp`,
+    `.${PATH_BASENAME(filePath)}.${process.pid}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
   );
-  let handle;
+  let fd = null;
   let tempExists = false;
   try {
     // Never expose the final record name until the complete payload has been
-    // written and fsynced. A same-directory hard link installs the immutable
-    // inode atomically without overwriting an existing final record.
-    handle = await open(tempPath, 'wx', 0o600);
+    // written and fsynced. Callback-style fd operations are captured at module
+    // initialization, so post-import FileHandle prototype mutation cannot fake
+    // the write/sync/close sequence.
+    fd = await openFd(tempPath, 'wx', 0o600);
     tempExists = true;
-    await handle.writeFile(body, 'utf8');
-    await handle.sync();
-    await handle.close();
-    handle = null;
+    await writeFileFd(fd, body, 'utf8');
+    await fsyncFd(fd);
+    await closeFd(fd);
+    fd = null;
 
     try {
       await link(tempPath, filePath);
@@ -436,8 +497,14 @@ async function writeExclusiveDurable(filePath, value) {
     if (error instanceof PomRxDurableClaimStoreError) throw error;
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record publication failed');
   } finally {
-    await handle?.close().catch(() => {});
-    if (tempExists) await unlink(tempPath).catch(() => {});
+    await closeFdIgnoringFailure(fd);
+    if (tempExists) {
+      try {
+        await unlink(tempPath);
+      } catch {
+        // Best-effort cleanup; the primary durable failure remains authoritative.
+      }
+    }
   }
 }
 
