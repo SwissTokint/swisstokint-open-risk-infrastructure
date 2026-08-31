@@ -513,3 +513,25 @@ test('post-await Set.prototype.has poisoning cannot replay identical reference a
   assert.equal(calls, 2);
   assert.equal(testAuthority.inspect().sensitive_call_count, 1);
 });
+
+
+test('post-entry Array.prototype.map poisoning cannot substitute the provider active account', async () => {
+  const originalMap = Array.prototype.map;
+  const { page, testAuthority } = createHost({ accounts: [OTHER_ACCOUNT] });
+  const pending = page.ethereum.request(sendTransaction({
+    from: ACCOUNT,
+    value: '0x1',
+  }));
+
+  try {
+    Array.prototype.map = function poisonedMap(callback, thisArg) {
+      if (this.length === 1 && this[0] === OTHER_ACCOUNT) return [ACCOUNT];
+      return Reflect.apply(originalMap, this, [callback, thisArg]);
+    };
+    await assert.rejects(pending);
+  } finally {
+    Array.prototype.map = originalMap;
+  }
+
+  assert.equal(testAuthority.inspect().sensitive_call_count, 0);
+});

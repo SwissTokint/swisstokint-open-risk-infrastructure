@@ -34,6 +34,10 @@ const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
 const MAX_ACCOUNTS = 64;
 const REFLECT_APPLY = Reflect.apply;
+const ARRAY_CONSTRUCTOR = Array;
+const ARRAY_IS_ARRAY = Array.isArray;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const OBJECT_FREEZE = Object.freeze;
 const SET_CONSTRUCTOR = Set;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
@@ -92,6 +96,23 @@ function fail(code, message) {
   throw new WalletGuardProviderError(code, message);
 }
 
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function defineArrayElement(array, index, value) {
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [array, index, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  }]);
+}
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
 function setHas(set, value) {
   return REFLECT_APPLY(SET_HAS, set, [value]);
 }
@@ -101,7 +122,7 @@ function setAdd(set, value) {
 }
 
 function exactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || arrayIsArray(value)) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be an object`);
   }
   const actual = Object.keys(value).sort();
@@ -185,7 +206,7 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
     }
     return value;
   }
-  if (Array.isArray(value)) {
+  if (arrayIsArray(value)) {
     const keys = Object.keys(value);
     if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays must be dense');
@@ -243,14 +264,20 @@ function normalizeProviderAccount(value) {
 }
 
 function normalizeAccounts(value) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
+  if (!arrayIsArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
   }
-  const normalized = value.map(normalizeProviderAccount);
-  if (new SET_CONSTRUCTOR(normalized).size !== normalized.length) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
+  const normalized = new ARRAY_CONSTRUCTOR(value.length);
+  const seen = new SET_CONSTRUCTOR();
+  for (let index = 0; index < value.length; index += 1) {
+    const account = normalizeProviderAccount(value[index]);
+    if (setHas(seen, account)) {
+      fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
+    }
+    setAdd(seen, account);
+    defineArrayElement(normalized, index, account);
   }
-  return Object.freeze(normalized);
+  return freezeValue(normalized);
 }
 
 async function providerRead(provider, method) {
@@ -271,7 +298,11 @@ async function readProviderSnapshot(provider) {
 }
 
 function sameAccounts(left, right) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
 }
 
 async function sampleStableProviderContext(provider) {

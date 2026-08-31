@@ -1,4 +1,5 @@
 import {
+  Stats,
   close as closeFdCallback,
   fsync as fsyncFdCallback,
   open as openFdCallback,
@@ -125,7 +126,47 @@ const FS_WRITE_FILE_FD = writeFileFdCallback;
 const FS_FSYNC_FD = fsyncFdCallback;
 const FS_CLOSE_FD = closeFdCallback;
 const FS_LINK = link;
+const FS_LSTAT = lstat;
+const FS_MKDIR = mkdir;
+const FS_READ_FILE = readFile;
+const FS_REALPATH = realpath;
+const FS_UNLINK = unlink;
+const STATS_IS_DIRECTORY = Stats.prototype.isDirectory;
+const STATS_IS_FILE = Stats.prototype.isFile;
+const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;
 const PROCESS_PLATFORM = process.platform;
+
+function fsLstat(filePath) {
+  return REFLECT_APPLY(FS_LSTAT, undefined, [filePath]);
+}
+
+function fsMkdir(filePath, options) {
+  return REFLECT_APPLY(FS_MKDIR, undefined, [filePath, options]);
+}
+
+function fsReadFile(filePath, options) {
+  return REFLECT_APPLY(FS_READ_FILE, undefined, [filePath, options]);
+}
+
+function fsRealpath(filePath) {
+  return REFLECT_APPLY(FS_REALPATH, undefined, [filePath]);
+}
+
+function fsUnlink(filePath) {
+  return REFLECT_APPLY(FS_UNLINK, undefined, [filePath]);
+}
+
+function statIsDirectory(stat) {
+  return REFLECT_APPLY(STATS_IS_DIRECTORY, stat, []);
+}
+
+function statIsFile(stat) {
+  return REFLECT_APPLY(STATS_IS_FILE, stat, []);
+}
+
+function statIsSymbolicLink(stat) {
+  return REFLECT_APPLY(STATS_IS_SYMBOLIC_LINK, stat, []);
+}
 
 function arrayIsArray(value) {
   return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
@@ -492,7 +533,7 @@ async function writeExclusiveDurable(filePath, value) {
       throw error;
     }
 
-    await unlink(tempPath);
+    await fsUnlink(tempPath);
     tempExists = false;
     await fsyncDirectory(directory);
   } catch (error) {
@@ -502,7 +543,7 @@ async function writeExclusiveDurable(filePath, value) {
     await closeFdIgnoringFailure(fd);
     if (tempExists) {
       try {
-        await unlink(tempPath);
+        await fsUnlink(tempPath);
       } catch {
         // Best-effort cleanup; the primary durable failure remains authoritative.
       }
@@ -513,17 +554,17 @@ async function writeExclusiveDurable(filePath, value) {
 async function readBoundedJson(filePath) {
   let stat;
   try {
-    stat = await lstat(filePath);
+    stat = await fsLstat(filePath);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record metadata could not be inspected');
   }
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 2 || stat.size > MAX_RECORD_BYTES) {
+  if (!statIsFile(stat) || statIsSymbolicLink(stat) || stat.size < 2 || stat.size > MAX_RECORD_BYTES) {
     fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record is not a bounded regular file');
   }
   let text;
   try {
-    text = await readFile(filePath, 'utf8');
+    text = await fsReadFile(filePath, 'utf8');
   } catch {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record could not be read');
   }
@@ -574,8 +615,8 @@ export function createReferenceDurableClaimStore(options) {
         let stat;
         let resolved;
         try {
-          stat = await lstat(configuredRoot);
-          resolved = await realpath(configuredRoot);
+          stat = await fsLstat(configuredRoot);
+          resolved = await fsRealpath(configuredRoot);
         } catch (error) {
           if (error?.code === 'ENOENT') {
             fail(
@@ -590,8 +631,8 @@ export function createReferenceDurableClaimStore(options) {
           : REFLECT_APPLY(PROCESS_GET_UID, process, []);
         const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
         const wrongOwner = currentUid !== null && stat.uid !== currentUid;
-        if (!stat.isDirectory()
-            || stat.isSymbolicLink()
+        if (!statIsDirectory(stat)
+            || statIsSymbolicLink(stat)
             || resolved !== configuredRoot
             || unsafePermissions
             || wrongOwner) {
@@ -626,12 +667,12 @@ export function createReferenceDurableClaimStore(options) {
 
     let directoryStat;
     try {
-      directoryStat = await lstat(claimDirectory);
+      directoryStat = await fsLstat(claimDirectory);
     } catch (error) {
       if (error?.code === 'ENOENT') return makeInspection('ABSENT');
       fail('POMRX_GATE_E_DURABLE_IO', 'durable claim directory could not be inspected');
     }
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    if (!statIsDirectory(directoryStat) || statIsSymbolicLink(directoryStat)) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
     }
 
@@ -667,7 +708,7 @@ export function createReferenceDurableClaimStore(options) {
     const claimDirectory = PATH_JOIN(root, capabilityId);
 
     try {
-      await mkdir(claimDirectory, { mode: 0o700 });
+      await fsMkdir(claimDirectory, { mode: 0o700 });
     } catch (error) {
       if (error?.code === 'EEXIST') {
         fail('POMRX_GATE_E_DURABLE_REPLAY', 'capability already has a durable claim tombstone');

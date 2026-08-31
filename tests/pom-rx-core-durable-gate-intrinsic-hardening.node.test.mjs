@@ -431,3 +431,49 @@ test('process.platform poisoning cannot admit a world-writable Unix durable root
     await rm(rootDir, { recursive: true, force: true });
   }
 });
+
+
+test('lstat live-binding poisoning cannot admit a world-writable Unix durable root', async (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Unix permission invariant');
+    return;
+  }
+
+  const rootDir = await tempDir('pom-rx-durable-lstat-capture-');
+  const input = {
+    capabilityId: `cap-${'b'.repeat(32)}`,
+    authorizationCommitment: h('c'),
+  };
+  const originalLstat = fsPromises.lstat;
+  await chmod(rootDir, 0o777);
+
+  try {
+    const store = createReferenceDurableClaimStore({ rootDir });
+    fsPromises.lstat = async function poisonedLstat(target, ...args) {
+      const stat = await Reflect.apply(originalLstat, fsPromises, [target, ...args]);
+      if (path.resolve(target) !== path.resolve(rootDir)) return stat;
+      return {
+        mode: stat.mode & ~0o022,
+        uid: stat.uid,
+        size: stat.size,
+        isDirectory: () => true,
+        isFile: () => false,
+        isSymbolicLink: () => false,
+      };
+    };
+    syncBuiltinESMExports();
+
+    await assert.rejects(
+      store.claim(input),
+      (error) => {
+        assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
+        return true;
+      },
+    );
+  } finally {
+    fsPromises.lstat = originalLstat;
+    syncBuiltinESMExports();
+    await chmod(rootDir, 0o700).catch(() => {});
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
