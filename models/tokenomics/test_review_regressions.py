@@ -62,6 +62,109 @@ class ReviewRegressionTests(unittest.TestCase):
                 ):
                     simulate(config, StressScenario(name="invalid-organic-floor"))
 
+    def test_organic_fee_floor_must_be_finite_and_nonnegative(self) -> None:
+        for invalid in (-1.0, float("inf"), float("nan")):
+            with self.subTest(invalid=invalid):
+                config = replace(
+                    EconomyConfig(),
+                    minimum_organic_fee_usd_per_day_for_survival=invalid,
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "minimum_organic_fee_usd_per_day_for_survival",
+                ):
+                    simulate(config, StressScenario(name="invalid-organic-fee-floor"))
+
+    def test_emission_realization_and_fee_turnover_share_velocity_budget(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1_000.0,
+            staked_fraction=1.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=1_000.0,
+            emission_realization_fraction=1.0,
+            daily_actions=1_000.0,
+            minimum_organic_actions_per_day_for_survival=1.0,
+            minimum_organic_fee_usd_per_day_for_survival=1.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1_500.0,
+            max_affordable_fee_usd_per_action=2.0,
+        )
+        result = simulate(config, StressScenario(name="shared-velocity", days=1))
+        self.assertAlmostEqual(result.total_realizable_security_emission_tokens, 1_000.0)
+        self.assertAlmostEqual(result.total_emission_realization_velocity_tokens, 1_000.0)
+        self.assertAlmostEqual(result.total_fee_velocity_tokens, 0.0)
+        self.assertAlmostEqual(result.total_executed_actions, 0.0)
+        self.assertAlmostEqual(result.average_security_budget_usd_per_day, 1_000.0)
+        self.assertFalse(result.security_budget_adequate)
+        self.assertFalse(result.economic_survival)
+
+    def test_organic_fee_floor_is_horizon_independent(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            daily_actions=1_000.0,
+            fee_mode="usd_indexed",
+            fee_usd_per_action=1e-12,
+            emission_realization_fraction=1.0,
+            minimum_organic_actions_per_day_for_survival=1_000.0,
+            minimum_organic_fee_usd_per_day_for_survival=1.0,
+            required_security_budget_usd_per_day=500.0,
+        )
+        one_day = simulate(config, StressScenario(name="dust-fee-1d", days=1))
+        one_year = simulate(config, StressScenario(name="dust-fee-365d", days=365))
+        self.assertTrue(one_day.organic_fee_demand_present)
+        self.assertTrue(one_year.organic_fee_demand_present)
+        self.assertAlmostEqual(
+            one_day.average_organic_fee_usd_per_day,
+            one_year.average_organic_fee_usd_per_day,
+        )
+        self.assertLess(
+            one_day.average_organic_fee_usd_per_day,
+            one_day.minimum_organic_fee_usd_per_day_for_survival,
+        )
+        self.assertFalse(one_day.organic_fee_revenue_adequate)
+        self.assertFalse(one_year.organic_fee_revenue_adequate)
+        self.assertFalse(one_day.organic_demand_adequate)
+        self.assertFalse(one_year.organic_demand_adequate)
+        self.assertFalse(one_day.economic_survival)
+        self.assertFalse(one_year.economic_survival)
+
+    def test_positive_extreme_price_reserve_cannot_be_covered_by_zero_inventory(self) -> None:
+        token_price = 2e11
+        fee_tokens_per_action = 0.10 / token_price
+        daily_fee_tokens = 1_000.0 * fee_tokens_per_action
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=365.0 * daily_fee_tokens,
+            initial_price_usd=token_price,
+            staked_fraction=0.0,
+            fee_mode="usd_indexed",
+            fee_usd_per_action=0.10,
+            burn_rate=1.0,
+            security_fee_share=0.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=1_000.0,
+            minimum_organic_actions_per_day_for_survival=1.0,
+            minimum_organic_fee_usd_per_day_for_survival=1.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+        )
+        result = simulate(config, StressScenario(name="extreme-price-liquidity", days=365))
+        self.assertGreater(result.required_next_day_liquid_tokens, 0.0)
+        self.assertLess(result.required_next_day_liquid_tokens, 1e-9)
+        self.assertEqual(result.ending_realizable_liquid_tokens, 0.0)
+        self.assertEqual(result.ending_realizable_liquidity_usd, 0.0)
+        self.assertGreater(result.required_next_day_liquidity_usd, 0.0)
+        self.assertFalse(result.ending_liquidity_adequate)
+        self.assertFalse(result.economic_survival)
+
     def test_validator_exit_unbonds_without_destroying_supply(self) -> None:
         config = replace(
             EconomyConfig(),
