@@ -1,12 +1,33 @@
-name: Temporary tokenomics repair validation
+name: Temporary tokenomics P1 repair
 
 on:
   push:
     branches:
       - economics/token-necessity-v1-ready-20260831
 
+permissions:
+  contents: write
+
 jobs:
-  validate:
+  repair:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: echo "temporary repair workflow is valid"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: economics/token-necessity-v1-ready-20260831
+      - name: Apply bounded repair
+        run: python scripts/temporary-tokenomics-p1-repair.py
+      - name: Run tokenomics regression suite
+        run: |
+          python models/tokenomics/test_model.py
+          python models/tokenomics/test_review_regressions.py
+      - name: Commit bounded repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/tokenomics/model.py models/tokenomics/test_review_regressions.py
+          git diff --cached --check
+          git commit -m "fix(tokenomics): close exact-head numeric conservation P1s"
+          git push origin HEAD:economics/token-necessity-v1-ready-20260831
