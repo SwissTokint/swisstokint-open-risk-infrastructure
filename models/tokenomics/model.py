@@ -183,8 +183,8 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
             raise ValueError(f"{name} must be finite and between 0 and 1")
 
     allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share
-    if abs(allocation - 1.0) > EPSILON:
-        raise ValueError("burn + security + treasury fee shares must equal 1")
+    if allocation != 1.0:
+        raise ValueError("burn + security + treasury fee shares must equal 1 exactly")
 
     if config.fee_mode not in {"usd_indexed", "token_fixed"}:
         raise ValueError("fee_mode must be 'usd_indexed' or 'token_fixed'")
@@ -273,6 +273,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     minimum_gross_security_budget_usd: float | None = None
     minimum_staked_tokens = staked_tokens
     minimum_staked_value_usd = staked_tokens * token_price
+    validator_exit_residual_tokens = 0.0
     usage_served = True
 
     for _ in range(scenario.days):
@@ -284,11 +285,25 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         )
         supply += daily_emission_tokens
 
-        daily_validator_exit_tokens = min(
-            staked_tokens,
-            staked_tokens * config.validator_exit_rate_per_day,
+        daily_validator_exit_target_tokens = (
+            staked_tokens * config.validator_exit_rate_per_day
+            + validator_exit_residual_tokens
         )
-        staked_tokens -= daily_validator_exit_tokens
+        requested_validator_exit_tokens = min(
+            staked_tokens,
+            max(daily_validator_exit_target_tokens, 0.0),
+        )
+        post_exit_staked_tokens = max(
+            staked_tokens - requested_validator_exit_tokens,
+            0.0,
+        )
+        daily_validator_exit_tokens = staked_tokens - post_exit_staked_tokens
+        validator_exit_residual_tokens = (
+            daily_validator_exit_target_tokens - daily_validator_exit_tokens
+        )
+        if post_exit_staked_tokens <= 0.0:
+            validator_exit_residual_tokens = 0.0
+        staked_tokens = post_exit_staked_tokens
         realizable_liquid_tokens += daily_validator_exit_tokens
 
         daily_slashing_burn_tokens = min(
@@ -337,6 +352,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             remaining_fee_velocity_tokens,
             max_fee_tokens_by_burn,
         )
+        fee_capacity_served = collectible_fee_tokens >= requested_fee_tokens
+        if not fee_capacity_served:
+            usage_served = False
 
         if fee_tokens_per_action > 0:
             executed_actions = collectible_fee_tokens / fee_tokens_per_action
@@ -344,12 +362,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             executed_actions = requested_actions_per_day
 
         executed_actions = min(executed_actions, requested_actions_per_day)
-        if executed_actions < requested_actions_per_day:
-            usage_served = False
-
         organic_executed_actions = executed_actions * config.organic_usage_fraction
-        daily_fee_tokens = executed_actions * fee_tokens_per_action
-        daily_organic_fee_tokens = organic_executed_actions * fee_tokens_per_action
+        # Fee accounting follows the capacity-constrained token amount directly.
+        # Reconstructing it from a rounded action quotient can recreate tokens
+        # that were never collectible at large floating-point scales.
+        daily_fee_tokens = collectible_fee_tokens
+        daily_organic_fee_tokens = daily_fee_tokens * config.organic_usage_fraction
         daily_burn_tokens = daily_fee_tokens * config.burn_rate
         daily_security_fee_tokens = daily_fee_tokens * config.security_fee_share
         daily_organic_security_fee_tokens = (
@@ -525,11 +543,18 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         or realizable_liquid_tokens >= required_next_day_liquid_tokens
     )
 
-    next_day_validator_exit_tokens = min(
-        staked_tokens,
-        staked_tokens * config.validator_exit_rate_per_day,
+    next_day_validator_exit_target_tokens = (
+        staked_tokens * config.validator_exit_rate_per_day
+        + validator_exit_residual_tokens
     )
-    next_day_after_exit_tokens = staked_tokens - next_day_validator_exit_tokens
+    next_day_requested_validator_exit_tokens = min(
+        staked_tokens,
+        max(next_day_validator_exit_target_tokens, 0.0),
+    )
+    next_day_after_exit_tokens = max(
+        staked_tokens - next_day_requested_validator_exit_tokens,
+        0.0,
+    )
     next_day_slashing_burn_tokens = min(
         next_day_after_exit_tokens,
         next_day_after_exit_tokens * config.slashing_burn_rate_per_day,
