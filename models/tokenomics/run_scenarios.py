@@ -150,13 +150,14 @@ def summarize(results: list[dict[str, object]]) -> dict[str, object]:
         "horizons": horizon_counts,
         "claim_boundary": (
             "mechanical stress output only; token price is an exogenous scenario input; "
-            "bonded stake is not fee liquidity; nominal emissions enter fee-paying "
-            "inventory only to the configured realization fraction; validator exit is "
-            "modeled as unbonding into liquid inventory and is distinct from destructive "
-            "slashing; paid usage is organic only to the configured organic_usage_fraction, "
-            "and survival requires the explicit minimum organic usage share configured for "
-            "the scenario; not a price forecast, investment return estimate, legal "
-            "conclusion, or TOKEN_NECESSITY decision"
+            "bonded stake is not fee liquidity; nominal emissions become realizable only "
+            "to the configured realization fraction; emission realization and fee turnover "
+            "share the configured daily token-velocity budget; validator exit is modeled as "
+            "unbonding into liquid inventory and is distinct from destructive slashing; paid "
+            "usage is organic only to the configured organic_usage_fraction; survival requires "
+            "minimum organic usage share, average organic actions/day and average organic fee "
+            "USD/day; not a price forecast, investment return estimate, legal conclusion, or "
+            "TOKEN_NECESSITY decision"
         ),
     }
 
