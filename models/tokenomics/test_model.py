@@ -151,6 +151,7 @@ class TokenomicsModelTests(unittest.TestCase):
             EconomyConfig(),
             initial_supply_tokens=6_000.0,
             daily_actions=10.0,
+            minimum_organic_actions_per_day_for_survival=1.0,
             fee_mode="token_fixed",
             fixed_token_fee_per_action=1.0,
             burn_rate=0.25,
@@ -319,21 +320,40 @@ class TokenomicsModelTests(unittest.TestCase):
             float(result["slashing_burn_rate_per_day"])
             for result in results
         }
-        summary = summarize(results)
+        exit_rates = {
+            float(result["validator_exit_rate_per_day"])
+            for result in results
+        }
         self.assertEqual(horizons, {365, 1_825})
+        self.assertIn(0.0, slashing_rates)
         self.assertTrue(any(rate > 0.0 for rate in slashing_rates))
+        self.assertIn(0.0, exit_rates)
+        self.assertTrue(any(rate > 0.0 for rate in exit_rates))
         self.assertTrue(
             any(
-                int(result["days"]) == 1_825
-                and float(result["total_slashing_burn_tokens"]) > 0.0
+                float(result["slashing_burn_rate_per_day"]) > 0.0
+                and not bool(result["stake_adequate"])
                 for result in results
             )
         )
-        self.assertGreater(summary["fee_affordability_failure_count"], 0)
-        self.assertGreater(summary["realizable_liquidity_failure_count"], 0)
-        self.assertGreater(summary["unmet_demand_scenario_count"], 0)
+        self.assertTrue(
+            any(
+                float(result["validator_exit_rate_per_day"]) > 0.0
+                and not bool(result["stake_adequate"])
+                for result in results
+            )
+        )
+        self.assertTrue(
+            any(
+                float(result["validator_exit_rate_per_day"]) > 0.0
+                and not bool(result["next_day_stake_adequate"])
+                for result in results
+            )
+        )
+        summary = summarize(results)
         self.assertGreater(summary["stake_failure_count"], 0)
         self.assertGreater(summary["next_day_stake_failure_count"], 0)
+        self.assertGreater(summary["insufficient_organic_demand_scenario_count"], 0)
         self.assertEqual(summary["accounting_failure_count"], 0)
 
 
