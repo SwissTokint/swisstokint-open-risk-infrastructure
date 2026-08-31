@@ -163,7 +163,11 @@ function arrayIncludes(array, value) {
 }
 
 function arrayPush(array, value) {
-  return REFLECT_APPLY(ARRAY_PUSH, array, [value]);
+  // Native Array.prototype.push performs ordinary [[Set]] and can therefore
+  // dispatch through an inherited numeric setter installed after module load.
+  // Policy reasons are evidence, so install each element as an own data property
+  // through the already-captured defineProperty boundary instead.
+  defineArrayElement(array, array.length, value);
 }
 
 function sortArray(array) {
