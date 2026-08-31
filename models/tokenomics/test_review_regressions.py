@@ -458,5 +458,167 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertFalse(result.economic_survival)
 
 
+    def test_sub_ulp_fee_share_cannot_create_value_after_full_burn(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1_000.0,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=1.0,
+            security_fee_share=4e-19,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=10.0,
+            minimum_organic_usage_fraction_for_survival=0.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="sub-ulp-fee-share", days=1))
+        self.assertAlmostEqual(result.total_fee_tokens, 10.0)
+        self.assertAlmostEqual(result.total_burn_tokens, 10.0)
+        self.assertEqual(result.total_security_fee_tokens, 0.0)
+        self.assertEqual(result.total_treasury_tokens, 0.0)
+        self.assertLessEqual(
+            result.total_burn_tokens
+            + result.total_security_fee_tokens
+            + result.total_treasury_tokens,
+            result.total_fee_tokens,
+        )
+
+    def test_sub_ulp_slashing_accumulates_into_stake_and_supply(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=2_000_000_000.0,
+            initial_price_usd=1e15,
+            staked_fraction=0.5,
+            slashing_burn_rate_per_day=4e-19,
+            validator_exit_rate_per_day=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=0.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=1.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="sub-ulp-slashing", days=1_825))
+        self.assertGreater(result.total_slashing_burn_tokens, 5e-7)
+        self.assertLess(result.ending_staked_tokens, 1_000_000_000.0)
+        self.assertLess(result.ending_supply_tokens, 2_000_000_000.0)
+        self.assertTrue(result.accounting_valid)
+
+    def test_sub_ulp_fee_burn_accumulates_into_liquid_inventory(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1_000_000_000.0,
+            initial_price_usd=1e18,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.6e-9,
+            burn_rate=0.25,
+            security_fee_share=0.5625,
+            treasury_fee_share=0.1875,
+            daily_security_emission_tokens=0.0,
+            daily_actions=1.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=2.5000000000000013e-18,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=2e9,
+        )
+        result = simulate(config, StressScenario(name="sub-ulp-fee-burn", days=1_825))
+        self.assertGreater(result.total_burn_tokens, 5e-7)
+        self.assertLess(result.ending_supply_tokens, 1_000_000_000.0)
+        self.assertLess(result.ending_realizable_liquid_tokens, 1_000_000_000.0)
+        self.assertTrue(result.accounting_valid)
+
+    def test_hard_organic_survival_floors_do_not_accept_relative_shortfall(self) -> None:
+        actions_floor = 1e300
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1e8,
+            daily_actions=9.999999999995e299,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1e-300,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            minimum_organic_usage_fraction_for_survival=1.0,
+            minimum_organic_actions_per_day_for_survival=actions_floor,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="strict-organic-actions-floor", days=1))
+        self.assertLess(result.average_organic_executed_actions_per_day, actions_floor)
+        self.assertFalse(result.absolute_organic_demand_adequate)
+
+        fee_floor = 1e300
+        fee_config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1e300,
+            staked_fraction=0.0,
+            daily_actions=1.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=9.999999999995e299,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            minimum_organic_usage_fraction_for_survival=0.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=fee_floor,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1e300,
+        )
+        fee_result = simulate(
+            fee_config,
+            StressScenario(name="strict-organic-fee-floor", days=1),
+        )
+        self.assertLess(fee_result.average_organic_fee_usd_per_day, fee_floor)
+        self.assertFalse(fee_result.organic_fee_revenue_adequate)
+
+    def test_security_budget_gate_cannot_round_token_value_up_to_requirement(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=1e200,
+            initial_price_usd=1e100,
+            staked_fraction=0.0,
+            daily_actions=1.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1e200,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            security_fee_realization_fraction=1.0,
+            minimum_organic_usage_fraction_for_survival=0.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=2.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1e300,
+            max_affordable_fee_usd_per_action=1e300,
+        )
+        result = simulate(config, StressScenario(name="security-product-round-up", days=1))
+        self.assertEqual(result.minimum_security_budget_usd_per_day, 1e300)
+        self.assertFalse(result.security_budget_adequate)
+        self.assertFalse(result.economic_survival)
+
+
 if __name__ == "__main__":
     unittest.main()

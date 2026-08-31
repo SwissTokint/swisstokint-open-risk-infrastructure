@@ -8,12 +8,12 @@ mechanically viable under explicit price, usage, liquidity and staking shocks.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from math import inf, isclose, isfinite
+from fractions import Fraction
+from math import inf, isfinite
 from typing import Any
 
 
 EPSILON = 1e-9
-REL_TOLERANCE = 1e-12
 
 
 @dataclass(frozen=True)
@@ -191,17 +191,29 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
 
 
 def _meets_required(actual: float, required: float) -> bool:
-    """Scale-aware lower-bound comparison with no absolute token epsilon."""
+    """Conservative hard lower bound: below-threshold values never pass."""
     if required <= 0:
         return True
-    if actual <= 0:
-        return False
-    return actual >= required or isclose(
-        actual,
-        required,
-        rel_tol=REL_TOLERANCE,
-        abs_tol=0.0,
+    return actual >= required
+
+
+def _token_value_meets_required(
+    token_amounts: tuple[float, ...],
+    token_price_usd: float,
+    required_usd: float,
+    *,
+    required_multiplier: int = 1,
+) -> bool:
+    """Compare represented float inputs exactly without product rounding-up."""
+    if required_usd <= 0:
+        return True
+    actual_tokens = sum(
+        (Fraction.from_float(amount) for amount in token_amounts),
+        Fraction(0, 1),
     )
+    actual_value = actual_tokens * Fraction.from_float(token_price_usd)
+    required_value = Fraction.from_float(required_usd) * required_multiplier
+    return actual_value >= required_value
 
 
 def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResult:
@@ -274,7 +286,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     minimum_staked_tokens = staked_tokens
     minimum_staked_value_usd = staked_tokens * token_price
     validator_exit_residual_tokens = 0.0
+    slashing_stake_residual_tokens = 0.0
+    slashing_supply_residual_tokens = 0.0
+    fee_burn_liquid_residual_tokens = 0.0
+    fee_burn_supply_residual_tokens = 0.0
     usage_served = True
+    security_budget_adequate_all_days = True
 
     for _ in range(scenario.days):
         total_requested_actions += requested_actions_per_day
@@ -306,12 +323,45 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         staked_tokens = post_exit_staked_tokens
         realizable_liquid_tokens += daily_validator_exit_tokens
 
-        daily_slashing_burn_tokens = min(
+        nominal_daily_slashing_tokens = min(
             staked_tokens,
             staked_tokens * config.slashing_burn_rate_per_day,
         )
-        staked_tokens -= daily_slashing_burn_tokens
-        supply -= daily_slashing_burn_tokens
+
+        # Preserve destructive slashing smaller than the current float ULP.
+        # Bonded stake and total supply can have different ULPs, so each state
+        # carries its own signed error-feedback residual while consuming the
+        # same nominal slash target.
+        stake_slash_target = min(
+            staked_tokens,
+            max(nominal_daily_slashing_tokens + slashing_stake_residual_tokens, 0.0),
+        )
+        post_slash_staked_tokens = max(staked_tokens - stake_slash_target, 0.0)
+        actual_stake_slash_tokens = staked_tokens - post_slash_staked_tokens
+        slashing_stake_residual_tokens = (
+            nominal_daily_slashing_tokens
+            + slashing_stake_residual_tokens
+            - actual_stake_slash_tokens
+        )
+        if post_slash_staked_tokens <= 0.0:
+            slashing_stake_residual_tokens = 0.0
+
+        supply_slash_target = min(
+            supply,
+            max(nominal_daily_slashing_tokens + slashing_supply_residual_tokens, 0.0),
+        )
+        post_slash_supply_tokens = max(supply - supply_slash_target, 0.0)
+        daily_slashing_burn_tokens = supply - post_slash_supply_tokens
+        slashing_supply_residual_tokens = (
+            nominal_daily_slashing_tokens
+            + slashing_supply_residual_tokens
+            - daily_slashing_burn_tokens
+        )
+        if post_slash_supply_tokens <= 0.0:
+            slashing_supply_residual_tokens = 0.0
+
+        staked_tokens = post_slash_staked_tokens
+        supply = post_slash_supply_tokens
 
         liquid_supply_before_emission_realization = max(supply - staked_tokens, 0.0)
         realizable_liquid_tokens = min(
@@ -368,20 +418,61 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         # that were never collectible at large floating-point scales.
         daily_fee_tokens = collectible_fee_tokens
         daily_organic_fee_tokens = daily_fee_tokens * config.organic_usage_fraction
-        daily_burn_tokens = daily_fee_tokens * config.burn_rate
-        daily_security_fee_tokens = daily_fee_tokens * config.security_fee_share
-        daily_organic_security_fee_tokens = (
-            daily_organic_fee_tokens * config.security_fee_share
+        nominal_daily_burn_tokens = daily_fee_tokens * config.burn_rate
+        fee_tokens_after_burn = max(daily_fee_tokens - nominal_daily_burn_tokens, 0.0)
+        # Derive the final allocation from the remaining collected fee instead
+        # of independently adding three rounded products. This makes value
+        # creation impossible even at extreme magnitudes.
+        daily_security_fee_tokens = min(
+            daily_fee_tokens * config.security_fee_share,
+            fee_tokens_after_burn,
         )
-        daily_treasury_tokens = daily_fee_tokens * config.treasury_fee_share
+        daily_treasury_tokens = max(
+            fee_tokens_after_burn - daily_security_fee_tokens,
+            0.0,
+        )
+        daily_organic_security_fee_tokens = (
+            daily_security_fee_tokens * config.organic_usage_fraction
+        )
 
-        daily_burn_tokens = min(daily_burn_tokens, realizable_liquid_tokens)
-        supply -= daily_burn_tokens
-        realizable_liquid_tokens -= daily_burn_tokens
-        if supply < 0.0:
-            supply = 0.0
-        if realizable_liquid_tokens < 0.0:
-            realizable_liquid_tokens = 0.0
+        # Preserve sub-ULP fee burns separately in total-supply and realizable
+        # liquid state. Each state carries the rounding error until it becomes
+        # representable; survival gates consume the corrected states.
+        liquid_burn_target = min(
+            realizable_liquid_tokens,
+            max(nominal_daily_burn_tokens + fee_burn_liquid_residual_tokens, 0.0),
+        )
+        post_burn_liquid_tokens = max(
+            realizable_liquid_tokens - liquid_burn_target,
+            0.0,
+        )
+        actual_liquid_burn_tokens = (
+            realizable_liquid_tokens - post_burn_liquid_tokens
+        )
+        fee_burn_liquid_residual_tokens = (
+            nominal_daily_burn_tokens
+            + fee_burn_liquid_residual_tokens
+            - actual_liquid_burn_tokens
+        )
+        if post_burn_liquid_tokens <= 0.0:
+            fee_burn_liquid_residual_tokens = 0.0
+
+        supply_burn_target = min(
+            supply,
+            max(nominal_daily_burn_tokens + fee_burn_supply_residual_tokens, 0.0),
+        )
+        post_burn_supply_tokens = max(supply - supply_burn_target, 0.0)
+        daily_burn_tokens = supply - post_burn_supply_tokens
+        fee_burn_supply_residual_tokens = (
+            nominal_daily_burn_tokens
+            + fee_burn_supply_residual_tokens
+            - daily_burn_tokens
+        )
+        if post_burn_supply_tokens <= 0.0:
+            fee_burn_supply_residual_tokens = 0.0
+
+        supply = post_burn_supply_tokens
+        realizable_liquid_tokens = post_burn_liquid_tokens
         if staked_tokens > supply:
             staked_tokens = supply
 
@@ -408,6 +499,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         daily_security_budget_usd = (
             realizable_security_fee_usd + realizable_emission_usd
         )
+        if not _token_value_meets_required(
+            (daily_realizable_security_fee_tokens, daily_realizable_emission_tokens),
+            token_price,
+            config.required_security_budget_usd_per_day,
+        ):
+            security_budget_adequate_all_days = False
         daily_staked_value_usd = staked_tokens * token_price
 
         total_executed_actions += executed_actions
@@ -471,8 +568,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     stake_coverage = minimum_staked_value_usd / config.required_stake_value_usd
 
     fee_affordable = actual_fee_usd_per_action <= config.max_affordable_fee_usd_per_action
-    security_budget_adequate = security_coverage >= 1.0
-    stake_adequate = stake_coverage >= 1.0
+    security_budget_adequate = security_budget_adequate_all_days
+    stake_adequate = _token_value_meets_required(
+        (minimum_staked_tokens,),
+        token_price,
+        config.required_stake_value_usd,
+    )
     total_unmet_actions = max(total_requested_actions - total_executed_actions, 0.0)
 
     organic_usage_share = (
@@ -486,10 +587,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     average_organic_fee_usd = (
         total_organic_fee_tokens * token_price / scenario.days
     )
-    organic_fee_demand_present = average_organic_fee_usd > 0.0
-    organic_fee_revenue_adequate = _meets_required(
-        average_organic_fee_usd,
+    organic_fee_demand_present = total_organic_fee_tokens > 0.0
+    organic_fee_revenue_adequate = _token_value_meets_required(
+        (total_organic_fee_tokens,),
+        token_price,
         config.minimum_organic_fee_usd_per_day_for_survival,
+        required_multiplier=scenario.days,
     )
     organic_usage_share_adequate = (
         organic_fee_demand_present
@@ -555,9 +658,13 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         staked_tokens - next_day_requested_validator_exit_tokens,
         0.0,
     )
+    next_day_slashing_target_tokens = (
+        next_day_after_exit_tokens * config.slashing_burn_rate_per_day
+        + slashing_stake_residual_tokens
+    )
     next_day_slashing_burn_tokens = min(
         next_day_after_exit_tokens,
-        next_day_after_exit_tokens * config.slashing_burn_rate_per_day,
+        max(next_day_slashing_target_tokens, 0.0),
     )
     next_day_staked_tokens = (
         next_day_after_exit_tokens - next_day_slashing_burn_tokens
@@ -566,7 +673,11 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     next_day_stake_coverage = (
         next_day_staked_value_usd / config.required_stake_value_usd
     )
-    next_day_stake_adequate = next_day_stake_coverage >= 1.0
+    next_day_stake_adequate = _token_value_meets_required(
+        (next_day_staked_tokens,),
+        token_price,
+        config.required_stake_value_usd,
+    )
 
     return SimulationResult(
         scenario=scenario.name,
