@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       # Immutable action refs prevent upstream tag retargeting. Update the SHA
       # and its release annotation together after reviewing the upstream diff.
@@ -71,10 +71,12 @@ jobs:
       - run: npm test
       - name: Test tokenomics stress model
         run: |
-          # Run the bounded exact-head attack regressions first so a numerical
-          # conservation failure is surfaced promptly rather than hidden behind
-          # the intentionally expensive multi-year scenario sweep.
+          # Run bounded exact-head attack and execution-path regressions first.
+          # The full 3,600-case matrix remains mandatory and must fit the
+          # canonical job budget through bounded process parallelism, not by
+          # weakening exact hard-gate arithmetic or extending the timeout.
           python models/tokenomics/test_exact_ledger_regressions.py
+          python models/tokenomics/test_matrix_execution.py
           python models/tokenomics/test_review_regressions.py
           python models/tokenomics/test_model.py
       - name: Assert tracked POM-RX integrity gaps remain expected-red
