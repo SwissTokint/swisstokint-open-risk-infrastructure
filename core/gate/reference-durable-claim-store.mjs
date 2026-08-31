@@ -1,12 +1,24 @@
 import {
   Stats,
   close as closeFdCallback,
+  closeSync as closeFdSyncCallback,
   fstat as fstatFdCallback,
+  fstatSync as fstatFdSyncCallback,
   fsync as fsyncFdCallback,
+  fsyncSync as fsyncFdSyncCallback,
+  linkSync as linkSyncCallback,
   lstat as lstatCallback,
+  lstatSync as lstatSyncCallback,
+  mkdirSync as mkdirSyncCallback,
   open as openFdCallback,
+  openSync as openFdSyncCallback,
+  readFileSync as readFileSyncCallback,
+  realpathSync as realpathSyncCallback,
   stat as statCallback,
+  statSync as statSyncCallback,
+  unlinkSync as unlinkSyncCallback,
   writeFile as writeFileFdCallback,
+  writeFileSync as writeFileFdSyncCallback,
 } from 'node:fs';
 import {
   createHash,
@@ -82,19 +94,21 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
 // path/hash/JSON dispatch, fd I/O entry points and WeakMap state once at module
 // initialization so a later same-realm mutation cannot redirect rootDir, alter
 // claim/terminal truth, admit traversal-shaped capability IDs, substitute handle
-// state, or fake a successful write/fsync/close through FileHandle.prototype.
+// state, or fake a successful write/fsync/close through mutable Node prototypes.
 // Filesystem metadata and persisted JSON records are copied to prototype-inert
 // snapshots before Promise resolution, so inherited thenables cannot substitute
 // Stats, claim, terminal or inspection truth. The durable root is pinned by an
-// open directory fd and every public operation verifies that the configured
-// pathname still names that same inode before traversing the pinned Linux fd
-// path. The public close lifecycle drains in-flight store operations before the
-// root descriptor is released. On Linux, procfs /proc/self/fd accessibility is
-// explicitly validated as part of root pinning and never silently falls back to
-// an unpinned pathname.
-// Security-sensitive iteration over module-owned key sets is index-based, with
-// explicit pre-sorted companions. Poisoning before module initialization remains
-// outside this reference guarantee.
+// open directory fd. On Linux, every claim/inspect/complete mutation or read that
+// decides durable truth executes in a captured synchronous critical section:
+// root pathname, fd and procfs identities are checked immediately before the
+// operation, no JavaScript scheduling point exists while the root-bound work is
+// performed, and the same identities are checked again before control returns to
+// untrusted same-realm code. This specifically prevents close/reuse of the raw fd
+// number from redirecting /proc/self/fd traversal between asynchronous checks.
+// The public close lifecycle drains in-flight store operations before releasing
+// the pinned descriptor. Procfs /proc/self/fd accessibility is validated as part
+// of root pinning and never silently falls back to an unpinned pathname.
+// Poisoning before module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
@@ -144,6 +158,18 @@ const FS_MKDIR = mkdir;
 const FS_READ_FILE = readFile;
 const FS_REALPATH = realpath;
 const FS_UNLINK = unlink;
+const FS_OPEN_SYNC = openFdSyncCallback;
+const FS_WRITE_FILE_SYNC = writeFileFdSyncCallback;
+const FS_FSTAT_SYNC = fstatFdSyncCallback;
+const FS_FSYNC_SYNC = fsyncFdSyncCallback;
+const FS_CLOSE_SYNC = closeFdSyncCallback;
+const FS_LSTAT_SYNC = lstatSyncCallback;
+const FS_STAT_SYNC = statSyncCallback;
+const FS_LINK_SYNC = linkSyncCallback;
+const FS_MKDIR_SYNC = mkdirSyncCallback;
+const FS_READ_FILE_SYNC = readFileSyncCallback;
+const FS_REALPATH_SYNC = realpathSyncCallback;
+const FS_UNLINK_SYNC = unlinkSyncCallback;
 const STATS_IS_DIRECTORY = Stats.prototype.isDirectory;
 const STATS_IS_FILE = Stats.prototype.isFile;
 const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;
@@ -224,6 +250,50 @@ function fsRealpath(filePath) {
 
 function fsUnlink(filePath) {
   return REFLECT_APPLY(FS_UNLINK, undefined, [filePath]);
+}
+
+function fsLstatSyncSnapshot(filePath) {
+  return makeStatSnapshot(REFLECT_APPLY(FS_LSTAT_SYNC, undefined, [filePath]));
+}
+
+function fsStatSyncSnapshot(filePath) {
+  return makeStatSnapshot(REFLECT_APPLY(FS_STAT_SYNC, undefined, [filePath]));
+}
+
+function fsFstatSyncSnapshot(fd) {
+  return makeStatSnapshot(REFLECT_APPLY(FS_FSTAT_SYNC, undefined, [fd]));
+}
+
+function fsRealpathSync(filePath) {
+  return REFLECT_APPLY(FS_REALPATH_SYNC, undefined, [filePath]);
+}
+
+function fsMkdirSync(filePath, options) {
+  return REFLECT_APPLY(FS_MKDIR_SYNC, undefined, [filePath, options]);
+}
+
+function fsReadFileSync(filePath, options) {
+  return REFLECT_APPLY(FS_READ_FILE_SYNC, undefined, [filePath, options]);
+}
+
+function fsUnlinkSync(filePath) {
+  return REFLECT_APPLY(FS_UNLINK_SYNC, undefined, [filePath]);
+}
+
+function openFdSync(filePath, flags, mode) {
+  return REFLECT_APPLY(FS_OPEN_SYNC, undefined, [filePath, flags, mode]);
+}
+
+function writeFileFdSync(fd, value, encoding) {
+  REFLECT_APPLY(FS_WRITE_FILE_SYNC, undefined, [fd, value, encoding]);
+}
+
+function fsyncFdSync(fd) {
+  REFLECT_APPLY(FS_FSYNC_SYNC, undefined, [fd]);
+}
+
+function closeFdSync(fd) {
+  REFLECT_APPLY(FS_CLOSE_SYNC, undefined, [fd]);
 }
 
 function statIsDirectory(stat) {
@@ -351,6 +421,15 @@ async function closeFdIgnoringFailure(fd) {
   } catch {
     // Best-effort cleanup only. The durable operation itself reports its own
     // write/fsync/close failure before this path is reached.
+  }
+}
+
+function closeFdSyncIgnoringFailure(fd) {
+  if (fd === null) return;
+  try {
+    closeFdSync(fd);
+  } catch {
+    // Best-effort synchronous cleanup inside a non-interleavable critical path.
   }
 }
 
@@ -595,6 +674,20 @@ async function fsyncDirectory(directory) {
   }
 }
 
+function fsyncDirectorySync(directory) {
+  let fd = null;
+  try {
+    fd = openFdSync(directory, 'r', 0o600);
+    fsyncFdSync(fd);
+    closeFdSync(fd);
+    fd = null;
+  } catch {
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable directory synchronization failed');
+  } finally {
+    closeFdSyncIgnoringFailure(fd);
+  }
+}
+
 async function writeExclusiveDurable(filePath, value) {
   const body = `${canonicalizeFlatRecord(value)}\n`;
   if (bufferByteLength(body, 'utf8') > MAX_RECORD_BYTES) {
@@ -609,10 +702,6 @@ async function writeExclusiveDurable(filePath, value) {
   let fd = null;
   let tempExists = false;
   try {
-    // Never expose the final record name until the complete payload has been
-    // written and fsynced. Callback-style fd operations are captured at module
-    // initialization, so post-import FileHandle prototype mutation cannot fake
-    // the write/sync/close sequence.
     fd = await openFd(tempPath, 'wx', 0o600);
     tempExists = true;
     await writeFileFd(fd, body, 'utf8');
@@ -647,6 +736,54 @@ async function writeExclusiveDurable(filePath, value) {
   }
 }
 
+function writeExclusiveDurableSync(filePath, value) {
+  const body = `${canonicalizeFlatRecord(value)}\n`;
+  if (bufferByteLength(body, 'utf8') > MAX_RECORD_BYTES) {
+    fail('POMRX_GATE_E_DURABLE_INVALID', 'durable record exceeds the maximum size');
+  }
+
+  const directory = PATH_DIRNAME(filePath);
+  const tempPath = PATH_JOIN(
+    directory,
+    `.${PATH_BASENAME(filePath)}.${process.pid}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
+  );
+  let fd = null;
+  let tempExists = false;
+  try {
+    fd = openFdSync(tempPath, 'wx', 0o600);
+    tempExists = true;
+    writeFileFdSync(fd, body, 'utf8');
+    fsyncFdSync(fd);
+    closeFdSync(fd);
+    fd = null;
+
+    try {
+      REFLECT_APPLY(FS_LINK_SYNC, undefined, [tempPath, filePath]);
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        fail('POMRX_GATE_E_DURABLE_REPLAY', 'durable terminal/claim record already exists');
+      }
+      throw error;
+    }
+
+    fsUnlinkSync(tempPath);
+    tempExists = false;
+    fsyncDirectorySync(directory);
+  } catch (error) {
+    if (error instanceof PomRxDurableClaimStoreError) throw error;
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable record publication failed');
+  } finally {
+    closeFdSyncIgnoringFailure(fd);
+    if (tempExists) {
+      try {
+        fsUnlinkSync(tempPath);
+      } catch {
+        // Best-effort cleanup; the primary durable failure remains authoritative.
+      }
+    }
+  }
+}
+
 async function readBoundedJson(filePath) {
   let stat;
   try {
@@ -661,6 +798,31 @@ async function readBoundedJson(filePath) {
   let text;
   try {
     text = await fsReadFile(filePath, 'utf8');
+  } catch {
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable record could not be read');
+  }
+  try {
+    return captureParsedDurableRecord(jsonParse(text));
+  } catch (error) {
+    if (error instanceof PomRxDurableClaimStoreError) throw error;
+    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record JSON is invalid');
+  }
+}
+
+function readBoundedJsonSync(filePath) {
+  let stat;
+  try {
+    stat = fsLstatSyncSnapshot(filePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable record metadata could not be inspected');
+  }
+  if (!statIsFile(stat) || statIsSymbolicLink(stat) || stat.size < 2 || stat.size > MAX_RECORD_BYTES) {
+    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record is not a bounded regular file');
+  }
+  let text;
+  try {
+    text = fsReadFileSync(filePath, 'utf8');
   } catch {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record could not be read');
   }
@@ -735,6 +897,21 @@ export function createReferenceDurableClaimStore(options) {
     }
   }
 
+  function validateRootIdentity(stat, resolved, currentUid) {
+    const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
+    const wrongOwner = currentUid !== null && stat.uid !== currentUid;
+    if (!statIsDirectory(stat)
+        || statIsSymbolicLink(stat)
+        || resolved !== configuredRoot
+        || unsafePermissions
+        || wrongOwner) {
+      fail(
+        'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+        'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
+      );
+    }
+  }
+
   async function inspectConfiguredRoot() {
     let stat;
     let resolved;
@@ -753,18 +930,7 @@ export function createReferenceDurableClaimStore(options) {
     const currentUid = PROCESS_GET_UID === null
       ? null
       : REFLECT_APPLY(PROCESS_GET_UID, process, []);
-    const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
-    const wrongOwner = currentUid !== null && stat.uid !== currentUid;
-    if (!statIsDirectory(stat)
-        || statIsSymbolicLink(stat)
-        || resolved !== configuredRoot
-        || unsafePermissions
-        || wrongOwner) {
-      fail(
-        'POMRX_GATE_E_DURABLE_ROOT_INVALID',
-        'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
-      );
-    }
+    validateRootIdentity(stat, resolved, currentUid);
     const identity = createObject(null);
     identity.dev = stat.dev;
     identity.ino = stat.ino;
@@ -772,6 +938,87 @@ export function createReferenceDurableClaimStore(options) {
     identity.uid = stat.uid;
     identity.resolved = resolved;
     return freezeValue(identity);
+  }
+
+  function inspectConfiguredRootSync() {
+    let stat;
+    let resolved;
+    try {
+      stat = fsLstatSyncSnapshot(configuredRoot);
+      resolved = fsRealpathSync(configuredRoot);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        fail(
+          'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+          'durable claim root must be pre-existing and durably provisioned',
+        );
+      }
+      fail('POMRX_GATE_E_DURABLE_ROOT_INVALID', 'durable claim root identity cannot be synchronously verified');
+    }
+    const currentUid = PROCESS_GET_UID === null
+      ? null
+      : REFLECT_APPLY(PROCESS_GET_UID, process, []);
+    validateRootIdentity(stat, resolved, currentUid);
+    const identity = createObject(null);
+    identity.dev = stat.dev;
+    identity.ino = stat.ino;
+    identity.mode = stat.mode;
+    identity.uid = stat.uid;
+    identity.resolved = resolved;
+    return freezeValue(identity);
+  }
+
+  function assertPinnedRootSync(root) {
+    let currentPathIdentity;
+    let currentFdIdentity;
+    let operationIdentity = null;
+    try {
+      currentPathIdentity = inspectConfiguredRootSync();
+      currentFdIdentity = fsFstatSyncSnapshot(root.fd);
+      if (PROCESS_PLATFORM === 'linux') {
+        operationIdentity = fsStatSyncSnapshot(root.operationRoot);
+      }
+    } catch (error) {
+      if (error instanceof PomRxDurableClaimStoreError
+          && error.code === 'POMRX_GATE_E_DURABLE_ROOT_INVALID') {
+        throw error;
+      }
+      fail('POMRX_GATE_E_DURABLE_ROOT_INVALID', 'pinned durable-root descriptor identity cannot be verified');
+    }
+
+    const fdMismatch = currentPathIdentity.dev !== root.dev
+      || currentPathIdentity.ino !== root.ino
+      || currentPathIdentity.mode !== root.mode
+      || currentPathIdentity.uid !== root.uid
+      || currentFdIdentity.dev !== root.dev
+      || currentFdIdentity.ino !== root.ino
+      || currentFdIdentity.mode !== root.mode
+      || currentFdIdentity.uid !== root.uid
+      || !statIsDirectory(currentFdIdentity)
+      || statIsSymbolicLink(currentFdIdentity);
+    const operationMismatch = operationIdentity !== null
+      && (!statIsDirectory(operationIdentity)
+        || operationIdentity.dev !== root.dev
+        || operationIdentity.ino !== root.ino);
+    if (fdMismatch || operationMismatch) {
+      fail(
+        'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+        'durable claim root descriptor/path identity changed after validation',
+      );
+    }
+  }
+
+  function withPinnedRootCritical(root, operation) {
+    // No await, Promise creation or caller callback is allowed between these two
+    // identity checks. Same-realm async-hooks code therefore cannot close/reuse
+    // root.fd and redirect /proc/self/fd/<fd> while root-bound truth is read or
+    // mutated. Synchronous Node filesystem entry points are captured at import.
+    assertPinnedRootSync(root);
+    try {
+      return operation(root.operationRoot);
+    } finally {
+      assertPinnedRootSync(root);
+    }
   }
 
   async function trustedRoot() {
@@ -794,10 +1041,6 @@ export function createReferenceDurableClaimStore(options) {
             );
           }
 
-          // The store never creates its own root. The deployment must provision it
-          // durably before bootstrap. Synchronizing the direct parent here also
-          // persists the already-present root directory entry under the supported
-          // local-filesystem model before any capability claim can report success.
           await fsyncDirectory(PATH_DIRNAME(configuredRoot));
 
           const root = createObject(null);
@@ -870,34 +1113,35 @@ export function createReferenceDurableClaimStore(options) {
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const rootRef = await trustedRoot();
-    const root = rootRef.operationRoot;
-    const claimDirectory = PATH_JOIN(root, capabilityId);
 
-    let directoryStat;
-    try {
-      directoryStat = await fsLstat(claimDirectory);
-    } catch (error) {
-      if (error?.code === 'ENOENT') return makeInspection('ABSENT');
-      fail('POMRX_GATE_E_DURABLE_IO', 'durable claim directory could not be inspected');
-    }
-    if (!statIsDirectory(directoryStat) || statIsSymbolicLink(directoryStat)) {
-      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
-    }
+    return withPinnedRootCritical(rootRef, (root) => {
+      const claimDirectory = PATH_JOIN(root, capabilityId);
+      let directoryStat;
+      try {
+        directoryStat = fsLstatSyncSnapshot(claimDirectory);
+      } catch (error) {
+        if (error?.code === 'ENOENT') return makeInspection('ABSENT');
+        fail('POMRX_GATE_E_DURABLE_IO', 'durable claim directory could not be inspected');
+      }
+      if (!statIsDirectory(directoryStat) || statIsSymbolicLink(directoryStat)) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
+      }
 
-    const rawClaim = await readBoundedJson(PATH_JOIN(claimDirectory, 'claim.json'));
-    if (rawClaim === null) {
-      return makeInspection('RESERVED_INCOMPLETE', null, null, capabilityId);
-    }
-    const claimRecord = validateClaimRecord(rawClaim);
-    if (claimRecord.capability_id !== capabilityId
-        || claimRecord.authorization_commitment !== authorizationCommitment) {
-      fail('POMRX_GATE_E_DURABLE_BINDING_MISMATCH', 'persisted durable claim does not match the expected authorization binding');
-    }
+      const rawClaim = readBoundedJsonSync(PATH_JOIN(claimDirectory, 'claim.json'));
+      if (rawClaim === null) {
+        return makeInspection('RESERVED_INCOMPLETE', null, null, capabilityId);
+      }
+      const claimRecord = validateClaimRecord(rawClaim);
+      if (claimRecord.capability_id !== capabilityId
+          || claimRecord.authorization_commitment !== authorizationCommitment) {
+        fail('POMRX_GATE_E_DURABLE_BINDING_MISMATCH', 'persisted durable claim does not match the expected authorization binding');
+      }
 
-    const rawTerminal = await readBoundedJson(PATH_JOIN(claimDirectory, 'terminal.json'));
-    if (rawTerminal === null) return makeInspection('RESERVED', claimRecord);
-    const terminalRecord = validateTerminalRecord(rawTerminal, claimRecord);
-    return makeInspection(terminalRecord.terminal_state, claimRecord, terminalRecord);
+      const rawTerminal = readBoundedJsonSync(PATH_JOIN(claimDirectory, 'terminal.json'));
+      if (rawTerminal === null) return makeInspection('RESERVED', claimRecord);
+      const terminalRecord = validateTerminalRecord(rawTerminal, claimRecord);
+      return makeInspection(terminalRecord.terminal_state, claimRecord, terminalRecord);
+    });
   }
 
   async function claimImpl(input) {
@@ -910,42 +1154,33 @@ export function createReferenceDurableClaimStore(options) {
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
     const rootRef = await trustedRoot();
-    const root = rootRef.operationRoot;
-    const claimDirectory = PATH_JOIN(root, capabilityId);
 
-    try {
-      await fsMkdir(claimDirectory, { mode: 0o700 });
-    } catch (error) {
-      if (error?.code === 'EEXIST') {
-        fail('POMRX_GATE_E_DURABLE_REPLAY', 'capability already has a durable claim tombstone');
+    return withPinnedRootCritical(rootRef, (root) => {
+      const claimDirectory = PATH_JOIN(root, capabilityId);
+      try {
+        fsMkdirSync(claimDirectory, { mode: 0o700 });
+      } catch (error) {
+        if (error?.code === 'EEXIST') {
+          fail('POMRX_GATE_E_DURABLE_REPLAY', 'capability already has a durable claim tombstone');
+        }
+        fail('POMRX_GATE_E_DURABLE_IO', 'durable capability claim could not be reserved');
       }
-      fail('POMRX_GATE_E_DURABLE_IO', 'durable capability claim could not be reserved');
-    }
 
-    // Revalidate the configured pathname after the reservation. Operations on
-    // Linux use the pinned fd path, so a concurrent rename cannot redirect the
-    // mkdir; this second check additionally fails closed if the configured root
-    // was rebound while the operation was in flight.
-    await trustedRoot();
+      fsyncDirectorySync(root);
+      const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
+      writeExclusiveDurableSync(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);
 
-    // mkdir() alone is not a durability claim. Only after this root-directory
-    // fsync succeeds is the new capability-directory entry treated as a durable
-    // fail-closed tombstone by a successful claim() operation.
-    await fsyncDirectory(root);
-
-    const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
-    await writeExclusiveDurable(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);
-
-    const handle = freezeValue(createObject(null));
-    weakMapSet(handleState, handle, {
-      state: 'OPEN',
-      claimDirectory,
-      claimRecord,
+      const handle = freezeValue(createObject(null));
+      weakMapSet(handleState, handle, {
+        state: 'OPEN',
+        claimDirectory,
+        claimRecord,
+      });
+      const result = createObject(null);
+      result.handle = handle;
+      result.claim = claimRecord;
+      return freezeValue(result);
     });
-    const result = createObject(null);
-    result.handle = handle;
-    result.claim = claimRecord;
-    return freezeValue(result);
   }
 
   async function completeImpl(handle, outcome) {
@@ -957,31 +1192,31 @@ export function createReferenceDurableClaimStore(options) {
       fail('POMRX_GATE_E_DURABLE_INVALID', 'durable claim outcome must be success or error');
     }
 
-    // Synchronous reservation before the first await prevents concurrent local
-    // completion attempts from racing the terminal write.
     state.state = 'FINALIZING';
     const terminalState = outcome === 'success' ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
-      await trustedRoot();
-      const rawPersistedClaim = await readBoundedJson(PATH_JOIN(state.claimDirectory, 'claim.json'));
-      if (rawPersistedClaim === null) {
-        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
-      }
-      const persistedClaim = validateClaimRecord(rawPersistedClaim);
-      if (persistedClaim.capability_id !== state.claimRecord.capability_id
-          || persistedClaim.authorization_commitment !== state.claimRecord.authorization_commitment
-          || persistedClaim.claim_commitment !== state.claimRecord.claim_commitment) {
-        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
-      }
-      await writeExclusiveDurable(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);
-      await trustedRoot();
+      const rootRef = await trustedRoot();
+      const inspection = withPinnedRootCritical(rootRef, () => {
+        const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(state.claimDirectory, 'claim.json'));
+        if (rawPersistedClaim === null) {
+          fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
+        }
+        const persistedClaim = validateClaimRecord(rawPersistedClaim);
+        if (persistedClaim.capability_id !== state.claimRecord.capability_id
+            || persistedClaim.authorization_commitment !== state.claimRecord.authorization_commitment
+            || persistedClaim.claim_commitment !== state.claimRecord.claim_commitment) {
+          fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
+        }
+        writeExclusiveDurableSync(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);
+        return makeInspection(terminalState, state.claimRecord, terminalRecord);
+      });
       state.state = terminalState;
+      return inspection;
     } catch (error) {
       state.state = 'FAILED_CLOSED';
       throw error;
     }
-    return makeInspection(terminalState, state.claimRecord, terminalRecord);
   }
 
   async function inspect(input) {
@@ -1021,8 +1256,13 @@ export function createReferenceDurableClaimStore(options) {
       }
       if (root !== null) {
         try {
-          await closeFd(root.fd);
-        } catch {
+          assertPinnedRootSync(root);
+          closeFdSync(root.fd);
+        } catch (error) {
+          if (error instanceof PomRxDurableClaimStoreError
+              && error.code === 'POMRX_GATE_E_DURABLE_ROOT_INVALID') {
+            throw error;
+          }
           fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root descriptor could not be closed');
         }
       }
