@@ -1,7 +1,9 @@
 import {
   Stats,
   close as closeFdCallback,
+  fstat as fstatFdCallback,
   fsync as fsyncFdCallback,
+  lstat as lstatCallback,
   open as openFdCallback,
   writeFile as writeFileFdCallback,
 } from 'node:fs';
@@ -11,7 +13,6 @@ import {
 } from 'node:crypto';
 import {
   link,
-  lstat,
   mkdir,
   readFile,
   realpath,
@@ -81,6 +82,11 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
 // initialization so a later same-realm mutation cannot redirect rootDir, alter
 // claim/terminal truth, admit traversal-shaped capability IDs, substitute handle
 // state, or fake a successful write/fsync/close through FileHandle.prototype.
+// Filesystem metadata is copied to prototype-inert snapshots inside native
+// callback boundaries before Promise resolution, so inherited thenables cannot
+// substitute Stats objects. The durable root is also pinned by an open directory
+// fd and every public operation verifies that the configured pathname still
+// names that same inode before traversing the pinned Linux fd path.
 // Security-sensitive iteration over module-owned key sets is index-based, with
 // explicit pre-sorted companions. Poisoning before module initialization remains
 // outside this reference guarantee.
@@ -123,10 +129,11 @@ const HASH_DIGEST = HASH_PROTOTYPE.digest;
 const PROMISE_CONSTRUCTOR = Promise;
 const FS_OPEN_FD = openFdCallback;
 const FS_WRITE_FILE_FD = writeFileFdCallback;
+const FS_FSTAT_FD = fstatFdCallback;
 const FS_FSYNC_FD = fsyncFdCallback;
 const FS_CLOSE_FD = closeFdCallback;
+const FS_LSTAT = lstatCallback;
 const FS_LINK = link;
-const FS_LSTAT = lstat;
 const FS_MKDIR = mkdir;
 const FS_READ_FILE = readFile;
 const FS_REALPATH = realpath;
@@ -136,8 +143,49 @@ const STATS_IS_FILE = Stats.prototype.isFile;
 const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;
 const PROCESS_PLATFORM = process.platform;
 
+function makeStatSnapshot(stat) {
+  const snapshot = createObject(null);
+  snapshot.mode = stat.mode;
+  snapshot.uid = stat.uid;
+  snapshot.size = stat.size;
+  snapshot.dev = stat.dev;
+  snapshot.ino = stat.ino;
+  snapshot.is_directory = REFLECT_APPLY(STATS_IS_DIRECTORY, stat, []);
+  snapshot.is_file = REFLECT_APPLY(STATS_IS_FILE, stat, []);
+  snapshot.is_symbolic_link = REFLECT_APPLY(STATS_IS_SYMBOLIC_LINK, stat, []);
+  return freezeValue(snapshot);
+}
+
 function fsLstat(filePath) {
-  return REFLECT_APPLY(FS_LSTAT, undefined, [filePath]);
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_LSTAT, undefined, [filePath, (error, stat) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      try {
+        resolve(makeStatSnapshot(stat));
+      } catch (snapshotError) {
+        reject(snapshotError);
+      }
+    }]);
+  });
+}
+
+function fsFstat(fd) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_FSTAT_FD, undefined, [fd, (error, stat) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      try {
+        resolve(makeStatSnapshot(stat));
+      } catch (snapshotError) {
+        reject(snapshotError);
+      }
+    }]);
+  });
 }
 
 function fsMkdir(filePath, options) {
@@ -157,15 +205,15 @@ function fsUnlink(filePath) {
 }
 
 function statIsDirectory(stat) {
-  return REFLECT_APPLY(STATS_IS_DIRECTORY, stat, []);
+  return stat.is_directory === true;
 }
 
 function statIsFile(stat) {
-  return REFLECT_APPLY(STATS_IS_FILE, stat, []);
+  return stat.is_file === true;
 }
 
 function statIsSymbolicLink(stat) {
-  return REFLECT_APPLY(STATS_IS_SYMBOLIC_LINK, stat, []);
+  return stat.is_symbolic_link === true;
 }
 
 function arrayIsArray(value) {
@@ -609,48 +657,108 @@ export function createReferenceDurableClaimStore(options) {
   const handleState = new WEAK_MAP_CONSTRUCTOR();
   let trustedRootPromise = null;
 
+  async function inspectConfiguredRoot() {
+    let stat;
+    let resolved;
+    try {
+      stat = await fsLstat(configuredRoot);
+      resolved = await fsRealpath(configuredRoot);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        fail(
+          'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+          'durable claim root must be pre-existing and durably provisioned',
+        );
+      }
+      fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be inspected');
+    }
+    const currentUid = PROCESS_GET_UID === null
+      ? null
+      : REFLECT_APPLY(PROCESS_GET_UID, process, []);
+    const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
+    const wrongOwner = currentUid !== null && stat.uid !== currentUid;
+    if (!statIsDirectory(stat)
+        || statIsSymbolicLink(stat)
+        || resolved !== configuredRoot
+        || unsafePermissions
+        || wrongOwner) {
+      fail(
+        'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+        'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
+      );
+    }
+    const identity = createObject(null);
+    identity.dev = stat.dev;
+    identity.ino = stat.ino;
+    identity.mode = stat.mode;
+    identity.uid = stat.uid;
+    identity.resolved = resolved;
+    return freezeValue(identity);
+  }
+
   async function trustedRoot() {
     if (!trustedRootPromise) {
       trustedRootPromise = (async () => {
-        let stat;
-        let resolved;
+        const pathIdentity = await inspectConfiguredRoot();
+        let fd = null;
         try {
-          stat = await fsLstat(configuredRoot);
-          resolved = await fsRealpath(configuredRoot);
-        } catch (error) {
-          if (error?.code === 'ENOENT') {
+          fd = await openFd(configuredRoot, 'r', 0o600);
+          const fdIdentity = await fsFstat(fd);
+          if (!statIsDirectory(fdIdentity)
+              || statIsSymbolicLink(fdIdentity)
+              || fdIdentity.dev !== pathIdentity.dev
+              || fdIdentity.ino !== pathIdentity.ino
+              || fdIdentity.mode !== pathIdentity.mode
+              || fdIdentity.uid !== pathIdentity.uid) {
             fail(
               'POMRX_GATE_E_DURABLE_ROOT_INVALID',
-              'durable claim root must be pre-existing and durably provisioned',
+              'durable claim root changed while its identity was being pinned',
             );
           }
-          fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root could not be inspected');
-        }
-        const currentUid = PROCESS_GET_UID === null
-          ? null
-          : REFLECT_APPLY(PROCESS_GET_UID, process, []);
-        const unsafePermissions = PROCESS_PLATFORM !== 'win32' && (stat.mode & 0o022) !== 0;
-        const wrongOwner = currentUid !== null && stat.uid !== currentUid;
-        if (!statIsDirectory(stat)
-            || statIsSymbolicLink(stat)
-            || resolved !== configuredRoot
-            || unsafePermissions
-            || wrongOwner) {
-          fail(
-            'POMRX_GATE_E_DURABLE_ROOT_INVALID',
-            'durable claim root must be a direct process-owned directory without group/world write access or symlink indirection',
-          );
-        }
 
-        // The store never creates its own root. The deployment must provision it
-        // durably before bootstrap. Synchronizing the direct parent here also
-        // persists the already-present root directory entry under the supported
-        // local-filesystem model before any capability claim can report success.
-        await fsyncDirectory(PATH_DIRNAME(configuredRoot));
-        return resolved;
+          // The store never creates its own root. The deployment must provision it
+          // durably before bootstrap. Synchronizing the direct parent here also
+          // persists the already-present root directory entry under the supported
+          // local-filesystem model before any capability claim can report success.
+          await fsyncDirectory(PATH_DIRNAME(configuredRoot));
+
+          const root = createObject(null);
+          root.fd = fd;
+          root.dev = pathIdentity.dev;
+          root.ino = pathIdentity.ino;
+          root.mode = pathIdentity.mode;
+          root.uid = pathIdentity.uid;
+          root.resolved = pathIdentity.resolved;
+          root.operationRoot = PROCESS_PLATFORM === 'linux'
+            ? `/proc/self/fd/${fd}`
+            : configuredRoot;
+          return freezeValue(root);
+        } catch (error) {
+          await closeFdIgnoringFailure(fd);
+          throw error;
+        }
       })();
     }
-    return trustedRootPromise;
+
+    const root = await trustedRootPromise;
+    const currentPathIdentity = await inspectConfiguredRoot();
+    const currentFdIdentity = await fsFstat(root.fd);
+    if (currentPathIdentity.dev !== root.dev
+        || currentPathIdentity.ino !== root.ino
+        || currentPathIdentity.mode !== root.mode
+        || currentPathIdentity.uid !== root.uid
+        || currentFdIdentity.dev !== root.dev
+        || currentFdIdentity.ino !== root.ino
+        || currentFdIdentity.mode !== root.mode
+        || currentFdIdentity.uid !== root.uid
+        || !statIsDirectory(currentFdIdentity)
+        || statIsSymbolicLink(currentFdIdentity)) {
+      fail(
+        'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+        'durable claim root identity changed after validation',
+      );
+    }
+    return root;
   }
 
   async function inspect(input) {
@@ -662,7 +770,8 @@ export function createReferenceDurableClaimStore(options) {
     );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
-    const root = await trustedRoot();
+    const rootRef = await trustedRoot();
+    const root = rootRef.operationRoot;
     const claimDirectory = PATH_JOIN(root, capabilityId);
 
     let directoryStat;
@@ -704,7 +813,8 @@ export function createReferenceDurableClaimStore(options) {
     );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
-    const root = await trustedRoot();
+    const rootRef = await trustedRoot();
+    const root = rootRef.operationRoot;
     const claimDirectory = PATH_JOIN(root, capabilityId);
 
     try {
@@ -715,6 +825,12 @@ export function createReferenceDurableClaimStore(options) {
       }
       fail('POMRX_GATE_E_DURABLE_IO', 'durable capability claim could not be reserved');
     }
+
+    // Revalidate the configured pathname after the reservation. Operations on
+    // Linux use the pinned fd path, so a concurrent rename cannot redirect the
+    // mkdir; this second check additionally fails closed if the configured root
+    // was rebound while the operation was in flight.
+    await trustedRoot();
 
     // mkdir() alone is not a durability claim. Only after this root-directory
     // fsync succeeds is the new capability-directory entry treated as a durable
@@ -730,10 +846,10 @@ export function createReferenceDurableClaimStore(options) {
       claimDirectory,
       claimRecord,
     });
-    return freezeValue({
-      handle,
-      claim: claimRecord,
-    });
+    const result = createObject(null);
+    result.handle = handle;
+    result.claim = claimRecord;
+    return freezeValue(result);
   }
 
   async function complete(handle, outcome) {
@@ -751,6 +867,7 @@ export function createReferenceDurableClaimStore(options) {
     const terminalState = outcome === 'success' ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
+      await trustedRoot();
       const rawPersistedClaim = await readBoundedJson(PATH_JOIN(state.claimDirectory, 'claim.json'));
       if (rawPersistedClaim === null) {
         fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
@@ -762,6 +879,7 @@ export function createReferenceDurableClaimStore(options) {
         fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
       }
       await writeExclusiveDurable(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);
+      await trustedRoot();
       state.state = terminalState;
     } catch (error) {
       state.state = 'FAILED_CLOSED';
