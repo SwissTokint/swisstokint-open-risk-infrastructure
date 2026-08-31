@@ -2,7 +2,7 @@
 
 Status: **reference-only composition; production Gate still unproved**.
 
-`reference-durable-single-use-gate.mjs` composes the existing process-local reference single-use Gate with the existing filesystem-backed reference durable claim store. It does not change the standalone APIs or semantics of either primitive, and it does not create a production authorization issuer.
+`reference-durable-single-use-gate.mjs` composes the existing process-local reference single-use Gate with the filesystem-backed reference durable claim store. It preserves the standalone authorization semantics of both primitives and does not create a production authorization issuer.
 
 ## Ordering and fail-closed rule
 
@@ -29,6 +29,14 @@ If downstream succeeds, the local Gate reaches `CONSUMED_SUCCESS` and the compos
 
 If terminal-marker persistence itself fails after downstream has already resolved or rejected, the durable claim remains fail-closed and the same capability must not be retried. This composition does not infer external effect truth from local terminal state; independent observation/reconciliation remains required.
 
+## Durable-root identity, Linux procfs and lifecycle
+
+The reference store pins the validated durable root with an open directory descriptor and revalidates the configured pathname identity before operations. It must not silently fall back to a pathname after that identity has been pinned.
+
+On Linux, pinned-root traversal uses `/proc/self/fd/<fd>`. **Accessible procfs fd paths are therefore an explicit platform requirement for this reference implementation.** Root bootstrap verifies that the fd-following path resolves to the same device/inode as the validated durable root. If `/proc/self/fd` is unavailable or inaccessible (for example in a hardened chroot/container), bootstrap fails closed with `POMRX_GATE_E_DURABLE_ROOT_INVALID` before claim/inspection work begins.
+
+The root descriptor has explicit ownership. `createReferenceDurableClaimStore()` exposes an idempotent asynchronous `close()` lifecycle. Once close begins, new store operations are rejected; already-started store operations drain before the pinned descriptor is closed. The composed durable harness exposes its own idempotent `close()`, stops accepting new consumes/issuance, drains already-started consumes, then closes the internal durable store. Callers that create stores or composed harnesses with bounded lifetimes must close them when the lifetime ends. A closed instance is not reusable.
+
 ## Trust boundary
 
 The composed bootstrap accepts exactly:
@@ -38,9 +46,11 @@ The composed bootstrap accepts exactly:
 - `observeBinding` — private trusted application observation adapter;
 - `executeDownstream` — the sole downstream execution adapter.
 
-The public Gate handle exposes only `consume()`. The durable store, root path, observer, clock and downstream callback are not exposed. Reference issuance plus local/durable inspection remain behind `testAuthority` and are not production issuer APIs.
+The public Gate handle exposes only `consume()`. The top-level composed harness additionally exposes only lifecycle `close()` beside the existing `gate` and `testAuthority` surfaces. The durable store object, root path, observer, clock and downstream callback are not exposed. Reference issuance plus local/durable inspection remain behind `testAuthority` and are not production issuer APIs.
 
 The composition creates its durable store internally rather than accepting a caller-supplied structural store object. Bootstrap capture rejects Proxy, accessor, symbol, hidden/unknown and custom-prototype substitution before callback/root values are accepted. Reflection and WeakMap dispatch used by this boundary are captured at module initialization. Poisoning before module initialization or compromise of the runtime itself remain outside the stated guarantee.
+
+Persisted claim/terminal JSON and public durable inspection records are converted to prototype-inert snapshots before they cross asynchronous return boundaries. This prevents an inherited `Object.prototype.then` from rewriting persisted or reported terminal truth during Promise assimilation.
 
 ## Preserved Core semantics
 
@@ -57,7 +67,7 @@ This reference composition does **not** prove:
 - network/distributed filesystem atomicity;
 - distributed consensus or multi-host quorum;
 - crash recovery or lease takeover;
-- resistance to a hostile same-OS-user process or storage/path substitution after validation;
+- resistance to a hostile same-OS-user process or storage/path substitution beyond the documented root assumptions;
 - external execution truth or external effect truth;
 - native execution timing;
 - independent observation/reconciliation truth;
