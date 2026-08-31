@@ -146,20 +146,22 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         "price_multiplier": scenario.price_multiplier,
     }
     for name, value in positive_fields.items():
-        if value <= 0:
-            raise ValueError(f"{name} must be > 0")
+        if not isfinite(value) or value <= 0:
+            raise ValueError(f"{name} must be finite and > 0")
 
-    if scenario.usage_multiplier < 0:
-        raise ValueError("usage_multiplier must be >= 0")
-
-    for name, value in {
+    nonnegative_fields = {
+        "usage_multiplier": scenario.usage_multiplier,
         "minimum_organic_actions_per_day_for_survival": (
             config.minimum_organic_actions_per_day_for_survival
         ),
         "minimum_organic_fee_usd_per_day_for_survival": (
             config.minimum_organic_fee_usd_per_day_for_survival
         ),
-    }.items():
+        "fee_usd_per_action": config.fee_usd_per_action,
+        "fixed_token_fee_per_action": config.fixed_token_fee_per_action,
+        "daily_security_emission_tokens": config.daily_security_emission_tokens,
+    }
+    for name, value in nonnegative_fields.items():
         if not isfinite(value) or value < 0:
             raise ValueError(f"{name} must be finite and >= 0")
 
@@ -177,8 +179,8 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         "validator_exit_rate_per_day": config.validator_exit_rate_per_day,
         "slashing_burn_rate_per_day": config.slashing_burn_rate_per_day,
     }.items():
-        if not 0 <= value <= 1:
-            raise ValueError(f"{name} must be between 0 and 1")
+        if not isfinite(value) or not 0 <= value <= 1:
+            raise ValueError(f"{name} must be finite and between 0 and 1")
 
     allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share
     if abs(allocation - 1.0) > EPSILON:
@@ -186,10 +188,6 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
 
     if config.fee_mode not in {"usd_indexed", "token_fixed"}:
         raise ValueError("fee_mode must be 'usd_indexed' or 'token_fixed'")
-    if config.fee_usd_per_action < 0 or config.fixed_token_fee_per_action < 0:
-        raise ValueError("fees must be >= 0")
-    if config.daily_security_emission_tokens < 0:
-        raise ValueError("daily_security_emission_tokens must be >= 0")
 
 
 def _meets_required(actual: float, required: float) -> bool:
@@ -225,7 +223,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     _validate(config, scenario)
 
     token_price = config.initial_price_usd * scenario.price_multiplier
+    if not isfinite(token_price) or token_price <= 0:
+        raise ValueError("token_price_usd must remain finite and > 0")
+
     requested_actions_per_day = config.daily_actions * scenario.usage_multiplier
+    if not isfinite(requested_actions_per_day) or requested_actions_per_day < 0:
+        raise ValueError("requested_actions_per_day must remain finite and >= 0")
 
     if config.fee_mode == "usd_indexed":
         actual_fee_usd_per_action = config.fee_usd_per_action
@@ -233,6 +236,11 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     else:
         fee_tokens_per_action = config.fixed_token_fee_per_action
         actual_fee_usd_per_action = fee_tokens_per_action * token_price
+
+    if not isfinite(actual_fee_usd_per_action):
+        raise ValueError("actual_fee_usd_per_action must remain finite")
+    if not isfinite(fee_tokens_per_action):
+        raise ValueError("fee_tokens_per_action must remain finite")
 
     supply = config.initial_supply_tokens
     initial_staked_tokens = supply * config.staked_fraction
@@ -261,10 +269,11 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     total_security_fee_realization_velocity_tokens = 0.0
     total_security_budget_usd = 0.0
     total_gross_security_budget_usd = 0.0
-    minimum_security_budget_usd = inf
-    minimum_gross_security_budget_usd = inf
+    minimum_security_budget_usd: float | None = None
+    minimum_gross_security_budget_usd: float | None = None
     minimum_staked_tokens = staked_tokens
     minimum_staked_value_usd = staked_tokens * token_price
+    usage_served = True
 
     for _ in range(scenario.days):
         total_requested_actions += requested_actions_per_day
@@ -315,6 +324,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         )
 
         requested_fee_tokens = requested_actions_per_day * fee_tokens_per_action
+        if not isfinite(requested_fee_tokens):
+            raise ValueError("requested_fee_tokens must remain finite")
+
         max_fee_tokens_by_burn = (
             realizable_liquid_tokens / config.burn_rate
             if config.burn_rate > 0
@@ -332,6 +344,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             executed_actions = requested_actions_per_day
 
         executed_actions = min(executed_actions, requested_actions_per_day)
+        if executed_actions < requested_actions_per_day:
+            usage_served = False
+
         organic_executed_actions = executed_actions * config.organic_usage_fraction
         daily_fee_tokens = executed_actions * fee_tokens_per_action
         daily_organic_fee_tokens = organic_executed_actions * fee_tokens_per_action
@@ -399,13 +414,15 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         )
         total_security_budget_usd += daily_security_budget_usd
         total_gross_security_budget_usd += daily_gross_security_budget_usd
-        minimum_security_budget_usd = min(
-            minimum_security_budget_usd,
-            daily_security_budget_usd,
+        minimum_security_budget_usd = (
+            daily_security_budget_usd
+            if minimum_security_budget_usd is None
+            else min(minimum_security_budget_usd, daily_security_budget_usd)
         )
-        minimum_gross_security_budget_usd = min(
-            minimum_gross_security_budget_usd,
-            daily_gross_security_budget_usd,
+        minimum_gross_security_budget_usd = (
+            daily_gross_security_budget_usd
+            if minimum_gross_security_budget_usd is None
+            else min(minimum_gross_security_budget_usd, daily_gross_security_budget_usd)
         )
         minimum_staked_tokens = min(minimum_staked_tokens, staked_tokens)
         minimum_staked_value_usd = min(
@@ -423,11 +440,11 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     average_security_budget = total_security_budget_usd / scenario.days
     average_gross_security_budget = total_gross_security_budget_usd / scenario.days
     minimum_security_budget = (
-        minimum_security_budget_usd if minimum_security_budget_usd != inf else 0.0
+        minimum_security_budget_usd if minimum_security_budget_usd is not None else 0.0
     )
     minimum_gross_security_budget = (
         minimum_gross_security_budget_usd
-        if minimum_gross_security_budget_usd != inf
+        if minimum_gross_security_budget_usd is not None
         else 0.0
     )
     security_coverage = (
@@ -439,7 +456,6 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     security_budget_adequate = security_coverage >= 1.0
     stake_adequate = stake_coverage >= 1.0
     total_unmet_actions = max(total_requested_actions - total_executed_actions, 0.0)
-    usage_served = total_unmet_actions <= EPSILON
 
     organic_usage_share = (
         total_organic_executed_actions / total_executed_actions
@@ -459,12 +475,14 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     )
     organic_usage_share_adequate = (
         organic_fee_demand_present
-        and organic_usage_share + EPSILON
-        >= config.minimum_organic_usage_fraction_for_survival
+        and _meets_required(
+            organic_usage_share,
+            config.minimum_organic_usage_fraction_for_survival,
+        )
     )
-    absolute_organic_demand_adequate = (
-        average_organic_executed_actions + EPSILON
-        >= config.minimum_organic_actions_per_day_for_survival
+    absolute_organic_demand_adequate = _meets_required(
+        average_organic_executed_actions,
+        config.minimum_organic_actions_per_day_for_survival,
     )
     organic_demand_adequate = (
         organic_usage_share_adequate
@@ -502,9 +520,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     )
     ending_realizable_liquidity_usd = realizable_liquid_tokens * token_price
     required_next_day_liquidity_usd = required_next_day_liquid_tokens * token_price
-    ending_liquidity_adequate = _meets_required(
-        ending_realizable_liquidity_usd,
-        required_next_day_liquidity_usd,
+    ending_liquidity_adequate = (
+        required_next_day_liquid_tokens <= 0.0
+        or realizable_liquid_tokens >= required_next_day_liquid_tokens
     )
 
     next_day_validator_exit_tokens = min(

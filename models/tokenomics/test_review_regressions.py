@@ -88,6 +88,33 @@ class ReviewRegressionTests(unittest.TestCase):
                 ):
                     simulate(config, StressScenario(name="invalid-fee-realization"))
 
+    def test_nonfinite_positive_economic_inputs_fail_closed(self) -> None:
+        for field in (
+            "initial_supply_tokens",
+            "initial_price_usd",
+            "daily_actions",
+            "required_security_budget_usd_per_day",
+            "required_stake_value_usd",
+            "max_affordable_fee_usd_per_action",
+            "max_daily_token_velocity",
+        ):
+            with self.subTest(field=field):
+                config = replace(EconomyConfig(), **{field: float("inf")})
+                with self.assertRaisesRegex(ValueError, f"{field} must be finite and > 0"):
+                    simulate(config, StressScenario(name=f"nonfinite-{field}"))
+
+        with self.assertRaisesRegex(ValueError, "usage_multiplier must be finite and >= 0"):
+            simulate(
+                EconomyConfig(),
+                StressScenario(name="nonfinite-usage", usage_multiplier=float("inf")),
+            )
+
+        with self.assertRaisesRegex(ValueError, "price_multiplier must be finite and > 0"):
+            simulate(
+                EconomyConfig(),
+                StressScenario(name="nonfinite-price", price_multiplier=float("nan")),
+            )
+
     def test_emission_realization_and_fee_turnover_share_velocity_budget(self) -> None:
         config = replace(
             EconomyConfig(),
@@ -226,6 +253,88 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertGreater(result.required_next_day_liquidity_usd, 0.0)
         self.assertFalse(result.ending_liquidity_adequate)
         self.assertFalse(result.economic_survival)
+
+    def test_horizon_liquidity_uses_token_quantities_before_usd_overflow(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=5.0,
+            initial_price_usd=1e308,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=1.0,
+            security_fee_share=0.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=3.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1e308,
+        )
+        result = simulate(config, StressScenario(name="liquidity-usd-overflow", days=1))
+        self.assertAlmostEqual(result.ending_realizable_liquid_tokens, 2.0)
+        self.assertAlmostEqual(result.required_next_day_liquid_tokens, 3.0)
+        self.assertEqual(result.ending_realizable_liquidity_usd, float("inf"))
+        self.assertEqual(result.required_next_day_liquidity_usd, float("inf"))
+        self.assertFalse(result.ending_liquidity_adequate)
+        self.assertFalse(result.economic_survival)
+
+    def test_infinite_observed_security_budget_is_not_confused_with_empty_sentinel(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=2_000.0,
+            initial_price_usd=1e308,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            security_fee_realization_fraction=1.0,
+            daily_actions=10.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=2.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1e308,
+        )
+        result = simulate(config, StressScenario(name="security-budget-overflow", days=1))
+        self.assertEqual(result.average_security_budget_usd_per_day, float("inf"))
+        self.assertEqual(result.minimum_security_budget_usd_per_day, float("inf"))
+        self.assertTrue(result.security_budget_adequate)
+
+    def test_fractional_material_usage_shortage_fails_on_first_day(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=999.9999999995,
+            initial_price_usd=1e20,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=1.0,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=1_000.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=1.0,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1e20,
+        )
+        one_day = simulate(config, StressScenario(name="usage-shortage-1d", days=1))
+        two_days = simulate(config, StressScenario(name="usage-shortage-2d", days=2))
+        self.assertGreater(one_day.total_unmet_actions, 0.0)
+        self.assertGreater(two_days.total_unmet_actions, 0.0)
+        self.assertFalse(one_day.usage_served)
+        self.assertFalse(two_days.usage_served)
+        self.assertFalse(one_day.economic_survival)
+        self.assertFalse(two_days.economic_survival)
 
     def test_validator_exit_unbonds_without_destroying_supply(self) -> None:
         config = replace(
