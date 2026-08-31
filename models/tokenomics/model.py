@@ -8,7 +8,7 @@ mechanically viable under explicit price, usage, liquidity and staking shocks.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from math import inf
+from math import inf, isfinite
 from typing import Any
 
 
@@ -22,6 +22,7 @@ class EconomyConfig:
     daily_actions: float = 10_000.0
     organic_usage_fraction: float = 1.0
     minimum_organic_usage_fraction_for_survival: float = 0.10
+    minimum_organic_actions_per_day_for_survival: float = 1_000.0
     fee_mode: str = "usd_indexed"
     fee_usd_per_action: float = 0.10
     fixed_token_fee_per_action: float = 0.10
@@ -58,8 +59,10 @@ class SimulationResult:
     slashing_burn_rate_per_day: float
     emission_realization_fraction: float
     minimum_organic_usage_fraction_for_survival: float
+    minimum_organic_actions_per_day_for_survival: float
     requested_actions_per_day: float
     average_executed_actions_per_day: float
+    average_organic_executed_actions_per_day: float
     total_requested_actions: float
     total_executed_actions: float
     total_unmet_actions: float
@@ -105,6 +108,8 @@ class SimulationResult:
     ending_liquidity_adequate: bool
     usage_served: bool
     organic_fee_demand_present: bool
+    organic_usage_share_adequate: bool
+    absolute_organic_demand_adequate: bool
     organic_demand_adequate: bool
     supply_positive: bool
     accounting_valid: bool
@@ -132,6 +137,14 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
 
     if scenario.usage_multiplier < 0:
         raise ValueError("usage_multiplier must be >= 0")
+
+    if (
+        not isfinite(config.minimum_organic_actions_per_day_for_survival)
+        or config.minimum_organic_actions_per_day_for_survival < 0
+    ):
+        raise ValueError(
+            "minimum_organic_actions_per_day_for_survival must be finite and >= 0"
+        )
 
     for name, value in {
         "burn_rate": config.burn_rate,
@@ -178,8 +191,10 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     Gross paid fees are tracked, but the conservative survival security budget
     counts only the explicitly organic share of fee-funded security revenue plus
     the explicitly realizable share of emissions. Survival additionally requires
-    the configured minimum organic share of executed usage; a floating-point dust
-    amount of organic activity is not treated as evidence of sustainable demand.
+    both the configured minimum organic share of executed usage and an explicit
+    horizon-independent minimum average level of organic executed actions. A
+    floating-point dust amount of organic activity is therefore not treated as
+    evidence of sustainable demand even when emissions fund the security budget.
     """
 
     _validate(config, scenario)
@@ -368,10 +383,21 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         if total_executed_actions > EPSILON
         else 0.0
     )
-    organic_demand_adequate = (
+    average_organic_executed_actions = (
+        total_organic_executed_actions / scenario.days
+    )
+    organic_usage_share_adequate = (
         organic_fee_demand_present
         and organic_usage_share + EPSILON
         >= config.minimum_organic_usage_fraction_for_survival
+    )
+    absolute_organic_demand_adequate = (
+        average_organic_executed_actions + EPSILON
+        >= config.minimum_organic_actions_per_day_for_survival
+    )
+    organic_demand_adequate = (
+        organic_usage_share_adequate
+        and absolute_organic_demand_adequate
     )
     supply_positive = supply > EPSILON
     accounting_valid = abs(accounting_error) <= 1e-6
@@ -420,8 +446,12 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         minimum_organic_usage_fraction_for_survival=(
             config.minimum_organic_usage_fraction_for_survival
         ),
+        minimum_organic_actions_per_day_for_survival=(
+            config.minimum_organic_actions_per_day_for_survival
+        ),
         requested_actions_per_day=requested_actions_per_day,
         average_executed_actions_per_day=total_executed_actions / scenario.days,
+        average_organic_executed_actions_per_day=average_organic_executed_actions,
         total_requested_actions=total_requested_actions,
         total_executed_actions=total_executed_actions,
         total_unmet_actions=total_unmet_actions,
@@ -471,6 +501,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         ending_liquidity_adequate=ending_liquidity_adequate,
         usage_served=usage_served,
         organic_fee_demand_present=organic_fee_demand_present,
+        organic_usage_share_adequate=organic_usage_share_adequate,
+        absolute_organic_demand_adequate=absolute_organic_demand_adequate,
         organic_demand_adequate=organic_demand_adequate,
         supply_positive=supply_positive,
         accounting_valid=accounting_valid,
