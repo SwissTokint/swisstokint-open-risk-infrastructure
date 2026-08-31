@@ -5,6 +5,7 @@ import {
   fsync as fsyncFdCallback,
   lstat as lstatCallback,
   open as openFdCallback,
+  stat as statCallback,
   writeFile as writeFileFdCallback,
 } from 'node:fs';
 import {
@@ -82,11 +83,15 @@ const TERMINAL_RECORD_SORTED_KEYS = Object.freeze([
 // initialization so a later same-realm mutation cannot redirect rootDir, alter
 // claim/terminal truth, admit traversal-shaped capability IDs, substitute handle
 // state, or fake a successful write/fsync/close through FileHandle.prototype.
-// Filesystem metadata is copied to prototype-inert snapshots inside native
-// callback boundaries before Promise resolution, so inherited thenables cannot
-// substitute Stats objects. The durable root is also pinned by an open directory
-// fd and every public operation verifies that the configured pathname still
-// names that same inode before traversing the pinned Linux fd path.
+// Filesystem metadata and persisted JSON records are copied to prototype-inert
+// snapshots before Promise resolution, so inherited thenables cannot substitute
+// Stats, claim, terminal or inspection truth. The durable root is pinned by an
+// open directory fd and every public operation verifies that the configured
+// pathname still names that same inode before traversing the pinned Linux fd
+// path. The public close lifecycle drains in-flight store operations before the
+// root descriptor is released. On Linux, procfs /proc/self/fd accessibility is
+// explicitly validated as part of root pinning and never silently falls back to
+// an unpinned pathname.
 // Security-sensitive iteration over module-owned key sets is index-based, with
 // explicit pre-sorted companions. Poisoning before module initialization remains
 // outside this reference guarantee.
@@ -133,6 +138,7 @@ const FS_FSTAT_FD = fstatFdCallback;
 const FS_FSYNC_FD = fsyncFdCallback;
 const FS_CLOSE_FD = closeFdCallback;
 const FS_LSTAT = lstatCallback;
+const FS_STAT = statCallback;
 const FS_LINK = link;
 const FS_MKDIR = mkdir;
 const FS_READ_FILE = readFile;
@@ -159,6 +165,22 @@ function makeStatSnapshot(stat) {
 function fsLstat(filePath) {
   return new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_LSTAT, undefined, [filePath, (error, stat) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      try {
+        resolve(makeStatSnapshot(stat));
+      } catch (snapshotError) {
+        reject(snapshotError);
+      }
+    }]);
+  });
+}
+
+function fsStat(filePath) {
+  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_STAT, undefined, [filePath, (error, stat) => {
       if (error) {
         reject(error);
         return;
@@ -361,14 +383,15 @@ function isOwnEnumerableDataDescriptor(descriptor) {
     && !objectHasOwn(descriptor, 'set');
 }
 
-function exactOwnData(value, expectedKeys, expectedSortedKeys, label) {
+function exactOwnData(value, expectedKeys, expectedSortedKeys, label, allowNullPrototype = false) {
   if (!value
       || typeof value !== 'object'
       || isProxy(value)
       || arrayIsArray(value)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} must be a non-Proxy plain object`);
   }
-  if (objectGetPrototypeOf(value) !== OBJECT_PROTOTYPE
+  const prototype = objectGetPrototypeOf(value);
+  if ((prototype !== OBJECT_PROTOTYPE && !(allowNullPrototype && prototype === null))
       || objectGetOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_GATE_E_DURABLE_INVALID', `${label} must be a plain object without symbols`);
   }
@@ -409,6 +432,29 @@ function canonicalizeFlatRecord(value) {
     output += `${jsonStringify(key)}:${jsonStringify(fieldValue)}`;
   }
   return `${output}}`;
+}
+
+function captureParsedDurableRecord(value) {
+  if (!value
+      || typeof value !== 'object'
+      || arrayIsArray(value)
+      || isProxy(value)
+      || objectGetPrototypeOf(value) !== OBJECT_PROTOTYPE
+      || objectGetOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record JSON must decode to a plain object');
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = objectGetOwnPropertyNames(value);
+  const output = createObject(null);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    const descriptor = descriptors[key];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record JSON contains a non-data property');
+    }
+    output[key] = descriptor.value;
+  }
+  return freezeValue(output);
 }
 
 function validateCapabilityId(value) {
@@ -480,6 +526,7 @@ function validateClaimRecord(value) {
       CLAIM_RECORD_KEYS,
       CLAIM_RECORD_SORTED_KEYS,
       'durable claim record',
+      true,
     );
     if (record.schema_version !== POM_RX_DURABLE_CLAIM_SCHEMA_VERSION
         || record.reference_only !== true
@@ -499,7 +546,7 @@ function validateClaimRecord(value) {
     if (expected.claim_commitment !== record.claim_commitment) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable claim commitment does not match record contents');
     }
-    return freezeValue({ ...record });
+    return record;
   });
 }
 
@@ -510,6 +557,7 @@ function validateTerminalRecord(value, claimRecord) {
       TERMINAL_RECORD_KEYS,
       TERMINAL_RECORD_SORTED_KEYS,
       'durable terminal record',
+      true,
     );
     if (record.schema_version !== POM_RX_DURABLE_TERMINAL_SCHEMA_VERSION
         || record.reference_only !== true
@@ -529,7 +577,7 @@ function validateTerminalRecord(value, claimRecord) {
     if (expected.terminal_commitment !== record.terminal_commitment) {
       fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable terminal commitment does not match record contents');
     }
-    return freezeValue({ ...record });
+    return record;
   });
 }
 
@@ -617,26 +665,27 @@ async function readBoundedJson(filePath) {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record could not be read');
   }
   try {
-    return jsonParse(text);
-  } catch {
+    return captureParsedDurableRecord(jsonParse(text));
+  } catch (error) {
+    if (error instanceof PomRxDurableClaimStoreError) throw error;
     fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable record JSON is invalid');
   }
 }
 
-function makeInspection(state, claimRecord = null, terminalRecord = null) {
-  return freezeValue({
-    state,
-    capability_id: claimRecord?.capability_id ?? null,
-    authorization_commitment: claimRecord?.authorization_commitment ?? null,
-    claim_commitment: claimRecord?.claim_commitment ?? null,
-    terminal_commitment: terminalRecord?.terminal_commitment ?? null,
-    reference_only: true,
-    exclusive_claim_recorded: claimRecord !== null,
-    local_filesystem_atomicity_assumed: true,
-    distributed_consensus_proved: false,
-    network_filesystem_atomicity_proved: false,
-    crash_recovery_proved: false,
-  });
+function makeInspection(state, claimRecord = null, terminalRecord = null, capabilityId = null) {
+  const inspection = createObject(null);
+  inspection.state = state;
+  inspection.capability_id = claimRecord?.capability_id ?? capabilityId;
+  inspection.authorization_commitment = claimRecord?.authorization_commitment ?? null;
+  inspection.claim_commitment = claimRecord?.claim_commitment ?? null;
+  inspection.terminal_commitment = terminalRecord?.terminal_commitment ?? null;
+  inspection.reference_only = true;
+  inspection.exclusive_claim_recorded = claimRecord !== null;
+  inspection.local_filesystem_atomicity_assumed = true;
+  inspection.distributed_consensus_proved = false;
+  inspection.network_filesystem_atomicity_proved = false;
+  inspection.crash_recovery_proved = false;
+  return freezeValue(inspection);
 }
 
 export function createReferenceDurableClaimStore(options) {
@@ -656,6 +705,35 @@ export function createReferenceDurableClaimStore(options) {
   const configuredRoot = PATH_RESOLVE(bootstrap.rootDir);
   const handleState = new WEAK_MAP_CONSTRUCTOR();
   let trustedRootPromise = null;
+  let lifecycleState = 'OPEN';
+  let activeOperations = 0;
+  let drainResolve = null;
+  let closePromise = null;
+
+  function beginOperation() {
+    if (lifecycleState !== 'OPEN') {
+      fail('POMRX_GATE_E_DURABLE_CLOSED', 'durable claim store is closing or closed');
+    }
+    activeOperations += 1;
+  }
+
+  function endOperation() {
+    activeOperations -= 1;
+    if (activeOperations === 0 && drainResolve !== null) {
+      const resolve = drainResolve;
+      drainResolve = null;
+      resolve();
+    }
+  }
+
+  async function runOperation(operation) {
+    beginOperation();
+    try {
+      return await operation();
+    } finally {
+      endOperation();
+    }
+  }
 
   async function inspectConfiguredRoot() {
     let stat;
@@ -729,9 +807,30 @@ export function createReferenceDurableClaimStore(options) {
           root.mode = pathIdentity.mode;
           root.uid = pathIdentity.uid;
           root.resolved = pathIdentity.resolved;
-          root.operationRoot = PROCESS_PLATFORM === 'linux'
-            ? `/proc/self/fd/${fd}`
-            : configuredRoot;
+          root.operationRoot = configuredRoot;
+
+          if (PROCESS_PLATFORM === 'linux') {
+            const operationRoot = `/proc/self/fd/${fd}`;
+            let operationIdentity;
+            try {
+              operationIdentity = await fsStat(operationRoot);
+            } catch {
+              fail(
+                'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+                'Linux durable claim store requires accessible procfs /proc/self/fd for pinned-root operations',
+              );
+            }
+            if (!statIsDirectory(operationIdentity)
+                || operationIdentity.dev !== pathIdentity.dev
+                || operationIdentity.ino !== pathIdentity.ino) {
+              fail(
+                'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+                'Linux procfs fd path does not resolve to the validated durable-root identity',
+              );
+            }
+            root.operationRoot = operationRoot;
+          }
+
           return freezeValue(root);
         } catch (error) {
           await closeFdIgnoringFailure(fd);
@@ -761,7 +860,7 @@ export function createReferenceDurableClaimStore(options) {
     return root;
   }
 
-  async function inspect(input) {
+  async function inspectImpl(input) {
     const captured = exactOwnData(
       input,
       INSPECT_KEYS,
@@ -787,10 +886,7 @@ export function createReferenceDurableClaimStore(options) {
 
     const rawClaim = await readBoundedJson(PATH_JOIN(claimDirectory, 'claim.json'));
     if (rawClaim === null) {
-      return freezeValue({
-        ...makeInspection('RESERVED_INCOMPLETE'),
-        capability_id: capabilityId,
-      });
+      return makeInspection('RESERVED_INCOMPLETE', null, null, capabilityId);
     }
     const claimRecord = validateClaimRecord(rawClaim);
     if (claimRecord.capability_id !== capabilityId
@@ -804,7 +900,7 @@ export function createReferenceDurableClaimStore(options) {
     return makeInspection(terminalRecord.terminal_state, claimRecord, terminalRecord);
   }
 
-  async function claim(input) {
+  async function claimImpl(input) {
     const captured = exactOwnData(
       input,
       INSPECT_KEYS,
@@ -852,7 +948,7 @@ export function createReferenceDurableClaimStore(options) {
     return freezeValue(result);
   }
 
-  async function complete(handle, outcome) {
+  async function completeImpl(handle, outcome) {
     const state = weakMapGet(handleState, handle);
     if (!state || state.state !== 'OPEN') {
       fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');
@@ -888,9 +984,61 @@ export function createReferenceDurableClaimStore(options) {
     return makeInspection(terminalState, state.claimRecord, terminalRecord);
   }
 
+  async function inspect(input) {
+    return runOperation(() => inspectImpl(input));
+  }
+
+  async function claim(input) {
+    return runOperation(() => claimImpl(input));
+  }
+
+  async function complete(handle, outcome) {
+    return runOperation(() => completeImpl(handle, outcome));
+  }
+
+  async function close() {
+    if (lifecycleState === 'CLOSED') return;
+    if (lifecycleState === 'CLOSING') {
+      await closePromise;
+      return;
+    }
+
+    lifecycleState = 'CLOSING';
+    closePromise = (async () => {
+      if (activeOperations > 0) {
+        await new PROMISE_CONSTRUCTOR((resolve) => {
+          drainResolve = resolve;
+        });
+      }
+
+      let root = null;
+      if (trustedRootPromise !== null) {
+        try {
+          root = await trustedRootPromise;
+        } catch {
+          root = null;
+        }
+      }
+      if (root !== null) {
+        try {
+          await closeFd(root.fd);
+        } catch {
+          fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root descriptor could not be closed');
+        }
+      }
+    })();
+
+    try {
+      await closePromise;
+    } finally {
+      lifecycleState = 'CLOSED';
+    }
+  }
+
   return freezeValue({
     claim,
     complete,
     inspect,
+    close,
   });
 }
