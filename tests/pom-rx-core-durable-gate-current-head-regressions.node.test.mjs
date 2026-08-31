@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   rename,
   rm,
 } from 'node:fs/promises';
@@ -75,6 +77,7 @@ test('durable root pathname rebinding cannot reopen an already-consumed capabili
         return true;
       },
     );
+    await store.close();
   } finally {
     await Promise.all([
       rm(rootDir, { recursive: true, force: true }),
@@ -142,6 +145,7 @@ test('inherited Object.prototype.then cannot substitute lstat metadata before ro
     assert.equal(thenCalls, 0);
     assert.equal(observedError?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
   } finally {
+    await store.close().catch(() => {});
     await chmod(rootDir, 0o700).catch(() => {});
     await rm(rootDir, { recursive: true, force: true });
   }
@@ -162,9 +166,10 @@ test('inherited Object.prototype.then cannot swap durable claim handles across c
   let thenCalls = 0;
   let resultA;
   let resultB;
+  let store;
 
   try {
-    const store = createReferenceDurableClaimStore({ rootDir });
+    store = createReferenceDurableClaimStore({ rootDir });
 
     OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'then', {
       configurable: true,
@@ -210,6 +215,169 @@ test('inherited Object.prototype.then cannot swap durable claim handles across c
     assert.equal((await store.inspect(inputB)).state, 'CONSUMED_ERROR');
   } finally {
     restoreObjectPrototypeThen(originalThen);
+    await store?.close().catch(() => {});
     await rm(rootDir, { recursive: true, force: true });
   }
+});
+
+test('persisted records and inspection results are prototype-inert before async resolution', async () => {
+  const rootDir = await tempDir('pom-rx-durable-record-thenable-');
+  const input = {
+    capabilityId: `cap-${'1'.repeat(32)}`,
+    authorizationCommitment: h('3'),
+  };
+  const originalThen = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(OBJECT_PROTOTYPE, 'then');
+  const store = createReferenceDurableClaimStore({ rootDir });
+  let thenCalls = 0;
+
+  try {
+    const claim = await store.claim(input);
+    await store.complete(claim.handle, 'error');
+
+    OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'then', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value(resolve, reject) {
+        thenCalls += 1;
+        try {
+          if (this && OBJECT_HAS_OWN(this, 'state')) {
+            resolve(inertClone(this, { state: 'CONSUMED_SUCCESS' }));
+            return;
+          }
+          if (this && OBJECT_HAS_OWN(this, 'terminal_state')) {
+            resolve(inertClone(this, { terminal_state: 'CONSUMED_SUCCESS' }));
+            return;
+          }
+          resolve(inertClone(this));
+        } catch (error) {
+          reject(error);
+        }
+      },
+    });
+
+    const inspection = await store.inspect(input);
+    assert.equal(inspection.state, 'CONSUMED_ERROR');
+    assert.equal(thenCalls, 0);
+  } finally {
+    restoreObjectPrototypeThen(originalThen);
+    await store.close().catch(() => {});
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('explicit store close releases pinned Linux root descriptors and rejects reuse', async (t) => {
+  if (process.platform !== 'linux') {
+    t.skip('Linux /proc/self/fd lifecycle regression');
+    return;
+  }
+
+  const rootDir = await tempDir('pom-rx-durable-close-fd-');
+  const input = {
+    capabilityId: `cap-${'4'.repeat(32)}`,
+    authorizationCommitment: h('5'),
+  };
+  const stores = [];
+
+  try {
+    const baseline = (await readdir('/proc/self/fd')).length;
+    for (let index = 0; index < 24; index += 1) {
+      const store = createReferenceDurableClaimStore({ rootDir });
+      await store.inspect(input);
+      stores.push(store);
+    }
+    const pinned = (await readdir('/proc/self/fd')).length;
+    assert.ok(
+      pinned >= baseline + 22,
+      `expected pinned descriptor growth, baseline=${baseline}, pinned=${pinned}`,
+    );
+
+    await Promise.all(stores.map((store) => store.close()));
+    const released = (await readdir('/proc/self/fd')).length;
+    assert.ok(
+      released <= baseline + 2,
+      `expected descriptors to be released, baseline=${baseline}, released=${released}`,
+    );
+
+    await stores[0].close();
+    await assert.rejects(
+      stores[0].inspect(input),
+      (error) => {
+        assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_CLOSED');
+        return true;
+      },
+    );
+  } finally {
+    await Promise.all(stores.map((store) => store.close().catch(() => {})));
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('Linux durable bootstrap fails explicitly when procfs fd paths are unavailable', (t) => {
+  if (process.platform !== 'linux') {
+    t.skip('Linux procfs bootstrap regression');
+    return;
+  }
+
+  const moduleUrl = new URL(
+    '../core/gate/reference-durable-claim-store.mjs',
+    import.meta.url,
+  ).href;
+  const script = `
+    import assert from 'node:assert/strict';
+    import fs from 'node:fs';
+    import { syncBuiltinESMExports } from 'node:module';
+    import { mkdtemp, rm } from 'node:fs/promises';
+    import os from 'node:os';
+    import path from 'node:path';
+
+    const originalLstat = fs.lstat;
+    const originalStat = fs.stat;
+    const denyProcFd = (original) => function(filePath, ...args) {
+      if (typeof filePath === 'string' && filePath.startsWith('/proc/self/fd/')) {
+        const callback = args[args.length - 1];
+        const error = new Error('simulated procfs denial');
+        error.code = 'EACCES';
+        queueMicrotask(() => callback(error));
+        return;
+      }
+      return Reflect.apply(original, this, [filePath, ...args]);
+    };
+    fs.lstat = denyProcFd(originalLstat);
+    fs.stat = denyProcFd(originalStat);
+    syncBuiltinESMExports();
+
+    const { createReferenceDurableClaimStore } = await import(
+      ${JSON.stringify(moduleUrl)} + '?procfs-denied=' + Date.now()
+    );
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-procfs-denied-'));
+    try {
+      const store = createReferenceDurableClaimStore({ rootDir });
+      await assert.rejects(
+        store.inspect({
+          capabilityId: 'cap-${'6'.repeat(32)}',
+          authorizationCommitment: '${h('7')}',
+        }),
+        (error) => {
+          assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
+          assert.match(error?.message ?? '', /procfs \\/proc\\/self\\/fd/u);
+          return true;
+        },
+      );
+      await store.close();
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  `;
+
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '--eval', script],
+    { encoding: 'utf8' },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `procfs fault-injection child failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
 });
