@@ -22,8 +22,11 @@ const BOOTSTRAP_KEYS = Object.freeze([
 // the detached bootstrap snapshot, forge local capability provenance, or re-open
 // a wrapper-reserved capability. Security-sensitive iteration over module-owned
 // key sets is index-based so a later Array iterator replacement cannot rewrite
-// the bootstrap contract. Poisoning before module initialization and a generally
-// compromised runtime remain outside this reference guarantee.
+// the bootstrap contract. The explicit close lifecycle prevents the composed
+// harness from retaining the durable root descriptor indefinitely and drains any
+// already-started consume before the store descriptor is released. Poisoning
+// before module initialization and a generally compromised runtime remain
+// outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
@@ -37,6 +40,7 @@ const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
+const PROMISE_CONSTRUCTOR = Promise;
 
 function createObject(prototype) {
   return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
@@ -123,7 +127,8 @@ function gateError(code, message) {
 
 /**
  * Compose the process-local reference Gate with the filesystem durable claim
- * primitive without changing either primitive's standalone API.
+ * primitive without changing either primitive's standalone authorization
+ * semantics.
  *
  * The durable claim is acquired after the wrapper's synchronous local
  * reservation and before the inner Gate is allowed to observe binding or reach
@@ -156,8 +161,34 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
 
   const capabilityMetadata = new WEAK_MAP_CONSTRUCTOR();
   const wrapperState = new WEAK_MAP_CONSTRUCTOR();
+  let lifecycleState = 'OPEN';
+  let activeConsumes = 0;
+  let drainResolve = null;
+  let closePromise = null;
+
+  function beginConsume() {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError(
+        'POMRX_GATE_E_CLOSED',
+        'Reference durable Gate is closing or closed',
+      );
+    }
+    activeConsumes += 1;
+  }
+
+  function endConsume() {
+    activeConsumes -= 1;
+    if (activeConsumes === 0 && drainResolve !== null) {
+      const resolve = drainResolve;
+      drainResolve = null;
+      resolve();
+    }
+  }
 
   function issueReferenceAuthorizationForTest(bindingInput, issueOptions = {}) {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
+    }
     const issued = inner.testAuthority.issueReferenceAuthorizationForTest(
       bindingInput,
       issueOptions,
@@ -192,6 +223,9 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
   }
 
   async function inspectDurableStateForTest(capability) {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
+    }
     const { metadata } = requireLocalCapability(capability);
     return durableStore.inspect({
       capabilityId: metadata.capabilityId,
@@ -199,7 +233,7 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     });
   }
 
-  async function consume(capability, executionAttempt) {
+  async function consumeImpl(capability, executionAttempt) {
     const { metadata, state } = requireLocalCapability(capability);
     if (state.state !== 'AVAILABLE') {
       throw gateError(
@@ -247,6 +281,39 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     return result;
   }
 
+  async function consume(capability, executionAttempt) {
+    beginConsume();
+    try {
+      return await consumeImpl(capability, executionAttempt);
+    } finally {
+      endConsume();
+    }
+  }
+
+  async function close() {
+    if (lifecycleState === 'CLOSED') return;
+    if (lifecycleState === 'CLOSING') {
+      await closePromise;
+      return;
+    }
+
+    lifecycleState = 'CLOSING';
+    closePromise = (async () => {
+      if (activeConsumes > 0) {
+        await new PROMISE_CONSTRUCTOR((resolve) => {
+          drainResolve = resolve;
+        });
+      }
+      await durableStore.close();
+    })();
+
+    try {
+      await closePromise;
+    } finally {
+      lifecycleState = 'CLOSED';
+    }
+  }
+
   const gate = freezeValue({ consume });
   const testAuthority = freezeValue({
     issueReferenceAuthorizationForTest,
@@ -254,5 +321,5 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     inspectDurableStateForTest,
   });
 
-  return freezeValue({ gate, testAuthority });
+  return freezeValue({ gate, testAuthority, close });
 }
