@@ -77,7 +77,13 @@ test('durable root pathname rebinding cannot reopen an already-consumed capabili
         return true;
       },
     );
-    await store.close();
+    await assert.rejects(
+      store.close(),
+      (error) => {
+        assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
+        return true;
+      },
+    );
   } finally {
     await Promise.all([
       rm(rootDir, { recursive: true, force: true }),
@@ -371,7 +377,7 @@ test('Linux durable bootstrap fails explicitly when procfs fd paths are unavaila
         }),
         (error) => {
           assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
-          assert.match(error?.message ?? '', /procfs \\/proc\\/self\\/fd/u);
+          assert.match(error?.message ?? '', /procfs \/proc\/self\/fd/u);
           return true;
         },
       );
