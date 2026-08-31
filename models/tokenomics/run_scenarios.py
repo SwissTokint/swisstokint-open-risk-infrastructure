@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
+from os import cpu_count
 
 from model import EconomyConfig, StressScenario, allocation_for_burn, simulate
 
@@ -21,10 +23,20 @@ STAKE_SHOCKS = (
 FEE_MODES = ("usd_indexed", "token_fixed")
 HORIZON_DAYS = (365, 1_825)
 EPSILON = 1e-9
+MAX_MATRIX_WORKERS = 4
+
+MatrixCase = tuple[EconomyConfig, StressScenario]
 
 
-def build_results() -> list[dict[str, object]]:
-    results: list[dict[str, object]] = []
+def select_matrix_workers(available_cpus: int | None = None) -> int:
+    """Return a bounded worker count for the CPU-heavy exact-rational matrix."""
+    observed = cpu_count() if available_cpus is None else available_cpus
+    return max(1, min(MAX_MATRIX_WORKERS, observed or 1))
+
+
+def build_matrix_cases() -> list[MatrixCase]:
+    """Build the canonical matrix in deterministic publication order."""
+    cases: list[MatrixCase] = []
     base = EconomyConfig()
 
     for fee_mode in FEE_MODES:
@@ -62,9 +74,41 @@ def build_results() -> list[dict[str, object]]:
                                 price_multiplier=price_multiplier,
                                 usage_multiplier=usage_multiplier,
                             )
-                            results.append(simulate(config, scenario).to_dict())
+                            cases.append((config, scenario))
 
-    return results
+    return cases
+
+
+def _simulate_case(case: MatrixCase) -> dict[str, object]:
+    config, scenario = case
+    return simulate(config, scenario).to_dict()
+
+
+def run_matrix_cases(
+    cases: list[MatrixCase],
+    *,
+    max_workers: int,
+) -> list[dict[str, object]]:
+    """Execute cases exactly while preserving their deterministic input order."""
+    if max_workers < 1:
+        raise ValueError("max_workers must be >= 1")
+    if max_workers == 1 or len(cases) <= 1:
+        return [_simulate_case(case) for case in cases]
+
+    worker_count = min(max_workers, len(cases))
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        return list(executor.map(_simulate_case, cases, chunksize=8))
+
+
+def build_results(*, max_workers: int | None = None) -> list[dict[str, object]]:
+    """Run every canonical matrix case, parallelizing only independent scenarios."""
+    cases = build_matrix_cases()
+    worker_count = (
+        select_matrix_workers()
+        if max_workers is None
+        else max_workers
+    )
+    return run_matrix_cases(cases, max_workers=worker_count)
 
 
 def summarize(results: list[dict[str, object]]) -> dict[str, object]:
