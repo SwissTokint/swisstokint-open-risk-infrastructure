@@ -33,6 +33,7 @@ class EconomyConfig:
     treasury_fee_share: float = 0.1875
     daily_security_emission_tokens: float = 1_000.0
     emission_realization_fraction: float = 0.0
+    security_fee_realization_fraction: float = 0.0
     staked_fraction: float = 0.35
     validator_exit_rate_per_day: float = 0.0
     required_stake_value_usd: float = 1_000_000.0
@@ -60,6 +61,7 @@ class SimulationResult:
     validator_exit_rate_per_day: float
     slashing_burn_rate_per_day: float
     emission_realization_fraction: float
+    security_fee_realization_fraction: float
     minimum_organic_usage_fraction_for_survival: float
     minimum_organic_actions_per_day_for_survival: float
     minimum_organic_fee_usd_per_day_for_survival: float
@@ -78,6 +80,8 @@ class SimulationResult:
     total_burn_tokens: float
     total_security_fee_tokens: float
     total_organic_security_fee_tokens: float
+    total_realizable_security_fee_tokens: float
+    total_realizable_security_fee_usd: float
     total_security_emission_tokens: float
     total_realizable_security_emission_tokens: float
     total_realizable_security_emission_usd: float
@@ -86,6 +90,7 @@ class SimulationResult:
     total_slashing_burn_tokens: float
     total_emission_realization_velocity_tokens: float
     total_fee_velocity_tokens: float
+    total_security_fee_realization_velocity_tokens: float
     starting_supply_tokens: float
     ending_supply_tokens: float
     initial_staked_tokens: float
@@ -163,6 +168,7 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         "security_fee_share": config.security_fee_share,
         "treasury_fee_share": config.treasury_fee_share,
         "emission_realization_fraction": config.emission_realization_fraction,
+        "security_fee_realization_fraction": config.security_fee_realization_fraction,
         "staked_fraction": config.staked_fraction,
         "organic_usage_fraction": config.organic_usage_fraction,
         "minimum_organic_usage_fraction_for_survival": (
@@ -205,25 +211,15 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
 
     Token price is an explicit scenario input, never an endogenous prediction.
     Bonded stake is tracked separately from liquid inventory. Validator exits
-    unbond stake without destroying supply and make the exited tokens realizable;
-    slashing separately destroys bonded stake and total supply.
+    unbond stake without destroying supply; slashing destroys bonded stake.
 
-    Fee capacity uses a separate realizable liquid inventory. Initial unstaked
-    supply is treated as realizable; newly emitted tokens enter that inventory
-    only according to ``emission_realization_fraction``. Nominal, unrealizable
-    emissions therefore cannot become funded security revenue merely by being
-    recycled through a fee-paying action.
-
-    Emission realization and fee turnover share one daily token-velocity budget.
-    A token sold/realized from security emissions therefore cannot be counted
-    again as fee turnover on the same day unless the configured velocity exceeds
-    one turnover.
-
-    Gross paid fees are tracked, but the conservative survival security budget
-    counts only the explicitly organic share of fee-funded security revenue plus
-    the explicitly realizable share of emissions. Survival additionally requires
-    minimum organic usage share, minimum average organic actions/day and minimum
-    average organic fee revenue/day. All three are horizon-independent.
+    Emission sales, fee turnover and realization of security-fee rewards all
+    consume one shared daily token-velocity budget. Merely receiving a token as a
+    protocol fee is therefore not treated as realizable USD security funding.
+    Fee-funded security tokens contribute to the conservative USD budget only to
+    the explicit ``security_fee_realization_fraction`` and only when remaining
+    velocity permits a distinct realization transfer. Both realization fractions
+    default to zero so the baseline does not silently assume external buyers.
     """
 
     _validate(config, scenario)
@@ -252,6 +248,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     total_burn_tokens = 0.0
     total_security_fee_tokens = 0.0
     total_organic_security_fee_tokens = 0.0
+    total_realizable_security_fee_tokens = 0.0
+    total_realizable_security_fee_usd = 0.0
     total_security_emission_tokens = 0.0
     total_realizable_security_emission_tokens = 0.0
     total_realizable_security_emission_usd = 0.0
@@ -260,6 +258,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     total_slashing_burn_tokens = 0.0
     total_emission_realization_velocity_tokens = 0.0
     total_fee_velocity_tokens = 0.0
+    total_security_fee_realization_velocity_tokens = 0.0
     total_security_budget_usd = 0.0
     total_gross_security_budget_usd = 0.0
     minimum_security_budget_usd = inf
@@ -353,12 +352,28 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         if staked_tokens > supply:
             staked_tokens = supply
 
+        remaining_security_fee_realization_velocity_tokens = max(
+            remaining_fee_velocity_tokens - daily_fee_tokens,
+            0.0,
+        )
+        requested_realizable_security_fee_tokens = (
+            daily_organic_security_fee_tokens
+            * config.security_fee_realization_fraction
+        )
+        daily_realizable_security_fee_tokens = min(
+            requested_realizable_security_fee_tokens,
+            remaining_security_fee_realization_velocity_tokens,
+        )
+
         realizable_emission_usd = daily_realizable_emission_tokens * token_price
+        realizable_security_fee_usd = (
+            daily_realizable_security_fee_tokens * token_price
+        )
         daily_gross_security_budget_usd = (
             daily_security_fee_tokens * token_price + realizable_emission_usd
         )
         daily_security_budget_usd = (
-            daily_organic_security_fee_tokens * token_price + realizable_emission_usd
+            realizable_security_fee_usd + realizable_emission_usd
         )
         daily_staked_value_usd = staked_tokens * token_price
 
@@ -369,6 +384,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_burn_tokens += daily_burn_tokens
         total_security_fee_tokens += daily_security_fee_tokens
         total_organic_security_fee_tokens += daily_organic_security_fee_tokens
+        total_realizable_security_fee_tokens += daily_realizable_security_fee_tokens
+        total_realizable_security_fee_usd += realizable_security_fee_usd
         total_security_emission_tokens += daily_emission_tokens
         total_realizable_security_emission_tokens += daily_realizable_emission_tokens
         total_realizable_security_emission_usd += realizable_emission_usd
@@ -377,6 +394,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_slashing_burn_tokens += daily_slashing_burn_tokens
         total_emission_realization_velocity_tokens += daily_realizable_emission_tokens
         total_fee_velocity_tokens += daily_fee_tokens
+        total_security_fee_realization_velocity_tokens += (
+            daily_realizable_security_fee_tokens
+        )
         total_security_budget_usd += daily_security_budget_usd
         total_gross_security_budget_usd += daily_gross_security_budget_usd
         minimum_security_budget_usd = min(
@@ -459,10 +479,17 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     next_day_requested_realizable_emission_tokens = (
         config.daily_security_emission_tokens * config.emission_realization_fraction
     )
+    next_day_requested_security_fee_realization_tokens = (
+        requested_fee_tokens_per_day
+        * config.organic_usage_fraction
+        * config.security_fee_share
+        * config.security_fee_realization_fraction
+    )
     required_for_shared_velocity = max(
         (
             next_day_requested_realizable_emission_tokens
             + requested_fee_tokens_per_day
+            + next_day_requested_security_fee_realization_tokens
         )
         / config.max_daily_token_velocity
         - next_day_requested_realizable_emission_tokens,
@@ -507,6 +534,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         validator_exit_rate_per_day=config.validator_exit_rate_per_day,
         slashing_burn_rate_per_day=config.slashing_burn_rate_per_day,
         emission_realization_fraction=config.emission_realization_fraction,
+        security_fee_realization_fraction=config.security_fee_realization_fraction,
         minimum_organic_usage_fraction_for_survival=(
             config.minimum_organic_usage_fraction_for_survival
         ),
@@ -531,6 +559,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_burn_tokens=total_burn_tokens,
         total_security_fee_tokens=total_security_fee_tokens,
         total_organic_security_fee_tokens=total_organic_security_fee_tokens,
+        total_realizable_security_fee_tokens=total_realizable_security_fee_tokens,
+        total_realizable_security_fee_usd=total_realizable_security_fee_usd,
         total_security_emission_tokens=total_security_emission_tokens,
         total_realizable_security_emission_tokens=total_realizable_security_emission_tokens,
         total_realizable_security_emission_usd=total_realizable_security_emission_usd,
@@ -541,6 +571,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             total_emission_realization_velocity_tokens
         ),
         total_fee_velocity_tokens=total_fee_velocity_tokens,
+        total_security_fee_realization_velocity_tokens=(
+            total_security_fee_realization_velocity_tokens
+        ),
         starting_supply_tokens=config.initial_supply_tokens,
         ending_supply_tokens=supply,
         initial_staked_tokens=initial_staked_tokens,
