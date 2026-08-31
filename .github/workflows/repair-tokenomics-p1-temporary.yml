@@ -1,0 +1,150 @@
+name: Temporary tokenomics P1 repair
+
+on:
+  push:
+    branches:
+      - economics/token-necessity-v1-ready-20260831
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]' && contains(github.event.head_commit.message, '[trigger tokenomics repair]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: economics/token-necessity-v1-ready-20260831
+      - name: Apply bounded review repairs and regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          model_path = Path('models/tokenomics/model.py')
+          text = model_path.read_text()
+
+          old = '''    allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share\n    if abs(allocation - 1.0) > EPSILON:\n        raise ValueError("burn + security + treasury fee shares must equal 1")\n'''
+          new = '''    allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share\n    if allocation != 1.0:\n        raise ValueError("burn + security + treasury fee shares must equal 1 exactly")\n'''
+          assert old in text, 'allocation validation anchor moved'
+          text = text.replace(old, new, 1)
+
+          old = '''    minimum_staked_tokens = staked_tokens\n    minimum_staked_value_usd = staked_tokens * token_price\n    usage_served = True\n'''
+          new = '''    minimum_staked_tokens = staked_tokens\n    minimum_staked_value_usd = staked_tokens * token_price\n    validator_exit_residual_tokens = 0.0\n    usage_served = True\n'''
+          assert old in text, 'validator exit residual initialization anchor moved'
+          text = text.replace(old, new, 1)
+
+          old = '''        daily_validator_exit_tokens = min(\n            staked_tokens,\n            staked_tokens * config.validator_exit_rate_per_day,\n        )\n        staked_tokens -= daily_validator_exit_tokens\n        realizable_liquid_tokens += daily_validator_exit_tokens\n'''
+          new = '''        daily_validator_exit_target_tokens = (\n            staked_tokens * config.validator_exit_rate_per_day\n            + validator_exit_residual_tokens\n        )\n        requested_validator_exit_tokens = min(\n            staked_tokens,\n            max(daily_validator_exit_target_tokens, 0.0),\n        )\n        post_exit_staked_tokens = max(\n            staked_tokens - requested_validator_exit_tokens,\n            0.0,\n        )\n        daily_validator_exit_tokens = staked_tokens - post_exit_staked_tokens\n        validator_exit_residual_tokens = (\n            daily_validator_exit_target_tokens - daily_validator_exit_tokens\n        )\n        if post_exit_staked_tokens <= 0.0:\n            validator_exit_residual_tokens = 0.0\n        staked_tokens = post_exit_staked_tokens\n        realizable_liquid_tokens += daily_validator_exit_tokens\n'''
+          assert old in text, 'validator exit transition anchor moved'
+          text = text.replace(old, new, 1)
+
+          old = '''        collectible_fee_tokens = min(\n            requested_fee_tokens,\n            remaining_fee_velocity_tokens,\n            max_fee_tokens_by_burn,\n        )\n\n        if fee_tokens_per_action > 0:\n            executed_actions = collectible_fee_tokens / fee_tokens_per_action\n        else:\n            executed_actions = requested_actions_per_day\n\n        executed_actions = min(executed_actions, requested_actions_per_day)\n        if executed_actions < requested_actions_per_day:\n            usage_served = False\n\n        organic_executed_actions = executed_actions * config.organic_usage_fraction\n        daily_fee_tokens = executed_actions * fee_tokens_per_action\n        daily_organic_fee_tokens = organic_executed_actions * fee_tokens_per_action\n'''
+          new = '''        collectible_fee_tokens = min(\n            requested_fee_tokens,\n            remaining_fee_velocity_tokens,\n            max_fee_tokens_by_burn,\n        )\n        fee_capacity_served = collectible_fee_tokens >= requested_fee_tokens\n        if not fee_capacity_served:\n            usage_served = False\n\n        if fee_tokens_per_action > 0:\n            executed_actions = collectible_fee_tokens / fee_tokens_per_action\n        else:\n            executed_actions = requested_actions_per_day\n\n        executed_actions = min(executed_actions, requested_actions_per_day)\n        organic_executed_actions = executed_actions * config.organic_usage_fraction\n        # Fee accounting follows the capacity-constrained token amount directly.\n        # Reconstructing it from a rounded action quotient can recreate tokens\n        # that were never collectible at large floating-point scales.\n        daily_fee_tokens = collectible_fee_tokens\n        daily_organic_fee_tokens = daily_fee_tokens * config.organic_usage_fraction\n'''
+          assert old in text, 'fee capacity/action rounding anchor moved'
+          text = text.replace(old, new, 1)
+
+          old = '''    next_day_validator_exit_tokens = min(\n        staked_tokens,\n        staked_tokens * config.validator_exit_rate_per_day,\n    )\n    next_day_after_exit_tokens = staked_tokens - next_day_validator_exit_tokens\n'''
+          new = '''    next_day_validator_exit_target_tokens = (\n        staked_tokens * config.validator_exit_rate_per_day\n        + validator_exit_residual_tokens\n    )\n    next_day_requested_validator_exit_tokens = min(\n        staked_tokens,\n        max(next_day_validator_exit_target_tokens, 0.0),\n    )\n    next_day_after_exit_tokens = max(\n        staked_tokens - next_day_requested_validator_exit_tokens,\n        0.0,\n    )\n'''
+          assert old in text, 'next-day validator exit anchor moved'
+          text = text.replace(old, new, 1)
+
+          model_path.write_text(text)
+
+          tests_path = Path('models/tokenomics/test_review_regressions.py')
+          tests = tests_path.read_text()
+          anchor = '''\n\nif __name__ == "__main__":\n    unittest.main()\n'''
+          assert anchor in tests, 'test append anchor moved'
+          additions = r'''
+
+    def test_fee_capacity_shortfall_cannot_round_back_to_full_service(self) -> None:
+        daily_actions = 73_045_222.46897346
+        fee_tokens_per_action = 1.0125910683765252e18
+        velocity = 5.812721407133143
+        requested_fee_tokens = daily_actions * fee_tokens_per_action
+        capacity_tokens = requested_fee_tokens - 8_589_934_592.0
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=capacity_tokens / velocity,
+            initial_price_usd=1.0,
+            staked_fraction=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=fee_tokens_per_action,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            daily_actions=daily_actions,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=velocity,
+            required_stake_value_usd=1.0,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=fee_tokens_per_action,
+        )
+        result = simulate(config, StressScenario(name="fee-capacity-ulp-shortfall", days=1))
+        self.assertLess(result.total_fee_tokens, requested_fee_tokens)
+        self.assertFalse(result.usage_served)
+        self.assertFalse(result.economic_survival)
+
+    def test_fee_allocation_cannot_exceed_collected_fees_within_epsilon(self) -> None:
+        config = replace(
+            EconomyConfig(),
+            burn_rate=0.5,
+            security_fee_share=0.5000000005,
+            treasury_fee_share=0.0,
+        )
+        with self.assertRaisesRegex(ValueError, "must equal 1 exactly"):
+            simulate(config, StressScenario(name="fee-allocation-overflow", days=1))
+
+    def test_sub_ulp_validator_exits_accumulate_into_bonded_balance(self) -> None:
+        required_stake = 999_999_999_999.95
+        config = replace(
+            EconomyConfig(),
+            initial_supply_tokens=2_000_000_000_000.0,
+            staked_fraction=0.5,
+            validator_exit_rate_per_day=5e-17,
+            slashing_burn_rate_per_day=0.0,
+            fee_mode="token_fixed",
+            fixed_token_fee_per_action=0.10,
+            burn_rate=0.0,
+            security_fee_share=1.0,
+            treasury_fee_share=0.0,
+            daily_security_emission_tokens=0.0,
+            security_fee_realization_fraction=1.0,
+            daily_actions=1_000.0,
+            minimum_organic_actions_per_day_for_survival=0.0,
+            minimum_organic_fee_usd_per_day_for_survival=0.0,
+            max_daily_token_velocity=2.0,
+            required_stake_value_usd=required_stake,
+            required_security_budget_usd_per_day=1.0,
+            max_affordable_fee_usd_per_action=1.0,
+        )
+        result = simulate(config, StressScenario(name="sub-ulp-validator-exit", days=1_825))
+        self.assertGreater(result.total_validator_exit_tokens, 0.09)
+        self.assertLess(result.ending_staked_tokens, required_stake)
+        self.assertLess(result.minimum_staked_tokens, required_stake)
+        self.assertFalse(result.stake_adequate)
+        self.assertFalse(result.economic_survival)
+'''
+          tests = tests.replace(anchor, additions + anchor, 1)
+          tests_path.write_text(tests)
+          PY
+      - name: Run tokenomics regression suite
+        run: |
+          python models/tokenomics/test_model.py
+          python models/tokenomics/test_review_regressions.py
+      - name: Commit bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/tokenomics/model.py models/tokenomics/test_review_regressions.py
+          git diff --cached --check
+          git commit -m "fix(tokenomics): close exact-head numeric conservation P1s"
+          git push origin HEAD:economics/token-necessity-v1-ready-20260831
