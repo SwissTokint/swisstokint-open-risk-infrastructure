@@ -123,13 +123,13 @@ linuxTest('valid control runs in the clean child and remains explicitly non-auth
     assert.equal(result.measured_artifact_bytes_integrity, 'verified');
     assert.equal(
       result.artifact_manifest_sha256,
-      '05c0f37091cd4aa6c97d0339cf785125e71424e3553c0d7545baf3ebf3eaca9f',
+      'ff3ffa3e112352d4f07ecf09ffa75b7a298679061f80b32e9e521c815f0c1174',
     );
     assert.equal(result.verifier_profile, 'pom-rx-v0.1/strict-errata-1');
     assert.equal(result.verifier_version, 'pom-rx-v0.1-strict-verifier/1');
     assert.equal(
       result.implementation_artifact_sha256,
-      '72a187e56bba7d488e0ecb5510abba013b61322d1b599aa7d76b633bae5dc9eb',
+      '1081f7703a51ddee649a5222edaddb588c3ef9298849328e8aca628388853779',
     );
     assert.equal(result.structural_status, 'conformant');
     assert.equal(result.qualification, 'STRICT_STRUCTURAL_CONFORMANCE_OBSERVED');
