@@ -76,6 +76,68 @@ const PREPARED_KEYS = Object.freeze([
   'request',
 ]);
 
+// The provider gateway crosses asynchronous, same-realm boundaries before it
+// invokes application normalization. Rather than letting post-import mutation of
+// transitive parser intrinsics silently rewrite an authorization decision, capture
+// the load-bearing surface once and reject if that surface changed. The check is
+// performed at bootstrap, after each provider await, and immediately before every
+// intent/policy/forwarding continuation. Direct poisoning before module load is
+// outside this reference guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_KEYS = Object.keys;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_FREEZE = Object.freeze;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_MAP = Array.prototype.map;
+const ARRAY_EVERY = Array.prototype.every;
+const ARRAY_SOME = Array.prototype.some;
+const ARRAY_SORT = Array.prototype.sort;
+const ARRAY_INCLUDES = Array.prototype.includes;
+const ARRAY_ITERATOR = Array.prototype[Symbol.iterator];
+const SET_CONSTRUCTOR = Set;
+const SET_HAS = Set.prototype.has;
+const SET_ADD = Set.prototype.add;
+const WEAK_SET_HAS = WeakSet.prototype.has;
+const WEAK_SET_ADD = WeakSet.prototype.add;
+const REGEXP_TEST = RegExp.prototype.test;
+const STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
+const STRING_ENDS_WITH = String.prototype.endsWith;
+const STRING_SLICE = String.prototype.slice;
+const STRING_PAD_START = String.prototype.padStart;
+const DATE_CONSTRUCTOR = Date;
+const DATE_GET_TIME = Date.prototype.getTime;
+const DATE_TO_ISO_STRING = Date.prototype.toISOString;
+const NUMBER_IS_FINITE = Number.isFinite;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const BIGINT_CONSTRUCTOR = BigInt;
+const BIGINT_TO_STRING = BigInt.prototype.toString;
+const JSON_PARSE = JSON.parse;
+const URL_CONSTRUCTOR = URL;
+const URL_PROTOCOL_GET = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+  Object,
+  [URL_CONSTRUCTOR.prototype, 'protocol'],
+).get;
+const URL_ORIGIN_GET = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+  Object,
+  [URL_CONSTRUCTOR.prototype, 'origin'],
+).get;
+const URL_USERNAME_GET = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+  Object,
+  [URL_CONSTRUCTOR.prototype, 'username'],
+).get;
+const URL_PASSWORD_GET = REFLECT_APPLY(
+  OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+  Object,
+  [URL_CONSTRUCTOR.prototype, 'password'],
+).get;
+
 export class WalletGuardProviderError extends Error {
   constructor(code, message) {
     super(message);
@@ -86,6 +148,68 @@ export class WalletGuardProviderError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardProviderError(code, message);
+}
+
+function ownDataValue(owner, key) {
+  const descriptor = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [owner, key]);
+  return descriptor
+    && Object.prototype.hasOwnProperty.call(descriptor, 'value')
+    ? descriptor.value
+    : undefined;
+}
+
+function ownGetterValue(owner, key) {
+  const descriptor = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTOR, Object, [owner, key]);
+  return descriptor?.get;
+}
+
+function assertRuntimeIntegrity() {
+  const dataChecks = [
+    [Object, 'keys', OBJECT_KEYS],
+    [Object, 'getOwnPropertyDescriptors', OBJECT_GET_OWN_PROPERTY_DESCRIPTORS],
+    [Object, 'getPrototypeOf', OBJECT_GET_PROTOTYPE_OF],
+    [Object, 'getOwnPropertySymbols', OBJECT_GET_OWN_PROPERTY_SYMBOLS],
+    [Object, 'hasOwn', OBJECT_HAS_OWN],
+    [Object, 'freeze', OBJECT_FREEZE],
+    [Array, 'isArray', ARRAY_IS_ARRAY],
+    [Array.prototype, 'map', ARRAY_MAP],
+    [Array.prototype, 'every', ARRAY_EVERY],
+    [Array.prototype, 'some', ARRAY_SOME],
+    [Array.prototype, 'sort', ARRAY_SORT],
+    [Array.prototype, 'includes', ARRAY_INCLUDES],
+    [Array.prototype, Symbol.iterator, ARRAY_ITERATOR],
+    [Set.prototype, 'has', SET_HAS],
+    [Set.prototype, 'add', SET_ADD],
+    [WeakSet.prototype, 'has', WEAK_SET_HAS],
+    [WeakSet.prototype, 'add', WEAK_SET_ADD],
+    [RegExp.prototype, 'test', REGEXP_TEST],
+    [String.prototype, 'toLowerCase', STRING_TO_LOWER_CASE],
+    [String.prototype, 'endsWith', STRING_ENDS_WITH],
+    [String.prototype, 'slice', STRING_SLICE],
+    [String.prototype, 'padStart', STRING_PAD_START],
+    [Date.prototype, 'getTime', DATE_GET_TIME],
+    [Date.prototype, 'toISOString', DATE_TO_ISO_STRING],
+    [Number, 'isFinite', NUMBER_IS_FINITE],
+    [Number, 'isSafeInteger', NUMBER_IS_SAFE_INTEGER],
+    [BigInt.prototype, 'toString', BIGINT_TO_STRING],
+    [JSON, 'parse', JSON_PARSE],
+  ];
+  for (let index = 0; index < dataChecks.length; index += 1) {
+    const [owner, key, expected] = dataChecks[index];
+    if (ownDataValue(owner, key) !== expected) {
+      fail('POMRX_WG_PROVIDER_E_RUNTIME_MUTATION', 'Wallet Guard runtime intrinsic changed after module initialization');
+    }
+  }
+  if (ownDataValue(globalThis, 'Set') !== SET_CONSTRUCTOR
+      || ownDataValue(globalThis, 'Date') !== DATE_CONSTRUCTOR
+      || ownDataValue(globalThis, 'BigInt') !== BIGINT_CONSTRUCTOR
+      || ownDataValue(globalThis, 'URL') !== URL_CONSTRUCTOR
+      || ownGetterValue(URL_CONSTRUCTOR.prototype, 'protocol') !== URL_PROTOCOL_GET
+      || ownGetterValue(URL_CONSTRUCTOR.prototype, 'origin') !== URL_ORIGIN_GET
+      || ownGetterValue(URL_CONSTRUCTOR.prototype, 'username') !== URL_USERNAME_GET
+      || ownGetterValue(URL_CONSTRUCTOR.prototype, 'password') !== URL_PASSWORD_GET) {
+    fail('POMRX_WG_PROVIDER_E_RUNTIME_MUTATION', 'Wallet Guard runtime intrinsic changed after module initialization');
+  }
 }
 
 function exactKeys(value, expected, label) {
@@ -119,6 +243,7 @@ function canonicalOrigin(value) {
 }
 
 function sampleTrustedOrigin(captureTrustedOrigin) {
+  assertRuntimeIntegrity();
   let value;
   try {
     value = captureTrustedOrigin();
@@ -132,6 +257,7 @@ function sampleTrustedOrigin(captureTrustedOrigin) {
 }
 
 function canonicalUtcInstant(value, field) {
+  assertRuntimeIntegrity();
   if (typeof value !== 'string' || !value.endsWith('Z')) {
     fail('POMRX_WG_PROVIDER_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
   }
@@ -143,6 +269,7 @@ function canonicalUtcInstant(value, field) {
 }
 
 function sampleTrustedClock(trustedClock) {
+  assertRuntimeIntegrity();
   let value;
   try {
     value = trustedClock();
@@ -215,6 +342,7 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
 }
 
 function normalizeProviderChain(value) {
+  assertRuntimeIntegrity();
   try {
     return normalizeChainId(value);
   } catch {
@@ -223,6 +351,7 @@ function normalizeProviderChain(value) {
 }
 
 function normalizeProviderAccount(value) {
+  assertRuntimeIntegrity();
   try {
     return normalizeEvmAddress(value, 'provider account');
   } catch {
@@ -231,6 +360,7 @@ function normalizeProviderAccount(value) {
 }
 
 function normalizeAccounts(value) {
+  assertRuntimeIntegrity();
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
   }
@@ -242,16 +372,20 @@ function normalizeAccounts(value) {
 }
 
 async function providerRead(provider, method) {
+  assertRuntimeIntegrity();
   try {
     return await provider.request(Object.freeze({ method, params: Object.freeze([]) }));
-  } catch {
+  } catch (error) {
+    if (error instanceof WalletGuardProviderError) throw error;
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', `provider ${method} read failed`);
   }
 }
 
 async function readProviderSnapshot(provider) {
   const chainRaw = await providerRead(provider, 'eth_chainId');
+  assertRuntimeIntegrity();
   const accountsRaw = await providerRead(provider, 'eth_accounts');
+  assertRuntimeIntegrity();
   return Object.freeze({
     chain_id: normalizeProviderChain(chainRaw),
     accounts: normalizeAccounts(accountsRaw),
@@ -259,12 +393,15 @@ async function readProviderSnapshot(provider) {
 }
 
 function sameAccounts(left, right) {
+  assertRuntimeIntegrity();
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 async function sampleStableProviderContext(provider) {
   const first = await readProviderSnapshot(provider);
+  assertRuntimeIntegrity();
   const second = await readProviderSnapshot(provider);
+  assertRuntimeIntegrity();
   if (first.chain_id !== second.chain_id || !sameAccounts(first.accounts, second.accounts)) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'provider chain/account context changed during sampling');
   }
@@ -275,8 +412,10 @@ async function sampleStableProviderContext(provider) {
 }
 
 async function sampleTrustedContext(captureTrustedOrigin, provider) {
+  assertRuntimeIntegrity();
   const originBefore = sampleTrustedOrigin(captureTrustedOrigin);
   const providerContext = await sampleStableProviderContext(provider);
+  assertRuntimeIntegrity();
   const originAfter = sampleTrustedOrigin(captureTrustedOrigin);
   if (originBefore !== originAfter) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted origin changed during provider sampling');
@@ -289,6 +428,7 @@ async function sampleTrustedContext(captureTrustedOrigin, provider) {
 }
 
 function commitContext(context, policyHash) {
+  assertRuntimeIntegrity();
   const payload = Object.freeze({
     schema_version: WALLET_GUARD_CONTEXT_SCHEMA_VERSION,
     origin: context.origin,
@@ -301,10 +441,12 @@ function commitContext(context, policyHash) {
 }
 
 function commitMethod(method) {
+  assertRuntimeIntegrity();
   return sha256Hex(`${METHOD_COMMIT_DOMAIN}${method}`);
 }
 
 function validateReferenceAuthorization(value) {
+  assertRuntimeIntegrity();
   exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
     if (typeof value[field] !== 'string' || !ID_PATTERN.test(value[field])) {
@@ -339,6 +481,7 @@ function validateReferenceAuthorization(value) {
 }
 
 function getReferenceAuthorizationForRequest(factory, requestSummary) {
+  assertRuntimeIntegrity();
   exactKeys(requestSummary, REFERENCE_REQUEST_KEYS, 'reference authorization request');
   let value;
   try {
@@ -353,6 +496,7 @@ function getReferenceAuthorizationForRequest(factory, requestSummary) {
 }
 
 function validatePreparedExecution(prepared) {
+  assertRuntimeIntegrity();
   exactKeys(prepared, PREPARED_KEYS, 'prepared execution');
   if (prepared.schema_version !== WALLET_GUARD_PREPARED_EXECUTION_VERSION) {
     fail('POMRX_WG_PROVIDER_E_PREPARED_INVALID', 'prepared execution version is invalid');
@@ -383,6 +527,7 @@ function makeDecisionResult(policyResult, committed, forwarded, providerResult =
 }
 
 export function createWalletGuardReferenceProviderGateway(options) {
+  assertRuntimeIntegrity();
   exactKeys(options, BOOTSTRAP_KEYS, 'Wallet Guard provider bootstrap');
   const {
     captureTrustedOrigin,
@@ -413,9 +558,12 @@ export function createWalletGuardReferenceProviderGateway(options) {
   const coreGateHarness = createReferenceSingleUseGateHarness({
     trustedClock,
     observeBinding: async (attempt) => {
+      assertRuntimeIntegrity();
       exactKeys(attempt, ['request_id', 'request'], 'Wallet Guard execution attempt');
       const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      assertRuntimeIntegrity();
       const request = clonePlainRequest(attempt.request);
+      assertRuntimeIntegrity();
       const intent = normalizeWalletGuardIntent({
         requestId: attempt.request_id,
         trustedOrigin: context.origin,
@@ -445,13 +593,16 @@ export function createWalletGuardReferenceProviderGateway(options) {
       });
     },
     executeDownstream: async (preparedInput) => {
+      assertRuntimeIntegrity();
       const prepared = validatePreparedExecution(preparedInput);
       const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      assertRuntimeIntegrity();
       if (!exactContextMatches(prepared, context)) {
         fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
       }
 
       const request = clonePlainRequest(prepared.request);
+      assertRuntimeIntegrity();
       const intent = normalizeWalletGuardIntent({
         requestId: prepared.request_id,
         trustedOrigin: context.origin,
@@ -469,11 +620,13 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the prepared request');
       }
 
+      assertRuntimeIntegrity();
       return provider.request(request);
     },
   });
 
   async function request(untrustedRequest) {
+    assertRuntimeIntegrity();
     // Snapshot caller-owned data before the first asynchronous boundary. Mutating
     // the dApp object after this call cannot change the request later forwarded.
     const requestSnapshot = clonePlainRequest(untrustedRequest);
@@ -481,6 +634,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
 
     const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+    assertRuntimeIntegrity();
     const intent = normalizeWalletGuardIntent({
       requestId,
       trustedOrigin: context.origin,
