@@ -73,6 +73,7 @@ jobs:
         run: |
           python models/tokenomics/test_model.py
           python models/tokenomics/test_review_regressions.py
+          python models/tokenomics/test_exact_ledger_regressions.py
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
