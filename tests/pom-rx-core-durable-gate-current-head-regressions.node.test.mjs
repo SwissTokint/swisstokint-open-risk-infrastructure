@@ -119,8 +119,6 @@ test('inherited Object.prototype.then cannot substitute lstat metadata before ro
         thenCalls += 1;
         try {
           if (typeof this?.mode === 'number' && typeof this?.isDirectory === 'function') {
-            // Reproduce the predecessor attack: make a genuine Stats object look
-            // owner-only, then shadow the inherited hook before resolving it.
             OBJECT_DEFINE_PROPERTY(this, 'then', {
               configurable: true,
               enumerable: false,
@@ -241,13 +239,6 @@ test('persisted records and inspection results are prototype-inert before async 
     const claim = await store.claim(input);
     await store.complete(claim.handle, 'error');
 
-    // Use an inherited getter rather than a universal then-function. This keeps
-    // unrelated Node.js internal objects out of the attack while reproducing the
-    // exact predecessor surface: ordinary persisted records carrying
-    // terminal_state and ordinary inspection records carrying state. The fixed
-    // implementation moves both records to null-prototype snapshots before
-    // Promise resolution, so this inherited hook must never even be selected for
-    // either target channel.
     OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'then', {
       configurable: true,
       enumerable: false,
@@ -377,7 +368,7 @@ test('Linux durable bootstrap fails explicitly when procfs fd paths are unavaila
         }),
         (error) => {
           assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
-          assert.match(error?.message ?? '', /procfs \/proc\/self\/fd/u);
+          assert.equal((error?.message ?? '').includes('procfs /proc/self/fd'), true);
           return true;
         },
       );
