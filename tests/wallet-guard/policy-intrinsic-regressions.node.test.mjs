@@ -77,10 +77,35 @@ function unauthorizedTransfer() {
   };
 }
 
+function allowedTransfer(overrides = {}) {
+  return {
+    method: 'eth_sendTransaction',
+    params: [{
+      from: ACCOUNT,
+      to: RECIPIENT,
+      value: '0x1',
+      data: '0x',
+      ...overrides,
+    }],
+  };
+}
+
 async function assertDeniedWithoutForward(host, pending) {
   const result = await pending;
   assert.equal(result.decision, 'DENY');
   assert.equal(result.forwarded, false);
+  assert.equal(host.testAuthority.inspect().sensitive_call_count, 0);
+  return result;
+}
+
+async function assertMutationFailsClosedWithoutForward(host, pending) {
+  await assert.rejects(
+    pending,
+    (error) => {
+      assert.equal(error?.code, 'POMRX_WG_PROVIDER_E_RUNTIME_MUTATION');
+      return true;
+    },
+  );
   assert.equal(host.testAuthority.inspect().sensitive_call_count, 0);
 }
 
@@ -94,7 +119,23 @@ test('post-await String.prototype.toLowerCase poisoning cannot substitute an all
       const actual = Reflect.apply(originalToLowerCase, this, []);
       return actual === RECIPIENT ? OTHER_ACCOUNT : actual;
     };
-    await assertDeniedWithoutForward(host, pending);
+    await assertMutationFailsClosedWithoutForward(host, pending);
+  } finally {
+    String.prototype.toLowerCase = originalToLowerCase;
+  }
+});
+
+test('post-await provider account normalization cannot be remapped to caller-selected from', async () => {
+  const host = createHost();
+  const pending = host.page.ethereum.request(allowedTransfer({ from: OTHER_ACCOUNT }));
+  const originalToLowerCase = String.prototype.toLowerCase;
+
+  try {
+    String.prototype.toLowerCase = function poisonedProviderAccountLowerCase() {
+      const actual = Reflect.apply(originalToLowerCase, this, []);
+      return actual === ACCOUNT ? OTHER_ACCOUNT : actual;
+    };
+    await assertMutationFailsClosedWithoutForward(host, pending);
   } finally {
     String.prototype.toLowerCase = originalToLowerCase;
   }
@@ -121,34 +162,38 @@ test('post-await Array.prototype.push poisoning cannot erase policy DENY reasons
 test('post-await URL.prototype.origin poisoning cannot remap an allowlisted policy origin', async () => {
   const host = createHost();
   host.testAuthority.setTrustedOrigin(OTHER_ORIGIN);
-  const pending = host.page.ethereum.request({
-    method: 'eth_sendTransaction',
-    params: [{
-      from: ACCOUNT,
-      to: RECIPIENT,
-      value: '0x1',
-      data: '0x',
-    }],
-  });
+  const pending = host.page.ethereum.request(allowedTransfer());
 
   const descriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
   assert.equal(typeof descriptor?.get, 'function');
-  const reads = new WeakMap();
 
   try {
     Object.defineProperty(URL.prototype, 'origin', {
       ...descriptor,
       get() {
         const actual = Reflect.apply(descriptor.get, this, []);
-        if (actual !== ORIGIN) return actual;
-        const next = (reads.get(this) ?? 0) + 1;
-        reads.set(this, next);
-        return next === 1 ? ORIGIN : OTHER_ORIGIN;
+        return actual === OTHER_ORIGIN ? ORIGIN : actual;
       },
     });
-    await assertDeniedWithoutForward(host, pending);
+    await assertMutationFailsClosedWithoutForward(host, pending);
   } finally {
     Object.defineProperty(URL.prototype, 'origin', descriptor);
+  }
+});
+
+test('post-await Set.prototype.has poisoning cannot admit an uncommitted gas field', async () => {
+  const host = createHost();
+  const pending = host.page.ethereum.request(allowedTransfer({ gas: '0x5208' }));
+  const originalHas = Set.prototype.has;
+
+  try {
+    Set.prototype.has = function poisonedHas(value) {
+      if (value === 'gas') return true;
+      return Reflect.apply(originalHas, this, [value]);
+    };
+    await assertMutationFailsClosedWithoutForward(host, pending);
+  } finally {
+    Set.prototype.has = originalHas;
   }
 });
 
