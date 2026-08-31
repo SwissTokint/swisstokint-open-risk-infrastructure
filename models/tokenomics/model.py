@@ -8,11 +8,12 @@ mechanically viable under explicit price, usage, liquidity and staking shocks.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from math import inf, isfinite
+from math import inf, isclose, isfinite
 from typing import Any
 
 
 EPSILON = 1e-9
+REL_TOLERANCE = 1e-12
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class EconomyConfig:
     organic_usage_fraction: float = 1.0
     minimum_organic_usage_fraction_for_survival: float = 0.10
     minimum_organic_actions_per_day_for_survival: float = 1_000.0
+    minimum_organic_fee_usd_per_day_for_survival: float = 1.0
     fee_mode: str = "usd_indexed"
     fee_usd_per_action: float = 0.10
     fixed_token_fee_per_action: float = 0.10
@@ -60,9 +62,11 @@ class SimulationResult:
     emission_realization_fraction: float
     minimum_organic_usage_fraction_for_survival: float
     minimum_organic_actions_per_day_for_survival: float
+    minimum_organic_fee_usd_per_day_for_survival: float
     requested_actions_per_day: float
     average_executed_actions_per_day: float
     average_organic_executed_actions_per_day: float
+    average_organic_fee_usd_per_day: float
     total_requested_actions: float
     total_executed_actions: float
     total_unmet_actions: float
@@ -80,6 +84,8 @@ class SimulationResult:
     total_treasury_tokens: float
     total_validator_exit_tokens: float
     total_slashing_burn_tokens: float
+    total_emission_realization_velocity_tokens: float
+    total_fee_velocity_tokens: float
     starting_supply_tokens: float
     ending_supply_tokens: float
     initial_staked_tokens: float
@@ -90,6 +96,8 @@ class SimulationResult:
     ending_liquid_supply_tokens: float
     ending_realizable_liquid_tokens: float
     required_next_day_liquid_tokens: float
+    required_next_day_liquidity_usd: float
+    ending_realizable_liquidity_usd: float
     net_supply_change_pct: float
     supply_accounting_error_tokens: float
     average_security_budget_usd_per_day: float
@@ -108,6 +116,7 @@ class SimulationResult:
     ending_liquidity_adequate: bool
     usage_served: bool
     organic_fee_demand_present: bool
+    organic_fee_revenue_adequate: bool
     organic_usage_share_adequate: bool
     absolute_organic_demand_adequate: bool
     organic_demand_adequate: bool
@@ -138,13 +147,16 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
     if scenario.usage_multiplier < 0:
         raise ValueError("usage_multiplier must be >= 0")
 
-    if (
-        not isfinite(config.minimum_organic_actions_per_day_for_survival)
-        or config.minimum_organic_actions_per_day_for_survival < 0
-    ):
-        raise ValueError(
-            "minimum_organic_actions_per_day_for_survival must be finite and >= 0"
-        )
+    for name, value in {
+        "minimum_organic_actions_per_day_for_survival": (
+            config.minimum_organic_actions_per_day_for_survival
+        ),
+        "minimum_organic_fee_usd_per_day_for_survival": (
+            config.minimum_organic_fee_usd_per_day_for_survival
+        ),
+    }.items():
+        if not isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and >= 0")
 
     for name, value in {
         "burn_rate": config.burn_rate,
@@ -174,6 +186,20 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         raise ValueError("daily_security_emission_tokens must be >= 0")
 
 
+def _meets_required(actual: float, required: float) -> bool:
+    """Scale-aware lower-bound comparison with no absolute token epsilon."""
+    if required <= 0:
+        return True
+    if actual <= 0:
+        return False
+    return actual >= required or isclose(
+        actual,
+        required,
+        rel_tol=REL_TOLERANCE,
+        abs_tol=0.0,
+    )
+
+
 def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResult:
     """Run a deterministic mechanical stress simulation.
 
@@ -188,13 +214,16 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     emissions therefore cannot become funded security revenue merely by being
     recycled through a fee-paying action.
 
+    Emission realization and fee turnover share one daily token-velocity budget.
+    A token sold/realized from security emissions therefore cannot be counted
+    again as fee turnover on the same day unless the configured velocity exceeds
+    one turnover.
+
     Gross paid fees are tracked, but the conservative survival security budget
     counts only the explicitly organic share of fee-funded security revenue plus
     the explicitly realizable share of emissions. Survival additionally requires
-    both the configured minimum organic share of executed usage and an explicit
-    horizon-independent minimum average level of organic executed actions. A
-    floating-point dust amount of organic activity is therefore not treated as
-    evidence of sustainable demand even when emissions fund the security budget.
+    minimum organic usage share, minimum average organic actions/day and minimum
+    average organic fee revenue/day. All three are horizon-independent.
     """
 
     _validate(config, scenario)
@@ -229,6 +258,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     total_treasury_tokens = 0.0
     total_validator_exit_tokens = 0.0
     total_slashing_burn_tokens = 0.0
+    total_emission_realization_velocity_tokens = 0.0
+    total_fee_velocity_tokens = 0.0
     total_security_budget_usd = 0.0
     total_gross_security_budget_usd = 0.0
     minimum_security_budget_usd = inf
@@ -240,14 +271,11 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_requested_actions += requested_actions_per_day
 
         daily_emission_tokens = config.daily_security_emission_tokens
-        daily_realizable_emission_tokens = (
+        requested_realizable_emission_tokens = (
             daily_emission_tokens * config.emission_realization_fraction
         )
         supply += daily_emission_tokens
-        realizable_liquid_tokens += daily_realizable_emission_tokens
 
-        # Exit is an unbonding transition, not destruction. Exited stake becomes
-        # liquid/realizable inventory and total token supply is unchanged.
         daily_validator_exit_tokens = min(
             staked_tokens,
             staked_tokens * config.validator_exit_rate_per_day,
@@ -255,8 +283,6 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         staked_tokens -= daily_validator_exit_tokens
         realizable_liquid_tokens += daily_validator_exit_tokens
 
-        # Slashing is modeled separately and permanently reduces bonded stake
-        # and total supply.
         daily_slashing_burn_tokens = min(
             staked_tokens,
             staked_tokens * config.slashing_burn_rate_per_day,
@@ -264,12 +290,32 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         staked_tokens -= daily_slashing_burn_tokens
         supply -= daily_slashing_burn_tokens
 
-        liquid_supply = max(supply - staked_tokens, 0.0)
-        realizable_liquid_tokens = min(realizable_liquid_tokens, liquid_supply)
-        requested_fee_tokens = requested_actions_per_day * fee_tokens_per_action
-        max_fee_turnover_tokens = (
-            realizable_liquid_tokens * config.max_daily_token_velocity
+        liquid_supply_before_emission_realization = max(supply - staked_tokens, 0.0)
+        realizable_liquid_tokens = min(
+            realizable_liquid_tokens,
+            liquid_supply_before_emission_realization,
         )
+        provisional_liquid_inventory = min(
+            realizable_liquid_tokens + requested_realizable_emission_tokens,
+            liquid_supply_before_emission_realization,
+        )
+        daily_velocity_capacity_tokens = (
+            provisional_liquid_inventory * config.max_daily_token_velocity
+        )
+        daily_realizable_emission_tokens = min(
+            requested_realizable_emission_tokens,
+            daily_velocity_capacity_tokens,
+        )
+        realizable_liquid_tokens = min(
+            realizable_liquid_tokens + daily_realizable_emission_tokens,
+            liquid_supply_before_emission_realization,
+        )
+        remaining_fee_velocity_tokens = max(
+            daily_velocity_capacity_tokens - daily_realizable_emission_tokens,
+            0.0,
+        )
+
+        requested_fee_tokens = requested_actions_per_day * fee_tokens_per_action
         max_fee_tokens_by_burn = (
             realizable_liquid_tokens / config.burn_rate
             if config.burn_rate > 0
@@ -277,7 +323,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         )
         collectible_fee_tokens = min(
             requested_fee_tokens,
-            max_fee_turnover_tokens,
+            remaining_fee_velocity_tokens,
             max_fee_tokens_by_burn,
         )
 
@@ -300,21 +346,19 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         daily_burn_tokens = min(daily_burn_tokens, realizable_liquid_tokens)
         supply -= daily_burn_tokens
         realizable_liquid_tokens -= daily_burn_tokens
-        if supply < EPSILON:
+        if supply < 0.0:
             supply = 0.0
-        if realizable_liquid_tokens < EPSILON:
+        if realizable_liquid_tokens < 0.0:
             realizable_liquid_tokens = 0.0
         if staked_tokens > supply:
             staked_tokens = supply
 
         realizable_emission_usd = daily_realizable_emission_tokens * token_price
         daily_gross_security_budget_usd = (
-            daily_security_fee_tokens * token_price
-            + realizable_emission_usd
+            daily_security_fee_tokens * token_price + realizable_emission_usd
         )
         daily_security_budget_usd = (
-            daily_organic_security_fee_tokens * token_price
-            + realizable_emission_usd
+            daily_organic_security_fee_tokens * token_price + realizable_emission_usd
         )
         daily_staked_value_usd = staked_tokens * token_price
 
@@ -331,6 +375,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_treasury_tokens += daily_treasury_tokens
         total_validator_exit_tokens += daily_validator_exit_tokens
         total_slashing_burn_tokens += daily_slashing_burn_tokens
+        total_emission_realization_velocity_tokens += daily_realizable_emission_tokens
+        total_fee_velocity_tokens += daily_fee_tokens
         total_security_budget_usd += daily_security_budget_usd
         total_gross_security_budget_usd += daily_gross_security_budget_usd
         minimum_security_budget_usd = min(
@@ -357,9 +403,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     average_security_budget = total_security_budget_usd / scenario.days
     average_gross_security_budget = total_gross_security_budget_usd / scenario.days
     minimum_security_budget = (
-        minimum_security_budget_usd
-        if minimum_security_budget_usd != inf
-        else 0.0
+        minimum_security_budget_usd if minimum_security_budget_usd != inf else 0.0
     )
     minimum_gross_security_budget = (
         minimum_gross_security_budget_usd
@@ -367,8 +411,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         else 0.0
     )
     security_coverage = (
-        minimum_security_budget
-        / config.required_security_budget_usd_per_day
+        minimum_security_budget / config.required_security_budget_usd_per_day
     )
     stake_coverage = minimum_staked_value_usd / config.required_stake_value_usd
 
@@ -377,7 +420,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     stake_adequate = stake_coverage >= 1.0
     total_unmet_actions = max(total_requested_actions - total_executed_actions, 0.0)
     usage_served = total_unmet_actions <= EPSILON
-    organic_fee_demand_present = total_organic_fee_tokens > EPSILON
+
     organic_usage_share = (
         total_organic_executed_actions / total_executed_actions
         if total_executed_actions > EPSILON
@@ -385,6 +428,14 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     )
     average_organic_executed_actions = (
         total_organic_executed_actions / scenario.days
+    )
+    average_organic_fee_usd = (
+        total_organic_fee_tokens * token_price / scenario.days
+    )
+    organic_fee_demand_present = average_organic_fee_usd > 0.0
+    organic_fee_revenue_adequate = _meets_required(
+        average_organic_fee_usd,
+        config.minimum_organic_fee_usd_per_day_for_survival,
     )
     organic_usage_share_adequate = (
         organic_fee_demand_present
@@ -398,24 +449,37 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
     organic_demand_adequate = (
         organic_usage_share_adequate
         and absolute_organic_demand_adequate
+        and organic_fee_revenue_adequate
     )
     supply_positive = supply > EPSILON
     accounting_valid = abs(accounting_error) <= 1e-6
     ending_liquid_supply = max(supply - staked_tokens, 0.0)
 
     requested_fee_tokens_per_day = requested_actions_per_day * fee_tokens_per_action
-    required_for_turnover = (
-        requested_fee_tokens_per_day / config.max_daily_token_velocity
+    next_day_requested_realizable_emission_tokens = (
+        config.daily_security_emission_tokens * config.emission_realization_fraction
+    )
+    required_for_shared_velocity = max(
+        (
+            next_day_requested_realizable_emission_tokens
+            + requested_fee_tokens_per_day
+        )
+        / config.max_daily_token_velocity
+        - next_day_requested_realizable_emission_tokens,
+        0.0,
     )
     required_for_burn = requested_fee_tokens_per_day * config.burn_rate
-    required_next_day_liquid_tokens = max(required_for_turnover, required_for_burn)
-    ending_liquidity_adequate = (
-        realizable_liquid_tokens + EPSILON >= required_next_day_liquid_tokens
+    required_next_day_liquid_tokens = max(
+        required_for_shared_velocity,
+        required_for_burn,
+    )
+    ending_realizable_liquidity_usd = realizable_liquid_tokens * token_price
+    required_next_day_liquidity_usd = required_next_day_liquid_tokens * token_price
+    ending_liquidity_adequate = _meets_required(
+        ending_realizable_liquidity_usd,
+        required_next_day_liquidity_usd,
     )
 
-    # Carry both deterministic stake-loss mechanisms through the next day. Exit
-    # reduces bonded stake but preserves supply; slashing then destroys a fraction
-    # of the stake that remains bonded.
     next_day_validator_exit_tokens = min(
         staked_tokens,
         staked_tokens * config.validator_exit_rate_per_day,
@@ -449,9 +513,13 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         minimum_organic_actions_per_day_for_survival=(
             config.minimum_organic_actions_per_day_for_survival
         ),
+        minimum_organic_fee_usd_per_day_for_survival=(
+            config.minimum_organic_fee_usd_per_day_for_survival
+        ),
         requested_actions_per_day=requested_actions_per_day,
         average_executed_actions_per_day=total_executed_actions / scenario.days,
         average_organic_executed_actions_per_day=average_organic_executed_actions,
+        average_organic_fee_usd_per_day=average_organic_fee_usd,
         total_requested_actions=total_requested_actions,
         total_executed_actions=total_executed_actions,
         total_unmet_actions=total_unmet_actions,
@@ -469,6 +537,10 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         total_treasury_tokens=total_treasury_tokens,
         total_validator_exit_tokens=total_validator_exit_tokens,
         total_slashing_burn_tokens=total_slashing_burn_tokens,
+        total_emission_realization_velocity_tokens=(
+            total_emission_realization_velocity_tokens
+        ),
+        total_fee_velocity_tokens=total_fee_velocity_tokens,
         starting_supply_tokens=config.initial_supply_tokens,
         ending_supply_tokens=supply,
         initial_staked_tokens=initial_staked_tokens,
@@ -479,6 +551,8 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         ending_liquid_supply_tokens=ending_liquid_supply,
         ending_realizable_liquid_tokens=realizable_liquid_tokens,
         required_next_day_liquid_tokens=required_next_day_liquid_tokens,
+        required_next_day_liquidity_usd=required_next_day_liquidity_usd,
+        ending_realizable_liquidity_usd=ending_realizable_liquidity_usd,
         net_supply_change_pct=(
             (supply - config.initial_supply_tokens)
             / config.initial_supply_tokens
@@ -501,6 +575,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         ending_liquidity_adequate=ending_liquidity_adequate,
         usage_served=usage_served,
         organic_fee_demand_present=organic_fee_demand_present,
+        organic_fee_revenue_adequate=organic_fee_revenue_adequate,
         organic_usage_share_adequate=organic_usage_share_adequate,
         absolute_organic_demand_adequate=absolute_organic_demand_adequate,
         organic_demand_adequate=organic_demand_adequate,
@@ -524,12 +599,7 @@ def allocation_for_burn(
     burn_rate: float,
     security_fraction_of_remainder: float = 0.75,
 ) -> tuple[float, float]:
-    """Allocate non-burn fee share between security and treasury.
-
-    This helper keeps burn experiments comparable without silently deleting the
-    remainder of protocol fees. It is a scenario convention, not token policy.
-    """
-
+    """Allocate non-burn fee share between security and treasury."""
     if not 0 <= burn_rate <= 1:
         raise ValueError("burn_rate must be between 0 and 1")
     if not 0 <= security_fraction_of_remainder <= 1:
