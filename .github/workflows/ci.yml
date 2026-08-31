@@ -11,7 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       # Immutable action refs prevent upstream tag retargeting. Update the SHA
       # and its release annotation together after reviewing the upstream diff.
@@ -71,9 +71,12 @@ jobs:
       - run: npm test
       - name: Test tokenomics stress model
         run: |
-          python models/tokenomics/test_model.py
-          python models/tokenomics/test_review_regressions.py
+          # Run the bounded exact-head attack regressions first so a numerical
+          # conservation failure is surfaced promptly rather than hidden behind
+          # the intentionally expensive multi-year scenario sweep.
           python models/tokenomics/test_exact_ledger_regressions.py
+          python models/tokenomics/test_review_regressions.py
+          python models/tokenomics/test_model.py
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
