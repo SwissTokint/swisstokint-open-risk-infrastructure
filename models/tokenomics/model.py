@@ -3,6 +3,12 @@
 This module is deliberately not a price model and does not predict investment
 returns. It tests whether a proposed fee/burn/security allocation remains
 mechanically viable under explicit price, usage, liquidity and staking shocks.
+
+All state and comparisons that can affect a hard survival gate are evaluated
+with the exact rational values represented by the finite float inputs. Floats are
+created only for reporting compatibility. This prevents binary-float product,
+quotient, accumulation, residual and capacity rounding from manufacturing a
+PASS at extreme-but-finite scales.
 """
 
 from __future__ import annotations
@@ -11,9 +17,6 @@ from dataclasses import asdict, dataclass
 from fractions import Fraction
 from math import inf, isfinite
 from typing import Any
-
-
-EPSILON = 1e-9
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,28 @@ class SimulationResult:
         return asdict(self)
 
 
+_ZERO = Fraction(0, 1)
+_ONE = Fraction(1, 1)
+_HUNDRED = Fraction(100, 1)
+
+
+def _q(value: float) -> Fraction:
+    """Return the exact rational represented by one already-validated float."""
+    return Fraction.from_float(value)
+
+
+def _report(value: Fraction) -> float:
+    """Best-effort reporting float; hard gates never consume this conversion."""
+    try:
+        return float(value)
+    except OverflowError:
+        if value > 0:
+            return inf
+        if value < 0:
+            return -inf
+        return 0.0
+
+
 def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
     positive_fields = {
         "initial_supply_tokens": config.initial_supply_tokens,
@@ -165,7 +190,7 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         if not isfinite(value) or value < 0:
             raise ValueError(f"{name} must be finite and >= 0")
 
-    for name, value in {
+    fractions = {
         "burn_rate": config.burn_rate,
         "security_fee_share": config.security_fee_share,
         "treasury_fee_share": config.treasury_fee_share,
@@ -178,315 +203,198 @@ def _validate(config: EconomyConfig, scenario: StressScenario) -> None:
         ),
         "validator_exit_rate_per_day": config.validator_exit_rate_per_day,
         "slashing_burn_rate_per_day": config.slashing_burn_rate_per_day,
-    }.items():
+    }
+    for name, value in fractions.items():
         if not isfinite(value) or not 0 <= value <= 1:
             raise ValueError(f"{name} must be finite and between 0 and 1")
 
-    allocation = config.burn_rate + config.security_fee_share + config.treasury_fee_share
-    if allocation != 1.0:
-        raise ValueError("burn + security + treasury fee shares must equal 1 exactly")
+    exact_allocation = (
+        _q(config.burn_rate)
+        + _q(config.security_fee_share)
+        + _q(config.treasury_fee_share)
+    )
+    if exact_allocation != _ONE:
+        raise ValueError(
+            "burn + security + treasury fee shares must equal 1 in exact represented arithmetic"
+        )
 
     if config.fee_mode not in {"usd_indexed", "token_fixed"}:
         raise ValueError("fee_mode must be 'usd_indexed' or 'token_fixed'")
 
 
-def _meets_required(actual: float, required: float) -> bool:
-    """Conservative hard lower bound: below-threshold values never pass."""
-    if required <= 0:
-        return True
-    return actual >= required
-
-
-def _token_value_meets_required(
-    token_amounts: tuple[float, ...],
-    token_price_usd: float,
-    required_usd: float,
-    *,
-    required_multiplier: int = 1,
-) -> bool:
-    """Compare represented float inputs exactly without product rounding-up."""
-    if required_usd <= 0:
-        return True
-    actual_tokens = sum(
-        (Fraction.from_float(amount) for amount in token_amounts),
-        Fraction(0, 1),
-    )
-    actual_value = actual_tokens * Fraction.from_float(token_price_usd)
-    required_value = Fraction.from_float(required_usd) * required_multiplier
-    return actual_value >= required_value
-
-
 def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResult:
-    """Run a deterministic mechanical stress simulation.
-
-    Token price is an explicit scenario input, never an endogenous prediction.
-    Bonded stake is tracked separately from liquid inventory. Validator exits
-    unbond stake without destroying supply; slashing destroys bonded stake.
-
-    Emission sales, fee turnover and realization of security-fee rewards all
-    consume one shared daily token-velocity budget. Merely receiving a token as a
-    protocol fee is therefore not treated as realizable USD security funding.
-    Fee-funded security tokens contribute to the conservative USD budget only to
-    the explicit ``security_fee_realization_fraction`` and only when remaining
-    velocity permits a distinct realization transfer. Both realization fractions
-    default to zero so the baseline does not silently assume external buyers.
-    """
+    """Run a deterministic mechanical stress simulation with exact hard-gate state."""
 
     _validate(config, scenario)
 
-    token_price = config.initial_price_usd * scenario.price_multiplier
-    if not isfinite(token_price) or token_price <= 0:
-        raise ValueError("token_price_usd must remain finite and > 0")
+    initial_supply = _q(config.initial_supply_tokens)
+    initial_price = _q(config.initial_price_usd)
+    price_multiplier = _q(scenario.price_multiplier)
+    token_price = initial_price * price_multiplier
 
-    requested_actions_per_day = config.daily_actions * scenario.usage_multiplier
-    if not isfinite(requested_actions_per_day) or requested_actions_per_day < 0:
-        raise ValueError("requested_actions_per_day must remain finite and >= 0")
+    daily_actions = _q(config.daily_actions)
+    usage_multiplier = _q(scenario.usage_multiplier)
+    requested_actions_per_day = daily_actions * usage_multiplier
+
+    organic_fraction = _q(config.organic_usage_fraction)
+    min_organic_fraction = _q(config.minimum_organic_usage_fraction_for_survival)
+    min_organic_actions = _q(config.minimum_organic_actions_per_day_for_survival)
+    min_organic_fee_usd = _q(config.minimum_organic_fee_usd_per_day_for_survival)
+
+    burn_rate = _q(config.burn_rate)
+    security_share = _q(config.security_fee_share)
+    treasury_share = _q(config.treasury_fee_share)
+    emission_realization_fraction = _q(config.emission_realization_fraction)
+    security_fee_realization_fraction = _q(config.security_fee_realization_fraction)
+    staked_fraction = _q(config.staked_fraction)
+    exit_rate = _q(config.validator_exit_rate_per_day)
+    slash_rate = _q(config.slashing_burn_rate_per_day)
+    max_velocity = _q(config.max_daily_token_velocity)
+    required_security_usd = _q(config.required_security_budget_usd_per_day)
+    required_stake_usd = _q(config.required_stake_value_usd)
+    max_affordable_fee_usd = _q(config.max_affordable_fee_usd_per_action)
+    daily_emission_tokens = _q(config.daily_security_emission_tokens)
 
     if config.fee_mode == "usd_indexed":
-        actual_fee_usd_per_action = config.fee_usd_per_action
-        fee_tokens_per_action = config.fee_usd_per_action / token_price
+        fee_usd_per_action = _q(config.fee_usd_per_action)
+        actual_fee_usd_per_action = fee_usd_per_action
+        fee_tokens_per_action = fee_usd_per_action / token_price
     else:
-        fee_tokens_per_action = config.fixed_token_fee_per_action
+        fee_tokens_per_action = _q(config.fixed_token_fee_per_action)
         actual_fee_usd_per_action = fee_tokens_per_action * token_price
 
-    if not isfinite(actual_fee_usd_per_action):
-        raise ValueError("actual_fee_usd_per_action must remain finite")
-    if not isfinite(fee_tokens_per_action):
-        raise ValueError("fee_tokens_per_action must remain finite")
+    fee_affordable = actual_fee_usd_per_action <= max_affordable_fee_usd
 
-    supply = config.initial_supply_tokens
-    initial_staked_tokens = supply * config.staked_fraction
+    supply = initial_supply
+    initial_staked_tokens = supply * staked_fraction
     staked_tokens = initial_staked_tokens
-    initial_realizable_liquid_tokens = max(supply - staked_tokens, 0.0)
+    initial_realizable_liquid_tokens = supply - staked_tokens
     realizable_liquid_tokens = initial_realizable_liquid_tokens
 
-    total_requested_actions = 0.0
-    total_executed_actions = 0.0
-    total_organic_executed_actions = 0.0
-    total_fee_tokens = 0.0
-    total_organic_fee_tokens = 0.0
-    total_burn_tokens = 0.0
-    total_security_fee_tokens = 0.0
-    total_organic_security_fee_tokens = 0.0
-    total_realizable_security_fee_tokens = 0.0
-    total_realizable_security_fee_usd = 0.0
-    total_security_emission_tokens = 0.0
-    total_realizable_security_emission_tokens = 0.0
-    total_realizable_security_emission_usd = 0.0
-    total_treasury_tokens = 0.0
-    total_validator_exit_tokens = 0.0
-    total_slashing_burn_tokens = 0.0
-    total_emission_realization_velocity_tokens = 0.0
-    total_fee_velocity_tokens = 0.0
-    total_security_fee_realization_velocity_tokens = 0.0
-    total_security_budget_usd = 0.0
-    total_gross_security_budget_usd = 0.0
-    minimum_security_budget_usd: float | None = None
-    minimum_gross_security_budget_usd: float | None = None
+    total_requested_actions = _ZERO
+    total_executed_actions = _ZERO
+    total_organic_executed_actions = _ZERO
+    total_fee_tokens = _ZERO
+    total_organic_fee_tokens = _ZERO
+    total_burn_tokens = _ZERO
+    total_security_fee_tokens = _ZERO
+    total_organic_security_fee_tokens = _ZERO
+    total_realizable_security_fee_tokens = _ZERO
+    total_realizable_security_fee_usd = _ZERO
+    total_security_emission_tokens = _ZERO
+    total_realizable_security_emission_tokens = _ZERO
+    total_realizable_security_emission_usd = _ZERO
+    total_treasury_tokens = _ZERO
+    total_validator_exit_tokens = _ZERO
+    total_slashing_burn_tokens = _ZERO
+    total_emission_realization_velocity_tokens = _ZERO
+    total_fee_velocity_tokens = _ZERO
+    total_security_fee_realization_velocity_tokens = _ZERO
+    total_security_budget_usd = _ZERO
+    total_gross_security_budget_usd = _ZERO
+
+    minimum_security_budget_usd: Fraction | None = None
+    minimum_gross_security_budget_usd: Fraction | None = None
     minimum_staked_tokens = staked_tokens
     minimum_staked_value_usd = staked_tokens * token_price
-    validator_exit_residual_tokens = 0.0
-    slashing_stake_residual_tokens = 0.0
-    slashing_supply_residual_tokens = 0.0
-    fee_burn_liquid_residual_tokens = 0.0
-    fee_burn_supply_residual_tokens = 0.0
     usage_served = True
     security_budget_adequate_all_days = True
 
     for _ in range(scenario.days):
         total_requested_actions += requested_actions_per_day
 
-        daily_emission_tokens = config.daily_security_emission_tokens
         requested_realizable_emission_tokens = (
-            daily_emission_tokens * config.emission_realization_fraction
+            daily_emission_tokens * emission_realization_fraction
         )
         supply += daily_emission_tokens
 
-        daily_validator_exit_target_tokens = (
-            staked_tokens * config.validator_exit_rate_per_day
-            + validator_exit_residual_tokens
-        )
-        requested_validator_exit_tokens = min(
-            staked_tokens,
-            max(daily_validator_exit_target_tokens, 0.0),
-        )
-        post_exit_staked_tokens = max(
-            staked_tokens - requested_validator_exit_tokens,
-            0.0,
-        )
-        daily_validator_exit_tokens = staked_tokens - post_exit_staked_tokens
-        validator_exit_residual_tokens = (
-            daily_validator_exit_target_tokens - daily_validator_exit_tokens
-        )
-        if post_exit_staked_tokens <= 0.0:
-            validator_exit_residual_tokens = 0.0
-        staked_tokens = post_exit_staked_tokens
+        daily_validator_exit_tokens = min(staked_tokens, staked_tokens * exit_rate)
+        staked_tokens -= daily_validator_exit_tokens
         realizable_liquid_tokens += daily_validator_exit_tokens
 
-        nominal_daily_slashing_tokens = min(
-            staked_tokens,
-            staked_tokens * config.slashing_burn_rate_per_day,
-        )
+        daily_slashing_burn_tokens = min(staked_tokens, staked_tokens * slash_rate)
+        staked_tokens -= daily_slashing_burn_tokens
+        supply -= daily_slashing_burn_tokens
 
-        # Preserve destructive slashing smaller than the current float ULP.
-        # Bonded stake and total supply can have different ULPs, so each state
-        # carries its own signed error-feedback residual while consuming the
-        # same nominal slash target.
-        stake_slash_target = min(
-            staked_tokens,
-            max(nominal_daily_slashing_tokens + slashing_stake_residual_tokens, 0.0),
-        )
-        post_slash_staked_tokens = max(staked_tokens - stake_slash_target, 0.0)
-        actual_stake_slash_tokens = staked_tokens - post_slash_staked_tokens
-        slashing_stake_residual_tokens = (
-            nominal_daily_slashing_tokens
-            + slashing_stake_residual_tokens
-            - actual_stake_slash_tokens
-        )
-        if post_slash_staked_tokens <= 0.0:
-            slashing_stake_residual_tokens = 0.0
-
-        supply_slash_target = min(
-            supply,
-            max(nominal_daily_slashing_tokens + slashing_supply_residual_tokens, 0.0),
-        )
-        post_slash_supply_tokens = max(supply - supply_slash_target, 0.0)
-        daily_slashing_burn_tokens = supply - post_slash_supply_tokens
-        slashing_supply_residual_tokens = (
-            nominal_daily_slashing_tokens
-            + slashing_supply_residual_tokens
-            - daily_slashing_burn_tokens
-        )
-        if post_slash_supply_tokens <= 0.0:
-            slashing_supply_residual_tokens = 0.0
-
-        staked_tokens = post_slash_staked_tokens
-        supply = post_slash_supply_tokens
-
-        liquid_supply_before_emission_realization = max(supply - staked_tokens, 0.0)
+        liquid_supply_before_realization = max(supply - staked_tokens, _ZERO)
         realizable_liquid_tokens = min(
             realizable_liquid_tokens,
-            liquid_supply_before_emission_realization,
+            liquid_supply_before_realization,
         )
+
         provisional_liquid_inventory = min(
             realizable_liquid_tokens + requested_realizable_emission_tokens,
-            liquid_supply_before_emission_realization,
+            liquid_supply_before_realization,
         )
-        daily_velocity_capacity_tokens = (
-            provisional_liquid_inventory * config.max_daily_token_velocity
-        )
+        daily_velocity_capacity_tokens = provisional_liquid_inventory * max_velocity
+
         daily_realizable_emission_tokens = min(
             requested_realizable_emission_tokens,
             daily_velocity_capacity_tokens,
         )
         realizable_liquid_tokens = min(
             realizable_liquid_tokens + daily_realizable_emission_tokens,
-            liquid_supply_before_emission_realization,
+            liquid_supply_before_realization,
         )
-        remaining_fee_velocity_tokens = max(
-            daily_velocity_capacity_tokens - daily_realizable_emission_tokens,
-            0.0,
+        remaining_fee_velocity_tokens = (
+            daily_velocity_capacity_tokens - daily_realizable_emission_tokens
         )
 
         requested_fee_tokens = requested_actions_per_day * fee_tokens_per_action
-        if not isfinite(requested_fee_tokens):
-            raise ValueError("requested_fee_tokens must remain finite")
-
-        max_fee_tokens_by_burn = (
-            realizable_liquid_tokens / config.burn_rate
-            if config.burn_rate > 0
-            else inf
-        )
-        collectible_fee_tokens = min(
+        fee_capacity_candidates = [
             requested_fee_tokens,
             remaining_fee_velocity_tokens,
-            max_fee_tokens_by_burn,
-        )
-        fee_capacity_served = collectible_fee_tokens >= requested_fee_tokens
-        if not fee_capacity_served:
+        ]
+        if burn_rate > 0:
+            fee_capacity_candidates.append(realizable_liquid_tokens / burn_rate)
+        collectible_fee_tokens = max(min(fee_capacity_candidates), _ZERO)
+
+        if collectible_fee_tokens < requested_fee_tokens:
             usage_served = False
 
         if fee_tokens_per_action > 0:
             executed_actions = collectible_fee_tokens / fee_tokens_per_action
         else:
             executed_actions = requested_actions_per_day
-
         executed_actions = min(executed_actions, requested_actions_per_day)
-        organic_executed_actions = executed_actions * config.organic_usage_fraction
-        # Fee accounting follows the capacity-constrained token amount directly.
-        # Reconstructing it from a rounded action quotient can recreate tokens
-        # that were never collectible at large floating-point scales.
+
+        organic_executed_actions = executed_actions * organic_fraction
         daily_fee_tokens = collectible_fee_tokens
-        daily_organic_fee_tokens = daily_fee_tokens * config.organic_usage_fraction
-        nominal_daily_burn_tokens = daily_fee_tokens * config.burn_rate
-        fee_tokens_after_burn = max(daily_fee_tokens - nominal_daily_burn_tokens, 0.0)
-        # Derive the final allocation from the remaining collected fee instead
-        # of independently adding three rounded products. This makes value
-        # creation impossible even at extreme magnitudes.
-        daily_security_fee_tokens = min(
-            daily_fee_tokens * config.security_fee_share,
-            fee_tokens_after_burn,
-        )
-        daily_treasury_tokens = max(
-            fee_tokens_after_burn - daily_security_fee_tokens,
-            0.0,
-        )
+        daily_organic_fee_tokens = daily_fee_tokens * organic_fraction
+
+        daily_burn_tokens = daily_fee_tokens * burn_rate
+        daily_security_fee_tokens = daily_fee_tokens * security_share
+        daily_treasury_tokens = daily_fee_tokens * treasury_share
+
+        if (
+            daily_burn_tokens
+            + daily_security_fee_tokens
+            + daily_treasury_tokens
+            != daily_fee_tokens
+        ):
+            raise AssertionError("exact fee partition lost conservation")
+
         daily_organic_security_fee_tokens = (
-            daily_security_fee_tokens * config.organic_usage_fraction
+            daily_security_fee_tokens * organic_fraction
         )
 
-        # Preserve sub-ULP fee burns separately in total-supply and realizable
-        # liquid state. Each state carries the rounding error until it becomes
-        # representable; survival gates consume the corrected states.
-        liquid_burn_target = min(
-            realizable_liquid_tokens,
-            max(nominal_daily_burn_tokens + fee_burn_liquid_residual_tokens, 0.0),
-        )
-        post_burn_liquid_tokens = max(
-            realizable_liquid_tokens - liquid_burn_target,
-            0.0,
-        )
-        actual_liquid_burn_tokens = (
-            realizable_liquid_tokens - post_burn_liquid_tokens
-        )
-        fee_burn_liquid_residual_tokens = (
-            nominal_daily_burn_tokens
-            + fee_burn_liquid_residual_tokens
-            - actual_liquid_burn_tokens
-        )
-        if post_burn_liquid_tokens <= 0.0:
-            fee_burn_liquid_residual_tokens = 0.0
-
-        supply_burn_target = min(
-            supply,
-            max(nominal_daily_burn_tokens + fee_burn_supply_residual_tokens, 0.0),
-        )
-        post_burn_supply_tokens = max(supply - supply_burn_target, 0.0)
-        daily_burn_tokens = supply - post_burn_supply_tokens
-        fee_burn_supply_residual_tokens = (
-            nominal_daily_burn_tokens
-            + fee_burn_supply_residual_tokens
-            - daily_burn_tokens
-        )
-        if post_burn_supply_tokens <= 0.0:
-            fee_burn_supply_residual_tokens = 0.0
-
-        supply = post_burn_supply_tokens
-        realizable_liquid_tokens = post_burn_liquid_tokens
+        supply -= daily_burn_tokens
+        realizable_liquid_tokens -= daily_burn_tokens
+        if supply < 0 or realizable_liquid_tokens < 0:
+            raise AssertionError("exact burn exceeded available state")
         if staked_tokens > supply:
             staked_tokens = supply
 
-        remaining_security_fee_realization_velocity_tokens = max(
+        remaining_security_realization_velocity = max(
             remaining_fee_velocity_tokens - daily_fee_tokens,
-            0.0,
+            _ZERO,
         )
         requested_realizable_security_fee_tokens = (
-            daily_organic_security_fee_tokens
-            * config.security_fee_realization_fraction
+            daily_organic_security_fee_tokens * security_fee_realization_fraction
         )
         daily_realizable_security_fee_tokens = min(
             requested_realizable_security_fee_tokens,
-            remaining_security_fee_realization_velocity_tokens,
+            remaining_security_realization_velocity,
         )
 
         realizable_emission_usd = daily_realizable_emission_tokens * token_price
@@ -499,12 +407,9 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         daily_security_budget_usd = (
             realizable_security_fee_usd + realizable_emission_usd
         )
-        if not _token_value_meets_required(
-            (daily_realizable_security_fee_tokens, daily_realizable_emission_tokens),
-            token_price,
-            config.required_security_budget_usd_per_day,
-        ):
+        if daily_security_budget_usd < required_security_usd:
             security_budget_adequate_all_days = False
+
         daily_staked_value_usd = staked_tokens * token_price
 
         total_executed_actions += executed_actions
@@ -529,6 +434,7 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         )
         total_security_budget_usd += daily_security_budget_usd
         total_gross_security_budget_usd += daily_gross_security_budget_usd
+
         minimum_security_budget_usd = (
             daily_security_budget_usd
             if minimum_security_budget_usd is None
@@ -545,84 +451,80 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             daily_staked_value_usd,
         )
 
+    days_q = Fraction(scenario.days, 1)
     expected_ending_supply = (
-        config.initial_supply_tokens
+        initial_supply
         + total_security_emission_tokens
         - total_burn_tokens
         - total_slashing_burn_tokens
     )
     accounting_error = supply - expected_ending_supply
-    average_security_budget = total_security_budget_usd / scenario.days
-    average_gross_security_budget = total_gross_security_budget_usd / scenario.days
+    accounting_valid = accounting_error == 0
+
+    average_security_budget = total_security_budget_usd / days_q
+    average_gross_security_budget = total_gross_security_budget_usd / days_q
     minimum_security_budget = (
-        minimum_security_budget_usd if minimum_security_budget_usd is not None else 0.0
+        minimum_security_budget_usd
+        if minimum_security_budget_usd is not None
+        else _ZERO
     )
     minimum_gross_security_budget = (
         minimum_gross_security_budget_usd
         if minimum_gross_security_budget_usd is not None
-        else 0.0
+        else _ZERO
     )
-    security_coverage = (
-        minimum_security_budget / config.required_security_budget_usd_per_day
-    )
-    stake_coverage = minimum_staked_value_usd / config.required_stake_value_usd
+    security_coverage = minimum_security_budget / required_security_usd
+    stake_coverage = minimum_staked_value_usd / required_stake_usd
 
-    fee_affordable = actual_fee_usd_per_action <= config.max_affordable_fee_usd_per_action
     security_budget_adequate = security_budget_adequate_all_days
-    stake_adequate = _token_value_meets_required(
-        (minimum_staked_tokens,),
-        token_price,
-        config.required_stake_value_usd,
+    stake_adequate = minimum_staked_value_usd >= required_stake_usd
+    total_unmet_actions = max(
+        total_requested_actions - total_executed_actions,
+        _ZERO,
     )
-    total_unmet_actions = max(total_requested_actions - total_executed_actions, 0.0)
 
     organic_usage_share = (
         total_organic_executed_actions / total_executed_actions
-        if total_executed_actions > EPSILON
-        else 0.0
+        if total_executed_actions > 0
+        else _ZERO
     )
     average_organic_executed_actions = (
-        total_organic_executed_actions / scenario.days
+        total_organic_executed_actions / days_q
     )
     average_organic_fee_usd = (
-        total_organic_fee_tokens * token_price / scenario.days
+        total_organic_fee_tokens * token_price / days_q
     )
-    organic_fee_demand_present = total_organic_fee_tokens > 0.0
-    organic_fee_revenue_adequate = _token_value_meets_required(
-        (total_organic_fee_tokens,),
-        token_price,
-        config.minimum_organic_fee_usd_per_day_for_survival,
-        required_multiplier=scenario.days,
+    organic_fee_demand_present = total_organic_fee_tokens > 0
+    organic_fee_revenue_adequate = (
+        average_organic_fee_usd >= min_organic_fee_usd
     )
     organic_usage_share_adequate = (
         organic_fee_demand_present
-        and _meets_required(
-            organic_usage_share,
-            config.minimum_organic_usage_fraction_for_survival,
-        )
+        and organic_usage_share >= min_organic_fraction
     )
-    absolute_organic_demand_adequate = _meets_required(
-        average_organic_executed_actions,
-        config.minimum_organic_actions_per_day_for_survival,
+    absolute_organic_demand_adequate = (
+        average_organic_executed_actions >= min_organic_actions
     )
     organic_demand_adequate = (
         organic_usage_share_adequate
         and absolute_organic_demand_adequate
         and organic_fee_revenue_adequate
     )
-    supply_positive = supply > EPSILON
-    accounting_valid = abs(accounting_error) <= 1e-6
-    ending_liquid_supply = max(supply - staked_tokens, 0.0)
 
-    requested_fee_tokens_per_day = requested_actions_per_day * fee_tokens_per_action
+    supply_positive = supply > 0
+    ending_liquid_supply = max(supply - staked_tokens, _ZERO)
+
+    requested_fee_tokens_per_day = (
+        requested_actions_per_day * fee_tokens_per_action
+    )
     next_day_requested_realizable_emission_tokens = (
-        config.daily_security_emission_tokens * config.emission_realization_fraction
+        daily_emission_tokens * emission_realization_fraction
     )
     next_day_requested_security_fee_realization_tokens = (
         requested_fee_tokens_per_day
-        * config.organic_usage_fraction
-        * config.security_fee_share
-        * config.security_fee_realization_fraction
+        * organic_fraction
+        * security_share
+        * security_fee_realization_fraction
     )
     required_for_shared_velocity = max(
         (
@@ -630,60 +532,46 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
             + requested_fee_tokens_per_day
             + next_day_requested_security_fee_realization_tokens
         )
-        / config.max_daily_token_velocity
+        / max_velocity
         - next_day_requested_realizable_emission_tokens,
-        0.0,
+        _ZERO,
     )
-    required_for_burn = requested_fee_tokens_per_day * config.burn_rate
+    required_for_burn = requested_fee_tokens_per_day * burn_rate
     required_next_day_liquid_tokens = max(
         required_for_shared_velocity,
         required_for_burn,
     )
     ending_realizable_liquidity_usd = realizable_liquid_tokens * token_price
-    required_next_day_liquidity_usd = required_next_day_liquid_tokens * token_price
+    required_next_day_liquidity_usd = (
+        required_next_day_liquid_tokens * token_price
+    )
     ending_liquidity_adequate = (
-        required_next_day_liquid_tokens <= 0.0
+        required_next_day_liquid_tokens <= 0
         or realizable_liquid_tokens >= required_next_day_liquid_tokens
     )
 
-    next_day_validator_exit_target_tokens = (
-        staked_tokens * config.validator_exit_rate_per_day
-        + validator_exit_residual_tokens
-    )
-    next_day_requested_validator_exit_tokens = min(
-        staked_tokens,
-        max(next_day_validator_exit_target_tokens, 0.0),
-    )
-    next_day_after_exit_tokens = max(
-        staked_tokens - next_day_requested_validator_exit_tokens,
-        0.0,
-    )
-    next_day_slashing_target_tokens = (
-        next_day_after_exit_tokens * config.slashing_burn_rate_per_day
-        + slashing_stake_residual_tokens
-    )
+    next_day_validator_exit_tokens = min(staked_tokens, staked_tokens * exit_rate)
+    next_day_after_exit_tokens = staked_tokens - next_day_validator_exit_tokens
     next_day_slashing_burn_tokens = min(
         next_day_after_exit_tokens,
-        max(next_day_slashing_target_tokens, 0.0),
+        next_day_after_exit_tokens * slash_rate,
     )
     next_day_staked_tokens = (
         next_day_after_exit_tokens - next_day_slashing_burn_tokens
     )
     next_day_staked_value_usd = next_day_staked_tokens * token_price
-    next_day_stake_coverage = (
-        next_day_staked_value_usd / config.required_stake_value_usd
-    )
-    next_day_stake_adequate = _token_value_meets_required(
-        (next_day_staked_tokens,),
-        token_price,
-        config.required_stake_value_usd,
+    next_day_stake_coverage = next_day_staked_value_usd / required_stake_usd
+    next_day_stake_adequate = next_day_staked_value_usd >= required_stake_usd
+
+    net_supply_change_pct = (
+        (supply - initial_supply) / initial_supply * _HUNDRED
     )
 
     return SimulationResult(
         scenario=scenario.name,
         fee_mode=config.fee_mode,
         days=scenario.days,
-        token_price_usd=token_price,
+        token_price_usd=_report(token_price),
         configured_staked_fraction=config.staked_fraction,
         validator_exit_rate_per_day=config.validator_exit_rate_per_day,
         slashing_burn_rate_per_day=config.slashing_burn_rate_per_day,
@@ -698,63 +586,71 @@ def simulate(config: EconomyConfig, scenario: StressScenario) -> SimulationResul
         minimum_organic_fee_usd_per_day_for_survival=(
             config.minimum_organic_fee_usd_per_day_for_survival
         ),
-        requested_actions_per_day=requested_actions_per_day,
-        average_executed_actions_per_day=total_executed_actions / scenario.days,
-        average_organic_executed_actions_per_day=average_organic_executed_actions,
-        average_organic_fee_usd_per_day=average_organic_fee_usd,
-        total_requested_actions=total_requested_actions,
-        total_executed_actions=total_executed_actions,
-        total_unmet_actions=total_unmet_actions,
-        total_organic_executed_actions=total_organic_executed_actions,
-        organic_usage_share=organic_usage_share,
-        actual_fee_usd_per_action=actual_fee_usd_per_action,
-        total_fee_tokens=total_fee_tokens,
-        total_organic_fee_tokens=total_organic_fee_tokens,
-        total_burn_tokens=total_burn_tokens,
-        total_security_fee_tokens=total_security_fee_tokens,
-        total_organic_security_fee_tokens=total_organic_security_fee_tokens,
-        total_realizable_security_fee_tokens=total_realizable_security_fee_tokens,
-        total_realizable_security_fee_usd=total_realizable_security_fee_usd,
-        total_security_emission_tokens=total_security_emission_tokens,
-        total_realizable_security_emission_tokens=total_realizable_security_emission_tokens,
-        total_realizable_security_emission_usd=total_realizable_security_emission_usd,
-        total_treasury_tokens=total_treasury_tokens,
-        total_validator_exit_tokens=total_validator_exit_tokens,
-        total_slashing_burn_tokens=total_slashing_burn_tokens,
-        total_emission_realization_velocity_tokens=(
+        requested_actions_per_day=_report(requested_actions_per_day),
+        average_executed_actions_per_day=_report(total_executed_actions / days_q),
+        average_organic_executed_actions_per_day=_report(
+            average_organic_executed_actions
+        ),
+        average_organic_fee_usd_per_day=_report(average_organic_fee_usd),
+        total_requested_actions=_report(total_requested_actions),
+        total_executed_actions=_report(total_executed_actions),
+        total_unmet_actions=_report(total_unmet_actions),
+        total_organic_executed_actions=_report(total_organic_executed_actions),
+        organic_usage_share=_report(organic_usage_share),
+        actual_fee_usd_per_action=_report(actual_fee_usd_per_action),
+        total_fee_tokens=_report(total_fee_tokens),
+        total_organic_fee_tokens=_report(total_organic_fee_tokens),
+        total_burn_tokens=_report(total_burn_tokens),
+        total_security_fee_tokens=_report(total_security_fee_tokens),
+        total_organic_security_fee_tokens=_report(total_organic_security_fee_tokens),
+        total_realizable_security_fee_tokens=_report(
+            total_realizable_security_fee_tokens
+        ),
+        total_realizable_security_fee_usd=_report(total_realizable_security_fee_usd),
+        total_security_emission_tokens=_report(total_security_emission_tokens),
+        total_realizable_security_emission_tokens=_report(
+            total_realizable_security_emission_tokens
+        ),
+        total_realizable_security_emission_usd=_report(
+            total_realizable_security_emission_usd
+        ),
+        total_treasury_tokens=_report(total_treasury_tokens),
+        total_validator_exit_tokens=_report(total_validator_exit_tokens),
+        total_slashing_burn_tokens=_report(total_slashing_burn_tokens),
+        total_emission_realization_velocity_tokens=_report(
             total_emission_realization_velocity_tokens
         ),
-        total_fee_velocity_tokens=total_fee_velocity_tokens,
-        total_security_fee_realization_velocity_tokens=(
+        total_fee_velocity_tokens=_report(total_fee_velocity_tokens),
+        total_security_fee_realization_velocity_tokens=_report(
             total_security_fee_realization_velocity_tokens
         ),
         starting_supply_tokens=config.initial_supply_tokens,
-        ending_supply_tokens=supply,
-        initial_staked_tokens=initial_staked_tokens,
-        ending_staked_tokens=staked_tokens,
-        minimum_staked_tokens=minimum_staked_tokens,
-        next_day_staked_tokens=next_day_staked_tokens,
-        initial_realizable_liquid_tokens=initial_realizable_liquid_tokens,
-        ending_liquid_supply_tokens=ending_liquid_supply,
-        ending_realizable_liquid_tokens=realizable_liquid_tokens,
-        required_next_day_liquid_tokens=required_next_day_liquid_tokens,
-        required_next_day_liquidity_usd=required_next_day_liquidity_usd,
-        ending_realizable_liquidity_usd=ending_realizable_liquidity_usd,
-        net_supply_change_pct=(
-            (supply - config.initial_supply_tokens)
-            / config.initial_supply_tokens
-            * 100.0
+        ending_supply_tokens=_report(supply),
+        initial_staked_tokens=_report(initial_staked_tokens),
+        ending_staked_tokens=_report(staked_tokens),
+        minimum_staked_tokens=_report(minimum_staked_tokens),
+        next_day_staked_tokens=_report(next_day_staked_tokens),
+        initial_realizable_liquid_tokens=_report(initial_realizable_liquid_tokens),
+        ending_liquid_supply_tokens=_report(ending_liquid_supply),
+        ending_realizable_liquid_tokens=_report(realizable_liquid_tokens),
+        required_next_day_liquid_tokens=_report(required_next_day_liquid_tokens),
+        required_next_day_liquidity_usd=_report(required_next_day_liquidity_usd),
+        ending_realizable_liquidity_usd=_report(ending_realizable_liquidity_usd),
+        net_supply_change_pct=_report(net_supply_change_pct),
+        supply_accounting_error_tokens=_report(accounting_error),
+        average_security_budget_usd_per_day=_report(average_security_budget),
+        minimum_security_budget_usd_per_day=_report(minimum_security_budget),
+        average_gross_security_budget_usd_per_day=_report(
+            average_gross_security_budget
         ),
-        supply_accounting_error_tokens=accounting_error,
-        average_security_budget_usd_per_day=average_security_budget,
-        minimum_security_budget_usd_per_day=minimum_security_budget,
-        average_gross_security_budget_usd_per_day=average_gross_security_budget,
-        minimum_gross_security_budget_usd_per_day=minimum_gross_security_budget,
-        security_coverage_ratio=security_coverage,
-        minimum_staked_value_usd=minimum_staked_value_usd,
-        stake_coverage_ratio=stake_coverage,
-        next_day_staked_value_usd=next_day_staked_value_usd,
-        next_day_stake_coverage_ratio=next_day_stake_coverage,
+        minimum_gross_security_budget_usd_per_day=_report(
+            minimum_gross_security_budget
+        ),
+        security_coverage_ratio=_report(security_coverage),
+        minimum_staked_value_usd=_report(minimum_staked_value_usd),
+        stake_coverage_ratio=_report(stake_coverage),
+        next_day_staked_value_usd=_report(next_day_staked_value_usd),
+        next_day_stake_coverage_ratio=_report(next_day_stake_coverage),
         fee_affordable=fee_affordable,
         security_budget_adequate=security_budget_adequate,
         stake_adequate=stake_adequate,
@@ -787,12 +683,19 @@ def allocation_for_burn(
     security_fraction_of_remainder: float = 0.75,
 ) -> tuple[float, float]:
     """Allocate non-burn fee share between security and treasury."""
-    if not 0 <= burn_rate <= 1:
-        raise ValueError("burn_rate must be between 0 and 1")
-    if not 0 <= security_fraction_of_remainder <= 1:
-        raise ValueError("security_fraction_of_remainder must be between 0 and 1")
+    if not isfinite(burn_rate) or not 0 <= burn_rate <= 1:
+        raise ValueError("burn_rate must be finite and between 0 and 1")
+    if (
+        not isfinite(security_fraction_of_remainder)
+        or not 0 <= security_fraction_of_remainder <= 1
+    ):
+        raise ValueError(
+            "security_fraction_of_remainder must be finite and between 0 and 1"
+        )
 
-    remainder = 1.0 - burn_rate
-    security_share = remainder * security_fraction_of_remainder
+    burn = _q(burn_rate)
+    security_fraction = _q(security_fraction_of_remainder)
+    remainder = _ONE - burn
+    security_share = remainder * security_fraction
     treasury_share = remainder - security_share
-    return security_share, treasury_share
+    return _report(security_share), _report(treasury_share)
