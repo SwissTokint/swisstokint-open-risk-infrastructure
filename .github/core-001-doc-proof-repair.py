@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 
 def replace_once(path: str, old: str, new: str) -> None:
@@ -12,14 +13,15 @@ def replace_once(path: str, old: str, new: str) -> None:
     p.write_text(text.replace(old, new, 1))
 
 
-path = "core/gate/reference-durable-claim-store.mjs"
+store_path = "core/gate/reference-durable-claim-store.mjs"
+composition_path = "core/gate/reference-durable-single-use-gate.mjs"
 
 # P1: do not allow a post-import mutation of Promise[Symbol.species] to control
 # chaining from public durable-store promises. Pin an inert constructor carrier
 # with an own immutable @@species=%Promise% exactly as the reviewed composed Gate
 # already does.
 replace_once(
-    path,
+    store_path,
     "const PROMISE_CONSTRUCTOR = Promise;\n"
     "const PROMISE_THEN = Promise.prototype.then;\n"
     "const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{\n"
@@ -65,7 +67,7 @@ replace_once(
 )
 
 replace_once(
-    path,
+    store_path,
     "function stabilizePromise(promise) {\n"
     "  // Await performs PromiseResolve(%Promise%, value). Immutable own captured\n"
     "  // constructor/then data properties prevent post-import Promise-prototype\n"
@@ -81,7 +83,7 @@ replace_once(
 # node:fs/promises before Core can stabilize it. Use the captured callback API so
 # Core creates and pins the only Promise in this adapter.
 replace_once(
-    path,
+    store_path,
     "  readFileSync as readFileSyncCallback,\n"
     "  realpathSync as realpathSyncCallback,\n",
     "  readFileSync as readFileSyncCallback,\n"
@@ -89,7 +91,7 @@ replace_once(
     "  realpathSync as realpathSyncCallback,\n",
 )
 replace_once(
-    path,
+    store_path,
     "  readFile,\n"
     "  realpath,\n"
     "  unlink,\n"
@@ -99,12 +101,12 @@ replace_once(
     "} from 'node:fs/promises';\n",
 )
 replace_once(
-    path,
+    store_path,
     "const FS_REALPATH = realpath;\n",
     "const FS_REALPATH = realpathCallback;\n",
 )
 replace_once(
-    path,
+    store_path,
     "function fsRealpath(filePath) {\n"
     "  return stabilizePromise(REFLECT_APPLY(FS_REALPATH, undefined, [filePath]));\n"
     "}\n",
@@ -118,14 +120,56 @@ replace_once(
     "}\n",
 )
 
-# Refuse accidental scope growth: this bounded repair must touch only the durable
-# store implementation; the existing exact-head regressions remain unchanged.
+# The composed Gate and standalone store are separate Core primitives and create
+# distinct inert species-carrier objects. Accept a structurally exact safe carrier
+# rather than requiring object identity, while still rejecting mutable/accessor/
+# prototype-bearing constructor channels.
+anchor = (
+    "const PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR = makePromiseDescriptor(stablePromiseFinally);\n"
+    "\n"
+    "function stabilizePromise(promise) {\n"
+)
+replacement = (
+    "const PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR = makePromiseDescriptor(stablePromiseFinally);\n"
+    "\n"
+    "function isSafePromiseSpeciesCarrier(value) {\n"
+    "  if (value === null\n"
+    "      || typeof value !== 'object'\n"
+    "      || isProxy(value)\n"
+    "      || objectGetPrototypeOf(value) !== null\n"
+    "      || objectGetOwnPropertyNames(value).length !== 0) {\n"
+    "    return false;\n"
+    "  }\n"
+    "  const symbols = objectGetOwnPropertySymbols(value);\n"
+    "  if (symbols.length !== 1 || symbols[0] !== PROMISE_SPECIES_KEY) return false;\n"
+    "  const descriptor = objectGetOwnPropertyDescriptors(value)[PROMISE_SPECIES_KEY];\n"
+    "  return Boolean(descriptor)\n"
+    "    && objectHasOwn(descriptor, 'value')\n"
+    "    && descriptor.value === PROMISE_CONSTRUCTOR\n"
+    "    && descriptor.enumerable === false\n"
+    "    && descriptor.writable === false\n"
+    "    && descriptor.configurable === false\n"
+    "    && !objectHasOwn(descriptor, 'get')\n"
+    "    && !objectHasOwn(descriptor, 'set');\n"
+    "}\n"
+    "\n"
+    "function stabilizePromise(promise) {\n"
+)
+replace_once(composition_path, anchor, replacement)
+replace_once(
+    composition_path,
+    "  } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR\n"
+    "      && descriptors.constructor.value !== PROMISE_SPECIES_CARRIER) {\n",
+    "  } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR\n"
+    "      && descriptors.constructor.value !== PROMISE_SPECIES_CARRIER\n"
+    "      && !isSafePromiseSpeciesCarrier(descriptors.constructor.value)) {\n",
+)
+
 changed = [
     line.strip()
-    for line in __import__("subprocess")
-    .check_output(["git", "diff", "--name-only"], text=True)
-    .splitlines()
+    for line in subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
     if line.strip()
 ]
-if changed != [path]:
-    raise SystemExit(f"unexpected bounded repair surface: {changed!r}")
+expected = [store_path, composition_path]
+if changed != expected:
+    raise SystemExit(f"unexpected bounded repair surface: {changed!r}; expected {expected!r}")
