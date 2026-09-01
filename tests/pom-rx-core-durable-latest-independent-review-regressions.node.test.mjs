@@ -175,3 +175,66 @@ test(
     }
   },
 );
+
+test(
+  'durable completion realpath does not consume post-import Promise species internally',
+  { concurrency: false },
+  async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-realpath-species-'));
+    const originalSpeciesDescriptor = Object.getOwnPropertyDescriptor(Promise, Symbol.species);
+    let speciesCalls = 0;
+    let evidence;
+    let harness;
+
+    class RejectingSpecies extends Promise {
+      constructor(executor) {
+        speciesCalls += 1;
+        super((resolve, reject) => executor(
+          () => reject(new Error('post-import fs/promises realpath species attack')),
+          reject,
+        ));
+      }
+    }
+
+    try {
+      harness = createReferenceDurableSingleUseGateHarness({
+        rootDir,
+        trustedClock: trustedClock(),
+        observeBinding: () => observedFrom(evidence),
+        executeDownstream: () => {
+          Object.defineProperty(Promise, Symbol.species, {
+            configurable: true,
+            enumerable: false,
+            writable: false,
+            value: RejectingSpecies,
+          });
+          return 'downstream-ok';
+        },
+      });
+      const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+        witnessValidUntil: '2026-09-01T12:01:00.000Z',
+      });
+      evidence = issued.evidence;
+
+      const result = await harness.gate.consume(issued.capability, { raw: true });
+      assert.equal(result, 'downstream-ok');
+      assert.equal(
+        speciesCalls,
+        0,
+        'durable completion must not let fs/promises realpath consult mutable Promise species',
+      );
+      assert.equal(
+        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+        'CONSUMED_SUCCESS',
+      );
+      assert.equal(
+        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+        'CONSUMED_SUCCESS',
+      );
+    } finally {
+      Object.defineProperty(Promise, Symbol.species, originalSpeciesDescriptor);
+      await harness?.close().catch(() => {});
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  },
+);
