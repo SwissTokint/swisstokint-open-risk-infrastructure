@@ -248,8 +248,8 @@ test('live process.pid cannot coordinate child-fd reuse inside the durable truth
       const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
       const state = new Int32Array(shared);
       worker = new Worker(\`
-        const fs = require('node:fs');
-        const { parentPort, workerData } = require('node:worker_threads');
+        import fs from 'node:fs';
+        import { parentPort, workerData } from 'node:worker_threads';
         const state = new Int32Array(workerData.shared);
         parentPort.postMessage({ type: 'ready' });
         Atomics.wait(state, 0, 0);
