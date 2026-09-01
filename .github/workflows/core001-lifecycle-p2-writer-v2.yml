@@ -28,7 +28,7 @@ jobs:
           store_path = Path('core/gate/reference-durable-claim-store.mjs')
           store = store_path.read_text()
 
-          old_root_release = '''function releasePinnedRootDescriptorSync(root) {
+          old = '''function releasePinnedRootDescriptorSync(root) {
             try {
               const identity = fsFstatSyncSnapshot(root.fd);
               if (statIsDirectory(identity)
@@ -46,12 +46,11 @@ jobs:
             return false;
           }
           '''
-          new_root_release = '''function releasePinnedRootDescriptorSync(root) {
+          new = '''function releasePinnedRootDescriptorSync(root) {
             try {
               const identity = fsFstatSyncSnapshot(root.fd);
               // Stable inode identity proves descriptor ownership. Policy metadata
-              // drift is still reported by assertPinnedRootSync, but must not leak
-              // an owned descriptor. A reused foreign fd is never closed.
+              // drift remains an error, but must not leak an owned descriptor.
               if (statIsDirectory(identity)
                   && !statIsSymbolicLink(identity)
                   && identity.dev === root.dev
@@ -60,28 +59,25 @@ jobs:
                 return true;
               }
             } catch {
-              // Do not close a descriptor whose stable ownership cannot be verified.
+              // Never close a descriptor whose stable ownership cannot be verified.
             }
             return false;
           }
           '''
-          if old_root_release not in store:
+          if old not in store:
               raise SystemExit('root release block not found')
-          store = store.replace(old_root_release, new_root_release, 1)
+          store = store.replace(old, new, 1)
 
-          inspect_marker = '  async function inspect(input) {'
-          if store.count(inspect_marker) != 1:
-              raise SystemExit(f'inspect marker count={store.count(inspect_marker)}')
+          marker = '  async function inspect(input) {'
+          if store.count(marker) != 1:
+              raise SystemExit(f'inspect marker count={store.count(marker)}')
           abandon_impl = '''  async function abandonImpl(handle) {
             const state = weakMapGet(handleState, handle);
             if (!state || state.state !== 'OPEN') {
               fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');
             }
-
             state.state = 'ABANDONING';
             try {
-              // No terminal truth is published. The tombstone stays RESERVED and
-              // replay-blocking; only this process-local pinned claim fd is released.
               assertPinnedClaimDirectorySync(state);
               state.state = 'ABANDONED';
               return makeInspection('RESERVED', state.claimRecord);
@@ -89,75 +85,54 @@ jobs:
               state.state = 'FAILED_CLOSED';
               throw error;
             } finally {
+              // Abandon publishes no terminal truth: only the process-local claim
+              // descriptor is released; the RESERVED tombstone remains replay-blocking.
               releasePinnedClaimDirectorySync(state);
             }
           }
 
           '''
-          store = store.replace(inspect_marker, abandon_impl + inspect_marker, 1)
+          store = store.replace(marker, abandon_impl + marker, 1)
 
-          old_public = '''  async function complete(handle, outcome) {
-            return runOperation(() => completeImpl(handle, outcome));
-          }
-
-          async function close() {
-          '''
-          new_public = '''  async function complete(handle, outcome) {
-            return runOperation(() => completeImpl(handle, outcome));
-          }
-
-          async function abandon(handle) {
+          close_marker = '  async function close() {'
+          if store.count(close_marker) != 1:
+              raise SystemExit(f'store close marker count={store.count(close_marker)}')
+          public_abandon = '''  async function abandon(handle) {
             return runOperation(() => abandonImpl(handle));
           }
 
-          async function close() {
           '''
-          if old_public not in store:
-              raise SystemExit('public complete/close marker not found')
-          store = store.replace(old_public, new_public, 1)
+          store = store.replace(close_marker, public_abandon + close_marker, 1)
 
-          old_return = '''  return freezeValue({
-            claim,
-            complete,
-            inspect,
-            close,
-          });
-          '''
-          new_return = '''  return freezeValue({
-            claim,
-            complete,
-            abandon,
-            inspect,
-            close,
-          });
-          '''
-          if old_return not in store:
-              raise SystemExit('store return block not found')
-          store = store.replace(old_return, new_return, 1)
+          return_marker = '    complete,\n    inspect,'
+          if store.count(return_marker) != 1:
+              raise SystemExit(f'store return marker count={store.count(return_marker)}')
+          store = store.replace(return_marker, '    complete,\n    abandon,\n    inspect,', 1)
           store_path.write_text(store)
 
           wrapper_path = Path('core/gate/reference-durable-single-use-gate.mjs')
           wrapper = wrapper_path.read_text()
-          if "import { AsyncLocalStorage } from 'node:async_hooks';" not in wrapper:
-              wrapper = wrapper.replace(
-                  "import { types as utilTypes } from 'node:util';",
-                  "import { AsyncLocalStorage } from 'node:async_hooks';\nimport { types as utilTypes } from 'node:util';",
-                  1,
-              )
-          if 'const ASYNC_LOCAL_STORAGE_CONSTRUCTOR' not in wrapper:
-              wrapper = wrapper.replace(
-                  'const PROMISE_CONSTRUCTOR = Promise;',
-                  'const PROMISE_CONSTRUCTOR = Promise;\nconst ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;\nconst ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;\nconst ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;',
-                  1,
-              )
-          weak_helpers = '''function weakMapSet(map, key, value) {
+          import_marker = "import { types as utilTypes } from 'node:util';"
+          if wrapper.count(import_marker) != 1:
+              raise SystemExit('util import marker not found')
+          wrapper = wrapper.replace(import_marker, "import { AsyncLocalStorage } from 'node:async_hooks';\n" + import_marker, 1)
+
+          promise_marker = 'const PROMISE_CONSTRUCTOR = Promise;'
+          if wrapper.count(promise_marker) != 1:
+              raise SystemExit('promise constructor marker not found')
+          wrapper = wrapper.replace(
+              promise_marker,
+              promise_marker + "\nconst ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;\nconst ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;\nconst ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;",
+              1,
+          )
+
+          weak_marker = '''function weakMapSet(map, key, value) {
             REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
           }
           '''
-          async_helpers = '''function weakMapSet(map, key, value) {
-            REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
-          }
-
+          if wrapper.count(weak_marker) != 1:
+              raise SystemExit('weakMapSet marker not found')
+          wrapper = wrapper.replace(weak_marker, weak_marker + '''
           function asyncLocalRun(storage, value, callback) {
             return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_RUN, storage, [value, callback]);
           }
@@ -165,50 +140,37 @@ jobs:
           function asyncLocalGetStore(storage) {
             return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_GET_STORE, storage, []);
           }
-          '''
-          if 'function asyncLocalRun' not in wrapper:
-              if weak_helpers not in wrapper:
-                  raise SystemExit('weakMapSet helper not found')
-              wrapper = wrapper.replace(weak_helpers, async_helpers, 1)
+          ''', 1)
 
-          context_marker = "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';"
-          if context_marker not in wrapper:
-              raise SystemExit('wrapper context marker not found')
+          state_marker = "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';"
+          if wrapper.count(state_marker) != 1:
+              raise SystemExit('wrapper state marker not found')
           wrapper = wrapper.replace(
-              context_marker,
+              state_marker,
               "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  const consumeContext = new ASYNC_LOCAL_STORAGE_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';",
               1,
           )
 
-          old_unknown = '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
+          unknown_marker = '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
                 state.state = 'CONSUMED_UNKNOWN';
               } else {
                 state.state = 'REJECTED';
               }
               throw error;
           '''
-          new_unknown = '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
+          if wrapper.count(unknown_marker) != 1:
+              raise SystemExit('unknown/rejected marker not found')
+          wrapper = wrapper.replace(unknown_marker, '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
                 state.state = 'CONSUMED_UNKNOWN';
-                try {
-                  await durableStore.abandon(durableClaim.handle);
-                } catch (durableError) {
-                  throw durableError;
-                }
+                await durableStore.abandon(durableClaim.handle);
               } else {
                 state.state = 'REJECTED';
-                try {
-                  await durableStore.abandon(durableClaim.handle);
-                } catch (durableError) {
-                  throw durableError;
-                }
+                await durableStore.abandon(durableClaim.handle);
               }
               throw error;
-          '''
-          if old_unknown not in wrapper:
-              raise SystemExit('unknown/rejected branch not found')
-          wrapper = wrapper.replace(old_unknown, new_unknown, 1)
+          ''', 1)
 
-          old_consume = '''  async function consume(capability, executionAttempt) {
+          consume_marker = '''  async function consume(capability, executionAttempt) {
             beginConsume();
             try {
               return await consumeImpl(capability, executionAttempt);
@@ -216,11 +178,10 @@ jobs:
               endConsume();
             }
           }
-
-          async function close() {
-            if (lifecycleState === 'CLOSED') return;
           '''
-          new_consume = '''  async function consume(capability, executionAttempt) {
+          if wrapper.count(consume_marker) != 1:
+              raise SystemExit('consume marker not found')
+          wrapper = wrapper.replace(consume_marker, '''  async function consume(capability, executionAttempt) {
             return asyncLocalRun(consumeContext, true, async () => {
               beginConsume();
               try {
@@ -230,19 +191,19 @@ jobs:
               }
             });
           }
+          ''', 1)
 
-          async function close() {
+          close_marker = "  async function close() {\n    if (lifecycleState === 'CLOSED') return;"
+          if wrapper.count(close_marker) != 1:
+              raise SystemExit('wrapper close marker not found')
+          wrapper = wrapper.replace(close_marker, '''  async function close() {
             if (asyncLocalGetStore(consumeContext) === true) {
               throw gateError(
                 'POMRX_GATE_E_REENTRANT_CLOSE',
                 'Reference durable Gate cannot close from its active consume context',
               );
             }
-            if (lifecycleState === 'CLOSED') return;
-          '''
-          if old_consume not in wrapper:
-              raise SystemExit('consume/close block not found')
-          wrapper = wrapper.replace(old_consume, new_consume, 1)
+            if (lifecycleState === 'CLOSED') return;''', 1)
           wrapper_path.write_text(wrapper)
 
           test_path = Path('tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs')
@@ -251,86 +212,44 @@ jobs:
           import os from 'node:os';
           import path from 'node:path';
           import test from 'node:test';
-
           import { createReferenceDurableClaimStore } from '../core/gate/reference-durable-claim-store.mjs';
           import { createReferenceDurableSingleUseGateHarness } from '../core/gate/reference-durable-single-use-gate.mjs';
 
-          const h = (character) => character.repeat(64);
-
-          function bindingInput(index = 1) {
-            const suffix = String(index).padStart(4, '0');
+          const h = (c) => c.repeat(64);
+          function bindingInput(index) {
+            const s = String(index).padStart(4, '0');
             return {
-              binding_profile: 'pom-rx-core-reference/0.1',
-              run_id: `run-durable-lifecycle-${suffix}`,
-              agent_ref: `agent-durable-lifecycle-${suffix}`,
-              subject_ref: `subject-durable-lifecycle-${suffix}`,
-              method_hash: h('1'),
-              policy_hash: h('2'),
-              action_commitment: h('3'),
-              context_commitment: h('4'),
-              preflight_receipt_hash: h('5'),
-              witness_ack_hash: h('6'),
-              source_key_id: `ed25519-${'a'.repeat(32)}`,
-              witness_key_id: `ed25519-${'b'.repeat(32)}`,
-              verification_profile: 'pom-rx-v0.1/strict-errata-1',
-              verifier_version: 'pom-rx-v0.1-strict-verifier/1',
-              implementation_artifact_sha256: h('7'),
-              effective_verification_policy_sha256: h('8'),
-              issued_at: '2026-08-30T12:00:00.000Z',
+              binding_profile: 'pom-rx-core-reference/0.1', run_id: `run-durable-lifecycle-${s}`,
+              agent_ref: `agent-durable-lifecycle-${s}`, subject_ref: `subject-durable-lifecycle-${s}`,
+              method_hash: h('1'), policy_hash: h('2'), action_commitment: h('3'), context_commitment: h('4'),
+              preflight_receipt_hash: h('5'), witness_ack_hash: h('6'), source_key_id: `ed25519-${'a'.repeat(32)}`,
+              witness_key_id: `ed25519-${'b'.repeat(32)}`, verification_profile: 'pom-rx-v0.1/strict-errata-1',
+              verifier_version: 'pom-rx-v0.1-strict-verifier/1', implementation_artifact_sha256: h('7'),
+              effective_verification_policy_sha256: h('8'), issued_at: '2026-08-30T12:00:00.000Z',
               expires_at: '2026-08-30T12:00:30.000Z',
             };
           }
-
-          function observedFrom(evidence, overrides = {}) {
-            return {
-              binding_profile: evidence.binding.binding_profile,
-              action_commitment: evidence.binding.action_commitment,
-              context_commitment: evidence.binding.context_commitment,
-              prepared_execution: { operation: 'durable-lifecycle-control' },
-              ...overrides,
-            };
+          function observedFrom(e, overrides = {}) {
+            return { binding_profile: e.binding.binding_profile, action_commitment: e.binding.action_commitment,
+              context_commitment: e.binding.context_commitment, prepared_execution: { operation: 'durable-lifecycle-control' }, ...overrides };
           }
-
           function clock() {
-            let index = 0;
-            const values = ['2026-08-30T12:00:01.000Z', '2026-08-30T12:00:02.000Z'];
-            return () => values[Math.min(index++, values.length - 1)];
+            let i = 0; const v = ['2026-08-30T12:00:01.000Z', '2026-08-30T12:00:02.000Z'];
+            return () => v[Math.min(i++, v.length - 1)];
           }
-
-          async function procFdTargets() {
-            if (process.platform !== 'linux') return [];
-            const entries = await readdir('/proc/self/fd');
-            const targets = [];
-            for (const entry of entries) {
-              try {
-                targets.push(await readlink(`/proc/self/fd/${entry}`));
-              } catch {
-                // fd may close between readdir and readlink
-              }
-            }
-            return targets;
-          }
-
           async function countTarget(target) {
-            const targets = await procFdTargets();
-            return targets.filter((value) => value === target).length;
+            if (process.platform !== 'linux') return 0;
+            const entries = await readdir('/proc/self/fd'); let count = 0;
+            for (const entry of entries) { try { if (await readlink(`/proc/self/fd/${entry}`) === target) count += 1; } catch {} }
+            return count;
           }
 
-          test('REJECTED and CONSUMED_UNKNOWN keep RESERVED tombstones without retaining claim fds', { skip: process.platform !== 'linux', concurrency: false }, async () => {
+          test('nonterminal durable paths remain RESERVED without retaining child fds', { skip: process.platform !== 'linux', concurrency: false }, async () => {
             const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-abandon-fd-'));
-            let rejectEvidence;
-            let unknownEvidence;
-            let mode = 'reject';
-            const harness = createReferenceDurableSingleUseGateHarness({
-              rootDir,
-              trustedClock: clock(),
-              observeBinding: async () => {
-                const evidence = mode === 'reject' ? rejectEvidence : unknownEvidence;
-                if (mode === 'reject') return observedFrom(evidence, { action_commitment: h('9') });
-                return observedFrom(evidence);
-              },
-              executeDownstream: () => Promise.reject(new Error('ambiguous downstream channel')),
-            });
+            let rejectEvidence; let unknownEvidence; let mode = 'reject';
+            const harness = createReferenceDurableSingleUseGateHarness({ rootDir, trustedClock: clock(),
+              observeBinding: async () => mode === 'reject' ? observedFrom(rejectEvidence, { action_commitment: h('9') }) : observedFrom(unknownEvidence),
+              executeDownstream: () => Promise.reject(new Error('ambiguous downstream channel')) });
             try {
               const rejected = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(1), { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
               rejectEvidence = rejected.evidence;
@@ -338,7 +257,6 @@ jobs:
               assert.equal(harness.testAuthority.inspectCapabilityStateForTest(rejected.capability), 'REJECTED');
               assert.equal((await harness.testAuthority.inspectDurableStateForTest(rejected.capability)).state, 'RESERVED');
               assert.equal(await countTarget(path.join(rootDir, rejected.evidence.binding.capability_id)), 0);
-
               mode = 'unknown';
               const unknown = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(2), { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
               unknownEvidence = unknown.evidence;
@@ -346,71 +264,43 @@ jobs:
               assert.equal(harness.testAuthority.inspectCapabilityStateForTest(unknown.capability), 'CONSUMED_UNKNOWN');
               assert.equal((await harness.testAuthority.inspectDurableStateForTest(unknown.capability)).state, 'RESERVED');
               assert.equal(await countTarget(path.join(rootDir, unknown.evidence.binding.capability_id)), 0);
-            } finally {
-              await harness.close().catch(() => {});
-              await rm(rootDir, { recursive: true, force: true });
-            }
+            } finally { await harness.close().catch(() => {}); await rm(rootDir, { recursive: true, force: true }); }
           });
 
-          test('reentrant awaited close from an active consume fails immediately without self-deadlock', { concurrency: false }, async () => {
+          test('reentrant awaited close fails closed without self-deadlock', { concurrency: false }, async () => {
             const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-reentrant-close-'));
-            let evidence;
-            let harness;
-            let reentrantError = null;
-            harness = createReferenceDurableSingleUseGateHarness({
-              rootDir,
-              trustedClock: clock(),
-              observeBinding: async () => {
-                try { await harness.close(); } catch (error) { reentrantError = error; }
-                return observedFrom(evidence);
-              },
-              executeDownstream: () => ({ accepted: true }),
-            });
+            let evidence; let harness; let reentrantError = null;
+            harness = createReferenceDurableSingleUseGateHarness({ rootDir, trustedClock: clock(),
+              observeBinding: async () => { try { await harness.close(); } catch (error) { reentrantError = error; } return observedFrom(evidence); },
+              executeDownstream: () => ({ accepted: true }) });
             try {
-              const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(3), { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
-              evidence = issued.evidence;
-              const result = await Promise.race([
-                harness.gate.consume(issued.capability, { raw: true }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('reentrant close deadlocked')), 750)),
-              ]);
+              const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(3), { witnessValidUntil: '2026-08-30T12:01:00.000Z' }); evidence = issued.evidence;
+              const result = await Promise.race([harness.gate.consume(issued.capability, { raw: true }), new Promise((_, reject) => setTimeout(() => reject(new Error('deadlocked')), 750))]);
               assert.deepEqual(result, { accepted: true });
               assert.equal(reentrantError?.code, 'POMRX_GATE_E_REENTRANT_CLOSE');
               assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_SUCCESS');
               await harness.close();
-            } finally {
-              await rm(rootDir, { recursive: true, force: true });
-            }
+            } finally { await rm(rootDir, { recursive: true, force: true }); }
           });
 
-          test('metadata-only root drift still releases the verified owned root descriptor', { skip: process.platform !== 'linux', concurrency: false }, async () => {
-            const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-root-mode-drift-'));
-            await chmod(rootDir, 0o700);
+          test('metadata-only root drift reports invalidity but releases verified owned root fd', { skip: process.platform !== 'linux', concurrency: false }, async () => {
+            const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-root-mode-drift-')); await chmod(rootDir, 0o700);
             const store = createReferenceDurableClaimStore({ rootDir });
             try {
               const claim = await store.claim({ capabilityId: `cap-${'c'.repeat(32)}`, authorizationCommitment: h('d') });
-              await store.abandon(claim.handle);
-              assert.equal(await countTarget(rootDir), 1);
-              await chmod(rootDir, 0o755);
-              await assert.rejects(store.close(), (error) => {
-                assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
-                return true;
-              });
+              await store.abandon(claim.handle); assert.equal(await countTarget(rootDir), 1); await chmod(rootDir, 0o755);
+              await assert.rejects(store.close(), (error) => error?.code === 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
               assert.equal(await countTarget(rootDir), 0);
-            } finally {
-              await chmod(rootDir, 0o700).catch(() => {});
-              await store.close().catch(() => {});
-              await rm(rootDir, { recursive: true, force: true });
-            }
+            } finally { await chmod(rootDir, 0o700).catch(() => {}); await store.close().catch(() => {}); await rm(rootDir, { recursive: true, force: true }); }
           });
           ''')
 
           package_path = Path('package.json')
           package_text = package_path.read_text()
           needle = 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs'
-          replacement = 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs'
-          if needle not in package_text:
-              raise SystemExit('durable test wiring marker not found')
-          package_path.write_text(package_text.replace(needle, replacement, 1))
+          if package_text.count(needle) != 1:
+              raise SystemExit(f'durable wiring marker count={package_text.count(needle)}')
+          package_path.write_text(package_text.replace(needle, 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs', 1))
           PY
 
           node --test tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs tests/pom-rx-core-durable-gate.node.test.mjs tests/pom-rx-durable-claim-store-root.node.test.mjs
