@@ -136,6 +136,10 @@ const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
+const SET_CONSTRUCTOR = Set;
+const SET_ADD = Set.prototype.add;
+const SET_DELETE = Set.prototype.delete;
+const SET_FOR_EACH = Set.prototype.forEach;
 const CRYPTO_CREATE_HASH = createHash;
 const CRYPTO_RANDOM_UUID = randomUUID;
 const HASH_PROTOTYPE = REFLECT_APPLY(
@@ -370,6 +374,18 @@ function weakMapGet(map, key) {
 
 function weakMapSet(map, key, value) {
   REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function setAdd(set, value) {
+  REFLECT_APPLY(SET_ADD, set, [value]);
+}
+
+function setDelete(set, value) {
+  REFLECT_APPLY(SET_DELETE, set, [value]);
+}
+
+function setForEach(set, callback) {
+  REFLECT_APPLY(SET_FOR_EACH, set, [callback]);
 }
 
 function sha256Hex(value) {
@@ -866,6 +882,7 @@ export function createReferenceDurableClaimStore(options) {
 
   const configuredRoot = PATH_RESOLVE(bootstrap.rootDir);
   const handleState = new WEAK_MAP_CONSTRUCTOR();
+  const openClaimStates = new SET_CONSTRUCTOR();
   let trustedRootPromise = null;
   let lifecycleState = 'OPEN';
   let activeOperations = 0;
@@ -1021,6 +1038,115 @@ export function createReferenceDurableClaimStore(options) {
     }
   }
 
+
+function pinClaimDirectorySync(claimDirectory) {
+  let fd = null;
+  try {
+    const pathIdentity = fsLstatSyncSnapshot(claimDirectory);
+    if (!statIsDirectory(pathIdentity) || statIsSymbolicLink(pathIdentity)) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
+    }
+
+    fd = openFdSync(claimDirectory, 'r', 0o600);
+    const fdIdentity = fsFstatSyncSnapshot(fd);
+    if (!statIsDirectory(fdIdentity)
+        || statIsSymbolicLink(fdIdentity)
+        || fdIdentity.dev !== pathIdentity.dev
+        || fdIdentity.ino !== pathIdentity.ino
+        || fdIdentity.mode !== pathIdentity.mode
+        || fdIdentity.uid !== pathIdentity.uid) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory changed while being pinned');
+    }
+
+    let operationRoot = claimDirectory;
+    if (PROCESS_PLATFORM === 'linux') {
+      operationRoot = `/proc/self/fd/${fd}`;
+      const operationIdentity = fsStatSyncSnapshot(operationRoot);
+      if (!statIsDirectory(operationIdentity)
+          || operationIdentity.dev !== pathIdentity.dev
+          || operationIdentity.ino !== pathIdentity.ino) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'pinned capability descriptor path does not resolve to the claimed directory');
+      }
+    }
+
+    const pinned = createObject(null);
+    pinned.fd = fd;
+    pinned.dev = pathIdentity.dev;
+    pinned.ino = pathIdentity.ino;
+    pinned.mode = pathIdentity.mode;
+    pinned.uid = pathIdentity.uid;
+    pinned.operationRoot = operationRoot;
+    return freezeValue(pinned);
+  } catch (error) {
+    closeFdSyncIgnoringFailure(fd);
+    if (error instanceof PomRxDurableClaimStoreError) throw error;
+    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory could not be pinned');
+  }
+}
+
+function assertPinnedClaimDirectorySync(state) {
+  try {
+    const pathIdentity = fsLstatSyncSnapshot(state.claimDirectory);
+    const fdIdentity = fsFstatSyncSnapshot(state.claimFd);
+    let operationIdentity = null;
+    if (PROCESS_PLATFORM === 'linux') {
+      operationIdentity = fsStatSyncSnapshot(state.claimOperationRoot);
+    }
+
+    const pathMismatch = !statIsDirectory(pathIdentity)
+      || statIsSymbolicLink(pathIdentity)
+      || pathIdentity.dev !== state.claimDev
+      || pathIdentity.ino !== state.claimIno
+      || pathIdentity.mode !== state.claimMode
+      || pathIdentity.uid !== state.claimUid;
+    const fdMismatch = !statIsDirectory(fdIdentity)
+      || statIsSymbolicLink(fdIdentity)
+      || fdIdentity.dev !== state.claimDev
+      || fdIdentity.ino !== state.claimIno
+      || fdIdentity.mode !== state.claimMode
+      || fdIdentity.uid !== state.claimUid;
+    const operationMismatch = operationIdentity !== null
+      && (!statIsDirectory(operationIdentity)
+        || operationIdentity.dev !== state.claimDev
+        || operationIdentity.ino !== state.claimIno);
+    if (pathMismatch || fdMismatch || operationMismatch) {
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory identity changed before completion');
+    }
+  } catch (error) {
+    if (error instanceof PomRxDurableClaimStoreError) throw error;
+    fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory identity changed before completion');
+  }
+}
+
+function withPinnedClaimDirectoryCritical(state, operation) {
+  assertPinnedClaimDirectorySync(state);
+  try {
+    return operation(state.claimOperationRoot);
+  } finally {
+    assertPinnedClaimDirectorySync(state);
+  }
+}
+
+function releasePinnedClaimDirectorySync(state) {
+  const fd = state.claimFd;
+  if (fd === null) return;
+  state.claimFd = null;
+  setDelete(openClaimStates, state);
+  try {
+    const identity = fsFstatSyncSnapshot(fd);
+    if (statIsDirectory(identity)
+        && !statIsSymbolicLink(identity)
+        && identity.dev === state.claimDev
+        && identity.ino === state.claimIno) {
+      closeFdSync(fd);
+    }
+  } catch {
+    // If same-realm code already closed/reused the numeric descriptor, never
+    // close an unverified foreign fd. The durable operation has already failed
+    // closed through the pinned-identity checks.
+  }
+}
+
   async function trustedRoot() {
     if (!trustedRootPromise) {
       trustedRootPromise = (async () => {
@@ -1170,12 +1296,21 @@ export function createReferenceDurableClaimStore(options) {
       const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);
       writeExclusiveDurableSync(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);
 
-      const handle = freezeValue(createObject(null));
-      weakMapSet(handleState, handle, {
+      const pinnedClaim = pinClaimDirectorySync(claimDirectory);
+      const state = {
         state: 'OPEN',
         claimDirectory,
+        claimFd: pinnedClaim.fd,
+        claimDev: pinnedClaim.dev,
+        claimIno: pinnedClaim.ino,
+        claimMode: pinnedClaim.mode,
+        claimUid: pinnedClaim.uid,
+        claimOperationRoot: pinnedClaim.operationRoot,
         claimRecord,
-      });
+      };
+      setAdd(openClaimStates, state);
+      const handle = freezeValue(createObject(null));
+      weakMapSet(handleState, handle, state);
       const result = createObject(null);
       result.handle = handle;
       result.claim = claimRecord;
@@ -1197,8 +1332,8 @@ export function createReferenceDurableClaimStore(options) {
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
       const rootRef = await trustedRoot();
-      const inspection = withPinnedRootCritical(rootRef, () => {
-        const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(state.claimDirectory, 'claim.json'));
+      const inspection = withPinnedRootCritical(rootRef, () => withPinnedClaimDirectoryCritical(state, (claimRoot) => {
+        const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(claimRoot, 'claim.json'));
         if (rawPersistedClaim === null) {
           fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim metadata disappeared before completion');
         }
@@ -1208,14 +1343,16 @@ export function createReferenceDurableClaimStore(options) {
             || persistedClaim.claim_commitment !== state.claimRecord.claim_commitment) {
           fail('POMRX_GATE_E_DURABLE_CORRUPT', 'persisted claim changed before terminal completion');
         }
-        writeExclusiveDurableSync(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);
+        writeExclusiveDurableSync(PATH_JOIN(claimRoot, 'terminal.json'), terminalRecord);
         return makeInspection(terminalState, state.claimRecord, terminalRecord);
-      });
+      }));
       state.state = terminalState;
       return inspection;
     } catch (error) {
       state.state = 'FAILED_CLOSED';
       throw error;
+    } finally {
+      releasePinnedClaimDirectorySync(state);
     }
   }
 
@@ -1245,6 +1382,10 @@ export function createReferenceDurableClaimStore(options) {
           drainResolve = resolve;
         });
       }
+
+      setForEach(openClaimStates, (state) => {
+        releasePinnedClaimDirectorySync(state);
+      });
 
       let root = null;
       if (trustedRootPromise !== null) {
