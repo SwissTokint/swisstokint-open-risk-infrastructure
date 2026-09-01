@@ -4,6 +4,7 @@ import {
 } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { isAbsolute as pathIsAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { types as utilTypes } from 'node:util';
 
@@ -43,6 +44,9 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
+const NUMBER_IS_FINITE = Number.isFinite;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const PATH_IS_ABSOLUTE = pathIsAbsolute;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_THEN = Promise.prototype.then;
 const PROMISE_CATCH = Promise.prototype.catch;
@@ -243,7 +247,7 @@ function captureWireValue(value, depth = 0) {
   if (value === null
       || typeof value === 'string'
       || typeof value === 'boolean'
-      || (typeof value === 'number' && Number.isFinite(value))) {
+      || (typeof value === 'number' && NUMBER_IS_FINITE(value))) {
     return value;
   }
   if (!value || typeof value !== 'object' || isProxy(value)) {
@@ -257,7 +261,7 @@ function captureWireValue(value, depth = 0) {
       fail('POMRX_GATE_E_DURABLE_IO', 'durable owner IPC array has invalid length');
     }
     const length = lengthDescriptor.value;
-    if (!Number.isSafeInteger(length) || length < 0 || length > 4096) {
+    if (!NUMBER_IS_SAFE_INTEGER(length) || length < 0 || length > 4096) {
       fail('POMRX_GATE_E_DURABLE_IO', 'durable owner IPC array exceeds bounds');
     }
     const output = [];
@@ -318,7 +322,8 @@ export function createReferenceDurableClaimStore(options) {
   );
   if (typeof bootstrap.rootDir !== 'string'
       || bootstrap.rootDir.length < 2
-      || bootstrap.rootDir.length > 4096) {
+      || bootstrap.rootDir.length > 4096
+      || !PATH_IS_ABSOLUTE(bootstrap.rootDir)) {
     fail('POMRX_GATE_E_DURABLE_INVALID', 'rootDir must be a bounded absolute path');
   }
 
