@@ -1,0 +1,37 @@
+name: CORE-001 Promise boundary writer v2
+
+on:
+  push:
+    branches:
+      - core/durable-gate-v2-20260830
+    paths:
+      - .github/workflows/core001-promise-boundary-writer-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: core/durable-gate-v2-20260830
+          fetch-depth: 0
+      - name: Apply repair
+        run: python scripts/tmp-core001-promise-boundary-patch.py
+      - name: Target regression
+        run: node --test tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs
+      - name: Durable regression matrix
+        run: npm run test:pom-rx:durable-claim-store
+      - name: Commit bounded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'pom-rx-core-writer'
+          git config user.email 'pom-rx-core-writer@users.noreply.github.com'
+          git rm .github/workflows/core001-promise-boundary-writer-v2.yml
+          git rm scripts/tmp-core001-promise-boundary-patch.py
+          git add core/gate/reference-durable-claim-store.mjs tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs package.json
+          git commit -m 'fix(core): isolate durable Promise result channels'
+          git push origin HEAD:core/durable-gate-v2-20260830
