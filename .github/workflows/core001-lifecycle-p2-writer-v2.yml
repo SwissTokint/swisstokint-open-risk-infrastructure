@@ -24,186 +24,142 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          import re
+
+          def once(text, old, new, label):
+              if text.count(old) != 1:
+                  raise SystemExit(f'{label} count={text.count(old)}')
+              return text.replace(old, new, 1)
 
           store_path = Path('core/gate/reference-durable-claim-store.mjs')
           store = store_path.read_text()
 
-          old = '''function releasePinnedRootDescriptorSync(root) {
-            try {
-              const identity = fsFstatSyncSnapshot(root.fd);
-              if (statIsDirectory(identity)
-                  && !statIsSymbolicLink(identity)
-                  && identity.dev === root.dev
-                  && identity.ino === root.ino
-                  && identity.mode === root.mode
-                  && identity.uid === root.uid) {
-                closeFdSync(root.fd);
-                return true;
-              }
-            } catch {
-              // Do not close a descriptor whose ownership can no longer be verified.
-            }
-            return false;
-          }
-          '''
-          new = '''function releasePinnedRootDescriptorSync(root) {
-            try {
-              const identity = fsFstatSyncSnapshot(root.fd);
-              // Stable inode identity proves descriptor ownership. Policy metadata
-              // drift remains an error, but must not leak an owned descriptor.
-              if (statIsDirectory(identity)
-                  && !statIsSymbolicLink(identity)
-                  && identity.dev === root.dev
-                  && identity.ino === root.ino) {
-                closeFdSync(root.fd);
-                return true;
-              }
-            } catch {
-              // Never close a descriptor whose stable ownership cannot be verified.
-            }
-            return false;
-          }
-          '''
-          if old not in store:
-              raise SystemExit('root release block not found')
-          store = store.replace(old, new, 1)
+          # P2 root metadata drift: ownership is stable dev/ino, while mode/uid
+          # remain policy checks that may still make close() report invalidity.
+          pattern = re.compile(r"function releasePinnedRootDescriptorSync\(root\) \{.*?\n\}", re.S)
+          match = pattern.search(store)
+          if not match:
+              raise SystemExit('root release function not found')
+          replacement = "\n".join([
+              "function releasePinnedRootDescriptorSync(root) {",
+              "  try {",
+              "    const identity = fsFstatSyncSnapshot(root.fd);",
+              "    if (statIsDirectory(identity)",
+              "        && !statIsSymbolicLink(identity)",
+              "        && identity.dev === root.dev",
+              "        && identity.ino === root.ino) {",
+              "      closeFdSync(root.fd);",
+              "      return true;",
+              "    }",
+              "  } catch {",
+              "    // Never close a descriptor whose stable ownership cannot be verified.",
+              "  }",
+              "  return false;",
+              "}",
+          ])
+          store = store[:match.start()] + replacement + store[match.end():]
 
-          marker = '  async function inspect(input) {'
-          if store.count(marker) != 1:
-              raise SystemExit(f'inspect marker count={store.count(marker)}')
-          abandon_impl = '''  async function abandonImpl(handle) {
-            const state = weakMapGet(handleState, handle);
-            if (!state || state.state !== 'OPEN') {
-              fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');
-            }
-            state.state = 'ABANDONING';
-            try {
-              assertPinnedClaimDirectorySync(state);
-              state.state = 'ABANDONED';
-              return makeInspection('RESERVED', state.claimRecord);
-            } catch (error) {
-              state.state = 'FAILED_CLOSED';
-              throw error;
-            } finally {
-              // Abandon publishes no terminal truth: only the process-local claim
-              // descriptor is released; the RESERVED tombstone remains replay-blocking.
-              releasePinnedClaimDirectorySync(state);
-            }
-          }
+          inspect_marker = "\n  async function inspect(input) {"
+          abandon_impl = "\n" + "\n".join([
+              "  async function abandonImpl(handle) {",
+              "    const state = weakMapGet(handleState, handle);",
+              "    if (!state || state.state !== 'OPEN') {",
+              "      fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');",
+              "    }",
+              "    state.state = 'ABANDONING';",
+              "    try {",
+              "      assertPinnedClaimDirectorySync(state);",
+              "      state.state = 'ABANDONED';",
+              "      return makeInspection('RESERVED', state.claimRecord);",
+              "    } catch (error) {",
+              "      state.state = 'FAILED_CLOSED';",
+              "      throw error;",
+              "    } finally {",
+              "      // No terminal truth is published; only the process-local fd is released.",
+              "      releasePinnedClaimDirectorySync(state);",
+              "    }",
+              "  }",
+              "",
+          ])
+          store = once(store, inspect_marker, abandon_impl + inspect_marker, 'inspect marker')
 
-          '''
-          store = store.replace(marker, abandon_impl + marker, 1)
-
-          close_marker = '  async function close() {'
-          if store.count(close_marker) != 1:
-              raise SystemExit(f'store close marker count={store.count(close_marker)}')
-          public_abandon = '''  async function abandon(handle) {
-            return runOperation(() => abandonImpl(handle));
-          }
-
-          '''
-          store = store.replace(close_marker, public_abandon + close_marker, 1)
-
-          return_marker = '    complete,\n    inspect,'
-          if store.count(return_marker) != 1:
-              raise SystemExit(f'store return marker count={store.count(return_marker)}')
-          store = store.replace(return_marker, '    complete,\n    abandon,\n    inspect,', 1)
+          close_marker = "\n  async function close() {"
+          public_abandon = "\n" + "\n".join([
+              "  async function abandon(handle) {",
+              "    return runOperation(() => abandonImpl(handle));",
+              "  }",
+              "",
+          ])
+          store = once(store, close_marker, public_abandon + close_marker, 'store close marker')
+          store = once(store, "    complete,\n    inspect,", "    complete,\n    abandon,\n    inspect,", 'store return marker')
           store_path.write_text(store)
 
           wrapper_path = Path('core/gate/reference-durable-single-use-gate.mjs')
           wrapper = wrapper_path.read_text()
-          import_marker = "import { types as utilTypes } from 'node:util';"
-          if wrapper.count(import_marker) != 1:
-              raise SystemExit('util import marker not found')
-          wrapper = wrapper.replace(import_marker, "import { AsyncLocalStorage } from 'node:async_hooks';\n" + import_marker, 1)
+          wrapper = once(wrapper, "import { types as utilTypes } from 'node:util';", "import { AsyncLocalStorage } from 'node:async_hooks';\nimport { types as utilTypes } from 'node:util';", 'util import')
+          wrapper = once(wrapper, "const PROMISE_CONSTRUCTOR = Promise;", "const PROMISE_CONSTRUCTOR = Promise;\nconst ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;\nconst ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;\nconst ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;", 'promise constructor')
 
-          promise_marker = 'const PROMISE_CONSTRUCTOR = Promise;'
-          if wrapper.count(promise_marker) != 1:
-              raise SystemExit('promise constructor marker not found')
-          wrapper = wrapper.replace(
-              promise_marker,
-              promise_marker + "\nconst ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;\nconst ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;\nconst ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;",
-              1,
-          )
+          helper_anchor = "\nfunction isOwnEnumerableDataDescriptor(descriptor) {"
+          async_helpers = "\n" + "\n".join([
+              "function asyncLocalRun(storage, value, callback) {",
+              "  return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_RUN, storage, [value, callback]);",
+              "}",
+              "",
+              "function asyncLocalGetStore(storage) {",
+              "  return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_GET_STORE, storage, []);",
+              "}",
+              "",
+          ])
+          wrapper = once(wrapper, helper_anchor, async_helpers + helper_anchor, 'helper anchor')
+          wrapper = once(wrapper, "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';", "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  const consumeContext = new ASYNC_LOCAL_STORAGE_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';", 'wrapper state')
 
-          weak_marker = '''function weakMapSet(map, key, value) {
-            REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
-          }
-          '''
-          if wrapper.count(weak_marker) != 1:
-              raise SystemExit('weakMapSet marker not found')
-          wrapper = wrapper.replace(weak_marker, weak_marker + '''
-          function asyncLocalRun(storage, value, callback) {
-            return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_RUN, storage, [value, callback]);
-          }
+          old_branch = "\n".join([
+              "      } else if (innerState === 'CONSUMED_UNKNOWN') {",
+              "        state.state = 'CONSUMED_UNKNOWN';",
+              "      } else {",
+              "        state.state = 'REJECTED';",
+              "      }",
+          ])
+          new_branch = "\n".join([
+              "      } else if (innerState === 'CONSUMED_UNKNOWN') {",
+              "        state.state = 'CONSUMED_UNKNOWN';",
+              "        await durableStore.abandon(durableClaim.handle);",
+              "      } else {",
+              "        state.state = 'REJECTED';",
+              "        await durableStore.abandon(durableClaim.handle);",
+              "      }",
+          ])
+          wrapper = once(wrapper, old_branch, new_branch, 'unknown/rejected branch')
 
-          function asyncLocalGetStore(storage) {
-            return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_GET_STORE, storage, []);
-          }
-          ''', 1)
+          consume_start = wrapper.find("\n  async function consume(capability, executionAttempt) {")
+          close_start = wrapper.find("\n  async function close() {", consume_start + 1)
+          if consume_start < 0 or close_start < 0:
+              raise SystemExit('consume/close slice not found')
+          new_consume = "\n" + "\n".join([
+              "  async function consume(capability, executionAttempt) {",
+              "    return asyncLocalRun(consumeContext, true, async () => {",
+              "      beginConsume();",
+              "      try {",
+              "        return await consumeImpl(capability, executionAttempt);",
+              "      } finally {",
+              "        endConsume();",
+              "      }",
+              "    });",
+              "  }",
+              "",
+          ])
+          wrapper = wrapper[:consume_start] + new_consume + wrapper[close_start:]
 
-          state_marker = "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';"
-          if wrapper.count(state_marker) != 1:
-              raise SystemExit('wrapper state marker not found')
-          wrapper = wrapper.replace(
-              state_marker,
-              "  const wrapperState = new WEAK_MAP_CONSTRUCTOR();\n  const consumeContext = new ASYNC_LOCAL_STORAGE_CONSTRUCTOR();\n  let lifecycleState = 'OPEN';",
-              1,
-          )
-
-          unknown_marker = '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
-                state.state = 'CONSUMED_UNKNOWN';
-              } else {
-                state.state = 'REJECTED';
-              }
-              throw error;
-          '''
-          if wrapper.count(unknown_marker) != 1:
-              raise SystemExit('unknown/rejected marker not found')
-          wrapper = wrapper.replace(unknown_marker, '''      } else if (innerState === 'CONSUMED_UNKNOWN') {
-                state.state = 'CONSUMED_UNKNOWN';
-                await durableStore.abandon(durableClaim.handle);
-              } else {
-                state.state = 'REJECTED';
-                await durableStore.abandon(durableClaim.handle);
-              }
-              throw error;
-          ''', 1)
-
-          consume_marker = '''  async function consume(capability, executionAttempt) {
-            beginConsume();
-            try {
-              return await consumeImpl(capability, executionAttempt);
-            } finally {
-              endConsume();
-            }
-          }
-          '''
-          if wrapper.count(consume_marker) != 1:
-              raise SystemExit('consume marker not found')
-          wrapper = wrapper.replace(consume_marker, '''  async function consume(capability, executionAttempt) {
-            return asyncLocalRun(consumeContext, true, async () => {
-              beginConsume();
-              try {
-                return await consumeImpl(capability, executionAttempt);
-              } finally {
-                endConsume();
-              }
-            });
-          }
-          ''', 1)
-
-          close_marker = "  async function close() {\n    if (lifecycleState === 'CLOSED') return;"
-          if wrapper.count(close_marker) != 1:
-              raise SystemExit('wrapper close marker not found')
-          wrapper = wrapper.replace(close_marker, '''  async function close() {
-            if (asyncLocalGetStore(consumeContext) === true) {
-              throw gateError(
-                'POMRX_GATE_E_REENTRANT_CLOSE',
-                'Reference durable Gate cannot close from its active consume context',
-              );
-            }
-            if (lifecycleState === 'CLOSED') return;''', 1)
+          close_sig = "  async function close() {\n"
+          close_guard = close_sig + "\n".join([
+              "    if (asyncLocalGetStore(consumeContext) === true) {",
+              "      throw gateError(",
+              "        'POMRX_GATE_E_REENTRANT_CLOSE',",
+              "        'Reference durable Gate cannot close from its active consume context',",
+              "      );",
+              "    }",
+          ]) + "\n"
+          wrapper = once(wrapper, close_sig, close_guard, 'wrapper close signature')
           wrapper_path.write_text(wrapper)
 
           test_path = Path('tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs')
@@ -233,10 +189,7 @@ jobs:
             return { binding_profile: e.binding.binding_profile, action_commitment: e.binding.action_commitment,
               context_commitment: e.binding.context_commitment, prepared_execution: { operation: 'durable-lifecycle-control' }, ...overrides };
           }
-          function clock() {
-            let i = 0; const v = ['2026-08-30T12:00:01.000Z', '2026-08-30T12:00:02.000Z'];
-            return () => v[Math.min(i++, v.length - 1)];
-          }
+          function clock() { let i = 0; const v = ['2026-08-30T12:00:01.000Z', '2026-08-30T12:00:02.000Z']; return () => v[Math.min(i++, v.length - 1)]; }
           async function countTarget(target) {
             if (process.platform !== 'linux') return 0;
             const entries = await readdir('/proc/self/fd'); let count = 0;
@@ -244,22 +197,20 @@ jobs:
             return count;
           }
 
-          test('nonterminal durable paths remain RESERVED without retaining child fds', { skip: process.platform !== 'linux', concurrency: false }, async () => {
+          test('nonterminal paths keep RESERVED tombstones without retaining child fds', { skip: process.platform !== 'linux', concurrency: false }, async () => {
             const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-abandon-fd-'));
             let rejectEvidence; let unknownEvidence; let mode = 'reject';
             const harness = createReferenceDurableSingleUseGateHarness({ rootDir, trustedClock: clock(),
               observeBinding: async () => mode === 'reject' ? observedFrom(rejectEvidence, { action_commitment: h('9') }) : observedFrom(unknownEvidence),
               executeDownstream: () => Promise.reject(new Error('ambiguous downstream channel')) });
             try {
-              const rejected = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(1), { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
-              rejectEvidence = rejected.evidence;
+              const rejected = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(1), { witnessValidUntil: '2026-08-30T12:01:00.000Z' }); rejectEvidence = rejected.evidence;
               await assert.rejects(harness.gate.consume(rejected.capability, { raw: true }));
               assert.equal(harness.testAuthority.inspectCapabilityStateForTest(rejected.capability), 'REJECTED');
               assert.equal((await harness.testAuthority.inspectDurableStateForTest(rejected.capability)).state, 'RESERVED');
               assert.equal(await countTarget(path.join(rootDir, rejected.evidence.binding.capability_id)), 0);
               mode = 'unknown';
-              const unknown = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(2), { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
-              unknownEvidence = unknown.evidence;
+              const unknown = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(2), { witnessValidUntil: '2026-08-30T12:01:00.000Z' }); unknownEvidence = unknown.evidence;
               await assert.rejects(harness.gate.consume(unknown.capability, { raw: true }));
               assert.equal(harness.testAuthority.inspectCapabilityStateForTest(unknown.capability), 'CONSUMED_UNKNOWN');
               assert.equal((await harness.testAuthority.inspectDurableStateForTest(unknown.capability)).state, 'RESERVED');
@@ -283,7 +234,7 @@ jobs:
             } finally { await rm(rootDir, { recursive: true, force: true }); }
           });
 
-          test('metadata-only root drift reports invalidity but releases verified owned root fd', { skip: process.platform !== 'linux', concurrency: false }, async () => {
+          test('metadata-only root drift reports invalidity but releases verified owned fd', { skip: process.platform !== 'linux', concurrency: false }, async () => {
             const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-root-mode-drift-')); await chmod(rootDir, 0o700);
             const store = createReferenceDurableClaimStore({ rootDir });
             try {
@@ -298,9 +249,8 @@ jobs:
           package_path = Path('package.json')
           package_text = package_path.read_text()
           needle = 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs'
-          if package_text.count(needle) != 1:
-              raise SystemExit(f'durable wiring marker count={package_text.count(needle)}')
-          package_path.write_text(package_text.replace(needle, 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs', 1))
+          package_text = once(package_text, needle, 'tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs', 'durable wiring')
+          package_path.write_text(package_text)
           PY
 
           node --test tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs tests/pom-rx-core-durable-review-regressions.node.test.mjs tests/pom-rx-core-durable-fd-reuse.node.test.mjs tests/pom-rx-core-durable-gate.node.test.mjs tests/pom-rx-durable-claim-store-root.node.test.mjs
