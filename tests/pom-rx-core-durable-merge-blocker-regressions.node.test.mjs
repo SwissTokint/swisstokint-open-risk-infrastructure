@@ -262,3 +262,64 @@ test(
     }
   },
 );
+
+
+test(
+  'public consume finally chain ignores post-import Promise Symbol.species poisoning',
+  { concurrency: false },
+  async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-public-finally-species-'));
+    let evidence;
+    let poisonCalls = 0;
+    const harness = createReferenceDurableSingleUseGateHarness({
+      rootDir,
+      trustedClock: clock(),
+      observeBinding: async () => observedFrom(evidence),
+      executeDownstream: () => Object.freeze({ accepted: true }),
+    });
+    const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(4), {
+      witnessValidUntil: '2026-08-30T12:01:00.000Z',
+    });
+    evidence = issued.evidence;
+
+    const consumePromise = harness.gate.consume(issued.capability, { raw: true });
+    const speciesDescriptor = Object.getOwnPropertyDescriptor(Promise, Symbol.species);
+    let chained;
+    try {
+      function PoisonSpecies(executor) {
+        poisonCalls += 1;
+        return new Promise((_resolve, reject) => {
+          executor(
+            () => reject(new Error('poisoned Promise species converted finally fulfillment to rejection')),
+            reject,
+          );
+        });
+      }
+      Object.defineProperty(Promise, Symbol.species, {
+        value: PoisonSpecies,
+        configurable: true,
+        enumerable: false,
+        writable: true,
+      });
+      chained = consumePromise.finally(() => undefined);
+    } finally {
+      Object.defineProperty(Promise, Symbol.species, speciesDescriptor);
+    }
+
+    try {
+      assert.deepEqual(await chained, { accepted: true });
+      assert.equal(poisonCalls, 0, 'public hardened finally must not consult mutable Promise species');
+      assert.equal(
+        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+        'CONSUMED_SUCCESS',
+      );
+      assert.equal(
+        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+        'CONSUMED_SUCCESS',
+      );
+    } finally {
+      await harness.close().catch(() => {});
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  },
+);

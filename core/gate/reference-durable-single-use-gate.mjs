@@ -48,6 +48,7 @@ const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_THEN = Promise.prototype.then;
+const PROMISE_SPECIES_KEY = Symbol.species;
 const ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;
 const ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;
 const ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;
@@ -113,43 +114,44 @@ function makePromiseDescriptor(value) {
   return freezeValue(descriptor);
 }
 
-const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(PROMISE_CONSTRUCTOR);
+function makePromiseSpeciesCarrier() {
+  const carrier = createObject(null);
+  objectDefineProperty(
+    carrier,
+    PROMISE_SPECIES_KEY,
+    makePromiseDescriptor(PROMISE_CONSTRUCTOR),
+  );
+  return freezeValue(carrier);
+}
+
+const PROMISE_SPECIES_CARRIER = makePromiseSpeciesCarrier();
+const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(PROMISE_SPECIES_CARRIER);
 
 function stablePromiseThen(onFulfilled, onRejected) {
-  const source = this;
-  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
-    void (async () => {
-      try {
-        const value = await source;
-        if (typeof onFulfilled === 'function') resolve(onFulfilled(value));
-        else resolve(value);
-      } catch (error) {
-        if (typeof onRejected === 'function') {
-          try {
-            resolve(onRejected(error));
-          } catch (callbackError) {
-            reject(callbackError);
-          }
-        } else {
-          reject(error);
-        }
-      }
-    })();
-  }));
+  // Invoke the captured native then directly. The source Promise owns a frozen
+  // constructor carrier whose @@species is the captured intrinsic Promise, so
+  // native chaining cannot consult a later mutation of Promise[Symbol.species].
+  return stabilizePromise(REFLECT_APPLY(
+    PROMISE_THEN,
+    this,
+    [onFulfilled, onRejected],
+  ));
 }
 
 const PROMISE_OWN_SAFE_THEN_DESCRIPTOR = makePromiseDescriptor(stablePromiseThen);
 
 function stabilizePromise(promise) {
-  // Await uses PromiseResolve(%Promise%, value). Pinning constructor=%Promise%
-  // preserves direct adoption without consulting inherited then. Public promises
-  // created by this boundary also receive a Core-owned then implementation that
-  // constructs its result with the captured Promise directly, so mutable
-  // Promise[Symbol.species] cannot rewrite a successful exposed chain.
+  // Public promises created by this boundary own both a safe then dispatch and
+  // a null-prototype constructor carrier with immutable @@species=%Promise%.
+  // This closes both direct `.then()` and inherited `.finally()` species lookup.
+  // Promises already stabilized by another reviewed Core primitive may retain
+  // constructor=%Promise% plus the captured native then and are accepted as
+  // trusted internal channels rather than rewritten through non-configurable slots.
   const descriptors = objectGetOwnPropertyDescriptors(promise);
   if (!objectHasOwn(descriptors, 'constructor')) {
     objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
-  } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR) {
+  } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR
+      && descriptors.constructor.value !== PROMISE_SPECIES_CARRIER) {
     throw new TypeError('Reference durable Gate Promise constructor channel is invalid');
   }
 
