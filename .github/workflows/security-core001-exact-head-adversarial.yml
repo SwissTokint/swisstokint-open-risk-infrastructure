@@ -1,0 +1,38 @@
+name: SECURITY CORE-001 exact-head adversarial
+
+on:
+  push:
+    branches:
+      - security/core-001-adversarial-7061
+
+permissions:
+  contents: read
+
+jobs:
+  adversarial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+      - name: Assert exact challenged parent
+        shell: bash
+        run: test "$(git rev-parse HEAD^)" = "706163917c9fc0f9bf6b719176aebfab768833aa"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Exact-head adversarial matrix
+        run: |
+          node --test \
+            tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-composed-promise-lifecycle-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs \
+            tests/pom-rx-core-durable-exact-head-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-review-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-fd-reuse.node.test.mjs \
+            tests/pom-rx-core-durable-child-directory-rebinding.node.test.mjs \
+            tests/pom-rx-core-exact-authorization-intrinsic.node.test.mjs
