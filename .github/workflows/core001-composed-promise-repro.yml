@@ -1,0 +1,24 @@
+name: CORE-001 composed Promise lifecycle reproduction
+
+on:
+  push:
+    branches:
+      - core/durable-gate-v2-20260830
+    paths:
+      - .github/workflows/core001-composed-promise-repro.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@1e60f620b9541d6c2431945de6a59e5453539f41
+        with:
+          node-version: '24.15.0'
+          cache: npm
+      - run: npm ci
+      - name: Run exact composed Promise/lifecycle regressions
+        run: node --test tests/pom-rx-core-durable-composed-promise-lifecycle-regressions.node.test.mjs
