@@ -28,71 +28,64 @@ jobs:
           path = Path('core/gate/reference-single-use-gate.mjs')
           s = path.read_text()
 
-          marker = '''function objectDefineProperty(value, key, descriptor) {
-            return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
-          }
-          '''
-          helper = '''function objectDefineProperty(value, key, descriptor) {
-            return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
-          }
+          def once(old, new, label):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one occurrence, got {count}')
+              s = s.replace(old, new, 1)
 
-          function defineDetachedDataProperty(value, key, propertyValue, options = null) {
+          marker = """function objectDefineProperty(value, key, descriptor) {
+            return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
+          }
+          """
+          helper = marker + """
+          function defineDetachedDataProperty(
+            value,
+            key,
+            propertyValue,
+            enumerable = true,
+            writable = true,
+            configurable = true,
+          ) {
             const descriptor = createObject(null);
             descriptor.value = propertyValue;
-            descriptor.enumerable = options?.enumerable ?? true;
-            descriptor.writable = options?.writable ?? true;
-            descriptor.configurable = options?.configurable ?? true;
+            descriptor.enumerable = enumerable;
+            descriptor.writable = writable;
+            descriptor.configurable = configurable;
             objectDefineProperty(value, key, descriptor);
           }
-          '''
-          if s.count(marker) != 1:
-              raise SystemExit(f'objectDefineProperty marker count={s.count(marker)}')
-          s = s.replace(marker, helper, 1)
+          """
+          once(marker, helper, 'objectDefineProperty helper')
 
-          old_array = '''    for (let index = 0; index < value.length; index += 1) {
-              result[index] = rematerializeDetachedResult(value[index]);
-            }
-          '''
-          new_array = '''    for (let index = 0; index < value.length; index += 1) {
-              defineDetachedDataProperty(
+          once(
+              '      result[index] = rematerializeDetachedResult(value[index]);',
+              """      defineDetachedDataProperty(
                 result,
                 index,
                 rematerializeDetachedResult(value[index]),
-              );
-            }
-          '''
-          if s.count(old_array) != 1:
-              raise SystemExit(f'array rematerialization marker count={s.count(old_array)}')
-          s = s.replace(old_array, new_array, 1)
-
-          old_object = '''      result[key] = rematerializeDetachedResult(descriptor.value);
-          '''
-          new_object = '''      defineDetachedDataProperty(
+              );""",
+              'array detached assignment',
+          )
+          once(
+              '      result[key] = rematerializeDetachedResult(descriptor.value);',
+              """      defineDetachedDataProperty(
                 result,
                 key,
                 rematerializeDetachedResult(descriptor.value),
-              );
-          '''
-          if s.count(old_object) != 1:
-              raise SystemExit(f'object rematerialization marker count={s.count(old_object)}')
-          s = s.replace(old_object, new_object, 1)
-
-          old_then = '''    objectDefineProperty(result, 'then', {
+              );""",
+              'object detached assignment',
+          )
+          once(
+              """    objectDefineProperty(result, 'then', {
               value: undefined,
               enumerable: false,
               writable: false,
               configurable: false,
-            });
-          '''
-          new_then = '''    defineDetachedDataProperty(result, 'then', undefined, {
-              enumerable: false,
-              writable: false,
-              configurable: false,
-            });
-          '''
-          if s.count(old_then) != 1:
-              raise SystemExit(f'root then descriptor marker count={s.count(old_then)}')
-          s = s.replace(old_then, new_then, 1)
+            });""",
+              "    defineDetachedDataProperty(result, 'then', undefined, false, false, false);",
+              'root then descriptor',
+          )
 
           path.write_text(s)
           PY
