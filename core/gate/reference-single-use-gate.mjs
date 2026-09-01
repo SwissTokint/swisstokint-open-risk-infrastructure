@@ -46,11 +46,14 @@ const HARNESS_SORTED_KEYS = Object.freeze([
 // module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const REFLECT_CONSTRUCT = Reflect.construct;
+const ARRAY_CONSTRUCTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
 const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
@@ -84,8 +87,16 @@ function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
 }
 
+function objectDefineProperty(value, key, descriptor) {
+  return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
+}
+
 function objectGetOwnPropertyDescriptors(value) {
   return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
 }
 
 function objectGetOwnPropertySymbols(value) {
@@ -295,6 +306,49 @@ function validateObservedBinding(value) {
   });
 }
 
+function rematerializeDetachedResult(value, root = false) {
+  if (value === null || typeof value !== 'object') return value;
+
+  let result;
+  if (arrayIsArray(value)) {
+    result = REFLECT_CONSTRUCT(ARRAY_CONSTRUCTOR, [value.length]);
+    for (let index = 0; index < value.length; index += 1) {
+      result[index] = rematerializeDetachedResult(value[index]);
+    }
+  } else {
+    result = createObject(OBJECT_PROTOTYPE);
+    const descriptors = objectGetOwnPropertyDescriptors(value);
+    const names = objectGetOwnPropertyNames(value);
+    for (let index = 0; index < names.length; index += 1) {
+      const key = names[index];
+      const descriptor = descriptors[key];
+      if (!descriptor || !objectHasOwn(descriptor, 'value')) {
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Detached downstream result lost its plain-data boundary',
+        );
+      }
+      result[key] = rematerializeDetachedResult(descriptor.value);
+    }
+  }
+
+  if (root) {
+    if (objectHasOwn(result, 'then')) {
+      throw gateError(
+        'POMRX_GATE_E_DOWNSTREAM_FAILED',
+        'Downstream result root cannot expose an own then field',
+      );
+    }
+    objectDefineProperty(result, 'then', {
+      value: undefined,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
+  return freezeValue(result);
+}
+
 function snapshotDownstreamResult(value) {
   if (value === null) return null;
   const type = typeof value;
@@ -306,8 +360,10 @@ function snapshotDownstreamResult(value) {
     );
   }
   try {
-    return captureReferencePlainData(value, 'trusted Gate downstream result');
-  } catch {
+    const detached = captureReferencePlainData(value, 'trusted Gate downstream result');
+    return rematerializeDetachedResult(detached, true);
+  } catch (error) {
+    if (error instanceof PomRxGateError) throw error;
     throw gateError(
       'POMRX_GATE_E_DOWNSTREAM_FAILED',
       'Downstream returned a non-inert or out-of-bounds result after execution',

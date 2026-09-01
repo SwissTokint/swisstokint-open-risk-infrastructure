@@ -63,6 +63,7 @@ test(
     let thenGets = 0;
     let attackCalls = 0;
     let harness;
+    const downstreamResult = Object.freeze({ accepted: true });
 
     try {
       harness = createReferenceDurableSingleUseGateHarness({
@@ -76,7 +77,7 @@ test(
           return () => values[Math.min(index++, values.length - 1)];
         })(),
         observeBinding: async () => observedFrom(evidence),
-        executeDownstream: () => Object.freeze({ accepted: true }),
+        executeDownstream: () => downstreamResult,
       });
       const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
         witnessValidUntil: '2026-08-30T12:01:00.000Z',
@@ -87,6 +88,7 @@ test(
         configurable: true,
         enumerable: false,
         get() {
+          if (this !== downstreamResult) return undefined;
           thenGets += 1;
           if (thenGets === 1) return undefined;
           return function rejectAfterTerminal(resolve, reject) {
@@ -98,7 +100,14 @@ test(
 
       const result = await harness.gate.consume(issued.capability, { raw: true });
       assert.equal(result.accepted, true);
-      assert.equal(Object.getPrototypeOf(result), null);
+      assert.equal(Object.getPrototypeOf(result), Object.prototype);
+      assert.deepEqual(result, { accepted: true });
+      assert.deepEqual(Object.getOwnPropertyDescriptor(result, 'then'), {
+        value: undefined,
+        enumerable: false,
+        writable: false,
+        configurable: false,
+      });
       assert.equal(
         harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
         'CONSUMED_SUCCESS',
@@ -108,7 +117,7 @@ test(
         'CONSUMED_SUCCESS',
       );
       assert.equal(attackCalls, 0);
-      assert.ok(thenGets >= 1);
+      assert.equal(thenGets, 1);
     } finally {
       restoreObjectPrototypeThen(originalThen);
       await harness?.close().catch(() => {});
