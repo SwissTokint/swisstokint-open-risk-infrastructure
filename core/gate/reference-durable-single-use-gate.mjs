@@ -21,18 +21,20 @@ const ISSUE_OPTION_KEY = 'witnessValidUntil';
 // reference primitives. Capture the reflection/state intrinsics and constructors
 // it depends on at module initialization so a later same-realm mutation cannot
 // widen bootstrap shape, turn an accessor into a trusted dependency, substitute
-// the detached bootstrap snapshot, forge local capability provenance, or re-open
-// a wrapper-reserved capability. Caller-supplied reference issuance options are
-// captured here as exact own data before they reach the inner Gate so Proxy or
-// accessor behavior cannot run during inner destructuring. Security-sensitive
-// iteration over module-owned key sets is index-based so a later Array iterator
-// replacement cannot rewrite the bootstrap contract. The explicit close
-// lifecycle prevents the composed harness from retaining the durable root
-// descriptor indefinitely and drains any already-started consume before the
-// store descriptor is released. Poisoning before module initialization and a
-// generally compromised runtime remain outside this reference guarantee.
+// the detached bootstrap snapshot, forge local capability provenance, re-open a
+// wrapper-reserved capability, or rewrite an internal Promise result channel.
+// Caller-supplied reference issuance options are captured here as exact own data
+// before they reach the inner Gate so Proxy or accessor behavior cannot run
+// during inner destructuring. Security-sensitive iteration over module-owned key
+// sets is index-based so a later Array iterator replacement cannot rewrite the
+// bootstrap contract. The explicit close lifecycle prevents the composed harness
+// from retaining the durable root descriptor indefinitely and drains any
+// already-started consume before the store descriptor is released. Poisoning
+// before module initialization and a generally compromised runtime remain
+// outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -45,6 +47,7 @@ const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const PROMISE_CONSTRUCTOR = Promise;
+const PROMISE_THEN = Promise.prototype.then;
 const ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;
 const ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;
 const ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;
@@ -55,6 +58,10 @@ function createObject(prototype) {
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectDefineProperty(value, key, descriptor) {
+  return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
 }
 
 function objectGetOwnPropertyDescriptors(value) {
@@ -95,6 +102,36 @@ function asyncLocalRun(storage, value, callback) {
 
 function asyncLocalGetStore(storage) {
   return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_GET_STORE, storage, []);
+}
+
+function makePromiseDescriptor(value) {
+  const descriptor = createObject(null);
+  descriptor.value = value;
+  descriptor.enumerable = false;
+  descriptor.writable = false;
+  descriptor.configurable = false;
+  return freezeValue(descriptor);
+}
+
+const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(PROMISE_CONSTRUCTOR);
+const PROMISE_OWN_THEN_DESCRIPTOR = makePromiseDescriptor(PROMISE_THEN);
+
+function stabilizePromise(promise) {
+  // Await uses PromiseResolve(%Promise%, value). An immutable own constructor
+  // equal to the captured intrinsic makes that operation return this native
+  // Promise directly instead of consulting a mutable inherited `.then`. The own
+  // captured `.then` also protects direct consumer chaining after module import.
+  objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
+  objectDefineProperty(promise, 'then', PROMISE_OWN_THEN_DESCRIPTOR);
+  return promise;
+}
+
+function resolvedPromise(value) {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve) => resolve(value)));
+}
+
+function rejectedPromise(error) {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((_resolve, reject) => reject(error)));
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
@@ -269,15 +306,22 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     return state.state;
   }
 
-  async function inspectDurableStateForTest(capability) {
+  function inspectDurableStateForTest(capability) {
     if (lifecycleState !== 'OPEN') {
-      throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
+      return rejectedPromise(
+        gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed'),
+      );
     }
-    const { metadata } = requireLocalCapability(capability);
-    return durableStore.inspect({
+    let metadata;
+    try {
+      ({ metadata } = requireLocalCapability(capability));
+    } catch (error) {
+      return rejectedPromise(error);
+    }
+    return stabilizePromise(durableStore.inspect({
       capabilityId: metadata.capabilityId,
       authorizationCommitment: metadata.authorizationCommitment,
-    });
+    }));
   }
 
   async function consumeImpl(capability, executionAttempt) {
@@ -296,10 +340,10 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
 
     let durableClaim;
     try {
-      durableClaim = await durableStore.claim({
+      durableClaim = await stabilizePromise(durableStore.claim({
         capabilityId: metadata.capabilityId,
         authorizationCommitment: metadata.authorizationCommitment,
-      });
+      }));
     } catch (error) {
       state.state = 'REJECTED';
       throw error;
@@ -307,77 +351,93 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
 
     let result;
     try {
-      result = await inner.gate.consume(capability, executionAttempt);
+      result = await stabilizePromise(inner.gate.consume(capability, executionAttempt));
     } catch (error) {
       const innerState = inner.testAuthority.inspectCapabilityStateForTest(capability);
       if (innerState === 'CONSUMED_ERROR') {
         state.state = 'CONSUMED_ERROR';
         try {
-          await durableStore.complete(durableClaim.handle, 'error');
+          await stabilizePromise(durableStore.complete(durableClaim.handle, 'error'));
         } catch (durableError) {
           throw durableError;
         }
       } else if (innerState === 'CONSUMED_SUCCESS') {
         state.state = 'CONSUMED_SUCCESS';
         try {
-          await durableStore.complete(durableClaim.handle, 'success');
+          await stabilizePromise(durableStore.complete(durableClaim.handle, 'success'));
         } catch (durableError) {
           throw durableError;
         }
       } else if (innerState === 'CONSUMED_UNKNOWN') {
         state.state = 'CONSUMED_UNKNOWN';
-        await durableStore.abandon(durableClaim.handle);
+        await stabilizePromise(durableStore.abandon(durableClaim.handle));
       } else {
         state.state = 'REJECTED';
-        await durableStore.abandon(durableClaim.handle);
+        await stabilizePromise(durableStore.abandon(durableClaim.handle));
       }
       throw error;
     }
 
     state.state = 'CONSUMED_SUCCESS';
-    await durableStore.complete(durableClaim.handle, 'success');
+    await stabilizePromise(durableStore.complete(durableClaim.handle, 'success'));
     return result;
   }
 
-  async function consume(capability, executionAttempt) {
-    return asyncLocalRun(consumeContext, true, async () => {
-      beginConsume();
-      try {
-        return await consumeImpl(capability, executionAttempt);
-      } finally {
-        endConsume();
-      }
-    });
+  function consume(capability, executionAttempt) {
+    // The token is private, null-prototype and mutable only by this closure. An
+    // async descendant retains the same token, but `active` is cleared when the
+    // originating consume actually finishes. That distinguishes true reentrant
+    // close from a later descendant close without losing the self-deadlock guard.
+    const consumeToken = createObject(null);
+    consumeToken.active = true;
+
+    let resultPromise;
+    try {
+      resultPromise = asyncLocalRun(consumeContext, consumeToken, () => {
+        beginConsume();
+        const operationPromise = stabilizePromise(consumeImpl(capability, executionAttempt));
+        return stabilizePromise((async () => {
+          try {
+            return await operationPromise;
+          } finally {
+            consumeToken.active = false;
+            endConsume();
+          }
+        })());
+      });
+    } catch (error) {
+      consumeToken.active = false;
+      return rejectedPromise(error);
+    }
+    return stabilizePromise(resultPromise);
   }
 
-  async function close() {
-    if (asyncLocalGetStore(consumeContext) === true) {
-      throw gateError(
+  function close() {
+    const consumeToken = asyncLocalGetStore(consumeContext);
+    if (consumeToken !== undefined && consumeToken !== null && consumeToken.active === true) {
+      return rejectedPromise(gateError(
         'POMRX_GATE_E_REENTRANT_CLOSE',
         'Reference durable Gate cannot close from its active consume context',
-      );
+      ));
     }
-    if (lifecycleState === 'CLOSED') return;
-    if (lifecycleState === 'CLOSING') {
-      await closePromise;
-      return;
-    }
+    if (lifecycleState === 'CLOSED') return resolvedPromise(undefined);
+    if (lifecycleState === 'CLOSING') return closePromise;
 
     lifecycleState = 'CLOSING';
-    closePromise = (async () => {
-      if (activeConsumes > 0) {
-        await new PROMISE_CONSTRUCTOR((resolve) => {
-          drainResolve = resolve;
-        });
+    closePromise = stabilizePromise((async () => {
+      try {
+        if (activeConsumes > 0) {
+          const drainPromise = stabilizePromise(new PROMISE_CONSTRUCTOR((resolve) => {
+            drainResolve = resolve;
+          }));
+          await drainPromise;
+        }
+        await stabilizePromise(durableStore.close());
+      } finally {
+        lifecycleState = 'CLOSED';
       }
-      await durableStore.close();
-    })();
-
-    try {
-      await closePromise;
-    } finally {
-      lifecycleState = 'CLOSED';
-    }
+    })());
+    return closePromise;
   }
 
   const gate = freezeValue({ consume });
