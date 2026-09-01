@@ -141,6 +141,16 @@ function stablePromiseThen(onFulfilled, onRejected) {
 
 const PROMISE_OWN_SAFE_THEN_DESCRIPTOR = makePromiseDescriptor(stablePromiseThen);
 
+function stablePromiseCatch(onRejected) {
+  // Promise.prototype.catch is specified in terms of the source promise's
+  // `then` property. Route public catch through the captured safe `then`
+  // directly so a later mutation of Promise.prototype.catch cannot become a
+  // post-success result substitution channel.
+  return REFLECT_APPLY(stablePromiseThen, this, [undefined, onRejected]);
+}
+
+const PROMISE_OWN_SAFE_CATCH_DESCRIPTOR = makePromiseDescriptor(stablePromiseCatch);
+
 function stablePromiseFinally(onFinally) {
   // Invoke the captured native finally directly. The source Promise owns the
   // safe then dispatch and immutable constructor carrier, so native finally
@@ -155,11 +165,12 @@ function stablePromiseFinally(onFinally) {
 const PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR = makePromiseDescriptor(stablePromiseFinally);
 
 function stabilizePromise(promise) {
-  // Public promises created by this boundary own safe then/finally dispatch and
-  // a null-prototype constructor carrier with immutable @@species=%Promise%.
-  // Promises already stabilized by another reviewed Core primitive may retain
-  // constructor=%Promise% plus captured native methods and are accepted as
-  // trusted internal channels rather than rewritten through non-configurable slots.
+  // Public promises created by this boundary own safe then/catch/finally
+  // dispatch and a null-prototype constructor carrier with immutable
+  // @@species=%Promise%. Promises already stabilized by another reviewed Core
+  // primitive may retain constructor=%Promise% plus captured native methods and
+  // are accepted as trusted internal channels rather than rewritten through
+  // non-configurable slots.
   const descriptors = objectGetOwnPropertyDescriptors(promise);
   if (!objectHasOwn(descriptors, 'constructor')) {
     objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
@@ -173,6 +184,12 @@ function stabilizePromise(promise) {
   } else if (descriptors.then.value !== PROMISE_THEN
       && descriptors.then.value !== stablePromiseThen) {
     throw new TypeError('Reference durable Gate Promise then channel is invalid');
+  }
+
+  if (!objectHasOwn(descriptors, 'catch')) {
+    objectDefineProperty(promise, 'catch', PROMISE_OWN_SAFE_CATCH_DESCRIPTOR);
+  } else if (descriptors.catch.value !== stablePromiseCatch) {
+    throw new TypeError('Reference durable Gate Promise catch channel is invalid');
   }
 
   if (!objectHasOwn(descriptors, 'finally')) {
