@@ -120,7 +120,7 @@ test(
         'CONSUMED_SUCCESS',
       );
       assert.equal(attackCalls, 0);
-      assert.equal(thenGets, 1);
+      assert.equal(thenGets, 0, 'synchronous downstream results must never be inspected as thenables');
     } finally {
       restoreObjectPrototypeProperty('then', originalThen);
       await harness?.close().catch(() => {});
