@@ -23,18 +23,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp .github/core-001-finally-repair.py /tmp/core-001-finally-repair.py
+          cp .github/core-001-doc-proof-repair.py /tmp/core-001-doc-proof-repair.py
           git fetch origin main core/durable-gate-v2-20260830
-          test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "400b6bd5c59bc9454d18b4d3624bece20095dbc0"
-          git checkout --detach 400b6bd5c59bc9454d18b4d3624bece20095dbc0
+          test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "706163917c9fc0f9bf6b719176aebfab768833aa"
+          git checkout --detach 706163917c9fc0f9bf6b719176aebfab768833aa
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
 
-      - name: Apply bounded exact-head repair
-        run: python /tmp/core-001-finally-repair.py
+      - name: Apply bounded proof-boundary repair
+        run: python /tmp/core-001-doc-proof-repair.py
 
       - name: Validate bounded surface
         shell: bash
@@ -69,9 +69,9 @@ jobs:
           set -euo pipefail
           git config user.name 'POM-RX CORE-001 Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git add core/gate/reference-durable-single-use-gate.mjs tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs
+          git add core/gate/DURABLE-COMPOSITION.md tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs
           git diff --cached --check
-          git commit -m 'fix(core): pin public Promise finally species boundary'
+          git commit -m 'docs(core): preserve downstream ambiguity proof boundary'
           NEW_SHA=$(git rev-parse HEAD)
           echo "successor=$NEW_SHA"
-          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:400b6bd5c59bc9454d18b4d3624bece20095dbc0 origin HEAD:refs/heads/core/durable-gate-v2-20260830
+          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:706163917c9fc0f9bf6b719176aebfab768833aa origin HEAD:refs/heads/core/durable-gate-v2-20260830
