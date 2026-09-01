@@ -19,16 +19,37 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Pin bounded writer and exact target
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/core-001-current-writer.py /tmp/core-001-current-writer.py
+          git fetch origin main core/durable-gate-v2-20260830
+          test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "e281f1854afa71e0f237348d816e9bace1db976e"
+          git checkout --detach e281f1854afa71e0f237348d816e9bace1db976e
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
 
-      - name: Reproduce, repair, and reconcile bounded Core scope
-        run: python .github/core-001-writer.py
+      - name: Apply bounded exact-head repairs
+        run: python /tmp/core-001-current-writer.py
 
-      - name: Show bounded candidate surface
-        run: git diff --cached --name-status
+      - name: Validate bounded surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff --name-only | tee /tmp/core-files.txt
+          if grep -E '^(applications/|sdk/|models/|\.github/)' /tmp/core-files.txt; then
+            echo 'Non-Core scope leaked into CORE-001 repair' >&2
+            exit 1
+          fi
+          if grep -Ei 'wallet-guard|swtk|pom-permit' /tmp/core-files.txt; then
+            echo 'Application/token scope leaked into CORE-001 repair' >&2
+            exit 1
+          fi
 
       - name: Install dependencies
         run: npm ci
@@ -37,20 +58,20 @@ jobs:
         run: |
           npm run test:pom-rx:durable-claim-store
           npm run test:pom-rx:exact-authorization-input-hardening
-          npm run test:pom-rx:reference-plain-data
-          node --test tests/pom-rx-core-reference-gate.node.test.mjs tests/pom-rx-core-reference-gate-temporal.node.test.mjs
+          npm run test:pom-rx:core-reference-gate
 
       - name: Full repository regression
         run: npm test
 
-      - name: Publish one-commit successor exact to trusted main
+      - name: Publish exact-head successor
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'POM-RX CORE-001 Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git commit -m 'fix(core): close durable Gate review findings on bounded main base'
+          git add core/authorization/reference-exact-authorization.mjs core/gate/reference-single-use-gate.mjs core/gate/reference-durable-single-use-gate.mjs
+          git diff --cached --check
+          git commit -m 'fix(core): close exact-head Promise and authorization blockers'
           NEW_SHA=$(git rev-parse HEAD)
           echo "successor=$NEW_SHA"
-          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:769dcf4cd76d17478c5a74c95ebd35e9cabda88f origin HEAD:refs/heads/core/durable-gate-v2-20260830
-          git push origin --delete core/core-001-writer-20260901a || true
+          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:e281f1854afa71e0f237348d816e9bace1db976e origin HEAD:refs/heads/core/durable-gate-v2-20260830
