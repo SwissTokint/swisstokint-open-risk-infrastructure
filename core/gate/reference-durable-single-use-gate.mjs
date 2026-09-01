@@ -2,6 +2,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { types as utilTypes } from 'node:util';
 
 import {
+  captureReferencePlainData,
+} from '../reference-data/plain-data-snapshot.mjs';
+import {
   createReferenceDurableClaimStore,
 } from './reference-durable-claim-store.mjs';
 import {
@@ -43,6 +46,7 @@ const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
@@ -88,6 +92,10 @@ function objectHasOwn(value, key) {
 
 function isProxy(value) {
   return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function isPromise(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROMISE, utilTypes, [value]);
 }
 
 function weakMapGet(map, key) {
@@ -304,6 +312,25 @@ function gateError(code, message) {
   return new PomRxGateError(code, message);
 }
 
+function captureProducerResult(value) {
+  const type = typeof value;
+  if (value === null || (type !== 'object' && type !== 'function')) return value;
+  if (type === 'function') {
+    throw gateError(
+      'POMRX_GATE_E_DOWNSTREAM_FAILED',
+      'Asynchronous downstream result channel cannot capture a function',
+    );
+  }
+  try {
+    return captureReferencePlainData(value, 'trusted durable Gate producer result');
+  } catch {
+    throw gateError(
+      'POMRX_GATE_E_DOWNSTREAM_FAILED',
+      'Asynchronous downstream result channel requires bounded inert plain data',
+    );
+  }
+}
+
 /**
  * Compose the process-local reference Gate with the filesystem durable claim
  * primitive without changing either primitive's standalone authorization
@@ -328,6 +355,104 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
     throw new TypeError('Reference durable Gate bootstrap dependencies must be functions');
   }
 
+  function executeDurableDownstream(preparedExecution) {
+    let captureState = 'OPEN';
+    let capturedResult;
+
+    function capture(value) {
+      if (captureState !== 'OPEN') {
+        captureState = 'FAILED';
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Asynchronous downstream result channel is one-shot',
+        );
+      }
+      try {
+        capturedResult = captureProducerResult(value);
+      } catch (error) {
+        captureState = 'FAILED';
+        throw error;
+      }
+      captureState = 'CAPTURED';
+    }
+
+    const resultChannel = createObject(null);
+    resultChannel.capture = capture;
+    freezeValue(resultChannel);
+
+    let producerResult;
+    try {
+      producerResult = options.executeDownstream(preparedExecution, resultChannel);
+    } catch (error) {
+      captureState = 'CLOSED';
+      throw error;
+    }
+
+    if (!isPromise(producerResult)) {
+      if (captureState === 'FAILED') {
+        captureState = 'CLOSED';
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Downstream result channel failed before synchronous completion',
+        );
+      }
+      if (captureState === 'CAPTURED') {
+        captureState = 'CLOSED';
+        if (producerResult !== undefined) {
+          throw gateError(
+            'POMRX_GATE_E_DOWNSTREAM_FAILED',
+            'Downstream cannot mix a captured result with a direct synchronous result',
+          );
+        }
+        return capturedResult;
+      }
+      captureState = 'CLOSED';
+      return producerResult;
+    }
+
+    let completionResolve;
+    let completionReject;
+    const completionPromise = new PROMISE_CONSTRUCTOR((resolve, reject) => {
+      completionResolve = resolve;
+      completionReject = reject;
+    });
+
+    try {
+      const producerPromise = stabilizePromise(producerResult);
+      REFLECT_APPLY(PROMISE_THEN, producerPromise, [
+        () => {
+          if (captureState === 'CAPTURED') {
+            captureState = 'CLOSED';
+            completionResolve(capturedResult);
+            return;
+          }
+          captureState = 'CLOSED';
+          completionReject(gateError(
+            'POMRX_GATE_E_DOWNSTREAM_FAILED',
+            'Asynchronous downstream must capture its result through the Core-owned result channel',
+          ));
+        },
+        (error) => {
+          captureState = 'CLOSED';
+          completionReject(error);
+        },
+      ]);
+    } catch {
+      captureState = 'CLOSED';
+      completionReject(gateError(
+        'POMRX_GATE_E_DOWNSTREAM_FAILED',
+        'Asynchronous downstream result channel could not be observed safely',
+      ));
+    }
+
+    // Deliberately return an ordinary intrinsic Promise here. The inner Gate
+    // owns the next boundary and immediately pins its constructor/then slots
+    // before awaiting it. Returning this raw Core-owned completion Promise avoids
+    // handing the inner Gate a non-configurable Promise surface owned by this
+    // outer composition layer.
+    return completionPromise;
+  }
+
   // The store is created inside the composition boundary rather than accepted as
   // a caller-provided structural object. This keeps the claimed durable behavior
   // tied to the reviewed reference store implementation and its root checks.
@@ -335,7 +460,7 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
   const inner = createReferenceSingleUseGateHarness({
     trustedClock: options.trustedClock,
     observeBinding: options.observeBinding,
-    executeDownstream: options.executeDownstream,
+    executeDownstream: executeDurableDownstream,
   });
 
   const capabilityMetadata = new WEAK_MAP_CONSTRUCTOR();

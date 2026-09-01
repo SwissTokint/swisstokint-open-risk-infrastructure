@@ -240,10 +240,10 @@ test(
 );
 
 test(
-  'async downstream producer cannot assimilate inherited thenable before Core capture',
+  'async downstream without Core result capture fails closed after inherited thenable assimilation',
   { concurrency: false },
   async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-async-downstream-assimilation-'));
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-async-downstream-no-capture-'));
     const originalThenDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
     let thenCalls = 0;
     let evidence;
@@ -258,11 +258,74 @@ test(
       harness = createReferenceDurableSingleUseGateHarness({
         rootDir,
         trustedClock: trustedClock(),
-        // Prototype-inert observer data keeps the distinct #152 observer-return
-        // attack out of this reproduction.
         observeBinding: () => observedFrom(evidence),
         executeDownstream: async () => {
           const intended = { accepted: true, source: 'trusted-async-producer' };
+          Object.defineProperty(Object.prototype, 'then', {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value(resolve) {
+              thenCalls += 1;
+              restoreObjectThen();
+              resolve('substituted-before-core');
+            },
+          });
+          return intended;
+        },
+      });
+      const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+        witnessValidUntil: '2026-09-01T12:01:00.000Z',
+      });
+      evidence = issued.evidence;
+
+      await assert.rejects(
+        harness.gate.consume(issued.capability, { raw: true }),
+        (error) => {
+          assert.equal(error?.code, 'POMRX_GATE_E_DOWNSTREAM_FAILED');
+          return true;
+        },
+      );
+      assert.equal(thenCalls, 1, 'the producer Promise may assimilate before Core receives it');
+      assert.equal(
+        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+        'CONSUMED_UNKNOWN',
+      );
+      assert.equal(
+        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+        'RESERVED',
+      );
+    } finally {
+      restoreObjectThen();
+      await harness?.close().catch(() => {});
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'Core-owned producer result capture preserves async result before inherited thenable assimilation',
+  { concurrency: false },
+  async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-async-downstream-capture-'));
+    const originalThenDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
+    let thenCalls = 0;
+    let evidence;
+    let harness;
+
+    function restoreObjectThen() {
+      if (originalThenDescriptor === undefined) delete Object.prototype.then;
+      else Object.defineProperty(Object.prototype, 'then', originalThenDescriptor);
+    }
+
+    try {
+      harness = createReferenceDurableSingleUseGateHarness({
+        rootDir,
+        trustedClock: trustedClock(),
+        observeBinding: () => observedFrom(evidence),
+        executeDownstream: async (_preparedExecution, resultChannel) => {
+          const intended = { accepted: true, source: 'trusted-async-producer' };
+          resultChannel.capture(intended);
           Object.defineProperty(Object.prototype, 'then', {
             configurable: true,
             enumerable: false,
@@ -287,8 +350,8 @@ test(
       const result = await harness.gate.consume(issued.capability, { raw: true });
       assert.equal(
         thenCalls,
-        0,
-        'trusted async downstream success must reach a Core-owned capture boundary before thenable assimilation',
+        1,
+        'native producer assimilation may occur but must not control the Core-captured result',
       );
       assert.equal(result.accepted, true);
       assert.equal(result.source, 'trusted-async-producer');
