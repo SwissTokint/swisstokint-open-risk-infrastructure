@@ -11,9 +11,46 @@ permissions:
 jobs:
   repair:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: core/core-001-writer-20260901a
           fetch-depth: 0
-      - run: echo writer-runner-ok
+          persist-credentials: true
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Reproduce, repair, and reconcile bounded Core scope
+        run: python .github/core-001-writer.py
+
+      - name: Show bounded candidate surface
+        run: git diff --cached --name-status
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Targeted CORE regressions
+        run: |
+          npm run test:pom-rx:durable-claim-store
+          npm run test:pom-rx:exact-authorization-input-hardening
+          npm run test:pom-rx:reference-plain-data
+          node --test tests/pom-rx-core-reference-gate.node.test.mjs tests/pom-rx-core-reference-gate-temporal.node.test.mjs
+
+      - name: Full repository regression
+        run: npm test
+
+      - name: Publish one-commit successor exact to trusted main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'POM-RX CORE-001 Writer'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'fix(core): close durable Gate review findings on bounded main base'
+          NEW_SHA=$(git rev-parse HEAD)
+          echo "successor=$NEW_SHA"
+          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:769dcf4cd76d17478c5a74c95ebd35e9cabda88f origin HEAD:refs/heads/core/durable-gate-v2-20260830
+          git push origin --delete core/core-001-writer-20260901a || true
