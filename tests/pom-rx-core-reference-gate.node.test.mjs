@@ -346,7 +346,7 @@ test('concurrent double-use reserves synchronously and reaches downstream at mos
   assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_SUCCESS');
 });
 
-test('downstream failure is terminal and cannot be replayed', async () => {
+test('asynchronous downstream rejection is ambiguous and cannot be replayed', async () => {
   let evidence;
   let downstreamCalls = 0;
   const harness = createReferenceSingleUseGateHarness({
@@ -370,8 +370,40 @@ test('downstream failure is terminal and cannot be replayed', async () => {
     (error) => expectGateCode(error, 'POMRX_GATE_E_DOWNSTREAM_FAILED'),
   );
   assert.equal(downstreamCalls, 1);
-  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_ERROR');
+  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_UNKNOWN');
 
+  await assert.rejects(
+    harness.gate.consume(issued.capability, { request: 'retry' }),
+    (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),
+  );
+  assert.equal(downstreamCalls, 1);
+});
+
+test('synchronous downstream throw is terminal CONSUMED_ERROR and cannot be replayed', async () => {
+  let evidence;
+  let downstreamCalls = 0;
+  const harness = createReferenceSingleUseGateHarness({
+    trustedClock: sequenceClock(
+      '2026-08-19T17:00:01.000Z',
+      '2026-08-19T17:00:02.000Z',
+    ),
+    observeBinding: async () => observedFrom(evidence),
+    executeDownstream: () => {
+      downstreamCalls += 1;
+      throw new Error('synchronous downstream failure');
+    },
+  });
+  const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
+
+  await assert.rejects(
+    harness.gate.consume(issued.capability, { request: 'sync-downstream-error' }),
+    (error) => expectGateCode(error, 'POMRX_GATE_E_DOWNSTREAM_FAILED'),
+  );
+  assert.equal(downstreamCalls, 1);
+  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_ERROR');
   await assert.rejects(
     harness.gate.consume(issued.capability, { request: 'retry' }),
     (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_STALE'),

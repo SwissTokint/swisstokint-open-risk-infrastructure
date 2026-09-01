@@ -1,0 +1,368 @@
+import { types as utilTypes } from 'node:util';
+
+import {
+  createReferenceDurableClaimStore,
+} from './reference-durable-claim-store.mjs';
+import {
+  PomRxGateError,
+  createReferenceSingleUseGateHarness,
+} from './reference-single-use-gate.mjs';
+
+const BOOTSTRAP_KEYS = Object.freeze([
+  'rootDir',
+  'executeDownstream',
+  'observeBinding',
+  'trustedClock',
+]);
+const ISSUE_OPTION_KEY = 'witnessValidUntil';
+
+// This composition boundary sits in front of two independently reviewed Core
+// reference primitives. Capture the reflection/state intrinsics and constructors
+// it depends on at module initialization so a later same-realm mutation cannot
+// widen bootstrap shape, turn an accessor into a trusted dependency, substitute
+// the detached bootstrap snapshot, forge local capability provenance, or re-open
+// a wrapper-reserved capability. Caller-supplied reference issuance options are
+// captured here as exact own data before they reach the inner Gate so Proxy or
+// accessor behavior cannot run during inner destructuring. Security-sensitive
+// iteration over module-owned key sets is index-based so a later Array iterator
+// replacement cannot rewrite the bootstrap contract. The explicit close
+// lifecycle prevents the composed harness from retaining the durable root
+// descriptor indefinitely and drains any already-started consume before the
+// store descriptor is released. Poisoning before module initialization and a
+// generally compromised runtime remain outside this reference guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const OBJECT_CREATE = Object.create;
+const OBJECT_FREEZE = Object.freeze;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_PROTOTYPE = Object.prototype;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const WEAK_MAP_CONSTRUCTOR = WeakMap;
+const WEAK_MAP_GET = WeakMap.prototype.get;
+const WEAK_MAP_SET = WeakMap.prototype.set;
+const PROMISE_CONSTRUCTOR = Promise;
+
+function createObject(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function weakMapGet(map, key) {
+  return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
+}
+
+function weakMapSet(map, key, value) {
+  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function isOwnEnumerableDataDescriptor(descriptor) {
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
+    && descriptor.enumerable === true
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
+function captureBootstrap(value) {
+  if (!value || typeof value !== 'object' || isProxy(value)) {
+    throw new TypeError('Reference durable Gate bootstrap must be a non-Proxy plain object');
+  }
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+    throw new TypeError('Reference durable Gate bootstrap must use Object.prototype or a null prototype');
+  }
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError('Reference durable Gate bootstrap cannot contain symbol keys');
+  }
+
+  const names = objectGetOwnPropertyNames(value);
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  if (names.length !== BOOTSTRAP_KEYS.length) {
+    throw new TypeError('Reference durable Gate bootstrap has missing, hidden or unknown fields');
+  }
+
+  const snapshot = createObject(null);
+  for (let index = 0; index < BOOTSTRAP_KEYS.length; index += 1) {
+    const key = BOOTSTRAP_KEYS[index];
+    if (!objectHasOwn(descriptors, key)
+        || !isOwnEnumerableDataDescriptor(descriptors[key])) {
+      throw new TypeError(`Reference durable Gate bootstrap.${key} must be an enumerable data property`);
+    }
+    snapshot[key] = descriptors[key].value;
+  }
+  return freezeValue(snapshot);
+}
+
+function captureIssueOptions(value) {
+  if (!value || typeof value !== 'object' || isProxy(value)) {
+    throw new TypeError('Reference durable Gate issueOptions must be a non-Proxy plain object');
+  }
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+    throw new TypeError('Reference durable Gate issueOptions must use Object.prototype or a null prototype');
+  }
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError('Reference durable Gate issueOptions cannot contain symbol keys');
+  }
+
+  const names = objectGetOwnPropertyNames(value);
+  if (names.length > 1 || (names.length === 1 && names[0] !== ISSUE_OPTION_KEY)) {
+    throw new TypeError('Reference durable Gate issueOptions has hidden or unknown fields');
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const snapshot = createObject(null);
+  if (names.length === 1) {
+    const descriptor = descriptors[ISSUE_OPTION_KEY];
+    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+      throw new TypeError(
+        'Reference durable Gate issueOptions.witnessValidUntil must be an enumerable data property',
+      );
+    }
+    snapshot[ISSUE_OPTION_KEY] = descriptor.value;
+  }
+  return freezeValue(snapshot);
+}
+
+function gateError(code, message) {
+  return new PomRxGateError(code, message);
+}
+
+/**
+ * Compose the process-local reference Gate with the filesystem durable claim
+ * primitive without changing either primitive's standalone authorization
+ * semantics.
+ *
+ * The durable claim is acquired after the wrapper's synchronous local
+ * reservation and before the inner Gate is allowed to observe binding or reach
+ * downstream. Consequently one persisted capability tombstone owns the global
+ * reference attempt across processes sharing the trusted local root. A later
+ * validation rejection intentionally leaves the durable claim in RESERVED:
+ * fail-closed replay prevention is stronger than pretending a downstream
+ * terminal outcome exists when forwarding never happened.
+ */
+export function createReferenceDurableSingleUseGateHarness(rawOptions) {
+  const options = captureBootstrap(rawOptions);
+  if (typeof options.rootDir !== 'string') {
+    throw new TypeError('Reference durable Gate rootDir must be a string');
+  }
+  if (typeof options.trustedClock !== 'function'
+      || typeof options.observeBinding !== 'function'
+      || typeof options.executeDownstream !== 'function') {
+    throw new TypeError('Reference durable Gate bootstrap dependencies must be functions');
+  }
+
+  // The store is created inside the composition boundary rather than accepted as
+  // a caller-provided structural object. This keeps the claimed durable behavior
+  // tied to the reviewed reference store implementation and its root checks.
+  const durableStore = createReferenceDurableClaimStore({ rootDir: options.rootDir });
+  const inner = createReferenceSingleUseGateHarness({
+    trustedClock: options.trustedClock,
+    observeBinding: options.observeBinding,
+    executeDownstream: options.executeDownstream,
+  });
+
+  const capabilityMetadata = new WEAK_MAP_CONSTRUCTOR();
+  const wrapperState = new WEAK_MAP_CONSTRUCTOR();
+  let lifecycleState = 'OPEN';
+  let activeConsumes = 0;
+  let drainResolve = null;
+  let closePromise = null;
+
+  function beginConsume() {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError(
+        'POMRX_GATE_E_CLOSED',
+        'Reference durable Gate is closing or closed',
+      );
+    }
+    activeConsumes += 1;
+  }
+
+  function endConsume() {
+    activeConsumes -= 1;
+    if (activeConsumes === 0 && drainResolve !== null) {
+      const resolve = drainResolve;
+      drainResolve = null;
+      resolve();
+    }
+  }
+
+  function issueReferenceAuthorizationForTest(bindingInput, issueOptions = {}) {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
+    }
+    const capturedIssueOptions = captureIssueOptions(issueOptions);
+    const issued = inner.testAuthority.issueReferenceAuthorizationForTest(
+      bindingInput,
+      capturedIssueOptions,
+    );
+    weakMapSet(capabilityMetadata, issued.capability, freezeValue({
+      capabilityId: issued.evidence.binding.capability_id,
+      authorizationCommitment: issued.evidence.authorization_commitment,
+    }));
+    weakMapSet(wrapperState, issued.capability, { state: 'AVAILABLE' });
+    return issued;
+  }
+
+  function requireLocalCapability(capability) {
+    const metadata = weakMapGet(capabilityMetadata, capability);
+    const state = weakMapGet(wrapperState, capability);
+    if (!metadata || !state) {
+      throw gateError(
+        'POMRX_GATE_E_CAPABILITY_REQUIRED',
+        'A capability from this reference durable Gate is required',
+      );
+    }
+    return { metadata, state };
+  }
+
+  function inspectCapabilityStateForTest(capability) {
+    const { state } = requireLocalCapability(capability);
+    if (state.state === 'VALIDATING') {
+      const innerState = inner.testAuthority.inspectCapabilityStateForTest(capability);
+      if (innerState !== null && innerState !== 'AVAILABLE') return innerState;
+    }
+    return state.state;
+  }
+
+  async function inspectDurableStateForTest(capability) {
+    if (lifecycleState !== 'OPEN') {
+      throw gateError('POMRX_GATE_E_CLOSED', 'Reference durable Gate is closing or closed');
+    }
+    const { metadata } = requireLocalCapability(capability);
+    return durableStore.inspect({
+      capabilityId: metadata.capabilityId,
+      authorizationCommitment: metadata.authorizationCommitment,
+    });
+  }
+
+  async function consumeImpl(capability, executionAttempt) {
+    const { metadata, state } = requireLocalCapability(capability);
+    if (state.state !== 'AVAILABLE') {
+      throw gateError(
+        'POMRX_GATE_E_CAPABILITY_STALE',
+        'Reference durable capability is no longer available',
+      );
+    }
+
+    // This synchronous wrapper reservation happens before the first await. It
+    // preserves the local at-most-once property even before filesystem I/O and
+    // ensures a second local call cannot race its own durable claim.
+    state.state = 'VALIDATING';
+
+    let durableClaim;
+    try {
+      durableClaim = await durableStore.claim({
+        capabilityId: metadata.capabilityId,
+        authorizationCommitment: metadata.authorizationCommitment,
+      });
+    } catch (error) {
+      state.state = 'REJECTED';
+      throw error;
+    }
+
+    let result;
+    try {
+      result = await inner.gate.consume(capability, executionAttempt);
+    } catch (error) {
+      const innerState = inner.testAuthority.inspectCapabilityStateForTest(capability);
+      if (innerState === 'CONSUMED_ERROR') {
+        state.state = 'CONSUMED_ERROR';
+        try {
+          await durableStore.complete(durableClaim.handle, 'error');
+        } catch (durableError) {
+          throw durableError;
+        }
+      } else if (innerState === 'CONSUMED_SUCCESS') {
+        state.state = 'CONSUMED_SUCCESS';
+        try {
+          await durableStore.complete(durableClaim.handle, 'success');
+        } catch (durableError) {
+          throw durableError;
+        }
+      } else if (innerState === 'CONSUMED_UNKNOWN') {
+        state.state = 'CONSUMED_UNKNOWN';
+      } else {
+        state.state = 'REJECTED';
+      }
+      throw error;
+    }
+
+    state.state = 'CONSUMED_SUCCESS';
+    await durableStore.complete(durableClaim.handle, 'success');
+    return result;
+  }
+
+  async function consume(capability, executionAttempt) {
+    beginConsume();
+    try {
+      return await consumeImpl(capability, executionAttempt);
+    } finally {
+      endConsume();
+    }
+  }
+
+  async function close() {
+    if (lifecycleState === 'CLOSED') return;
+    if (lifecycleState === 'CLOSING') {
+      await closePromise;
+      return;
+    }
+
+    lifecycleState = 'CLOSING';
+    closePromise = (async () => {
+      if (activeConsumes > 0) {
+        await new PROMISE_CONSTRUCTOR((resolve) => {
+          drainResolve = resolve;
+        });
+      }
+      await durableStore.close();
+    })();
+
+    try {
+      await closePromise;
+    } finally {
+      lifecycleState = 'CLOSED';
+    }
+  }
+
+  const gate = freezeValue({ consume });
+  const testAuthority = freezeValue({
+    issueReferenceAuthorizationForTest,
+    inspectCapabilityStateForTest,
+    inspectDurableStateForTest,
+  });
+
+  return freezeValue({ gate, testAuthority, close });
+}

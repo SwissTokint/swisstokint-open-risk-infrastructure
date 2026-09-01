@@ -209,3 +209,52 @@ test('issued_at boundary and equal trusted-clock samples are accepted exactly on
   assert.equal(downstreamCalls, 1);
   assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'CONSUMED_SUCCESS');
 });
+
+test('post-import Date replacement cannot make an expired capability active', async () => {
+  const OriginalDate = globalThis.Date;
+  const expiredNow = '2026-08-19T17:00:40.000Z';
+  const forgedNowMs = new OriginalDate('2026-08-19T17:00:10.000Z').getTime();
+  let evidence;
+  let downstreamCalls = 0;
+
+  const harness = createReferenceSingleUseGateHarness({
+    trustedClock: sequenceClock(expiredNow),
+    observeBinding: async () => observedFrom(evidence),
+    executeDownstream: async () => {
+      downstreamCalls += 1;
+      return 'must-not-run';
+    },
+  });
+  const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+    witnessValidUntil: WITNESS_VALID_UNTIL,
+  });
+  evidence = issued.evidence;
+
+  class PoisonedDate {
+    constructor(value) {
+      this.value = value;
+    }
+
+    getTime() {
+      if (this.value === expiredNow) return forgedNowMs;
+      return new OriginalDate(this.value).getTime();
+    }
+
+    toISOString() {
+      return this.value;
+    }
+  }
+
+  try {
+    globalThis.Date = PoisonedDate;
+    await assert.rejects(
+      harness.gate.consume(issued.capability, { operation: 'expired-under-date-poison' }),
+      (error) => expectGateCode(error, 'POMRX_GATE_E_CAPABILITY_EXPIRED'),
+    );
+  } finally {
+    globalThis.Date = OriginalDate;
+  }
+
+  assert.equal(downstreamCalls, 0);
+  assert.equal(harness.testAuthority.inspectCapabilityStateForTest(issued.capability), 'REJECTED');
+});
