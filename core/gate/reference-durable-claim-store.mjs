@@ -13,6 +13,7 @@ import {
   open as openFdCallback,
   openSync as openFdSyncCallback,
   readFileSync as readFileSyncCallback,
+  realpath as realpathCallback,
   realpathSync as realpathSyncCallback,
   stat as statCallback,
   statSync as statSyncCallback,
@@ -28,7 +29,6 @@ import {
   link,
   mkdir,
   readFile,
-  realpath,
   unlink,
 } from 'node:fs/promises';
 import path from 'node:path';
@@ -152,18 +152,32 @@ const HASH_UPDATE = HASH_PROTOTYPE.update;
 const HASH_DIGEST = HASH_PROTOTYPE.digest;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_THEN = Promise.prototype.then;
-const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{
-  value: PROMISE_CONSTRUCTOR,
-  configurable: false,
-  enumerable: false,
-  writable: false,
-}]);
-const PROMISE_OWN_THEN_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{
-  value: PROMISE_THEN,
-  configurable: false,
-  enumerable: false,
-  writable: false,
-}]);
+const PROMISE_SPECIES_KEY = Symbol.species;
+
+function makePromiseDescriptor(value) {
+  const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  descriptor.value = value;
+  descriptor.configurable = false;
+  descriptor.enumerable = false;
+  descriptor.writable = false;
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [descriptor]);
+}
+
+function makePromiseSpeciesCarrier() {
+  const carrier = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [
+    carrier,
+    PROMISE_SPECIES_KEY,
+    makePromiseDescriptor(PROMISE_CONSTRUCTOR),
+  ]);
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [carrier]);
+}
+
+const PROMISE_SPECIES_CARRIER = makePromiseSpeciesCarrier();
+const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(
+  PROMISE_SPECIES_CARRIER,
+);
+const PROMISE_OWN_THEN_DESCRIPTOR = makePromiseDescriptor(PROMISE_THEN);
 const FS_OPEN_FD = openFdCallback;
 const FS_WRITE_FILE_FD = writeFileFdCallback;
 const FS_FSTAT_FD = fstatFdCallback;
@@ -174,7 +188,7 @@ const FS_STAT = statCallback;
 const FS_LINK = link;
 const FS_MKDIR = mkdir;
 const FS_READ_FILE = readFile;
-const FS_REALPATH = realpath;
+const FS_REALPATH = realpathCallback;
 const FS_UNLINK = unlink;
 const FS_OPEN_SYNC = openFdSyncCallback;
 const FS_WRITE_FILE_SYNC = writeFileFdSyncCallback;
@@ -195,9 +209,10 @@ const PROCESS_PLATFORM = process.platform;
 const PROCESS_PID = process.pid;
 
 function stabilizePromise(promise) {
-  // Await performs PromiseResolve(%Promise%, value). Immutable own captured
-  // constructor/then data properties prevent post-import Promise-prototype
-  // poisoning from substituting internal durable result channels.
+  // Await/chaining must not consult mutable Promise prototype/species state.
+  // Each durable Promise owns the captured native then plus a frozen,
+  // null-prototype constructor carrier whose @@species is the captured
+  // intrinsic Promise.
   REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [
     promise,
     'constructor',
@@ -281,7 +296,12 @@ function fsReadFile(filePath, options) {
 }
 
 function fsRealpath(filePath) {
-  return stabilizePromise(REFLECT_APPLY(FS_REALPATH, undefined, [filePath]));
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    REFLECT_APPLY(FS_REALPATH, undefined, [filePath, (error, resolvedPath) => {
+      if (error) reject(error);
+      else resolve(resolvedPath);
+    }]);
+  }));
 }
 
 function fsUnlink(filePath) {

@@ -164,6 +164,27 @@ function stablePromiseFinally(onFinally) {
 
 const PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR = makePromiseDescriptor(stablePromiseFinally);
 
+function isSafePromiseSpeciesCarrier(value) {
+  if (value === null
+      || typeof value !== 'object'
+      || isProxy(value)
+      || objectGetPrototypeOf(value) !== null
+      || objectGetOwnPropertyNames(value).length !== 0) {
+    return false;
+  }
+  const symbols = objectGetOwnPropertySymbols(value);
+  if (symbols.length !== 1 || symbols[0] !== PROMISE_SPECIES_KEY) return false;
+  const descriptor = objectGetOwnPropertyDescriptors(value)[PROMISE_SPECIES_KEY];
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && descriptor.value === PROMISE_CONSTRUCTOR
+    && descriptor.enumerable === false
+    && descriptor.writable === false
+    && descriptor.configurable === false
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
 function stabilizePromise(promise) {
   // Public promises created by this boundary own safe then/catch/finally
   // dispatch and a null-prototype constructor carrier with immutable
@@ -175,7 +196,8 @@ function stabilizePromise(promise) {
   if (!objectHasOwn(descriptors, 'constructor')) {
     objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
   } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR
-      && descriptors.constructor.value !== PROMISE_SPECIES_CARRIER) {
+      && descriptors.constructor.value !== PROMISE_SPECIES_CARRIER
+      && !isSafePromiseSpeciesCarrier(descriptors.constructor.value)) {
     throw new TypeError('Reference durable Gate Promise constructor channel is invalid');
   }
 
