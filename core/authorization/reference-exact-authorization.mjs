@@ -30,7 +30,7 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
-const REGEXP_TEST = RegExp.prototype.test;
+const REGEXP_EXEC = RegExp.prototype.exec;
 const STRING_ENDS_WITH = String.prototype.endsWith;
 const NUMBER_IS_FINITE = Number.isFinite;
 const DATE_CONSTRUCTOR = Date;
@@ -75,7 +75,7 @@ function isProxy(value) {
 }
 
 function regexpTest(pattern, value) {
-  return REFLECT_APPLY(REGEXP_TEST, pattern, [value]);
+  return REFLECT_APPLY(REGEXP_EXEC, pattern, [value]) !== null;
 }
 
 function stringEndsWith(value, suffix) {
