@@ -58,18 +58,22 @@ test(
   'post-import RegExp.prototype.exec replacement cannot authorize malformed capability ids',
   { concurrency: false },
   () => {
+    const malformedCapabilityId = '../21/escaped';
     const original = RegExp.prototype.exec;
     let poisonCalls = 0;
     try {
-      RegExp.prototype.exec = function replacement() {
-        poisonCalls += 1;
-        return ['poisoned-match'];
+      RegExp.prototype.exec = function replacement(value) {
+        if (value === malformedCapabilityId) {
+          poisonCalls += 1;
+          return ['poisoned-match'];
+        }
+        return Reflect.apply(original, this, [value]);
       };
 
       assert.throws(
         () => prepareReferenceExactAuthorizationRecord(inputRecord(), {
           witnessValidUntil: '2026-08-30T13:01:00.000Z',
-          capabilityId: '../21/escaped',
+          capabilityId: malformedCapabilityId,
         }),
         (error) => {
           assert.equal(error?.code, 'POMRX_GATE_E_BINDING_MISMATCH');
