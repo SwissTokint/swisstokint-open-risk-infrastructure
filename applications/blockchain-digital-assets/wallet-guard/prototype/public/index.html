@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>POM-RX Wallet Guard — Anvil burner</title>
+    <title>POM-RX Wallet Guard — burner EVM</title>
     <link rel="stylesheet" href="/style.css">
     <script type="module" src="/browser-bridge.js"></script>
   </head>
   <body>
     <main>
-      <p class="eyebrow">POM-RX / référence locale</p>
-      <h1>Wallet Guard — Anvil burner</h1>
+      <p class="eyebrow">POM-RX / prototype burner</p>
+      <h1>Wallet Guard — Anvil ou Sepolia</h1>
       <p class="warning">Burner uniquement. Aucun mainnet, aucune seed phrase, aucun fonds significatif.</p>
 
       <section>
         <h2>1. Connexion</h2>
-        <button id="connect" type="button">Connecter MetaMask à Anvil</button>
+        <button id="connect" type="button">Connecter MetaMask au réseau configuré</button>
         <pre id="wallet-status">Non connecté</pre>
       </section>
 
@@ -28,7 +28,7 @@
 
       <section>
         <h2>Claim</h2>
-        <p>Ce prototype est <strong>reference-only</strong>. Il observe un reçu Anvil, mais ne prouve pas encore une autorisation ou une réconciliation Core indépendante.</p>
+        <p>Ce prototype est <strong>reference-only</strong>. Sur Sepolia, MATCH exige un checkpoint <code>safe</code>, mais ne prouve pas une autorisation de production ni une observation indépendante.</p>
       </section>
     </main>
   </body>

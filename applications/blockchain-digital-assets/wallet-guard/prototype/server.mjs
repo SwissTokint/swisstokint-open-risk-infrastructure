@@ -1,6 +1,9 @@
 import { randomBytes } from 'node:crypto';
+import { lookup as lookupDns } from 'node:dns';
 import { readFile } from 'node:fs/promises';
 import { createServer, request as requestHttp } from 'node:http';
+import { request as requestHttps } from 'node:https';
+import { isIP } from 'node:net';
 
 import {
   parseWalletGuardBoundedJsonData,
@@ -9,9 +12,10 @@ import {
   parseWalletGuardBridgeResponse,
   serializeWalletGuardBridgeCommand,
 } from '../bridge-json-envelope.mjs';
+import { createWalletGuardDurableOperationJournal } from './durable-operation-journal.mjs';
+import { createWalletGuardPrototypeNetworkProfile } from './network-profile.mjs';
 
 const LOOPBACK_HOST = '127.0.0.1';
-const ANVIL_CHAIN_ID = '0x7a69';
 const MAX_BODY_BYTES = 64 * 1024;
 const ACCOUNT_PATTERN = /^0x[0-9a-f]{40}$/u;
 const TX_HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
@@ -25,6 +29,103 @@ const PUBLIC_DIR = new URL('./public/', import.meta.url);
 function randomHex32() {
   return randomBytes(32).toString('hex');
 }
+
+function monotonicMilliseconds() {
+  return Number(process.hrtime.bigint() / 1_000_000n);
+}
+
+function isNonPublicIpv4Address(address) {
+  if (isIP(address) !== 4) return true;
+  const [first, second] = address.split('.').map(Number);
+  return first === 0 || first === 10 || first === 127 || first >= 224
+    || (first === 100 && second >= 64 && second <= 127)
+    || (first === 169 && second === 254)
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && [0, 2, 168].includes(second))
+    || (first === 198 && [18, 19, 51].includes(second))
+    || (first === 203 && second === 0 && address.startsWith('203.0.113.'));
+}
+
+function ipv6Words(address) {
+  let normalized = address.toLowerCase();
+  const dottedTail = normalized.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})$/u)?.[1];
+  if (dottedTail !== undefined) {
+    if (isIP(dottedTail) !== 4) return null;
+    const octets = dottedTail.split('.').map(Number);
+    normalized = `${normalized.slice(0, -dottedTail.length)}${(
+      (octets[0] << 8) | octets[1]
+    ).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`;
+  }
+  const compressed = normalized.split('::');
+  if (compressed.length > 2) return null;
+  const left = compressed[0] === '' ? [] : compressed[0].split(':');
+  const right = compressed.length === 1 || compressed[1] === '' ? [] : compressed[1].split(':');
+  const missing = 8 - left.length - right.length;
+  if ((compressed.length === 1 && missing !== 0) || missing < 0) return null;
+  const words = [...left, ...Array(missing).fill('0'), ...right]
+    .map((word) => Number.parseInt(word, 16));
+  return words.length === 8 && words.every((word) => Number.isInteger(word) && word <= 0xffff)
+    ? words
+    : null;
+}
+
+function isNonPublicIpAddress(value) {
+  if (typeof value !== 'string') return true;
+  if (isIP(value) === 4) {
+    return isNonPublicIpv4Address(value);
+  }
+  if (isIP(value) === 6) {
+    const words = ipv6Words(value);
+    if (words === null) return true;
+    if (words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff) {
+      const mapped = `${words[6] >> 8}.${words[6] & 0xff}.${words[7] >> 8}.${words[7] & 0xff}`;
+      return isNonPublicIpv4Address(mapped);
+    }
+    const [first, second] = words;
+    return (first & 0xe000) !== 0x2000
+      || first === 0x2002
+      || first === 0x3ffe
+      || (first === 0x3fff && (second & 0xf000) === 0)
+      || (first === 0x2001 && (second <= 0x01ff || second === 0x0db8));
+  }
+  return true;
+}
+
+export function createWalletGuardPrototypePublicLookup({ dnsLookup = lookupDns } = {}) {
+  if (typeof dnsLookup !== 'function') {
+    throw new TypeError('public RPC lookup requires a DNS resolver');
+  }
+  return (hostname, options, callback) => dnsLookup(
+    hostname,
+    { all: true, verbatim: true },
+    (error, addresses) => {
+      if (error) {
+        callback(error);
+        return;
+      }
+      if (!Array.isArray(addresses) || addresses.length === 0
+          || addresses.some(({ address }) => isNonPublicIpAddress(address))) {
+        callback(new Error('RPC DNS resolution includes a non-public address'));
+        return;
+      }
+      const requestedFamily = typeof options === 'object' ? options.family : options;
+      const selected = addresses.find(
+        ({ family }) => !requestedFamily || family === requestedFamily,
+      );
+      if (!selected) {
+        callback(new Error('RPC DNS resolution has no address in the requested family'));
+        return;
+      }
+      if (typeof options === 'object' && options.all === true) {
+        callback(null, [selected]);
+      } else {
+        callback(null, selected.address, selected.family);
+      }
+    },
+  );
+}
+
+const lookupPinnedPublicAddress = createWalletGuardPrototypePublicLookup();
 
 function exactKeys(value, expected, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -109,13 +210,13 @@ function assertSameOriginBridgeFetch(req) {
   }
 }
 
-function policyFor(account, origin) {
+function policyFor(account, origin, profile) {
   return {
     schema_version: 'wallet-guard-policy/0.1',
-    policy_id: 'wallet-guard-anvil-burner/0.1',
+    policy_id: `wallet-guard-${profile.network}-burner/0.1`,
     enabled: true,
     kill_switch: false,
-    expected_chain_id: ANVIL_CHAIN_ID,
+    expected_chain_id: profile.chainId,
     allowed_origins: [origin],
     allowed_targets: [],
     allowed_recipients: [account],
@@ -129,15 +230,15 @@ function policyFor(account, origin) {
   };
 }
 
-function referenceAuthorizationSupplier() {
+function referenceAuthorizationSupplier(profile) {
   let sequence = 0;
   return (summary) => {
     sequence += 1;
     const validUntil = new Date(Date.parse(summary.issued_at) + 60_000).toISOString();
     return {
-      run_id: `run-anvil-prototype-${String(sequence).padStart(8, '0')}`,
-      agent_ref: 'agent-anvil-prototype-01',
-      subject_ref: 'subject-anvil-burner-01',
+      run_id: `run-${profile.network}-prototype-${String(sequence).padStart(8, '0')}`,
+      agent_ref: `agent-${profile.network}-prototype-01`,
+      subject_ref: `subject-${profile.network}-burner-01`,
       preflight_receipt_hash: sequence.toString(16).padStart(64, '0'),
       witness_ack_hash: (sequence + 1_000).toString(16).padStart(64, '0'),
       source_key_id: `ed25519-${'a'.repeat(32)}`,
@@ -175,34 +276,29 @@ function allowRequest(account) {
   };
 }
 
-function canonicalLoopbackRpcUrl(rpcUrl) {
+function rpcCall(rpcUrl, id, method, params, timeoutMs) {
   const url = new URL(rpcUrl);
-  if (url.protocol !== 'http:' || url.hostname !== LOOPBACK_HOST || url.username
-      || url.password || url.pathname !== '/' || url.search || url.hash) {
-    throw new TypeError('prototype RPC must be an exact loopback HTTP root');
-  }
-  const port = Number(url.port || 80);
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new TypeError('prototype RPC port is invalid');
-  }
-  return `http://${LOOPBACK_HOST}:${String(port)}/`;
-}
-
-function rpcCall(rpcUrl, id, method, params) {
-  const url = new URL(canonicalLoopbackRpcUrl(rpcUrl));
   const payload = JSON.stringify({ jsonrpc: '2.0', id, method, params });
   return new Promise((resolve, reject) => {
-    const request = requestHttp({
-      hostname: LOOPBACK_HOST,
-      port: Number(url.port || 80),
-      path: '/',
+    const requestFn = url.protocol === 'https:' ? requestHttps : requestHttp;
+    const request = requestFn({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port || undefined,
+      path: `${url.pathname}${url.search}`,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(payload),
       },
-      timeout: 2_000,
+      timeout: timeoutMs,
+      ...(url.protocol === 'https:' ? { lookup: lookupPinnedPublicAddress } : {}),
     }, (response) => {
+      if (url.protocol === 'https:' && isNonPublicIpAddress(response.socket.remoteAddress)) {
+        response.destroy(new Error('RPC resolved to a non-public address'));
+        reject(new Error('RPC resolved to a non-public address'));
+        return;
+      }
       const chunks = [];
       let length = 0;
       response.on('data', (chunk) => {
@@ -213,9 +309,16 @@ function rpcCall(rpcUrl, id, method, params) {
       response.on('end', () => {
         try {
           if (response.statusCode !== 200) throw new Error('RPC status is not 200');
-          const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-          if (!parsed || parsed.jsonrpc !== '2.0' || parsed.id !== id
-              || Object.hasOwn(parsed, 'error') || !Object.hasOwn(parsed, 'result')) {
+          if (!['application/json', 'application/json; charset=utf-8'].includes(
+            response.headers['content-type'],
+          )) {
+            throw new Error('RPC content-type is invalid');
+          }
+          const parsed = parseWalletGuardBoundedJsonData(
+            Buffer.concat(chunks).toString('utf8'),
+          );
+          exactKeys(parsed, ['jsonrpc', 'id', 'result'], 'RPC response');
+          if (parsed.jsonrpc !== '2.0' || parsed.id !== id) {
             throw new Error('RPC response is invalid');
           }
           resolve(parsed.result);
@@ -237,13 +340,13 @@ function canonicalQuantity(value, label) {
   return BigInt(value);
 }
 
-function validateChainView(value, label) {
+function validateChainView(value, label, profile) {
   exactKeys(
     value,
     ['chain_id', 'genesis_hash', 'latest_block_number', 'latest_block_hash'],
     label,
   );
-  if (value.chain_id !== ANVIL_CHAIN_ID
+  if (value.chain_id !== profile.chainId
       || typeof value.genesis_hash !== 'string'
       || !BLOCK_HASH_PATTERN.test(value.genesis_hash)
       || typeof value.latest_block_hash !== 'string'
@@ -266,65 +369,265 @@ function sameChainView(left, right) {
     && left.latest_block_hash === right.latest_block_hash;
 }
 
-async function defaultCaptureNodeChainView({ rpcUrl }) {
-  const chainId = await rpcCall(rpcUrl, 101, 'eth_chainId', []);
-  const genesis = await rpcCall(rpcUrl, 102, 'eth_getBlockByNumber', ['0x0', false]);
-  const latestBlockNumber = await rpcCall(rpcUrl, 103, 'eth_blockNumber', []);
-  const latest = await rpcCall(
+export async function captureWalletGuardPrototypeNodeChainView({
+  rpcUrl,
+  profile,
+  anchorBlockNumber = null,
+  rpcRequest = rpcCall,
+}) {
+  const chainId = await rpcRequest(rpcUrl, 101, 'eth_chainId', [], profile.rpcTimeoutMs);
+  const genesis = await rpcRequest(
     rpcUrl,
-    104,
+    102,
     'eth_getBlockByNumber',
-    [latestBlockNumber, false],
+    ['0x0', false],
+    profile.rpcTimeoutMs,
   );
+  const anchor = anchorBlockNumber === null
+    ? await rpcRequest(
+      rpcUrl,
+      103,
+      'eth_getBlockByNumber',
+      [profile.chainViewTag, false],
+      profile.rpcTimeoutMs,
+    )
+    : await rpcRequest(
+      rpcUrl,
+      103,
+      'eth_getBlockByNumber',
+      [anchorBlockNumber, false],
+      profile.rpcTimeoutMs,
+    );
+  if (profile.network === 'sepolia') {
+    const safeHead = await rpcRequest(
+      rpcUrl,
+      104,
+      'eth_getBlockByNumber',
+      ['safe', false],
+      profile.rpcTimeoutMs,
+    );
+    if (!safeHead || canonicalQuantity(safeHead.number, 'observer safe block')
+      < canonicalQuantity(anchor?.number, 'observer anchor block')) {
+      throw new Error('observer cannot prove the wallet anchor is safe');
+    }
+    const revalidatedAnchor = await rpcRequest(
+      rpcUrl,
+      105,
+      'eth_getBlockByNumber',
+      [anchor.number, false],
+      profile.rpcTimeoutMs,
+    );
+    if (!revalidatedAnchor || revalidatedAnchor.number !== anchor.number
+        || revalidatedAnchor.hash !== anchor.hash) {
+      throw new Error('observer anchor changed while binding the safe checkpoint');
+    }
+  }
   if (!genesis || genesis.number !== '0x0'
-      || !latest || latest.number !== latestBlockNumber) {
+      || !anchor || (anchorBlockNumber !== null && anchor.number !== anchorBlockNumber)) {
     throw new Error('observer chain view is incoherent');
   }
   return validateChainView({
     chain_id: chainId,
     genesis_hash: genesis.hash,
-    latest_block_number: latestBlockNumber,
-    latest_block_hash: latest.hash,
-  }, 'observer chain view');
+    latest_block_number: anchor.number,
+    latest_block_hash: anchor.hash,
+  }, 'observer chain view', profile);
 }
 
-async function defaultCaptureObservationBaseline({ rpcUrl, account }) {
-  const chainId = await rpcCall(rpcUrl, 1, 'eth_chainId', []);
-  if (chainId !== ANVIL_CHAIN_ID) throw new Error('observer chain mismatch before forwarding');
-  const blockNumber = await rpcCall(rpcUrl, 2, 'eth_blockNumber', []);
-  const accountNonce = await rpcCall(rpcUrl, 3, 'eth_getTransactionCount', [account, 'latest']);
+async function defaultCaptureObservationBaseline({ rpcUrl, account, profile }) {
+  const chainId = await rpcCall(rpcUrl, 1, 'eth_chainId', [], profile.rpcTimeoutMs);
+  if (chainId !== profile.chainId) throw new Error('observer chain mismatch before forwarding');
+  const blockNumber = await rpcCall(rpcUrl, 2, 'eth_blockNumber', [], profile.rpcTimeoutMs);
+  const accountNonce = await rpcCall(
+    rpcUrl,
+    3,
+    'eth_getTransactionCount',
+    [account, 'latest'],
+    profile.rpcTimeoutMs,
+  );
   canonicalQuantity(blockNumber, 'observer baseline block');
   canonicalQuantity(accountNonce, 'observer baseline nonce');
+  const pendingNonce = await rpcCall(
+    rpcUrl,
+    4,
+    'eth_getTransactionCount',
+    [account, 'pending'],
+    profile.rpcTimeoutMs,
+  );
+  canonicalQuantity(pendingNonce, 'observer pending nonce');
+  if (pendingNonce !== accountNonce) {
+    throw new Error('burner already has a pending transaction');
+  }
+  if (profile.network === 'sepolia') {
+    const balance = await rpcCall(
+      rpcUrl,
+      5,
+      'eth_getBalance',
+      [account, 'pending'],
+      profile.rpcTimeoutMs,
+    );
+    const estimate = await rpcCall(rpcUrl, 6, 'eth_estimateGas', [{
+      from: account,
+      to: account,
+      value: '0x0',
+      data: '0x',
+    }], profile.rpcTimeoutMs);
+    const syncing = await rpcCall(rpcUrl, 7, 'eth_syncing', [], profile.rpcTimeoutMs);
+    canonicalQuantity(balance, 'burner balance');
+    canonicalQuantity(estimate, 'self-transfer gas estimate');
+    if (canonicalQuantity(balance, 'burner balance') === 0n) {
+      throw new Error('burner has no Sepolia ETH for gas');
+    }
+    if (syncing !== false) throw new Error('Sepolia observer is syncing');
+    return Object.freeze({
+      chain_id: chainId,
+      block_number: blockNumber,
+      account_nonce: accountNonce,
+      pending_nonce: pendingNonce,
+      balance,
+      gas_estimate: estimate,
+      preflight_status: 'READY',
+    });
+  }
   return Object.freeze({ chain_id: chainId, block_number: blockNumber, account_nonce: accountNonce });
 }
 
-async function defaultObserveTransaction({ rpcUrl, txHash, account, baseline }) {
+export async function observeWalletGuardPrototypeTransaction({
+  rpcUrl,
+  txHash,
+  account,
+  baseline,
+  profile,
+  rpcRequest = rpcCall,
+}) {
   const observerBaseline = baseline?.observer ?? baseline;
-  if (!observerBaseline || observerBaseline.chain_id !== ANVIL_CHAIN_ID) {
+  if (!observerBaseline || observerBaseline.chain_id !== profile.chainId) {
     throw new Error('observer baseline is unavailable');
   }
-  const chainId = await rpcCall(rpcUrl, 1, 'eth_chainId', []);
-  if (chainId !== ANVIL_CHAIN_ID) throw new Error('observer chain mismatch');
+  const chainId = await rpcRequest(rpcUrl, 1, 'eth_chainId', [], profile.rpcTimeoutMs);
+  if (chainId !== profile.chainId) throw new Error('observer chain mismatch');
   let receipt = null;
   let transaction = null;
-  for (let attempt = 0; attempt < 40 && receipt === null; attempt += 1) {
-    receipt = await rpcCall(rpcUrl, attempt + 2, 'eth_getTransactionReceipt', [txHash]);
-    if (receipt === null) await new Promise((resolve) => setTimeout(resolve, 250));
+  let canonicalBlock = null;
+  let finalSafeHead = null;
+  let confirmationCount = 0n;
+  let finalityReached = false;
+  const deadline = monotonicMilliseconds() + profile.receiptTimeoutMs;
+  for (let attempt = 0; monotonicMilliseconds() < deadline; attempt += 1) {
+    receipt = await rpcRequest(
+      rpcUrl,
+      attempt + 10,
+      'eth_getTransactionReceipt',
+      [txHash],
+      profile.rpcTimeoutMs,
+    );
+    if (receipt !== null) {
+      if (profile.network === 'anvil') {
+        confirmationCount = 1n;
+        finalityReached = true;
+        break;
+      }
+      const latestNumber = canonicalQuantity(
+        await rpcRequest(
+          rpcUrl,
+          attempt + 1_000,
+          'eth_blockNumber',
+          [],
+          profile.rpcTimeoutMs,
+        ),
+        'observer latest block',
+      );
+      const receiptNumber = canonicalQuantity(receipt.blockNumber, 'receipt block');
+      confirmationCount = latestNumber >= receiptNumber ? latestNumber - receiptNumber + 1n : 0n;
+      const safeHead = await rpcRequest(
+        rpcUrl,
+        attempt + 2_000,
+        'eth_getBlockByNumber',
+        ['safe', false],
+        profile.rpcTimeoutMs,
+      );
+      if (safeHead && confirmationCount >= BigInt(profile.requiredConfirmations)
+          && canonicalQuantity(safeHead.number, 'observer safe head') >= receiptNumber) {
+        finalityReached = true;
+        break;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, profile.receiptPollMs));
   }
-  if (receipt !== null) {
-    transaction = await rpcCall(rpcUrl, 50, 'eth_getTransactionByHash', [txHash]);
+  const candidateReceipt = receipt;
+  if (candidateReceipt !== null) {
+    if (profile.network === 'sepolia') {
+      const finalLatestNumber = canonicalQuantity(
+        await rpcRequest(
+          rpcUrl,
+          5_000,
+          'eth_blockNumber',
+          [],
+          profile.rpcTimeoutMs,
+        ),
+        'final observer latest block',
+      );
+      const candidateReceiptNumber = canonicalQuantity(
+        candidateReceipt.blockNumber,
+        'candidate receipt block',
+      );
+      confirmationCount = finalLatestNumber >= candidateReceiptNumber
+        ? finalLatestNumber - candidateReceiptNumber + 1n
+        : 0n;
+      finalSafeHead = await rpcRequest(
+        rpcUrl,
+        5_001,
+        'eth_getBlockByNumber',
+        ['safe', false],
+        profile.rpcTimeoutMs,
+      );
+      finalityReached = finalSafeHead !== null
+        && confirmationCount >= BigInt(profile.requiredConfirmations)
+        && canonicalQuantity(finalSafeHead.number, 'final safe head') >= candidateReceiptNumber;
+    } else {
+      confirmationCount = 1n;
+      finalityReached = true;
+    }
+    receipt = await rpcRequest(
+      rpcUrl,
+      5_002,
+      'eth_getTransactionReceipt',
+      [txHash],
+      profile.rpcTimeoutMs,
+    );
+    transaction = await rpcRequest(
+      rpcUrl,
+      5_003,
+      'eth_getTransactionByHash',
+      [txHash],
+      profile.rpcTimeoutMs,
+    );
+    canonicalBlock = receipt === null ? null : await rpcRequest(
+      rpcUrl,
+      5_004,
+      'eth_getBlockByNumber',
+      [receipt.blockNumber, false],
+      profile.rpcTimeoutMs,
+    );
   }
-  if (!receipt || receipt.transactionHash?.toLowerCase() !== txHash
+  if (!candidateReceipt
+      || !receipt
+      || candidateReceipt.blockNumber !== receipt.blockNumber
+      || candidateReceipt.blockHash !== receipt.blockHash
+      || receipt.transactionHash?.toLowerCase() !== txHash
       || receipt.status !== '0x1'
       || typeof receipt.blockHash !== 'string'
       || !TX_HASH_PATTERN.test(receipt.blockHash)
       || receipt.from?.toLowerCase() !== account
       || receipt.to?.toLowerCase() !== account
       || !transaction
+      || !canonicalBlock
+      || canonicalBlock.number !== receipt.blockNumber
+      || canonicalBlock.hash !== receipt.blockHash
       || transaction.hash?.toLowerCase() !== txHash
       || transaction.from?.toLowerCase() !== account
       || transaction.to?.toLowerCase() !== account
-      || transaction.chainId !== ANVIL_CHAIN_ID
+      || transaction.chainId !== profile.chainId
       || transaction.value !== '0x0'
       || !['0x', '0x0'].includes(transaction.input)
       || transaction.blockNumber !== receipt.blockNumber
@@ -332,8 +635,13 @@ async function defaultObserveTransaction({ rpcUrl, txHash, account, baseline }) 
       || canonicalQuantity(transaction.blockNumber, 'observed transaction block')
         <= canonicalQuantity(observerBaseline.block_number, 'observer baseline block')
       || canonicalQuantity(transaction.nonce, 'observed transaction nonce')
-        !== canonicalQuantity(observerBaseline.account_nonce, 'observer baseline nonce')) {
-    throw new Error('Anvil receipt does not match the expected self-transfer');
+        !== canonicalQuantity(observerBaseline.account_nonce, 'observer baseline nonce')
+      || confirmationCount < BigInt(profile.requiredConfirmations)
+      || !finalityReached
+      || (profile.network === 'sepolia'
+        && (!finalSafeHead || canonicalQuantity(finalSafeHead.number, 'final safe head')
+          < canonicalQuantity(receipt.blockNumber, 'receipt block')))) {
+    throw new Error(`${profile.chainName} receipt does not match the expected self-transfer`);
   }
   return Object.freeze({
     status: 'MATCH_REFERENCE',
@@ -344,10 +652,20 @@ async function defaultObserveTransaction({ rpcUrl, txHash, account, baseline }) 
     receipt_status: receipt.status,
     from: receipt.from.toLowerCase(),
     to: receipt.to.toLowerCase(),
+    confirmation_count: confirmationCount.toString(),
+    required_confirmations: profile.requiredConfirmations,
+    finality_status: profile.network === 'sepolia'
+      ? 'SAFE_CHECKPOINT'
+      : 'LOCAL_IMMEDIATE',
+    consensus_finality_proved: false,
+    observer_endpoint_separate_configured: profile.observerEndpointSeparateConfigured,
+    independent_observation_proved: false,
     reference_only: true,
     external_world_proved: false,
   });
 }
+
+const defaultObserveTransaction = observeWalletGuardPrototypeTransaction;
 
 const BRIDGE_RESPONSE_KEYS = Object.freeze([
   'schema_version',
@@ -395,7 +713,7 @@ function extractBoundTransactionCandidate(raw, command) {
   });
 }
 
-function parseBoundWalletView(raw, command) {
+function parseBoundWalletView(raw, command, profile) {
   const input = parseWalletGuardBoundedJsonData(raw);
   exactKeys(input, [
     'schema_version',
@@ -423,7 +741,7 @@ function parseBoundWalletView(raw, command) {
       genesis_hash: input.genesis_hash,
       latest_block_number: input.latest_block_number,
       latest_block_hash: input.latest_block_hash,
-    }, 'wallet chain view'),
+    }, 'wallet chain view', profile),
   });
 }
 
@@ -448,30 +766,50 @@ export function createWalletGuardPrototypeServer({
   createControlledCallbackTransport,
   createTrustedGateway,
   port = 0,
+  network = 'anvil',
   rpcUrl = 'http://127.0.0.1:8545/',
+  walletRpcUrl = null,
+  journalPath = null,
   commandTimeoutMs = 90_000,
   observeTransaction = defaultObserveTransaction,
   captureObservationBaseline = null,
-  captureNodeChainView = defaultCaptureNodeChainView,
+  captureNodeChainView = captureWalletGuardPrototypeNodeChainView,
+  createOperationJournal = createWalletGuardDurableOperationJournal,
 } = {}) {
   if (typeof createControlledCallbackTransport !== 'function'
       || typeof createTrustedGateway !== 'function'
       || !Number.isSafeInteger(port) || port < 0 || port > 65_535
       || !Number.isSafeInteger(commandTimeoutMs)
       || commandTimeoutMs < 1_000 || commandTimeoutMs > 300_000
+      || (journalPath !== null && typeof journalPath !== 'string')
       || typeof observeTransaction !== 'function'
       || (captureObservationBaseline !== null && typeof captureObservationBaseline !== 'function')
-      || typeof captureNodeChainView !== 'function') {
+      || typeof captureNodeChainView !== 'function'
+      || typeof createOperationJournal !== 'function') {
     throw new TypeError('prototype server bootstrap is invalid');
   }
-  const canonicalRpcUrl = canonicalLoopbackRpcUrl(rpcUrl);
+  const profile = createWalletGuardPrototypeNetworkProfile({ network, rpcUrl, walletRpcUrl });
+  if (profile.network === 'sepolia' && journalPath === null) {
+    throw new TypeError('Sepolia requires an explicit durable operation journal path');
+  }
+  const journal = journalPath === null ? null : createOperationJournal({
+    journalPath,
+    network: profile.network,
+    chainId: profile.chainId,
+  });
   const captureBaseline = captureObservationBaseline
     ?? (observeTransaction === defaultObserveTransaction
       ? defaultCaptureObservationBaseline
       : async () => null);
-  const captureValidatedNodeChainView = async (account) => validateChainView(
-    await captureNodeChainView({ rpcUrl: canonicalRpcUrl, account }),
+  const captureValidatedNodeChainView = async (account, anchorBlockNumber = null) => validateChainView(
+    await captureNodeChainView({
+      rpcUrl: profile.observerRpcUrl,
+      account,
+      anchorBlockNumber,
+      profile,
+    }),
     'captured Node chain view',
+    profile,
   );
 
   const state = {
@@ -491,6 +829,57 @@ export function createWalletGuardPrototypeServer({
     connectionChainViewBaseline: null,
     lastObservation: null,
   };
+
+  async function retainCandidateInJournal(candidate, pending) {
+    if (journal === null || candidate === null) return;
+    try {
+      const journalState = journal.inspect()?.state;
+      if (journalState === 'HASH_OBSERVED') {
+        if (journal.inspect().operation.transaction_hash !== candidate.transaction_hash) {
+          throw new TypeError('durable journal already retains a different transaction hash');
+        }
+        return;
+      }
+      await journal.retainHash(candidate.transaction_hash);
+    } catch (error) {
+      if (state.pending === pending) state.pending = null;
+      if (pending?.timer !== null) clearTimeout(pending.timer);
+      if (state.ambiguous === null && pending?.command !== undefined) {
+        markAmbiguous(pending, 'JOURNAL_FAILURE');
+      } else {
+        state.closed = true;
+      }
+      if (state.ambiguous !== null) {
+        state.ambiguous.cause_code = 'JOURNAL_FAILURE';
+      }
+      pending?.reportFailure?.('BRIDGE_CLOSED');
+      if (state.ambiguous !== null && state.ambiguous.transaction_hash === null) {
+        state.ambiguous.transaction_hash = candidate.transaction_hash;
+        state.ambiguous.observed_chain_id = candidate.observed_chain_id;
+        state.ambiguous.observed_account = candidate.observed_account;
+        state.ambiguous.context_matches = candidate.context_matches;
+        state.ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+        const observation = Object.freeze({
+          status: 'AMBIGUOUS',
+          detail: 'transaction hash could not be durably retained',
+          transaction_hash: candidate.transaction_hash,
+          reference_only: true,
+          external_world_proved: false,
+        });
+        state.ambiguous.observation = observation;
+        state.lastObservation = observation;
+      }
+      throw error;
+    }
+  }
+
+  async function terminateJournal(outcome) {
+    if (journal === null) return;
+    const journalState = journal.inspect()?.state;
+    if (['ARMED', 'DISPATCHED', 'HASH_OBSERVED'].includes(journalState)) {
+      await journal.terminate(outcome);
+    }
+  }
 
   function ambiguousView() {
     if (state.ambiguous === null) return null;
@@ -521,18 +910,17 @@ export function createWalletGuardPrototypeServer({
     ambiguous.context_matches = candidate.context_matches;
     ambiguous.reconciliation_status = 'OBSERVING';
     ambiguous.reconciliationPromise = (async () => {
+      let observation;
       try {
-        const observation = await observeTransaction({
-          rpcUrl: canonicalRpcUrl,
+        observation = await observeTransaction({
+          rpcUrl: profile.observerRpcUrl,
           txHash: candidate.transaction_hash,
           account: state.account,
           baseline: ambiguous.baseline,
+          profile,
         });
-        ambiguous.observation = observation;
-        ambiguous.reconciliation_status = 'OBSERVED';
-        state.lastObservation = observation;
       } catch (error) {
-        const observation = Object.freeze({
+        observation = Object.freeze({
           status: 'AMBIGUOUS',
           detail: error instanceof Error ? error.message : 'observer failed',
           transaction_hash: candidate.transaction_hash,
@@ -542,6 +930,22 @@ export function createWalletGuardPrototypeServer({
         ambiguous.observation = observation;
         ambiguous.reconciliation_status = 'OBSERVATION_FAILED';
         state.lastObservation = observation;
+        try {
+          await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED');
+        } catch {
+          ambiguous.cause_code = 'JOURNAL_FAILURE';
+          ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+        }
+        return;
+      }
+      ambiguous.observation = observation;
+      ambiguous.reconciliation_status = 'OBSERVED';
+      state.lastObservation = observation;
+      try {
+        await terminateJournal(`AMBIGUOUS_${observation.status}`);
+      } catch {
+        ambiguous.cause_code = 'JOURNAL_FAILURE';
+        ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
       }
     })();
     return ambiguous.reconciliationPromise;
@@ -564,8 +968,13 @@ export function createWalletGuardPrototypeServer({
         observation: null,
         command: pending.command,
         baseline: pending.observationBaseline,
+        dispatchCommitPromise: pending.dispatchCommitPromise,
         reconciliationPromise: null,
       };
+    }
+    if (state.ambiguous.dispatchCommitPromise === null
+        && pending.dispatchCommitPromise !== null) {
+      state.ambiguous.dispatchCommitPromise = pending.dispatchCommitPromise;
     }
     state.closed = true;
     if (candidate !== null) reconcileAmbiguousCandidate(candidate);
@@ -594,8 +1003,11 @@ export function createWalletGuardPrototypeServer({
       viewBound: false,
       armed: false,
       dispatched: false,
+      dispatchCommitPromise: null,
       observationBaseline: state.activeObservationBaseline,
+      nodeCheckpoint: null,
       timer: null,
+      deadlineAtMonotonicMs: monotonicMilliseconds() + commandTimeoutMs,
     };
     pending.timer = setTimeout(() => {
       if (state.pending !== pending) return;
@@ -671,23 +1083,42 @@ export function createWalletGuardPrototypeServer({
           connected: state.connected,
           closed: state.closed,
           account: state.account,
-          chain_id: state.connected ? ANVIL_CHAIN_ID : null,
+          network: profile.network,
+          chain_id: state.connected ? profile.chainId : null,
           chain_view_bound: state.connectionChainViewBaseline !== null,
           command_pending: state.pending !== null,
           sensitive_call_count: state.transport?.control.sensitiveCallCount() ?? 0,
           observation: state.lastObservation,
           operation_status: state.ambiguous === null ? null : 'AMBIGUOUS',
           ambiguous: ambiguousView(),
+          durable_journal_state: journal?.inspect()?.state ?? null,
         });
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/config') {
         assertSameOriginBridgeFetch(req);
-        sendJson(res, 200, {
-          chain_id: ANVIL_CHAIN_ID,
-          rpc_url: canonicalRpcUrl,
+        const anvilConfig = {
+          chain_id: profile.chainId,
+          rpc_url: profile.walletRpcUrl,
           host_origin: origin,
+        };
+        sendJson(res, 200, profile.network === 'anvil' ? anvilConfig : {
+          chain_id: profile.chainId,
+          host_origin: origin,
+          network: profile.network,
+          chain_name: profile.chainName,
+          native_currency: profile.nativeCurrency,
+          required_confirmations: profile.requiredConfirmations,
         });
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/checkpoint') {
+        assertSameOriginBridgeFetch(req);
+        if (profile.network !== 'sepolia' || state.connected || state.closed) {
+          send(res, 409, 'connection checkpoint unavailable');
+          return;
+        }
+        sendJson(res, 200, await captureValidatedNodeChainView(null));
         return;
       }
 
@@ -703,6 +1134,30 @@ export function createWalletGuardPrototypeServer({
         }
         state.pending.delivered = true;
         send(res, 200, state.pending.serialized, 'application/json; charset=utf-8');
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/bridge/checkpoint') {
+        assertSameOriginBridgeFetch(req);
+        if (profile.network !== 'sepolia' || state.pending === null
+            || !state.pending.delivered || state.pending.nodeCheckpoint !== null
+            || state.closed) {
+          send(res, 409, 'command checkpoint unavailable');
+          return;
+        }
+        const pending = state.pending;
+        const checkpoint = await captureValidatedNodeChainView(state.account);
+        if (state.pending !== pending || state.closed) {
+          send(res, 409, 'pending command expired during checkpoint capture');
+          return;
+        }
+        pending.nodeCheckpoint = checkpoint;
+        sendJson(res, 200, {
+          schema_version: pending.command.schema_version,
+          session_id: pending.command.session_id,
+          sequence: pending.command.sequence,
+          request_id: pending.command.request_id,
+          ...checkpoint,
+        });
         return;
       }
 
@@ -722,7 +1177,7 @@ export function createWalletGuardPrototypeServer({
           'latest_block_number',
           'latest_block_hash',
         ], 'wallet handshake');
-        if (input.chain_id !== ANVIL_CHAIN_ID
+        if (input.chain_id !== profile.chainId
             || typeof input.account !== 'string'
             || !ACCOUNT_PATTERN.test(input.account)) {
           throw new TypeError('wallet handshake context is invalid');
@@ -732,8 +1187,11 @@ export function createWalletGuardPrototypeServer({
           genesis_hash: input.genesis_hash,
           latest_block_number: input.latest_block_number,
           latest_block_hash: input.latest_block_hash,
-        }, 'wallet handshake chain view');
-        const nodeChainView = await captureValidatedNodeChainView(input.account);
+        }, 'wallet handshake chain view', profile);
+        const nodeChainView = await captureValidatedNodeChainView(
+          input.account,
+          input.latest_block_number,
+        );
         if (!sameChainView(walletChainView, nodeChainView)) {
           throw new TypeError('MetaMask and Node chain views do not match');
         }
@@ -743,7 +1201,7 @@ export function createWalletGuardPrototypeServer({
         });
         state.account = input.account;
         state.transport = createControlledCallbackTransport({
-          chainId: ANVIL_CHAIN_ID,
+          chainId: profile.chainId,
           accounts: [state.account],
           maxSensitiveCalls: 1,
           dispatchSensitive: dispatcher,
@@ -751,15 +1209,15 @@ export function createWalletGuardPrototypeServer({
         state.gateway = createTrustedGateway({
           captureTrustedOrigin: () => origin,
           provider: state.transport.provider,
-          policy: policyFor(state.account, origin),
+          policy: policyFor(state.account, origin, profile),
           trustedClock: () => new Date().toISOString(),
-          referenceAuthorizationForRequest: referenceAuthorizationSupplier(),
+          referenceAuthorizationForRequest: referenceAuthorizationSupplier(profile),
           capabilityLifetimeMs: 30_000,
         });
         state.connected = true;
         sendJson(res, 200, {
           connected: true,
-          chain_id: ANVIL_CHAIN_ID,
+          chain_id: profile.chainId,
           account: state.account,
           chain_view_bound: true,
         });
@@ -772,8 +1230,15 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         const pending = state.pending;
-        const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
-        const nodeView = await captureValidatedNodeChainView(state.account);
+        const walletView = parseBoundWalletView(
+          await readStrictBody(req),
+          pending.command,
+          profile,
+        );
+        const nodeView = await captureValidatedNodeChainView(
+          state.account,
+          walletView.latest_block_number,
+        );
         if (state.pending !== pending || state.closed) {
           send(res, 409, 'pending command expired during chain-view validation');
           return;
@@ -782,6 +1247,9 @@ export function createWalletGuardPrototypeServer({
         if (connectionNodeView === undefined
             || walletView.genesis_hash !== connectionNodeView.genesis_hash
             || nodeView.genesis_hash !== connectionNodeView.genesis_hash
+            || (profile.network === 'sepolia'
+              && (pending.nodeCheckpoint === null
+                || !sameChainView(walletView, pending.nodeCheckpoint)))
             || !sameChainView(walletView, nodeView)) {
           state.pending = null;
           clearTimeout(pending.timer);
@@ -807,7 +1275,11 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         const pending = state.pending;
-        const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
+        const walletView = parseBoundWalletView(
+          await readStrictBody(req),
+          pending.command,
+          profile,
+        );
         if (state.pending !== pending || state.closed) {
           send(res, 409, 'pending command expired before arm');
           return;
@@ -823,8 +1295,75 @@ export function createWalletGuardPrototypeServer({
           send(res, 409, 'armed wallet view differs from the bound view');
           return;
         }
+        const originalObserver = pending.observationBaseline?.observer;
+        if (originalObserver !== null && originalObserver !== undefined
+            && typeof originalObserver.chain_id === 'string'
+            && typeof originalObserver.account_nonce === 'string') {
+          let dispatchObserver;
+          try {
+            dispatchObserver = await captureBaseline({
+              rpcUrl: profile.observerRpcUrl,
+              account: state.account,
+              profile,
+            });
+          } catch {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            pending.reportFailure('CONTEXT_CHANGED');
+            send(res, 409, 'dispatch-boundary observer preflight failed');
+            return;
+          }
+          if (state.pending !== pending || state.closed) {
+            send(res, 409, 'pending command expired during dispatch preflight');
+            return;
+          }
+          if (dispatchObserver?.chain_id !== profile.chainId
+              || canonicalQuantity(
+                dispatchObserver.account_nonce,
+                'dispatch-boundary account nonce',
+              ) !== canonicalQuantity(originalObserver.account_nonce, 'baseline account nonce')) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            pending.reportFailure('CONTEXT_CHANGED');
+            send(res, 409, 'burner nonce changed before dispatch');
+            return;
+          }
+          pending.observationBaseline = Object.freeze({
+            ...pending.observationBaseline,
+            observer_before_dispatch: dispatchObserver,
+          });
+        }
+        if (journal !== null) {
+          try {
+            await journal.arm(pending.command, pending.observationBaseline);
+          } catch (error) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            pending.reportFailure('INTERNAL_ERROR');
+            throw error;
+          }
+        }
+        if (
+          state.pending !== pending
+          || state.closed
+          || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
+        ) {
+          if (state.pending === pending && !state.closed) {
+            state.pending = null;
+            clearTimeout(pending.timer);
+            state.closed = true;
+            markAmbiguous(pending, 'TIMEOUT');
+            pending.reportFailure('TIMEOUT');
+          }
+          send(res, 409, 'command expired during durable arm');
+          return;
+        }
         clearTimeout(pending.timer);
         pending.armed = true;
+        pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
         pending.timer = setTimeout(() => {
           if (state.pending !== pending || !pending.armed || pending.dispatched) return;
           state.pending = null;
@@ -838,7 +1377,8 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/dispatched') {
         if (state.pending === null || !state.pending.armed
-            || state.pending.dispatched || state.closed) {
+            || state.pending.dispatched || state.pending.dispatchCommitPromise !== null
+            || state.closed) {
           send(res, 409, 'no armed command awaiting dispatch');
           return;
         }
@@ -848,32 +1388,100 @@ export function createWalletGuardPrototypeServer({
           pending.command,
           'wallet dispatch signal',
         );
-        if (state.pending !== pending || state.closed || pending.dispatched) {
+        if (state.pending !== pending || state.closed || pending.dispatched
+            || pending.dispatchCommitPromise !== null) {
           send(res, 409, 'armed command is no longer dispatchable');
           return;
         }
-        clearTimeout(pending.timer);
-        pending.dispatched = true;
-        pending.timer = setTimeout(() => {
-          if (state.pending !== pending) return;
-          state.pending = null;
-          state.closed = true;
-          markAmbiguous(pending, 'TIMEOUT');
-          pending.reportFailure('TIMEOUT');
-        }, commandTimeoutMs);
-        send(res, 204);
+        let releaseDispatchCommit;
+        const dispatchCommitPromise = new Promise((resolve) => {
+          releaseDispatchCommit = resolve;
+        });
+        pending.dispatchCommitPromise = dispatchCommitPromise;
+        try {
+          if (journal !== null) {
+            try {
+              await journal.markDispatched();
+            } catch (error) {
+              state.pending = null;
+              clearTimeout(pending.timer);
+              const ambiguous = markAmbiguous(pending, 'JOURNAL_FAILURE');
+              ambiguous.cause_code = 'JOURNAL_FAILURE';
+              ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+              pending.reportFailure('BRIDGE_CLOSED');
+              throw error;
+            }
+          }
+          if (
+            state.pending !== pending
+            || state.closed
+            || monotonicMilliseconds() >= pending.deadlineAtMonotonicMs
+          ) {
+            if (state.pending === pending && !state.closed) {
+              state.pending = null;
+              clearTimeout(pending.timer);
+              state.closed = true;
+              markAmbiguous(pending, 'DISPATCH_ACK_TIMEOUT');
+              pending.reportFailure('TIMEOUT');
+            }
+            send(res, 409, 'command expired during durable dispatch acknowledgement');
+            return;
+          }
+          clearTimeout(pending.timer);
+          pending.dispatched = true;
+          pending.deadlineAtMonotonicMs = monotonicMilliseconds() + commandTimeoutMs;
+          pending.timer = setTimeout(() => {
+            if (state.pending !== pending) return;
+            state.pending = null;
+            state.closed = true;
+            markAmbiguous(pending, 'TIMEOUT');
+            pending.reportFailure('TIMEOUT');
+          }, commandTimeoutMs);
+          send(res, 204);
+        } finally {
+          releaseDispatchCommit();
+          if (pending.dispatchCommitPromise === dispatchCommitPromise) {
+            pending.dispatchCommitPromise = null;
+          }
+        }
         return;
       }
 
       if (url.pathname === '/bridge/result') {
         const raw = await readStrictBody(req);
+        const dispatchCommitPromise = state.pending?.dispatchCommitPromise
+          ?? state.ambiguous?.dispatchCommitPromise;
+        if (dispatchCommitPromise !== null && dispatchCommitPromise !== undefined) {
+          await dispatchCommitPromise;
+        }
         if (state.pending === null || !state.pending.delivered) {
+          if (state.ambiguous?.cause_code === 'JOURNAL_FAILURE'
+              && state.ambiguous.reconciliation_status === 'JOURNAL_FAILURE'
+              && state.ambiguous.transaction_hash === null) {
+            const candidate = extractBoundTransactionCandidate(raw, state.ambiguous.command);
+            state.ambiguous.transaction_hash = candidate.transaction_hash;
+            state.ambiguous.observed_chain_id = candidate.observed_chain_id;
+            state.ambiguous.observed_account = candidate.observed_account;
+            state.ambiguous.context_matches = candidate.context_matches;
+            const observation = Object.freeze({
+              status: 'AMBIGUOUS',
+              detail: 'transaction hash arrived after durable dispatch persistence failed',
+              transaction_hash: candidate.transaction_hash,
+              reference_only: true,
+              external_world_proved: false,
+            });
+            state.ambiguous.observation = observation;
+            state.lastObservation = observation;
+            sendJson(res, 202, { operation: ambiguousView() });
+            return;
+          }
           if (state.ambiguous === null
               || state.ambiguous.reconciliation_status !== 'AWAITING_LATE_RESULT') {
             send(res, 409, 'no delivered command');
             return;
           }
           const candidate = extractBoundTransactionCandidate(raw, state.ambiguous.command);
+          await retainCandidateInJournal(candidate, state.ambiguous);
           await reconcileAmbiguousCandidate(candidate);
           sendJson(res, 202, { operation: ambiguousView() });
           return;
@@ -903,6 +1511,7 @@ export function createWalletGuardPrototypeServer({
               // success, even when no exact transaction candidate survives.
             }
           }
+          await retainCandidateInJournal(candidate, pending);
           markAmbiguous(pending, 'DISPATCH_ACK_UNAVAILABLE', candidate);
           pending.reportFailure('BRIDGE_CLOSED');
           if (state.ambiguous.reconciliationPromise !== null) {
@@ -917,6 +1526,9 @@ export function createWalletGuardPrototypeServer({
         let candidate = null;
         try {
           parsed = parseWalletGuardBridgeResponse(raw, bridgeExpectedIdentity(pending.command));
+          if (parsed.outcome === 'result') {
+            candidate = extractBoundTransactionCandidate(raw, pending.command);
+          }
         } catch {
           try {
             candidate = extractBoundTransactionCandidate(raw, pending.command);
@@ -924,8 +1536,9 @@ export function createWalletGuardPrototypeServer({
             // A delivered wallet request remains ambiguous when its response is
             // malformed or reports a changed wallet context.
           }
-          markAmbiguous(pending, 'UNTRUSTED_LATE_CONTEXT', candidate);
+          markAmbiguous(pending, 'UNTRUSTED_LATE_CONTEXT');
         }
+        await retainCandidateInJournal(candidate, pending);
         if (!pending.viewBound) {
           if (candidate === null) {
             try {
@@ -934,7 +1547,10 @@ export function createWalletGuardPrototypeServer({
               // The missing pre-send view makes any delivered outcome ambiguous.
             }
           }
-          markAmbiguous(pending, 'VIEW_BINDING_MISSING', candidate);
+          markAmbiguous(pending, 'VIEW_BINDING_MISSING');
+          if (candidate !== null && state.ambiguous.transaction_hash === null) {
+            reconcileAmbiguousCandidate(candidate);
+          }
           pending.reportFailure('CONTEXT_CHANGED');
           if (state.ambiguous.reconciliationPromise !== null) {
             await state.ambiguous.reconciliationPromise;
@@ -942,8 +1558,25 @@ export function createWalletGuardPrototypeServer({
           sendJson(res, 202, { operation: ambiguousView() });
           return;
         }
+        if (state.ambiguous !== null && candidate !== null
+            && state.ambiguous.transaction_hash === null) {
+          reconcileAmbiguousCandidate(candidate);
+        }
         if (parsed?.outcome === 'error' && parsed.error_code !== 'USER_REJECTED') {
           markAmbiguous(pending, parsed.error_code);
+        }
+        if (parsed?.outcome === 'error') {
+          try {
+            await terminateJournal(parsed.error_code === 'USER_REJECTED'
+              ? 'WALLET_USER_REJECTED'
+              : `AMBIGUOUS_WALLET_${parsed.error_code}`);
+          } catch (error) {
+            markAmbiguous(pending, 'JOURNAL_FAILURE');
+            state.ambiguous.cause_code = 'JOURNAL_FAILURE';
+            state.ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+            pending.reportFailure('BRIDGE_CLOSED');
+            throw error;
+          }
         }
         pending.deliverRawJson(raw);
         if (parsed?.outcome === 'error' || state.transport.control.inspect().destroyed) {
@@ -991,8 +1624,9 @@ export function createWalletGuardPrototypeServer({
           let baseline = null;
           if (isAllow) {
             const observer = await captureBaseline({
-              rpcUrl: canonicalRpcUrl,
+              rpcUrl: profile.observerRpcUrl,
               account: state.account,
+              profile,
             });
             const nodeBeforeDispatch = await captureValidatedNodeChainView(state.account);
             if (state.connectionChainViewBaseline === null
@@ -1028,10 +1662,11 @@ export function createWalletGuardPrototypeServer({
           if (result.forwarded) {
             try {
               observation = await observeTransaction({
-                rpcUrl: canonicalRpcUrl,
+                rpcUrl: profile.observerRpcUrl,
                 txHash: result.provider_result,
                 account: state.account,
                 baseline: state.lastSensitivePending?.observationBaseline ?? baseline,
+                profile,
               });
             } catch (error) {
               observation = {
@@ -1046,14 +1681,37 @@ export function createWalletGuardPrototypeServer({
                 'OBSERVATION_FAILED',
               );
               ambiguous.transaction_hash = result.provider_result;
-              ambiguous.observed_chain_id = ANVIL_CHAIN_ID;
+              ambiguous.observed_chain_id = profile.chainId;
               ambiguous.observed_account = state.account;
               ambiguous.context_matches = true;
               ambiguous.reconciliation_status = 'OBSERVATION_FAILED';
               ambiguous.observation = observation;
+              try {
+                await terminateJournal('AMBIGUOUS_OBSERVATION_FAILED');
+              } catch {
+                ambiguous.cause_code = 'JOURNAL_FAILURE';
+                ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+              }
               responseStatus = 202;
             }
             state.lastObservation = observation;
+            if (responseStatus === 200) {
+              try {
+                await terminateJournal(observation.status);
+              } catch {
+                const ambiguous = markAmbiguous(
+                  state.lastSensitivePending,
+                  'JOURNAL_FAILURE',
+                );
+                ambiguous.transaction_hash = result.provider_result;
+                ambiguous.observed_chain_id = profile.chainId;
+                ambiguous.observed_account = state.account;
+                ambiguous.context_matches = true;
+                ambiguous.reconciliation_status = 'JOURNAL_FAILURE';
+                ambiguous.observation = observation;
+                responseStatus = 202;
+              }
+            }
           }
           sendJson(res, responseStatus, {
             result,
@@ -1080,10 +1738,16 @@ export function createWalletGuardPrototypeServer({
 
   return Object.freeze({
     async listen() {
-      await new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, LOOPBACK_HOST, resolve);
-      });
+      if (journal !== null) await journal.initialize();
+      try {
+        await new Promise((resolve, reject) => {
+          server.once('error', reject);
+          server.listen(port, LOOPBACK_HOST, resolve);
+        });
+      } catch (error) {
+        await journal?.close().catch(() => {});
+        throw error;
+      }
       const address = server.address();
       const origin = `http://${LOOPBACK_HOST}:${address.port}`;
       state.origin = origin;
@@ -1101,7 +1765,15 @@ export function createWalletGuardPrototypeServer({
         if (pending.delivered) markAmbiguous(pending, 'BRIDGE_CLOSED');
         pending.reportFailure('BRIDGE_CLOSED');
       }
-      await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      try {
+        if (server.listening) {
+          await new Promise((resolve, reject) => server.close(
+            (error) => (error ? reject(error) : resolve()),
+          ));
+        }
+      } finally {
+        await journal?.close();
+      }
     },
   });
 }
