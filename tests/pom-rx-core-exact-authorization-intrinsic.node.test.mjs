@@ -53,3 +53,32 @@ test('post-import descriptor replacement cannot alter captured authorization exp
     Object.getOwnPropertyDescriptors = original;
   }
 });
+
+test(
+  'post-import RegExp.prototype.exec replacement cannot authorize malformed capability ids',
+  { concurrency: false },
+  () => {
+    const original = RegExp.prototype.exec;
+    let poisonCalls = 0;
+    try {
+      RegExp.prototype.exec = function replacement() {
+        poisonCalls += 1;
+        return ['poisoned-match'];
+      };
+
+      assert.throws(
+        () => prepareReferenceExactAuthorizationRecord(inputRecord(), {
+          witnessValidUntil: '2026-08-30T13:01:00.000Z',
+          capabilityId: '../21/escaped',
+        }),
+        (error) => {
+          assert.equal(error?.code, 'POMRX_GATE_E_BINDING_MISMATCH');
+          return true;
+        },
+      );
+      assert.equal(poisonCalls, 0);
+    } finally {
+      RegExp.prototype.exec = original;
+    }
+  },
+);
