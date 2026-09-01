@@ -238,3 +238,72 @@ test(
     }
   },
 );
+
+test(
+  'async downstream producer cannot assimilate inherited thenable before Core capture',
+  { concurrency: false },
+  async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-async-downstream-assimilation-'));
+    const originalThenDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
+    let thenCalls = 0;
+    let evidence;
+    let harness;
+
+    function restoreObjectThen() {
+      if (originalThenDescriptor === undefined) delete Object.prototype.then;
+      else Object.defineProperty(Object.prototype, 'then', originalThenDescriptor);
+    }
+
+    try {
+      harness = createReferenceDurableSingleUseGateHarness({
+        rootDir,
+        trustedClock: trustedClock(),
+        // Prototype-inert observer data keeps the distinct #152 observer-return
+        // attack out of this reproduction.
+        observeBinding: () => observedFrom(evidence),
+        executeDownstream: async () => {
+          const intended = { accepted: true, source: 'trusted-async-producer' };
+          Object.defineProperty(Object.prototype, 'then', {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value(resolve) {
+              thenCalls += 1;
+              restoreObjectThen();
+              const substituted = Object.create(null);
+              substituted.accepted = false;
+              substituted.source = 'inherited-then-substitution';
+              resolve(Object.freeze(substituted));
+            },
+          });
+          return intended;
+        },
+      });
+      const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+        witnessValidUntil: '2026-09-01T12:01:00.000Z',
+      });
+      evidence = issued.evidence;
+
+      const result = await harness.gate.consume(issued.capability, { raw: true });
+      assert.equal(
+        thenCalls,
+        0,
+        'trusted async downstream success must reach a Core-owned capture boundary before thenable assimilation',
+      );
+      assert.equal(result.accepted, true);
+      assert.equal(result.source, 'trusted-async-producer');
+      assert.equal(
+        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+        'CONSUMED_SUCCESS',
+      );
+      assert.equal(
+        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+        'CONSUMED_SUCCESS',
+      );
+    } finally {
+      restoreObjectThen();
+      await harness?.close().catch(() => {});
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  },
+);
