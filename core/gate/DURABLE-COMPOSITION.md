@@ -58,6 +58,8 @@ Persisted claim/terminal JSON and public durable inspection records are converte
 
 Durable result channels themselves are also isolated from post-import `Promise.prototype.constructor` / `Promise.prototype.then` mutation. Promise-producing filesystem wrappers, durable operation channels and public durable-store result promises are stabilized with captured Promise intrinsics before they are awaited or exposed, so a mutable inherited Promise prototype cannot observe one capability's claim result and substitute another capability's opaque handle. The regression contract is the security invariant—claim/result-channel non-substitutability—not a claim that no unrelated native Promise in the process can ever dispatch through a subsequently modified prototype.
 
+Detached downstream result rematerialization defines its own fields through the captured reflection boundary rather than ordinary assignment, so inherited field setters cannot suppress or rewrite the post-terminal result returned after durable success.
+
 ## Preserved Core semantics
 
 Capability identity, exact authorization commitment, trusted-time validation, observer binding, prepared-execution capture and single-use terminal behavior continue to come from shared Core primitives. Applications must consume this common boundary rather than reimplement durable replay semantics.
