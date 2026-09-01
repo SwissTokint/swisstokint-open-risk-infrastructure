@@ -144,3 +144,171 @@ test('descriptor reuse cannot redirect durable terminal persistence', (t) => {
     `descriptor-reuse child failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
   );
 });
+
+// Identity is not ownership. Reopening the exact same directory on a descriptor
+// number previously owned by the store preserves dev/ino/mode/uid and therefore
+// passes identity-only release checks. Lifecycle cleanup must never close that
+// foreign descriptor.
+test('same-inode root fd reuse is not closed as store-owned', (t) => {
+  if (process.platform !== 'linux') {
+    t.skip('Linux /proc/self/fd same-inode ownership regression');
+    return;
+  }
+
+  const moduleUrl = new URL(
+    '../core/gate/reference-durable-claim-store.mjs',
+    import.meta.url,
+  ).href;
+
+  const script = `
+    import assert from 'node:assert/strict';
+    import fs from 'node:fs';
+    import { mkdtemp, rm } from 'node:fs/promises';
+    import os from 'node:os';
+    import path from 'node:path';
+
+    const { createReferenceDurableClaimStore } = await import(
+      ${JSON.stringify(moduleUrl)} + '?same-inode-root=' + Date.now()
+    );
+
+    function findPinnedDirectoryFd(target) {
+      const expected = fs.realpathSync(target);
+      const candidates = fs.readdirSync('/proc/self/fd')
+        .filter((entry) => /^[0-9]+$/u.test(entry))
+        .map(Number)
+        .sort((a, b) => a - b);
+      for (const fd of candidates) {
+        try {
+          const link = fs.readlinkSync('/proc/self/fd/' + fd);
+          if (path.resolve(link) === expected) return fd;
+        } catch {
+          // Descriptor disappeared while enumerating.
+        }
+      }
+      throw new Error('pinned root descriptor was not discoverable');
+    }
+
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-same-inode-root-'));
+    const input = {
+      capabilityId: 'cap-${'a'.repeat(32)}',
+      authorizationCommitment: '${'b'.repeat(64)}',
+    };
+    const store = createReferenceDurableClaimStore({ rootDir: root });
+    let foreignFd = null;
+
+    try {
+      await store.inspect(input);
+      const ownedFd = findPinnedDirectoryFd(root);
+      fs.closeSync(ownedFd);
+      foreignFd = fs.openSync(root, 'r');
+      assert.equal(foreignFd, ownedFd, 'foreign root must reuse the store descriptor number');
+
+      await store.close();
+
+      assert.doesNotThrow(
+        () => fs.fstatSync(foreignFd),
+        'store.close() must not close a same-inode descriptor now owned by another subsystem',
+      );
+    } finally {
+      if (foreignFd !== null) {
+        try { fs.closeSync(foreignFd); } catch {}
+      }
+      await store.close().catch(() => {});
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '--eval', script],
+    { encoding: 'utf8' },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `same-inode root ownership child failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
+});
+
+test('same-inode claim-directory fd reuse is not closed as store-owned', (t) => {
+  if (process.platform !== 'linux') {
+    t.skip('Linux /proc/self/fd same-inode ownership regression');
+    return;
+  }
+
+  const moduleUrl = new URL(
+    '../core/gate/reference-durable-claim-store.mjs',
+    import.meta.url,
+  ).href;
+
+  const script = `
+    import assert from 'node:assert/strict';
+    import fs from 'node:fs';
+    import { mkdtemp, rm } from 'node:fs/promises';
+    import os from 'node:os';
+    import path from 'node:path';
+
+    const { createReferenceDurableClaimStore } = await import(
+      ${JSON.stringify(moduleUrl)} + '?same-inode-child=' + Date.now()
+    );
+
+    function findPinnedDirectoryFd(target) {
+      const expected = fs.realpathSync(target);
+      const candidates = fs.readdirSync('/proc/self/fd')
+        .filter((entry) => /^[0-9]+$/u.test(entry))
+        .map(Number)
+        .sort((a, b) => a - b);
+      for (const fd of candidates) {
+        try {
+          const link = fs.readlinkSync('/proc/self/fd/' + fd);
+          if (path.resolve(link) === expected) return fd;
+        } catch {
+          // Descriptor disappeared while enumerating.
+        }
+      }
+      throw new Error('pinned claim descriptor was not discoverable');
+    }
+
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-same-inode-child-'));
+    const capabilityId = 'cap-${'c'.repeat(32)}';
+    const input = {
+      capabilityId,
+      authorizationCommitment: '${'d'.repeat(64)}',
+    };
+    const store = createReferenceDurableClaimStore({ rootDir: root });
+    let foreignFd = null;
+
+    try {
+      const claimed = await store.claim(input);
+      const claimDirectory = path.join(root, capabilityId);
+      const ownedFd = findPinnedDirectoryFd(claimDirectory);
+      fs.closeSync(ownedFd);
+      foreignFd = fs.openSync(claimDirectory, 'r');
+      assert.equal(foreignFd, ownedFd, 'foreign claim-directory fd must reuse the store descriptor number');
+
+      await store.abandon(claimed.handle);
+
+      assert.doesNotThrow(
+        () => fs.fstatSync(foreignFd),
+        'claim release must not close a same-inode descriptor now owned by another subsystem',
+      );
+    } finally {
+      if (foreignFd !== null) {
+        try { fs.closeSync(foreignFd); } catch {}
+      }
+      await store.close().catch(() => {});
+      await rm(root, { recursive: true, force: true });
+    }
+  `;
+
+  const result = spawnSync(
+    process.execPath,
+    ['--input-type=module', '--eval', script],
+    { encoding: 'utf8' },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `same-inode claim ownership child failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
+});
