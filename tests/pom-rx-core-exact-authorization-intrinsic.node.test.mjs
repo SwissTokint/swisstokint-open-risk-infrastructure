@@ -86,3 +86,39 @@ test(
     }
   },
 );
+
+test(
+  'post-import Object.entries replacement cannot collapse distinct exact authorization commitments',
+  { concurrency: false },
+  () => {
+    const left = inputRecord();
+    const right = inputRecord();
+    right.action_commitment = h('9');
+
+    const originalEntries = Object.entries;
+    let poisonCalls = 0;
+    try {
+      Object.entries = function replacement() {
+        poisonCalls += 1;
+        return [];
+      };
+
+      const leftPrepared = prepareReferenceExactAuthorizationRecord(left, {
+        witnessValidUntil: '2026-08-30T13:01:00.000Z',
+        capabilityId: `cap-${'c'.repeat(32)}`,
+      });
+      const rightPrepared = prepareReferenceExactAuthorizationRecord(right, {
+        witnessValidUntil: '2026-08-30T13:01:00.000Z',
+        capabilityId: `cap-${'d'.repeat(32)}`,
+      });
+
+      assert.notEqual(
+        leftPrepared.evidence.authorization_commitment,
+        rightPrepared.evidence.authorization_commitment,
+      );
+      assert.equal(poisonCalls, 0);
+    } finally {
+      Object.entries = originalEntries;
+    }
+  },
+);
