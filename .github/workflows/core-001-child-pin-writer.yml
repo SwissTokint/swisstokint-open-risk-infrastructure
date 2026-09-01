@@ -1,0 +1,240 @@
+name: CORE-001 bounded child-directory repair
+
+on:
+  push:
+    branches:
+      - core/durable-gate-v2-20260830
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Apply bounded CORE-001 repair
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('core/gate/reference-durable-claim-store.mjs')
+          text = path.read_text()
+
+          def replace_once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one match, got {count}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "const WEAK_MAP_SET = WeakMap.prototype.set;\n",
+              "const WEAK_MAP_SET = WeakMap.prototype.set;\n"
+              "const SET_CONSTRUCTOR = Set;\n"
+              "const SET_ADD = Set.prototype.add;\n"
+              "const SET_DELETE = Set.prototype.delete;\n"
+              "const SET_FOR_EACH = Set.prototype.forEach;\n",
+          )
+
+          replace_once(
+              "function weakMapSet(map, key, value) {\n"
+              "  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);\n"
+              "}\n",
+              "function weakMapSet(map, key, value) {\n"
+              "  REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);\n"
+              "}\n\n"
+              "function setAdd(set, value) {\n"
+              "  REFLECT_APPLY(SET_ADD, set, [value]);\n"
+              "}\n\n"
+              "function setDelete(set, value) {\n"
+              "  REFLECT_APPLY(SET_DELETE, set, [value]);\n"
+              "}\n\n"
+              "function setForEach(set, callback) {\n"
+              "  REFLECT_APPLY(SET_FOR_EACH, set, [callback]);\n"
+              "}\n",
+          )
+
+          replace_once(
+              "  const handleState = new WEAK_MAP_CONSTRUCTOR();\n"
+              "  let trustedRootPromise = null;\n",
+              "  const handleState = new WEAK_MAP_CONSTRUCTOR();\n"
+              "  const openClaimFds = new SET_CONSTRUCTOR();\n"
+              "  let trustedRootPromise = null;\n",
+          )
+
+          marker = "  async function trustedRoot() {\n"
+          helper = """  function pinClaimDirectorySync(claimDirectory) {
+    let fd = null;
+    try {
+      const pathIdentity = fsLstatSyncSnapshot(claimDirectory);
+      if (!statIsDirectory(pathIdentity) || statIsSymbolicLink(pathIdentity)) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim path is not a regular directory');
+      }
+
+      fd = openFdSync(claimDirectory, 'r', 0o600);
+      const fdIdentity = fsFstatSyncSnapshot(fd);
+      if (!statIsDirectory(fdIdentity)
+          || statIsSymbolicLink(fdIdentity)
+          || fdIdentity.dev !== pathIdentity.dev
+          || fdIdentity.ino !== pathIdentity.ino) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory changed while being pinned');
+      }
+
+      if (PROCESS_PLATFORM !== 'linux') {
+        fail(
+          'POMRX_GATE_E_DURABLE_ROOT_INVALID',
+          'pinned durable capability-directory operations currently require Linux procfs descriptor traversal',
+        );
+      }
+      const operationRoot = `/proc/self/fd/${fd}`;
+      const operationIdentity = fsStatSyncSnapshot(operationRoot);
+      if (!statIsDirectory(operationIdentity)
+          || operationIdentity.dev !== pathIdentity.dev
+          || operationIdentity.ino !== pathIdentity.ino) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'pinned capability descriptor path does not resolve to the claimed directory');
+      }
+
+      const pinned = createObject(null);
+      pinned.fd = fd;
+      pinned.dev = pathIdentity.dev;
+      pinned.ino = pathIdentity.ino;
+      pinned.claimDirectory = claimDirectory;
+      pinned.operationRoot = operationRoot;
+      return freezeValue(pinned);
+    } catch (error) {
+      closeFdSyncIgnoringFailure(fd);
+      if (error instanceof PomRxDurableClaimStoreError) throw error;
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory could not be pinned');
+    }
+  }
+
+  function assertPinnedClaimDirectorySync(state) {
+    try {
+      const pathIdentity = fsLstatSyncSnapshot(state.claimDirectory);
+      const fdIdentity = fsFstatSyncSnapshot(state.claimFd);
+      const operationIdentity = fsStatSyncSnapshot(state.claimOperationRoot);
+      if (!statIsDirectory(pathIdentity)
+          || statIsSymbolicLink(pathIdentity)
+          || pathIdentity.dev !== state.claimDev
+          || pathIdentity.ino !== state.claimIno
+          || !statIsDirectory(fdIdentity)
+          || statIsSymbolicLink(fdIdentity)
+          || fdIdentity.dev !== state.claimDev
+          || fdIdentity.ino !== state.claimIno
+          || !statIsDirectory(operationIdentity)
+          || operationIdentity.dev !== state.claimDev
+          || operationIdentity.ino !== state.claimIno) {
+        fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory identity changed before completion');
+      }
+    } catch (error) {
+      if (error instanceof PomRxDurableClaimStoreError) throw error;
+      fail('POMRX_GATE_E_DURABLE_CORRUPT', 'durable capability claim directory identity changed before completion');
+    }
+  }
+
+  function withPinnedClaimCritical(state, operation) {
+    assertPinnedClaimDirectorySync(state);
+    try {
+      return operation(state.claimOperationRoot);
+    } finally {
+      assertPinnedClaimDirectorySync(state);
+    }
+  }
+
+"""
+          replace_once(marker, helper + marker)
+
+          replace_once(
+              "      const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);\n"
+              "      writeExclusiveDurableSync(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);\n\n"
+              "      const handle = freezeValue(createObject(null));\n"
+              "      weakMapSet(handleState, handle, {\n"
+              "        state: 'OPEN',\n"
+              "        claimDirectory,\n"
+              "        claimRecord,\n"
+              "      });\n",
+              "      const claimRecord = makeClaimRecord(capabilityId, authorizationCommitment);\n"
+              "      writeExclusiveDurableSync(PATH_JOIN(claimDirectory, 'claim.json'), claimRecord);\n\n"
+              "      const pinnedClaim = pinClaimDirectorySync(claimDirectory);\n"
+              "      setAdd(openClaimFds, pinnedClaim.fd);\n"
+              "      const handle = freezeValue(createObject(null));\n"
+              "      weakMapSet(handleState, handle, {\n"
+              "        state: 'OPEN',\n"
+              "        claimDirectory,\n"
+              "        claimFd: pinnedClaim.fd,\n"
+              "        claimDev: pinnedClaim.dev,\n"
+              "        claimIno: pinnedClaim.ino,\n"
+              "        claimOperationRoot: pinnedClaim.operationRoot,\n"
+              "        claimRecord,\n"
+              "      });\n",
+          )
+
+          replace_once(
+              "      const inspection = withPinnedRootCritical(rootRef, () => {\n"
+              "        const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(state.claimDirectory, 'claim.json'));\n",
+              "      const inspection = withPinnedRootCritical(rootRef, () => withPinnedClaimCritical(state, (claimRoot) => {\n"
+              "        const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(claimRoot, 'claim.json'));\n",
+          )
+          replace_once(
+              "        writeExclusiveDurableSync(PATH_JOIN(state.claimDirectory, 'terminal.json'), terminalRecord);\n"
+              "        return makeInspection(terminalState, state.claimRecord, terminalRecord);\n"
+              "      });\n"
+              "      state.state = terminalState;\n"
+              "      return inspection;\n"
+              "    } catch (error) {\n"
+              "      state.state = 'FAILED_CLOSED';\n"
+              "      throw error;\n"
+              "    }\n",
+              "        writeExclusiveDurableSync(PATH_JOIN(claimRoot, 'terminal.json'), terminalRecord);\n"
+              "        return makeInspection(terminalState, state.claimRecord, terminalRecord);\n"
+              "      }));\n"
+              "      state.state = terminalState;\n"
+              "      return inspection;\n"
+              "    } catch (error) {\n"
+              "      state.state = 'FAILED_CLOSED';\n"
+              "      throw error;\n"
+              "    } finally {\n"
+              "      if (state.claimFd !== null) {\n"
+              "        const claimFd = state.claimFd;\n"
+              "        state.claimFd = null;\n"
+              "        setDelete(openClaimFds, claimFd);\n"
+              "        closeFdSyncIgnoringFailure(claimFd);\n"
+              "      }\n"
+              "    }\n",
+          )
+
+          replace_once(
+              "      let root = null;\n"
+              "      if (trustedRootPromise !== null) {\n",
+              "      setForEach(openClaimFds, (fd) => {\n"
+              "        closeFdSyncIgnoringFailure(fd);\n"
+              "      });\n\n"
+              "      let root = null;\n"
+              "      if (trustedRootPromise !== null) {\n",
+          )
+
+          path.write_text(text)
+          PY
+      - name: Reproduce repaired child-directory rebinding invariant
+        run: node --test tests/pom-rx-core-durable-child-directory-rebinding.node.test.mjs
+      - name: Full repository tests
+        run: npm test
+      - name: Commit repaired exact head and remove temporary writer
+        shell: bash
+        run: |
+          rm .github/workflows/core-001-child-pin-writer.yml
+          git config user.name 'SwissTokint Prime Writer'
+          git config user.email 'actions@users.noreply.github.com'
+          git add core/gate/reference-durable-claim-store.mjs .github/workflows/core-001-child-pin-writer.yml
+          git commit -m 'fix(core): pin durable claim child directory'
+          git push origin HEAD:core/durable-gate-v2-20260830
