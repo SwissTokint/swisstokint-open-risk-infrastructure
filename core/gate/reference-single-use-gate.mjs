@@ -40,8 +40,10 @@ const HARNESS_SORTED_KEYS = Object.freeze([
 // state, rewrite detached bootstrap/observer snapshots, widen their shape, redirect
 // sorting, or falsify validity-window checks. Security-sensitive iteration over the
 // module-owned key sets is index-based rather than delegated to the mutable shared
-// Array iterator. Poisoning before module initialization remains outside this
-// reference guarantee.
+// Array iterator. A resolved downstream object is detached to reference-owned plain
+// data before the capability is marked successful; the final async return therefore
+// cannot re-assimilate an inherited thenable after terminal success. Poisoning before
+// module initialization remains outside this reference guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const REFLECT_CONSTRUCT = Reflect.construct;
 const ARRAY_IS_ARRAY = Array.isArray;
@@ -293,6 +295,26 @@ function validateObservedBinding(value) {
   });
 }
 
+function snapshotDownstreamResult(value) {
+  if (value === null) return null;
+  const type = typeof value;
+  if (type !== 'object' && type !== 'function') return value;
+  if (type === 'function') {
+    throw gateError(
+      'POMRX_GATE_E_DOWNSTREAM_FAILED',
+      'Downstream returned a non-inert result after execution',
+    );
+  }
+  try {
+    return captureReferencePlainData(value, 'trusted Gate downstream result');
+  } catch {
+    throw gateError(
+      'POMRX_GATE_E_DOWNSTREAM_FAILED',
+      'Downstream returned a non-inert or out-of-bounds result after execution',
+    );
+  }
+}
+
 function assertCapabilityActive(binding, now) {
   const nowMs = dateGetTime(now);
   const issuedAtMs = dateGetTime(dateFrom(binding.issued_at));
@@ -467,10 +489,10 @@ export function createReferenceSingleUseGateHarness(options) {
       completeConsumption(capability, 'CONSUMED_ERROR');
       throw gateError('POMRX_GATE_E_DOWNSTREAM_FAILED', 'Downstream execution failed synchronously');
     }
+
+    let resolvedResult;
     try {
-      const result = await downstreamResult;
-      completeConsumption(capability, 'CONSUMED_SUCCESS');
-      return result;
+      resolvedResult = await downstreamResult;
     } catch {
       completeConsumption(capability, 'CONSUMED_UNKNOWN');
       throw gateError(
@@ -478,6 +500,21 @@ export function createReferenceSingleUseGateHarness(options) {
         'Downstream execution failed or its asynchronous result channel is ambiguous',
       );
     }
+
+    let detachedResult;
+    try {
+      detachedResult = snapshotDownstreamResult(resolvedResult);
+    } catch (error) {
+      completeConsumption(capability, 'CONSUMED_UNKNOWN');
+      if (error instanceof PomRxGateError) throw error;
+      throw gateError(
+        'POMRX_GATE_E_DOWNSTREAM_FAILED',
+        'Downstream result could not be detached safely',
+      );
+    }
+
+    completeConsumption(capability, 'CONSUMED_SUCCESS');
+    return detachedResult;
   }
 
   const gate = freezeValue({ consume });
