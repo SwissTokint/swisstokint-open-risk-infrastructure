@@ -56,6 +56,8 @@ The composition creates its durable store internally rather than accepting a cal
 
 Persisted claim/terminal JSON and public durable inspection records are converted to prototype-inert snapshots before they cross asynchronous return boundaries. This prevents an inherited `Object.prototype.then` from rewriting persisted or reported terminal truth during Promise assimilation.
 
+Durable result channels themselves are also isolated from post-import `Promise.prototype.constructor` / `Promise.prototype.then` mutation. Promise-producing filesystem wrappers, durable operation channels and public durable-store result promises are stabilized with captured Promise intrinsics before they are awaited or exposed, so a mutable inherited Promise prototype cannot observe one capability's claim result and substitute another capability's opaque handle. The regression contract is the security invariant—claim/result-channel non-substitutability—not a claim that no unrelated native Promise in the process can ever dispatch through a subsequently modified prototype.
+
 ## Preserved Core semantics
 
 Capability identity, exact authorization commitment, trusted-time validation, observer binding, prepared-execution capture and single-use terminal behavior continue to come from shared Core primitives. Applications must consume this common boundary rather than reimplement durable replay semantics.
