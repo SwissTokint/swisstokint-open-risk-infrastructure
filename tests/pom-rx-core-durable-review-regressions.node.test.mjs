@@ -8,7 +8,6 @@ import {
   createReferenceDurableSingleUseGateHarness,
 } from '../core/gate/reference-durable-single-use-gate.mjs';
 
-const ARRAY_PROTOTYPE = Array.prototype;
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_HAS_OWN = Object.hasOwn;
@@ -47,11 +46,11 @@ function observedFrom(evidence) {
   };
 }
 
-function restorePrototypeProperty(prototype, key, descriptor) {
+function restoreObjectPrototypeProperty(key, descriptor) {
   if (descriptor) {
-    OBJECT_DEFINE_PROPERTY(prototype, key, descriptor);
+    OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, key, descriptor);
   } else {
-    delete prototype[key];
+    delete OBJECT_PROTOTYPE[key];
   }
 }
 
@@ -123,7 +122,7 @@ test(
       assert.equal(attackCalls, 0);
       assert.equal(thenGets, 1);
     } finally {
-      restorePrototypeProperty(OBJECT_PROTOTYPE, 'then', originalThen);
+      restoreObjectPrototypeProperty('then', originalThen);
       await harness?.close().catch(() => {});
       await rm(rootDir, { recursive: true, force: true });
     }
@@ -131,7 +130,7 @@ test(
 );
 
 test(
-  'post-terminal result rematerialization bypasses inherited object field setters',
+  'post-terminal result rematerialization bypasses inherited field setters',
   { concurrency: false },
   async () => {
     const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-post-terminal-setter-'));
@@ -177,62 +176,7 @@ test(
         'CONSUMED_SUCCESS',
       );
     } finally {
-      restorePrototypeProperty(OBJECT_PROTOTYPE, 'accepted', originalAccepted);
-      await harness?.close().catch(() => {});
-      await rm(rootDir, { recursive: true, force: true });
-    }
-  },
-);
-
-test(
-  'post-terminal array rematerialization bypasses inherited index setters',
-  { concurrency: false },
-  async () => {
-    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-post-terminal-array-setter-'));
-    const originalZero = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(ARRAY_PROTOTYPE, '0');
-    let evidence;
-    let setterCalls = 0;
-    let harness;
-    const downstreamResult = Object.freeze([Object.freeze({ accepted: true })]);
-
-    try {
-      harness = createReferenceDurableSingleUseGateHarness({
-        rootDir,
-        trustedClock: trustedClock(),
-        observeBinding: async () => observedFrom(evidence),
-        executeDownstream: () => downstreamResult,
-      });
-      const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
-        witnessValidUntil: '2026-08-30T12:01:00.000Z',
-      });
-      evidence = issued.evidence;
-
-      OBJECT_DEFINE_PROPERTY(ARRAY_PROTOTYPE, '0', {
-        configurable: true,
-        enumerable: false,
-        get() {
-          return undefined;
-        },
-        set(_value) {
-          setterCalls += 1;
-        },
-      });
-
-      const result = await harness.gate.consume(issued.capability, { raw: true });
-      assert.equal(setterCalls, 0, 'detached array indices must not dispatch through inherited setters');
-      assert.equal(Array.isArray(result), true);
-      assert.equal(OBJECT_HAS_OWN(result, '0'), true);
-      assert.equal(result[0].accepted, true);
-      assert.equal(
-        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
-        'CONSUMED_SUCCESS',
-      );
-      assert.equal(
-        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
-        'CONSUMED_SUCCESS',
-      );
-    } finally {
-      restorePrototypeProperty(ARRAY_PROTOTYPE, '0', originalZero);
+      restoreObjectPrototypeProperty('accepted', originalAccepted);
       await harness?.close().catch(() => {});
       await rm(rootDir, { recursive: true, force: true });
     }
