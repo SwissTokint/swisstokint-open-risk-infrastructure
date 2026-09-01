@@ -6,60 +6,126 @@ def replace_once(path: str, old: str, new: str) -> None:
     text = p.read_text()
     count = text.count(old)
     if count != 1:
-        raise SystemExit(f"expected exactly one match in {path}, found {count}: {old[:120]!r}")
+        raise SystemExit(
+            f"expected exactly one match in {path}, found {count}: {old[:160]!r}"
+        )
     p.write_text(text.replace(old, new, 1))
 
 
-doc = 'core/gate/DURABLE-COMPOSITION.md'
+path = "core/gate/reference-durable-claim-store.mjs"
+
+# P1: do not allow a post-import mutation of Promise[Symbol.species] to control
+# chaining from public durable-store promises. Pin an inert constructor carrier
+# with an own immutable @@species=%Promise% exactly as the reviewed composed Gate
+# already does.
 replace_once(
-    doc,
-    "If downstream succeeds, the local Gate reaches `CONSUMED_SUCCESS` and the composition persists `CONSUMED_SUCCESS` before returning the downstream result. If downstream fails, the local Gate reaches `CONSUMED_ERROR`; the composition persists `CONSUMED_ERROR` before propagating the Gate's downstream-failure diagnostic.\n",
-    "If downstream succeeds, the local Gate reaches `CONSUMED_SUCCESS` and the composition persists `CONSUMED_SUCCESS` before returning the downstream result. A synchronous throw from `executeDownstream` before it returns a result channel is locally classifiable as `CONSUMED_ERROR`, and the composition persists `CONSUMED_ERROR` before reporting that synchronous failure. Once a result channel exists, an asynchronous rejection is not treated as proof that the external effect failed: the local Gate becomes `CONSUMED_UNKNOWN`, the verified process-local claim descriptor is released, and the durable tombstone remains `RESERVED` without a success/error terminal marker.\n",
-)
-replace_once(
-    doc,
-    "Durable result channels themselves are also isolated from post-import `Promise.prototype.constructor` / `Promise.prototype.then` mutation. Promise-producing filesystem wrappers, durable operation channels and public durable-store result promises are stabilized with captured Promise intrinsics before they are awaited or exposed, so a mutable inherited Promise prototype cannot observe one capability's claim result and substitute another capability's opaque handle. The regression contract is the security invariant—claim/result-channel non-substitutability—not a claim that no unrelated native Promise in the process can ever dispatch through a subsequently modified prototype.\n",
-    "Durable result channels themselves are also isolated from post-import `Promise.prototype.constructor` / `Promise.prototype.then` mutation. Promise-producing filesystem wrappers, durable operation channels and public durable-store result promises are stabilized with captured Promise intrinsics before they are awaited or exposed, so a mutable inherited Promise prototype cannot observe one capability's claim result and substitute another capability's opaque handle. Public promises created by the composed Gate additionally own a null-prototype constructor carrier whose immutable `Symbol.species` points to the captured intrinsic Promise, plus a Core-owned `then` dispatch; direct `.then()` and inherited `.finally()` therefore do not consult a later mutation of `Promise[Symbol.species]`. The regression contract is the security invariant—claim/result-channel non-substitutability and stable public result semantics—not a claim that no unrelated native Promise in the process can ever dispatch through a subsequently modified prototype.\n",
+    path,
+    "const PROMISE_CONSTRUCTOR = Promise;\n"
+    "const PROMISE_THEN = Promise.prototype.then;\n"
+    "const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{\n"
+    "  value: PROMISE_CONSTRUCTOR,\n"
+    "  configurable: false,\n"
+    "  enumerable: false,\n"
+    "  writable: false,\n"
+    "}]);\n"
+    "const PROMISE_OWN_THEN_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{\n"
+    "  value: PROMISE_THEN,\n"
+    "  configurable: false,\n"
+    "  enumerable: false,\n"
+    "  writable: false,\n"
+    "}]);\n",
+    "const PROMISE_CONSTRUCTOR = Promise;\n"
+    "const PROMISE_THEN = Promise.prototype.then;\n"
+    "const PROMISE_SPECIES_KEY = Symbol.species;\n"
+    "\n"
+    "function makePromiseDescriptor(value) {\n"
+    "  const descriptor = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);\n"
+    "  descriptor.value = value;\n"
+    "  descriptor.configurable = false;\n"
+    "  descriptor.enumerable = false;\n"
+    "  descriptor.writable = false;\n"
+    "  return REFLECT_APPLY(OBJECT_FREEZE, Object, [descriptor]);\n"
+    "}\n"
+    "\n"
+    "function makePromiseSpeciesCarrier() {\n"
+    "  const carrier = REFLECT_APPLY(OBJECT_CREATE, Object, [null]);\n"
+    "  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [\n"
+    "    carrier,\n"
+    "    PROMISE_SPECIES_KEY,\n"
+    "    makePromiseDescriptor(PROMISE_CONSTRUCTOR),\n"
+    "  ]);\n"
+    "  return REFLECT_APPLY(OBJECT_FREEZE, Object, [carrier]);\n"
+    "}\n"
+    "\n"
+    "const PROMISE_SPECIES_CARRIER = makePromiseSpeciesCarrier();\n"
+    "const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(\n"
+    "  PROMISE_SPECIES_CARRIER,\n"
+    ");\n"
+    "const PROMISE_OWN_THEN_DESCRIPTOR = makePromiseDescriptor(PROMISE_THEN);\n",
 )
 
-test_path = 'tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs'
 replace_once(
-    test_path,
-    "import { mkdtemp, rm } from 'node:fs/promises';\n",
-    "import { mkdtemp, readFile, rm } from 'node:fs/promises';\n",
+    path,
+    "function stabilizePromise(promise) {\n"
+    "  // Await performs PromiseResolve(%Promise%, value). Immutable own captured\n"
+    "  // constructor/then data properties prevent post-import Promise-prototype\n"
+    "  // poisoning from substituting internal durable result channels.\n",
+    "function stabilizePromise(promise) {\n"
+    "  // Await/chaining must not consult mutable Promise prototype/species state.\n"
+    "  // Each durable Promise owns the captured native then plus a frozen,\n"
+    "  // null-prototype constructor carrier whose @@species is the captured\n"
+    "  // intrinsic Promise.\n",
 )
 
-p = Path(test_path)
-text = p.read_text()
-name = 'durable composition documentation preserves synchronous-vs-ambiguous downstream truth'
-if name in text:
-    raise SystemExit('documentation regression already present')
-text += """
+# P1: the security-critical realpath boundary must not obtain a Promise from
+# node:fs/promises before Core can stabilize it. Use the captured callback API so
+# Core creates and pins the only Promise in this adapter.
+replace_once(
+    path,
+    "  readFileSync as readFileSyncCallback,\n"
+    "  realpathSync as realpathSyncCallback,\n",
+    "  readFileSync as readFileSyncCallback,\n"
+    "  realpath as realpathCallback,\n"
+    "  realpathSync as realpathSyncCallback,\n",
+)
+replace_once(
+    path,
+    "  readFile,\n"
+    "  realpath,\n"
+    "  unlink,\n"
+    "} from 'node:fs/promises';\n",
+    "  readFile,\n"
+    "  unlink,\n"
+    "} from 'node:fs/promises';\n",
+)
+replace_once(
+    path,
+    "const FS_REALPATH = realpath;\n",
+    "const FS_REALPATH = realpathCallback;\n",
+)
+replace_once(
+    path,
+    "function fsRealpath(filePath) {\n"
+    "  return stabilizePromise(REFLECT_APPLY(FS_REALPATH, undefined, [filePath]));\n"
+    "}\n",
+    "function fsRealpath(filePath) {\n"
+    "  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {\n"
+    "    REFLECT_APPLY(FS_REALPATH, undefined, [filePath, (error, resolvedPath) => {\n"
+    "      if (error) reject(error);\n"
+    "      else resolve(resolvedPath);\n"
+    "    }]);\n"
+    "  }));\n"
+    "}\n",
+)
 
-test(
-  'durable composition documentation preserves synchronous-vs-ambiguous downstream truth',
-  async () => {
-    const document = await readFile(
-      new URL('../core/gate/DURABLE-COMPOSITION.md', import.meta.url),
-      'utf8',
-    );
-    assert.match(
-      document,
-      /A synchronous throw from `executeDownstream` before it returns a result channel is locally classifiable as `CONSUMED_ERROR`/u,
-    );
-    assert.match(
-      document,
-      /Once a result channel exists, an asynchronous rejection is not treated as proof that the external effect failed/u,
-    );
-    assert.doesNotMatch(
-      document,
-      /If downstream fails, the local Gate reaches `CONSUMED_ERROR`/u,
-    );
-    assert.match(
-      document,
-      /inherited `\.finally\(\)` therefore do not consult a later mutation of `Promise\[Symbol\.species\]`/u,
-    );
-  },
-);
-"""
-p.write_text(text)
+# Refuse accidental scope growth: this bounded repair must touch only the durable
+# store implementation; the existing exact-head regressions remain unchanged.
+changed = [
+    line.strip()
+    for line in __import__("subprocess")
+    .check_output(["git", "diff", "--name-only"], text=True)
+    .splitlines()
+    if line.strip()
+]
+if changed != [path]:
+    raise SystemExit(f"unexpected bounded repair surface: {changed!r}")
