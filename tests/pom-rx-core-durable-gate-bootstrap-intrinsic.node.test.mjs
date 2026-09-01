@@ -50,8 +50,9 @@ test('post-import descriptor poisoning cannot substitute inner Gate executeDowns
   let intendedCalls = 0;
   let substitutedCalls = 0;
 
-  const intendedDownstream = async () => {
+  const intendedDownstream = async (_preparedExecution, resultChannel) => {
     intendedCalls += 1;
+    resultChannel.capture('expected-downstream');
     return 'expected-downstream';
   };
   const substitutedDownstream = async () => {

@@ -99,10 +99,12 @@ function createHarness(rootDir, overrides = {}) {
       observerCalls += 1;
       return observedFrom(latestEvidence);
     }),
-    executeDownstream: overrides.executeDownstream ?? (async (preparedExecution) => {
+    executeDownstream: overrides.executeDownstream ?? (async (preparedExecution, resultChannel) => {
       downstreamCalls += 1;
       downstreamArgument = preparedExecution;
-      return Object.freeze({ accepted: true });
+      const result = Object.freeze({ accepted: true });
+      resultChannel.capture(result);
+      return result;
     }),
   });
 
@@ -350,8 +352,9 @@ test('concurrent local consume is synchronously reserved and forwards at most on
         await observerBarrier;
         return observedFrom(evidence);
       },
-      executeDownstream: async () => {
+      executeDownstream: async (_preparedExecution, resultChannel) => {
         downstreamCalls += 1;
+        resultChannel.capture('ok');
         return 'ok';
       },
     });

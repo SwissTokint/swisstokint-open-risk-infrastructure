@@ -100,8 +100,9 @@ test('post-import Object.create poisoning cannot redirect the composed durable r
         return () => values[Math.min(index++, values.length - 1)];
       })(),
       observeBinding: async () => observedFrom(evidence),
-      executeDownstream: async () => {
+      executeDownstream: async (_preparedExecution, resultChannel) => {
         downstreamCalls += 1;
+        resultChannel.capture('ok');
         return 'ok';
       },
     });
@@ -234,8 +235,9 @@ test('post-import Array iterator poisoning cannot rewrite durable bootstrap or c
         return () => values[Math.min(index++, values.length - 1)];
       })(),
       observeBinding: async () => observedFrom(evidence),
-      executeDownstream: async () => {
+      executeDownstream: async (_preparedExecution, resultChannel) => {
         downstreamCalls += 1;
+        resultChannel.capture('ok');
         return 'ok';
       },
     });

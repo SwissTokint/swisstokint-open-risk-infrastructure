@@ -156,6 +156,7 @@ test(
     let evidence;
     let downstreamStartedResolve;
     let downstreamRelease;
+    let downstreamResultChannel;
     const downstreamStarted = new Promise((resolve) => {
       downstreamStartedResolve = resolve;
     });
@@ -166,7 +167,8 @@ test(
       rootDir,
       trustedClock: clock(),
       observeBinding: async () => observedFrom(evidence),
-      executeDownstream: () => {
+      executeDownstream: (_preparedExecution, resultChannel) => {
+        downstreamResultChannel = resultChannel;
         downstreamStartedResolve();
         return downstreamPending;
       },
@@ -207,7 +209,9 @@ test(
     await Promise.resolve();
     await Promise.resolve();
 
-    downstreamRelease(Object.freeze({ accepted: true }));
+    const downstreamResult = Object.freeze({ accepted: true });
+    downstreamResultChannel.capture(downstreamResult);
+    downstreamRelease(downstreamResult);
     let consumeResult;
     let consumeError = null;
     try {
