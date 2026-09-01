@@ -35,14 +35,13 @@ jobs:
         run: node --test tests/pom-rx-core-durable-child-directory-rebinding.node.test.mjs
       - name: Verify full repository tests before writer commit
         run: npm test
-      - name: Commit bounded repair and restore canonical workflow
+      - name: Commit bounded CORE-001 repair
         shell: bash
         run: |
           set -euo pipefail
-          git show 5d79f6966c74a522021fd9571b21526fec91bb67:.github/workflows/ci.yml > .github/workflows/ci.yml
           git config user.name 'SwissTokint Prime Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git add core/gate/reference-durable-claim-store.mjs .github/workflows/ci.yml
+          git add core/gate/reference-durable-claim-store.mjs
           git commit -m 'fix(core): pin durable claim child directory'
           git push origin HEAD:core/durable-gate-v2-20260830
 
