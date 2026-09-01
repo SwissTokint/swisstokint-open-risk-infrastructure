@@ -22,3 +22,6 @@ jobs:
       - run: npm ci
       - name: Run exact composed Promise/lifecycle regressions
         run: node --test tests/pom-rx-core-durable-composed-promise-lifecycle-regressions.node.test.mjs
+      - name: Reproduction evidence only
+        if: always()
+        run: echo 'CORE-001 exact reproduction lane; no merge authority.'
