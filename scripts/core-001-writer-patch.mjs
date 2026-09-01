@@ -10,6 +10,22 @@ async function replaceExact(path, before, after) {
   await writeFile(path, `${source.slice(0, first)}${after}${source.slice(first + before.length)}`, 'utf8');
 }
 
+async function replaceExactCount(path, before, after, expectedCount) {
+  const source = await readFile(path, 'utf8');
+  let count = 0;
+  let offset = 0;
+  while (true) {
+    const index = source.indexOf(before, offset);
+    if (index < 0) break;
+    count += 1;
+    offset = index + before.length;
+  }
+  if (count !== expectedCount) {
+    throw new Error(`${path}: expected ${expectedCount} patch anchors, found ${count}`);
+  }
+  await writeFile(path, source.split(before).join(after), 'utf8');
+}
+
 await replaceExact(
   'core/gate/reference-durable-single-use-gate.mjs',
   `const PROMISE_CONSTRUCTOR = Promise;\nconst PROMISE_THEN = Promise.prototype.then;\nconst PROMISE_SPECIES_KEY = Symbol.species;`,
@@ -40,17 +56,11 @@ await replaceExact(
   `const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;\nconst PROCESS_PLATFORM = process.platform;\nconst PROCESS_PID = process.pid;`,
 );
 
-await replaceExact(
+await replaceExactCount(
   'core/gate/reference-durable-claim-store.mjs',
   `\`.\${PATH_BASENAME(filePath)}.\${process.pid}.\${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp\``,
   `\`.\${PATH_BASENAME(filePath)}.\${PROCESS_PID}.\${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp\``,
-);
-
-// The same publication name exists once in the asynchronous compatibility path.
-await replaceExact(
-  'core/gate/reference-durable-claim-store.mjs',
-  `\`.\${PATH_BASENAME(filePath)}.\${process.pid}.\${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp\``,
-  `\`.\${PATH_BASENAME(filePath)}.\${PROCESS_PID}.\${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp\``,
+  2,
 );
 
 await rm('scripts/core-001-writer-patch.mjs');
