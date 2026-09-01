@@ -24,6 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           cp .github/core-001-current-writer.py /tmp/core-001-current-writer.py
+          cp .github/core-001-current-regression-adjust.py /tmp/core-001-current-regression-adjust.py
           git fetch origin main core/durable-gate-v2-20260830
           test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "e281f1854afa71e0f237348d816e9bace1db976e"
           git checkout --detach e281f1854afa71e0f237348d816e9bace1db976e
@@ -34,7 +35,9 @@ jobs:
           cache: npm
 
       - name: Apply bounded exact-head repairs
-        run: python /tmp/core-001-current-writer.py
+        run: |
+          python /tmp/core-001-current-writer.py
+          python /tmp/core-001-current-regression-adjust.py
 
       - name: Validate bounded surface
         shell: bash
@@ -69,7 +72,7 @@ jobs:
           set -euo pipefail
           git config user.name 'POM-RX CORE-001 Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git add core/authorization/reference-exact-authorization.mjs core/gate/reference-single-use-gate.mjs core/gate/reference-durable-single-use-gate.mjs
+          git add core/authorization/reference-exact-authorization.mjs core/gate/reference-single-use-gate.mjs core/gate/reference-durable-single-use-gate.mjs tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs
           git diff --cached --check
           git commit -m 'fix(core): close exact-head Promise and authorization blockers'
           NEW_SHA=$(git rev-parse HEAD)
