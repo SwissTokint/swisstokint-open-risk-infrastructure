@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -321,5 +321,32 @@ test(
       await harness.close().catch(() => {});
       await rm(rootDir, { recursive: true, force: true });
     }
+  },
+);
+
+
+test(
+  'durable composition documentation preserves synchronous-vs-ambiguous downstream truth',
+  async () => {
+    const document = await readFile(
+      new URL('../core/gate/DURABLE-COMPOSITION.md', import.meta.url),
+      'utf8',
+    );
+    assert.match(
+      document,
+      /A synchronous throw from `executeDownstream` before it returns a result channel is locally classifiable as `CONSUMED_ERROR`/u,
+    );
+    assert.match(
+      document,
+      /Once a result channel exists, an asynchronous rejection is not treated as proof that the external effect failed/u,
+    );
+    assert.doesNotMatch(
+      document,
+      /If downstream fails, the local Gate reaches `CONSUMED_ERROR`/u,
+    );
+    assert.match(
+      document,
+      /inherited `\.finally\(\)` therefore do not consult a later mutation of `Promise\[Symbol\.species\]`/u,
+    );
   },
 );
