@@ -10,6 +10,7 @@ import {
 
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
 const h = (character) => character.repeat(64);
 
@@ -45,12 +46,21 @@ function observedFrom(evidence) {
   };
 }
 
-function restoreObjectPrototypeThen(descriptor) {
+function restoreObjectPrototypeProperty(key, descriptor) {
   if (descriptor) {
-    OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'then', descriptor);
+    OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, key, descriptor);
   } else {
-    delete OBJECT_PROTOTYPE.then;
+    delete OBJECT_PROTOTYPE[key];
   }
+}
+
+function trustedClock() {
+  const values = [
+    '2026-08-30T12:00:01.000Z',
+    '2026-08-30T12:00:02.000Z',
+  ];
+  let index = 0;
+  return () => values[Math.min(index++, values.length - 1)];
 }
 
 test(
@@ -68,14 +78,7 @@ test(
     try {
       harness = createReferenceDurableSingleUseGateHarness({
         rootDir,
-        trustedClock: (() => {
-          const values = [
-            '2026-08-30T12:00:01.000Z',
-            '2026-08-30T12:00:02.000Z',
-          ];
-          let index = 0;
-          return () => values[Math.min(index++, values.length - 1)];
-        })(),
+        trustedClock: trustedClock(),
         observeBinding: async () => observedFrom(evidence),
         executeDownstream: () => downstreamResult,
       });
@@ -119,7 +122,61 @@ test(
       assert.equal(attackCalls, 0);
       assert.equal(thenGets, 1);
     } finally {
-      restoreObjectPrototypeThen(originalThen);
+      restoreObjectPrototypeProperty('then', originalThen);
+      await harness?.close().catch(() => {});
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'post-terminal result rematerialization bypasses inherited field setters',
+  { concurrency: false },
+  async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-post-terminal-setter-'));
+    const originalAccepted = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(OBJECT_PROTOTYPE, 'accepted');
+    let evidence;
+    let setterCalls = 0;
+    let harness;
+    const downstreamResult = Object.freeze({ accepted: true });
+
+    try {
+      harness = createReferenceDurableSingleUseGateHarness({
+        rootDir,
+        trustedClock: trustedClock(),
+        observeBinding: async () => observedFrom(evidence),
+        executeDownstream: () => downstreamResult,
+      });
+      const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(), {
+        witnessValidUntil: '2026-08-30T12:01:00.000Z',
+      });
+      evidence = issued.evidence;
+
+      OBJECT_DEFINE_PROPERTY(OBJECT_PROTOTYPE, 'accepted', {
+        configurable: true,
+        enumerable: false,
+        get() {
+          return false;
+        },
+        set(_value) {
+          setterCalls += 1;
+        },
+      });
+
+      const result = await harness.gate.consume(issued.capability, { raw: true });
+      assert.equal(setterCalls, 0, 'detached result fields must not dispatch through inherited setters');
+      assert.equal(OBJECT_HAS_OWN(result, 'accepted'), true);
+      assert.equal(result.accepted, true);
+      assert.equal(
+        harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+        'CONSUMED_SUCCESS',
+      );
+      assert.equal(
+        (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+        'CONSUMED_SUCCESS',
+      );
+    } finally {
+      restoreObjectPrototypeProperty('accepted', originalAccepted);
       await harness?.close().catch(() => {});
       await rm(rootDir, { recursive: true, force: true });
     }
