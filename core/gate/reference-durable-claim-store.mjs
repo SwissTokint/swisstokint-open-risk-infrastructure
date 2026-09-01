@@ -118,6 +118,7 @@ const JSON_OBJECT = JSON;
 const JSON_PARSE = JSON.parse;
 const JSON_STRINGIFY = JSON.stringify;
 const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
@@ -150,6 +151,19 @@ const HASH_PROTOTYPE = REFLECT_APPLY(
 const HASH_UPDATE = HASH_PROTOTYPE.update;
 const HASH_DIGEST = HASH_PROTOTYPE.digest;
 const PROMISE_CONSTRUCTOR = Promise;
+const PROMISE_THEN = Promise.prototype.then;
+const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{
+  value: PROMISE_CONSTRUCTOR,
+  configurable: false,
+  enumerable: false,
+  writable: false,
+}]);
+const PROMISE_OWN_THEN_DESCRIPTOR = REFLECT_APPLY(OBJECT_FREEZE, Object, [{
+  value: PROMISE_THEN,
+  configurable: false,
+  enumerable: false,
+  writable: false,
+}]);
 const FS_OPEN_FD = openFdCallback;
 const FS_WRITE_FILE_FD = writeFileFdCallback;
 const FS_FSTAT_FD = fstatFdCallback;
@@ -179,6 +193,23 @@ const STATS_IS_FILE = Stats.prototype.isFile;
 const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;
 const PROCESS_PLATFORM = process.platform;
 
+function stabilizePromise(promise) {
+  // Await performs PromiseResolve(%Promise%, value). Immutable own captured
+  // constructor/then data properties prevent post-import Promise-prototype
+  // poisoning from substituting internal durable result channels.
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [
+    promise,
+    'constructor',
+    PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR,
+  ]);
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [
+    promise,
+    'then',
+    PROMISE_OWN_THEN_DESCRIPTOR,
+  ]);
+  return promise;
+}
+
 function makeStatSnapshot(stat) {
   const snapshot = createObject(null);
   snapshot.mode = stat.mode;
@@ -193,7 +224,7 @@ function makeStatSnapshot(stat) {
 }
 
 function fsLstat(filePath) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_LSTAT, undefined, [filePath, (error, stat) => {
       if (error) {
         reject(error);
@@ -205,11 +236,11 @@ function fsLstat(filePath) {
         reject(snapshotError);
       }
     }]);
-  });
+  }));
 }
 
 function fsStat(filePath) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_STAT, undefined, [filePath, (error, stat) => {
       if (error) {
         reject(error);
@@ -221,11 +252,11 @@ function fsStat(filePath) {
         reject(snapshotError);
       }
     }]);
-  });
+  }));
 }
 
 function fsFstat(fd) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_FSTAT_FD, undefined, [fd, (error, stat) => {
       if (error) {
         reject(error);
@@ -237,23 +268,23 @@ function fsFstat(fd) {
         reject(snapshotError);
       }
     }]);
-  });
+  }));
 }
 
 function fsMkdir(filePath, options) {
-  return REFLECT_APPLY(FS_MKDIR, undefined, [filePath, options]);
+  return stabilizePromise(REFLECT_APPLY(FS_MKDIR, undefined, [filePath, options]));
 }
 
 function fsReadFile(filePath, options) {
-  return REFLECT_APPLY(FS_READ_FILE, undefined, [filePath, options]);
+  return stabilizePromise(REFLECT_APPLY(FS_READ_FILE, undefined, [filePath, options]));
 }
 
 function fsRealpath(filePath) {
-  return REFLECT_APPLY(FS_REALPATH, undefined, [filePath]);
+  return stabilizePromise(REFLECT_APPLY(FS_REALPATH, undefined, [filePath]));
 }
 
 function fsUnlink(filePath) {
-  return REFLECT_APPLY(FS_UNLINK, undefined, [filePath]);
+  return stabilizePromise(REFLECT_APPLY(FS_UNLINK, undefined, [filePath]));
 }
 
 function fsLstatSyncSnapshot(filePath) {
@@ -395,39 +426,39 @@ function sha256Hex(value) {
 }
 
 function openFd(filePath, flags, mode) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_OPEN_FD, undefined, [filePath, flags, mode, (error, fd) => {
       if (error) reject(error);
       else resolve(fd);
     }]);
-  });
+  }));
 }
 
 function writeFileFd(fd, value, encoding) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_WRITE_FILE_FD, undefined, [fd, value, encoding, (error) => {
       if (error) reject(error);
       else resolve();
     }]);
-  });
+  }));
 }
 
 function fsyncFd(fd) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_FSYNC_FD, undefined, [fd, (error) => {
       if (error) reject(error);
       else resolve();
     }]);
-  });
+  }));
 }
 
 function closeFd(fd) {
-  return new PROMISE_CONSTRUCTOR((resolve, reject) => {
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
     REFLECT_APPLY(FS_CLOSE_FD, undefined, [fd, (error) => {
       if (error) reject(error);
       else resolve();
     }]);
-  });
+  }));
 }
 
 async function closeFdIgnoringFailure(fd) {
@@ -686,7 +717,7 @@ async function fsyncDirectory(directory) {
   } catch {
     fail('POMRX_GATE_E_DURABLE_IO', 'durable directory synchronization failed');
   } finally {
-    await closeFdIgnoringFailure(fd);
+    await stabilizePromise(closeFdIgnoringFailure(fd));
   }
 }
 
@@ -736,12 +767,12 @@ async function writeExclusiveDurable(filePath, value) {
 
     await fsUnlink(tempPath);
     tempExists = false;
-    await fsyncDirectory(directory);
+    await stabilizePromise(fsyncDirectory(directory));
   } catch (error) {
     if (error instanceof PomRxDurableClaimStoreError) throw error;
     fail('POMRX_GATE_E_DURABLE_IO', 'durable record publication failed');
   } finally {
-    await closeFdIgnoringFailure(fd);
+    await stabilizePromise(closeFdIgnoringFailure(fd));
     if (tempExists) {
       try {
         await fsUnlink(tempPath);
@@ -908,7 +939,7 @@ export function createReferenceDurableClaimStore(options) {
   async function runOperation(operation) {
     beginOperation();
     try {
-      return await operation();
+      return await stabilizePromise(operation());
     } finally {
       endOperation();
     }
@@ -1165,8 +1196,8 @@ function releasePinnedClaimDirectorySync(state) {
 
   async function trustedRoot() {
     if (!trustedRootPromise) {
-      trustedRootPromise = (async () => {
-        const pathIdentity = await inspectConfiguredRoot();
+      trustedRootPromise = stabilizePromise((async () => {
+        const pathIdentity = await stabilizePromise(inspectConfiguredRoot());
         let fd = null;
         try {
           fd = await openFd(configuredRoot, 'r', 0o600);
@@ -1183,7 +1214,7 @@ function releasePinnedClaimDirectorySync(state) {
             );
           }
 
-          await fsyncDirectory(PATH_DIRNAME(configuredRoot));
+          await stabilizePromise(fsyncDirectory(PATH_DIRNAME(configuredRoot)));
 
           const root = createObject(null);
           root.fd = fd;
@@ -1218,14 +1249,14 @@ function releasePinnedClaimDirectorySync(state) {
 
           return freezeValue(root);
         } catch (error) {
-          await closeFdIgnoringFailure(fd);
+          await stabilizePromise(closeFdIgnoringFailure(fd));
           throw error;
         }
-      })();
+      })());
     }
 
     const root = await trustedRootPromise;
-    const currentPathIdentity = await inspectConfiguredRoot();
+    const currentPathIdentity = await stabilizePromise(inspectConfiguredRoot());
     const currentFdIdentity = await fsFstat(root.fd);
     if (currentPathIdentity.dev !== root.dev
         || currentPathIdentity.ino !== root.ino
@@ -1254,7 +1285,7 @@ function releasePinnedClaimDirectorySync(state) {
     );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
-    const rootRef = await trustedRoot();
+    const rootRef = await stabilizePromise(trustedRoot());
 
     return withPinnedRootCritical(rootRef, (root) => {
       const claimDirectory = PATH_JOIN(root, capabilityId);
@@ -1295,7 +1326,7 @@ function releasePinnedClaimDirectorySync(state) {
     );
     const capabilityId = validateCapabilityId(captured.capabilityId);
     const authorizationCommitment = validateAuthorizationCommitment(captured.authorizationCommitment);
-    const rootRef = await trustedRoot();
+    const rootRef = await stabilizePromise(trustedRoot());
 
     return withPinnedRootCritical(rootRef, (root) => {
       const claimDirectory = PATH_JOIN(root, capabilityId);
@@ -1347,7 +1378,7 @@ function releasePinnedClaimDirectorySync(state) {
     const terminalState = outcome === 'success' ? 'CONSUMED_SUCCESS' : 'CONSUMED_ERROR';
     const terminalRecord = makeTerminalRecord(state.claimRecord, terminalState);
     try {
-      const rootRef = await trustedRoot();
+      const rootRef = await stabilizePromise(trustedRoot());
       const inspection = withPinnedRootCritical(rootRef, () => withPinnedClaimDirectoryCritical(state, (claimRoot) => {
         const rawPersistedClaim = readBoundedJsonSync(PATH_JOIN(claimRoot, 'claim.json'));
         if (rawPersistedClaim === null) {
@@ -1391,69 +1422,67 @@ function releasePinnedClaimDirectorySync(state) {
     }
   }
 
-  async function inspect(input) {
-    return runOperation(() => inspectImpl(input));
+  function inspect(input) {
+    return stabilizePromise(runOperation(() => inspectImpl(input)));
   }
 
-  async function claim(input) {
-    return runOperation(() => claimImpl(input));
+  function claim(input) {
+    return stabilizePromise(runOperation(() => claimImpl(input)));
   }
 
-  async function complete(handle, outcome) {
-    return runOperation(() => completeImpl(handle, outcome));
+  function complete(handle, outcome) {
+    return stabilizePromise(runOperation(() => completeImpl(handle, outcome)));
   }
 
-  async function abandon(handle) {
-    return runOperation(() => abandonImpl(handle));
+  function abandon(handle) {
+    return stabilizePromise(runOperation(() => abandonImpl(handle)));
   }
 
-  async function close() {
-    if (lifecycleState === 'CLOSED') return;
-    if (lifecycleState === 'CLOSING') {
-      await closePromise;
-      return;
+  function close() {
+    if (lifecycleState === 'CLOSED') {
+      return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve) => resolve()));
     }
+    if (lifecycleState === 'CLOSING') return closePromise;
 
     lifecycleState = 'CLOSING';
-    closePromise = (async () => {
-      if (activeOperations > 0) {
-        await new PROMISE_CONSTRUCTOR((resolve) => {
-          drainResolve = resolve;
+    closePromise = stabilizePromise((async () => {
+      try {
+        if (activeOperations > 0) {
+          await stabilizePromise(new PROMISE_CONSTRUCTOR((resolve) => {
+            drainResolve = resolve;
+          }));
+        }
+
+        setForEach(openClaimStates, (state) => {
+          releasePinnedClaimDirectorySync(state);
         });
-      }
 
-      setForEach(openClaimStates, (state) => {
-        releasePinnedClaimDirectorySync(state);
-      });
-
-      let root = null;
-      if (trustedRootPromise !== null) {
-        try {
-          root = await trustedRootPromise;
-        } catch {
-          root = null;
+        let root = null;
+        if (trustedRootPromise !== null) {
+          try {
+            root = await trustedRootPromise;
+          } catch {
+            root = null;
+          }
         }
+        if (root !== null) {
+          let identityError = null;
+          try {
+            assertPinnedRootSync(root);
+          } catch (error) {
+            identityError = error;
+          }
+          const released = releasePinnedRootDescriptorSync(root);
+          if (!released && identityError === null) {
+            fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root descriptor could not be closed');
+          }
+          if (identityError !== null) throw identityError;
+        }
+      } finally {
+        lifecycleState = 'CLOSED';
       }
-      if (root !== null) {
-        let identityError = null;
-        try {
-          assertPinnedRootSync(root);
-        } catch (error) {
-          identityError = error;
-        }
-        const released = releasePinnedRootDescriptorSync(root);
-        if (!released && identityError === null) {
-          fail('POMRX_GATE_E_DURABLE_IO', 'durable claim root descriptor could not be closed');
-        }
-        if (identityError !== null) throw identityError;
-      }
-    })();
-
-    try {
-      await closePromise;
-    } finally {
-      lifecycleState = 'CLOSED';
-    }
+    })());
+    return closePromise;
   }
 
   return freezeValue({
