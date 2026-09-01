@@ -42,7 +42,10 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check
-          test "$(git diff --name-only)" = "core/gate/reference-durable-claim-store.mjs"
+          mapfile -t changed < <(git diff --name-only)
+          test "${#changed[@]}" -eq 2
+          test "${changed[0]}" = "core/gate/reference-durable-claim-store.mjs"
+          test "${changed[1]}" = "core/gate/reference-durable-single-use-gate.mjs"
           if git diff --name-only | grep -E '^(applications/|sdk/|models/|\.github/)'; then
             echo 'Non-Core scope leaked into CORE-001 repair' >&2
             exit 1
@@ -82,7 +85,9 @@ jobs:
           set -euo pipefail
           git config user.name 'POM-RX CORE-001 Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git add core/gate/reference-durable-claim-store.mjs
+          git add \
+            core/gate/reference-durable-claim-store.mjs \
+            core/gate/reference-durable-single-use-gate.mjs
           git diff --cached --check
           git commit -m 'fix(core): pin durable store species and realpath channels'
           NEW_SHA=$(git rev-parse HEAD)
