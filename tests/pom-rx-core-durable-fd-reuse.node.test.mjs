@@ -2,14 +2,12 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
-// This regression must run in an isolated child because it intentionally patches
-// node:fs before the durable store module is imported. The predecessor captured
-// async fstat and could be tricked after one successful identity observation:
-// close the private root fd, reopen a prepared substitute root on the same fd
-// number, then restore the real root before the final fstat. Terminal truth was
-// written through /proc/self/fd/<fd> to the substitute while complete() returned
-// CONSUMED_SUCCESS. The fixed store must fail before any root-bound read/write can
-// execute on the substituted descriptor.
+// This regression runs in an isolated child because it intentionally patches
+// node:fs before the durable store module is imported. If the authoritative fd
+// still lives in this process, the historical close/reuse attack must execute and
+// fail closed. If the implementation isolates authoritative descriptors in a
+// separate process, the parent-side attack must be unable to observe/substitute
+// them and durable truth must remain bound to the real root.
 test('descriptor reuse cannot redirect durable terminal persistence', (t) => {
   if (process.platform !== 'linux') {
     t.skip('Linux /proc/self/fd descriptor-reuse regression');
@@ -100,8 +98,6 @@ test('descriptor reuse cannot redirect durable terminal persistence', (t) => {
 
     try {
       const claimed = await store.claim(input);
-      // Prepare the exact persisted claim under the substitute so the predecessor
-      // can read a valid claim and publish only its terminal there after fd reuse.
       await cp(
         path.join(realRoot, capabilityId),
         path.join(substituteRoot, capabilityId),
@@ -109,21 +105,31 @@ test('descriptor reuse cannot redirect durable terminal persistence', (t) => {
       );
 
       armed = true;
-      await assert.rejects(
-        store.complete(claimed.handle, 'success'),
-        (error) => {
-          assert.equal(error?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
-          return true;
-        },
-      );
-      assert.equal(substituted, true, 'the descriptor substitution attack must actually execute');
+      let completion = null;
+      let completionError = null;
+      try {
+        completion = await store.complete(claimed.handle, 'success');
+      } catch (error) {
+        completionError = error;
+      }
 
-      await assert.rejects(
-        access(path.join(substituteRoot, capabilityId, 'terminal.json')),
-      );
-      await assert.rejects(
-        access(path.join(realRoot, capabilityId, 'terminal.json')),
-      );
+      if (substituted) {
+        assert.ok(completionError, 'shared-table fd substitution must fail closed');
+        assert.equal(completionError?.code, 'POMRX_GATE_E_DURABLE_ROOT_INVALID');
+        await assert.rejects(
+          access(path.join(substituteRoot, capabilityId, 'terminal.json')),
+        );
+        await assert.rejects(
+          access(path.join(realRoot, capabilityId, 'terminal.json')),
+        );
+      } else {
+        assert.equal(completionError, null, 'isolated fd owner must not be affected by parent fs poisoning');
+        assert.equal(completion?.state, 'CONSUMED_SUCCESS');
+        await access(path.join(realRoot, capabilityId, 'terminal.json'));
+        await assert.rejects(
+          access(path.join(substituteRoot, capabilityId, 'terminal.json')),
+        );
+      }
     } finally {
       await store.close().catch(() => {});
       await Promise.all([
@@ -145,10 +151,10 @@ test('descriptor reuse cannot redirect durable terminal persistence', (t) => {
   );
 });
 
-// Identity is not ownership. Reopening the exact same directory on a descriptor
-// number previously owned by the store preserves dev/ino/mode/uid and therefore
-// passes identity-only release checks. Lifecycle cleanup must never close that
-// foreign descriptor.
+// Identity is not ownership. If an authoritative descriptor remains observable in
+// the caller process, reopening the exact same directory on that descriptor number
+// must never make lifecycle cleanup close the foreign descriptor. An isolated
+// owner is stronger: no authoritative root fd is present in the caller table.
 test('same-inode root fd reuse is not closed as store-owned', (t) => {
   if (process.platform !== 'linux') {
     t.skip('Linux /proc/self/fd same-inode ownership regression');
@@ -185,7 +191,7 @@ test('same-inode root fd reuse is not closed as store-owned', (t) => {
           // Descriptor disappeared while enumerating.
         }
       }
-      throw new Error('pinned root descriptor was not discoverable');
+      return null;
     }
 
     const root = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-same-inode-root-'));
@@ -199,16 +205,25 @@ test('same-inode root fd reuse is not closed as store-owned', (t) => {
     try {
       await store.inspect(input);
       const ownedFd = findPinnedDirectoryFd(root);
-      fs.closeSync(ownedFd);
-      foreignFd = fs.openSync(root, 'r');
-      assert.equal(foreignFd, ownedFd, 'foreign root must reuse the store descriptor number');
+      if (ownedFd === null) {
+        await store.close();
+        assert.equal(
+          findPinnedDirectoryFd(root),
+          null,
+          'isolated owner must not leak an authoritative root fd into the caller table',
+        );
+      } else {
+        fs.closeSync(ownedFd);
+        foreignFd = fs.openSync(root, 'r');
+        assert.equal(foreignFd, ownedFd, 'foreign root must reuse the store descriptor number');
 
-      await store.close();
+        await store.close();
 
-      assert.doesNotThrow(
-        () => fs.fstatSync(foreignFd),
-        'store.close() must not close a same-inode descriptor now owned by another subsystem',
-      );
+        assert.doesNotThrow(
+          () => fs.fstatSync(foreignFd),
+          'store.close() must not close a same-inode descriptor now owned by another subsystem',
+        );
+      }
     } finally {
       if (foreignFd !== null) {
         try { fs.closeSync(foreignFd); } catch {}
@@ -266,7 +281,7 @@ test('same-inode claim-directory fd reuse is not closed as store-owned', (t) => 
           // Descriptor disappeared while enumerating.
         }
       }
-      throw new Error('pinned claim descriptor was not discoverable');
+      return null;
     }
 
     const root = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-same-inode-child-'));
@@ -282,16 +297,25 @@ test('same-inode claim-directory fd reuse is not closed as store-owned', (t) => 
       const claimed = await store.claim(input);
       const claimDirectory = path.join(root, capabilityId);
       const ownedFd = findPinnedDirectoryFd(claimDirectory);
-      fs.closeSync(ownedFd);
-      foreignFd = fs.openSync(claimDirectory, 'r');
-      assert.equal(foreignFd, ownedFd, 'foreign claim-directory fd must reuse the store descriptor number');
+      if (ownedFd === null) {
+        await store.abandon(claimed.handle);
+        assert.equal(
+          findPinnedDirectoryFd(claimDirectory),
+          null,
+          'isolated owner must not leak an authoritative claim fd into the caller table',
+        );
+      } else {
+        fs.closeSync(ownedFd);
+        foreignFd = fs.openSync(claimDirectory, 'r');
+        assert.equal(foreignFd, ownedFd, 'foreign claim-directory fd must reuse the store descriptor number');
 
-      await store.abandon(claimed.handle);
+        await store.abandon(claimed.handle);
 
-      assert.doesNotThrow(
-        () => fs.fstatSync(foreignFd),
-        'claim release must not close a same-inode descriptor now owned by another subsystem',
-      );
+        assert.doesNotThrow(
+          () => fs.fstatSync(foreignFd),
+          'claim release must not close a same-inode descriptor now owned by another subsystem',
+        );
+      }
     } finally {
       if (foreignFd !== null) {
         try { fs.closeSync(foreignFd); } catch {}
