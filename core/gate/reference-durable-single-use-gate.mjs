@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { types as utilTypes } from 'node:util';
 
 import {
@@ -44,6 +45,9 @@ const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const PROMISE_CONSTRUCTOR = Promise;
+const ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;
+const ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;
+const ASYNC_LOCAL_STORAGE_GET_STORE = AsyncLocalStorage.prototype.getStore;
 
 function createObject(prototype) {
   return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
@@ -83,6 +87,14 @@ function weakMapGet(map, key) {
 
 function weakMapSet(map, key, value) {
   REFLECT_APPLY(WEAK_MAP_SET, map, [key, value]);
+}
+
+function asyncLocalRun(storage, value, callback) {
+  return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_RUN, storage, [value, callback]);
+}
+
+function asyncLocalGetStore(storage) {
+  return REFLECT_APPLY(ASYNC_LOCAL_STORAGE_GET_STORE, storage, []);
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
@@ -194,6 +206,7 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
 
   const capabilityMetadata = new WEAK_MAP_CONSTRUCTOR();
   const wrapperState = new WEAK_MAP_CONSTRUCTOR();
+  const consumeContext = new ASYNC_LOCAL_STORAGE_CONSTRUCTOR();
   let lifecycleState = 'OPEN';
   let activeConsumes = 0;
   let drainResolve = null;
@@ -313,8 +326,10 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
         }
       } else if (innerState === 'CONSUMED_UNKNOWN') {
         state.state = 'CONSUMED_UNKNOWN';
+        await durableStore.abandon(durableClaim.handle);
       } else {
         state.state = 'REJECTED';
+        await durableStore.abandon(durableClaim.handle);
       }
       throw error;
     }
@@ -325,15 +340,23 @@ export function createReferenceDurableSingleUseGateHarness(rawOptions) {
   }
 
   async function consume(capability, executionAttempt) {
-    beginConsume();
-    try {
-      return await consumeImpl(capability, executionAttempt);
-    } finally {
-      endConsume();
-    }
+    return asyncLocalRun(consumeContext, true, async () => {
+      beginConsume();
+      try {
+        return await consumeImpl(capability, executionAttempt);
+      } finally {
+        endConsume();
+      }
+    });
   }
 
   async function close() {
+    if (asyncLocalGetStore(consumeContext) === true) {
+      throw gateError(
+        'POMRX_GATE_E_REENTRANT_CLOSE',
+        'Reference durable Gate cannot close from its active consume context',
+      );
+    }
     if (lifecycleState === 'CLOSED') return;
     if (lifecycleState === 'CLOSING') {
       await closePromise;

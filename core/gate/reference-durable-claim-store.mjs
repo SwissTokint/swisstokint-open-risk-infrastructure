@@ -1133,14 +1133,12 @@ function releasePinnedRootDescriptorSync(root) {
     if (statIsDirectory(identity)
         && !statIsSymbolicLink(identity)
         && identity.dev === root.dev
-        && identity.ino === root.ino
-        && identity.mode === root.mode
-        && identity.uid === root.uid) {
+        && identity.ino === root.ino) {
       closeFdSync(root.fd);
       return true;
     }
   } catch {
-    // Do not close a descriptor whose ownership can no longer be verified.
+    // Never close a descriptor whose stable ownership cannot be verified.
   }
   return false;
 }
@@ -1374,6 +1372,25 @@ function releasePinnedClaimDirectorySync(state) {
     }
   }
 
+  async function abandonImpl(handle) {
+    const state = weakMapGet(handleState, handle);
+    if (!state || state.state !== 'OPEN') {
+      fail('POMRX_GATE_E_DURABLE_STALE', 'durable claim handle is foreign or no longer open');
+    }
+    state.state = 'ABANDONING';
+    try {
+      assertPinnedClaimDirectorySync(state);
+      state.state = 'ABANDONED';
+      return makeInspection('RESERVED', state.claimRecord);
+    } catch (error) {
+      state.state = 'FAILED_CLOSED';
+      throw error;
+    } finally {
+      // No terminal truth is published; only the process-local fd is released.
+      releasePinnedClaimDirectorySync(state);
+    }
+  }
+
   async function inspect(input) {
     return runOperation(() => inspectImpl(input));
   }
@@ -1384,6 +1401,10 @@ function releasePinnedClaimDirectorySync(state) {
 
   async function complete(handle, outcome) {
     return runOperation(() => completeImpl(handle, outcome));
+  }
+
+  async function abandon(handle) {
+    return runOperation(() => abandonImpl(handle));
   }
 
   async function close() {
@@ -1438,6 +1459,7 @@ function releasePinnedClaimDirectorySync(state) {
   return freezeValue({
     claim,
     complete,
+    abandon,
     inspect,
     close,
   });
