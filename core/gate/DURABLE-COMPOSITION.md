@@ -37,6 +37,10 @@ On Linux, pinned-root traversal uses `/proc/self/fd/<fd>`. **Accessible procfs f
 
 The root descriptor has explicit ownership. `createReferenceDurableClaimStore()` exposes an idempotent asynchronous `close()` lifecycle. Once close begins, new store operations are rejected; already-started store operations drain before the pinned descriptor is closed. The composed durable harness exposes its own idempotent `close()`, stops accepting new consumes/issuance, drains already-started consumes, then closes the internal durable store. Callers that create stores or composed harnesses with bounded lifetimes must close them when the lifetime ends. A closed instance is not reusable.
 
+A nonterminal local outcome does not require retaining a pinned child-directory descriptor. When the inner Gate ends as `REJECTED` or `CONSUMED_UNKNOWN`, the store releases the verified process-local claim fd while leaving the durable tombstone `RESERVED`; no success/error terminal truth is fabricated and replay remains blocked. Root cleanup separates stable descriptor ownership (`dev`/`ino`) from mutable policy metadata: metadata drift may still make `close()` fail closed, but a descriptor whose stable ownership is verified is released rather than leaked. Conversely, a reused foreign numeric fd is never closed.
+
+`close()` is also non-reentrant with respect to its own active consume context. A trusted callback that calls and awaits `close()` from inside the consume it would need to drain receives `POMRX_GATE_E_REENTRANT_CLOSE` instead of creating a self-dependent wait. External close calls still drain already-started consumes normally.
+
 ## Trust boundary
 
 The composed bootstrap accepts exactly:
