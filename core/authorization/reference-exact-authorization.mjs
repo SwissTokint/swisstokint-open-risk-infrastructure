@@ -1,9 +1,5 @@
+import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
-
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../sdk/typescript/swisstokint-proof.mjs';
 
 export const POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION = 'pom-rx-exact-authorization/0.1';
 export const POM_RX_EXACT_AUTHORIZATION_COMMIT_DOMAIN = 'swisstokint:pom-rx-exact-authorization:v1:';
@@ -18,10 +14,16 @@ const MIN_LIFETIME_MS = 1_000;
 
 // Exact authorization is part of the Gate's trust boundary. Capture every
 // mutable same-realm intrinsic used to classify/snapshot caller-owned records,
-// validate patterns and interpret time at module initialization. Poisoning
-// before module initialization remains outside this reference-runtime guarantee.
+// validate patterns, canonicalize/hash the exact binding and interpret time at
+// module initialization. In particular, commitment derivation is Core-local and
+// does not transitively re-enter SDK Object.entries/JSON/crypto dispatch after
+// import. Poisoning before module initialization remains outside this
+// reference-runtime guarantee.
 const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
+const JSON_OBJECT = JSON;
+const JSON_STRINGIFY = JSON.stringify;
 const OBJECT_CREATE = Object.create;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
@@ -32,11 +34,20 @@ const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_PROTOTYPE = Object.prototype;
 const REGEXP_EXEC = RegExp.prototype.exec;
 const STRING_ENDS_WITH = String.prototype.endsWith;
+const STRING_NORMALIZE = String.prototype.normalize;
 const NUMBER_IS_FINITE = Number.isFinite;
 const DATE_CONSTRUCTOR = Date;
 const DATE_GET_TIME = Date.prototype.getTime;
 const DATE_TO_ISO_STRING = Date.prototype.toISOString;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const CRYPTO_CREATE_HASH = createHash;
+const HASH_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
+  Object,
+  [REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256'])],
+);
+const HASH_UPDATE = HASH_PROTOTYPE.update;
+const HASH_DIGEST = HASH_PROTOTYPE.digest;
 
 function freezeValue(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
@@ -82,12 +93,30 @@ function stringEndsWith(value, suffix) {
   return REFLECT_APPLY(STRING_ENDS_WITH, value, [suffix]);
 }
 
+function stringNormalize(value, form) {
+  return REFLECT_APPLY(STRING_NORMALIZE, value, [form]);
+}
+
 function dateGetTime(value) {
   return REFLECT_APPLY(DATE_GET_TIME, value, []);
 }
 
 function dateToISOString(value) {
   return REFLECT_APPLY(DATE_TO_ISO_STRING, value, []);
+}
+
+function jsonStringify(value) {
+  return REFLECT_APPLY(JSON_STRINGIFY, JSON_OBJECT, [value]);
+}
+
+function sortArray(value) {
+  return REFLECT_APPLY(ARRAY_SORT, value, []);
+}
+
+function sha256Hex(value) {
+  const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256']);
+  REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
+  return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
 }
 
 const INPUT_KEYS = freezeValue([
@@ -279,8 +308,24 @@ function snapshotAndValidateBinding(binding) {
   return freezeValue({ binding: snapshot, ...times });
 }
 
+function canonicalizeValidatedBinding(binding) {
+  const descriptors = objectGetOwnPropertyDescriptors(binding);
+  const keys = sortArray(objectGetOwnPropertyNames(binding));
+  let canonical = '{';
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    const descriptor = descriptors[key];
+    if (!isOwnEnumerableDataDescriptor(descriptor) || typeof descriptor.value !== 'string') {
+      fail('POMRX_GATE_E_BINDING_MISMATCH', 'Exact authorization commitment input is not canonical string data');
+    }
+    if (index > 0) canonical += ',';
+    canonical += `${jsonStringify(key)}:${jsonStringify(stringNormalize(descriptor.value, 'NFC'))}`;
+  }
+  return `${canonical}}`;
+}
+
 function commitValidatedBinding(binding) {
-  const canonicalBinding = canonicalizePayload(binding);
+  const canonicalBinding = canonicalizeValidatedBinding(binding);
   const authorizationCommitment = sha256Hex(
     `${POM_RX_EXACT_AUTHORIZATION_COMMIT_DOMAIN}${canonicalBinding}`,
   );
