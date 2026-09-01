@@ -18,9 +18,7 @@ jobs:
         with:
           ref: core/durable-gate-v2-20260830
           fetch-depth: 0
-      - name: Apply repair
-        run: python scripts/tmp-core001-promise-boundary-patch.py
-      - name: Trace remaining dispatch
+      - name: Prove baseline substitution
         shell: bash
         run: |
           python - <<'PY'
@@ -28,26 +26,31 @@ jobs:
           p = Path('tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs')
           s = p.read_text()
           s = s.replace(
-              '        attackDispatches += 1;',
-              "        attackDispatches += 1;\n        console.error('PROMISE_POISON_DISPATCH', new Error().stack);",
+              "    assert.equal(attackDispatches, 0, 'durable awaits must not dispatch through mutable Promise.prototype.then');",
+              "    console.error('BASELINE_PROMISE_POISON_DISPATCHES', attackDispatches);",
+              1,
+          )
+          p.write_text(s)
+          PY
+          node --test tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs || true
+          git checkout -- tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs
+      - name: Apply repair
+        run: python scripts/tmp-core001-promise-boundary-patch.py
+      - name: Prove candidate state integrity
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs')
+          s = p.read_text()
+          s = s.replace(
+              "    assert.equal(attackDispatches, 0, 'durable awaits must not dispatch through mutable Promise.prototype.then');",
+              "    console.error('CANDIDATE_PROMISE_POISON_DISPATCHES', attackDispatches);",
               1,
           )
           p.write_text(s)
           PY
           node --test tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs
-      - name: Durable regression matrix
-        if: success()
-        run: npm run test:pom-rx:durable-claim-store
-      - name: Commit bounded repair
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
           git checkout -- tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs
-          git config user.name 'pom-rx-core-writer'
-          git config user.email 'pom-rx-core-writer@users.noreply.github.com'
-          git rm .github/workflows/core001-promise-boundary-writer-v2.yml
-          git rm scripts/tmp-core001-promise-boundary-patch.py
-          git add core/gate/reference-durable-claim-store.mjs tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs package.json
-          git commit -m 'fix(core): isolate durable Promise result channels'
-          git push origin HEAD:core/durable-gate-v2-20260830
+      - name: Stop before commit for evidence
+        run: echo 'Evidence-only run; final regression contract will be tightened next.'
