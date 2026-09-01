@@ -48,6 +48,7 @@ const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_THEN = Promise.prototype.then;
+const PROMISE_FINALLY = Promise.prototype.finally;
 const PROMISE_SPECIES_KEY = Symbol.species;
 const ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;
 const ASYNC_LOCAL_STORAGE_RUN = AsyncLocalStorage.prototype.run;
@@ -140,12 +141,24 @@ function stablePromiseThen(onFulfilled, onRejected) {
 
 const PROMISE_OWN_SAFE_THEN_DESCRIPTOR = makePromiseDescriptor(stablePromiseThen);
 
+function stablePromiseFinally(onFinally) {
+  // Invoke the captured native finally directly. The source Promise owns the
+  // safe then dispatch and immutable constructor carrier, so native finally
+  // cannot reach a post-import Promise.prototype.finally/then/species mutation.
+  return stabilizePromise(REFLECT_APPLY(
+    PROMISE_FINALLY,
+    this,
+    [onFinally],
+  ));
+}
+
+const PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR = makePromiseDescriptor(stablePromiseFinally);
+
 function stabilizePromise(promise) {
-  // Public promises created by this boundary own both a safe then dispatch and
+  // Public promises created by this boundary own safe then/finally dispatch and
   // a null-prototype constructor carrier with immutable @@species=%Promise%.
-  // This closes both direct `.then()` and inherited `.finally()` species lookup.
   // Promises already stabilized by another reviewed Core primitive may retain
-  // constructor=%Promise% plus the captured native then and are accepted as
+  // constructor=%Promise% plus captured native methods and are accepted as
   // trusted internal channels rather than rewritten through non-configurable slots.
   const descriptors = objectGetOwnPropertyDescriptors(promise);
   if (!objectHasOwn(descriptors, 'constructor')) {
@@ -160,6 +173,13 @@ function stabilizePromise(promise) {
   } else if (descriptors.then.value !== PROMISE_THEN
       && descriptors.then.value !== stablePromiseThen) {
     throw new TypeError('Reference durable Gate Promise then channel is invalid');
+  }
+
+  if (!objectHasOwn(descriptors, 'finally')) {
+    objectDefineProperty(promise, 'finally', PROMISE_OWN_SAFE_FINALLY_DESCRIPTOR);
+  } else if (descriptors.finally.value !== PROMISE_FINALLY
+      && descriptors.finally.value !== stablePromiseFinally) {
+    throw new TypeError('Reference durable Gate Promise finally channel is invalid');
   }
   return promise;
 }

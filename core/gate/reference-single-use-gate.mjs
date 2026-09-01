@@ -589,27 +589,43 @@ export function createReferenceSingleUseGateHarness(options) {
       throw gateError('POMRX_GATE_E_DOWNSTREAM_FAILED', 'Downstream execution failed synchronously');
     }
 
-    let resolvedResult;
-    try {
-      resolvedResult = await stabilizeDownstreamPromise(downstreamResult);
-    } catch {
-      completeConsumption(capability, 'CONSUMED_UNKNOWN');
-      throw gateError(
-        'POMRX_GATE_E_DOWNSTREAM_FAILED',
-        'Downstream execution failed or its asynchronous result channel is ambiguous',
-      );
-    }
-
     let detachedResult;
-    try {
-      detachedResult = snapshotDownstreamResult(resolvedResult);
-    } catch (error) {
-      completeConsumption(capability, 'CONSUMED_UNKNOWN');
-      if (error instanceof PomRxGateError) throw error;
-      throw gateError(
-        'POMRX_GATE_E_DOWNSTREAM_FAILED',
-        'Downstream result could not be detached safely',
-      );
+    if (isPromise(downstreamResult)) {
+      let resolvedResult;
+      try {
+        resolvedResult = await stabilizeDownstreamPromise(downstreamResult);
+      } catch {
+        completeConsumption(capability, 'CONSUMED_UNKNOWN');
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Downstream execution failed or its asynchronous result channel is ambiguous',
+        );
+      }
+
+      try {
+        detachedResult = snapshotDownstreamResult(resolvedResult);
+      } catch (error) {
+        completeConsumption(capability, 'CONSUMED_UNKNOWN');
+        if (error instanceof PomRxGateError) throw error;
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Downstream result could not be detached safely',
+        );
+      }
+    } else {
+      // A synchronous ordinary return value has no asynchronous result channel.
+      // Capture it before any Promise/await boundary can inspect an inherited
+      // then property and substitute the downstream result.
+      try {
+        detachedResult = snapshotDownstreamResult(downstreamResult);
+      } catch (error) {
+        completeConsumption(capability, 'CONSUMED_UNKNOWN');
+        if (error instanceof PomRxGateError) throw error;
+        throw gateError(
+          'POMRX_GATE_E_DOWNSTREAM_FAILED',
+          'Downstream result could not be detached safely',
+        );
+      }
     }
 
     completeConsumption(capability, 'CONSUMED_SUCCESS');

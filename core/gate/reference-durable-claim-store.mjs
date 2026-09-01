@@ -192,6 +192,7 @@ const STATS_IS_DIRECTORY = Stats.prototype.isDirectory;
 const STATS_IS_FILE = Stats.prototype.isFile;
 const STATS_IS_SYMBOLIC_LINK = Stats.prototype.isSymbolicLink;
 const PROCESS_PLATFORM = process.platform;
+const PROCESS_PID = process.pid;
 
 function stabilizePromise(promise) {
   // Await performs PromiseResolve(%Promise%, value). Immutable own captured
@@ -744,7 +745,7 @@ async function writeExclusiveDurable(filePath, value) {
   const directory = PATH_DIRNAME(filePath);
   const tempPath = PATH_JOIN(
     directory,
-    `.${PATH_BASENAME(filePath)}.${process.pid}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
+    `.${PATH_BASENAME(filePath)}.${PROCESS_PID}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
   );
   let fd = null;
   let tempExists = false;
@@ -792,7 +793,7 @@ function writeExclusiveDurableSync(filePath, value) {
   const directory = PATH_DIRNAME(filePath);
   const tempPath = PATH_JOIN(
     directory,
-    `.${PATH_BASENAME(filePath)}.${process.pid}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
+    `.${PATH_BASENAME(filePath)}.${PROCESS_PID}.${REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, [])}.tmp`,
   );
   let fd = null;
   let tempExists = false;
