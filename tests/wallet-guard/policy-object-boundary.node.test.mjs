@@ -163,13 +163,27 @@ test('nested policy-list Proxy is rejected before traps run', () => {
   assert.equal(trapCalls, 0);
 });
 
-test('custom-prototype policy arrays are rejected before inherited behavior can participate', () => {
-  class PolicyArray extends Array {}
-  const origins = new PolicyArray(ORIGIN);
-  assert.throws(
-    () => normalizeWalletGuardPolicy(basePolicy({ allowed_origins: origins })),
-    expectPolicyCode,
+test('custom-prototype policy arrays normalize from own data without inherited behavior', () => {
+  let inheritedGets = 0;
+  const hostilePrototype = Object.create(null);
+  Object.defineProperty(hostilePrototype, 'map', {
+    configurable: false,
+    enumerable: false,
+    get() {
+      inheritedGets += 1;
+      throw new Error('inherited array behavior must not execute');
+    },
+  });
+  Object.freeze(hostilePrototype);
+
+  const origins = [ORIGIN];
+  Object.setPrototypeOf(origins, hostilePrototype);
+
+  const normalized = normalizeWalletGuardPolicy(
+    basePolicy({ allowed_origins: origins }),
   );
+  assert.deepEqual(normalized.allowed_origins, [ORIGIN]);
+  assert.equal(inheritedGets, 0);
 });
 
 test('holes, hidden, extra and symbol policy-list properties fail closed', () => {
