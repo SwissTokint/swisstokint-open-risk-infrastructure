@@ -1,0 +1,121 @@
+name: SECURITY CORE-001 Promise finally adversarial
+
+on:
+  push:
+    branches:
+      - security/core-001-adversarial-400b
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22
+      - name: Reproduce mutable Promise species through public finally chain
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { mkdtemp, rm } from 'node:fs/promises';
+          import os from 'node:os';
+          import path from 'node:path';
+          import { createReferenceDurableSingleUseGateHarness } from './core/gate/reference-durable-single-use-gate.mjs';
+
+          const h = (c) => c.repeat(64);
+          const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-finally-species-'));
+          let evidence;
+          let clockIndex = 0;
+          const clockValues = ['2026-08-30T12:00:01.000Z', '2026-08-30T12:00:02.000Z'];
+          const harness = createReferenceDurableSingleUseGateHarness({
+            rootDir,
+            trustedClock: () => clockValues[Math.min(clockIndex++, clockValues.length - 1)],
+            observeBinding: async () => ({
+              binding_profile: evidence.binding.binding_profile,
+              action_commitment: evidence.binding.action_commitment,
+              context_commitment: evidence.binding.context_commitment,
+              prepared_execution: { operation: 'finally-species-control' },
+            }),
+            executeDownstream: () => Object.freeze({ accepted: true }),
+          });
+          const issued = harness.testAuthority.issueReferenceAuthorizationForTest({
+            binding_profile: 'pom-rx-core-reference/0.1',
+            run_id: 'run-finally-species-0001',
+            agent_ref: 'agent-finally-species-0001',
+            subject_ref: 'subject-finally-species-0001',
+            method_hash: h('1'),
+            policy_hash: h('2'),
+            action_commitment: h('3'),
+            context_commitment: h('4'),
+            preflight_receipt_hash: h('5'),
+            witness_ack_hash: h('6'),
+            source_key_id: `ed25519-${'a'.repeat(32)}`,
+            witness_key_id: `ed25519-${'b'.repeat(32)}`,
+            verification_profile: 'pom-rx-v0.1/strict-errata-1',
+            verifier_version: 'pom-rx-v0.1-strict-verifier/1',
+            implementation_artifact_sha256: h('7'),
+            effective_verification_policy_sha256: h('8'),
+            issued_at: '2026-08-30T12:00:00.000Z',
+            expires_at: '2026-08-30T12:00:30.000Z',
+          }, { witnessValidUntil: '2026-08-30T12:01:00.000Z' });
+          evidence = issued.evidence;
+
+          const consumePromise = harness.gate.consume(issued.capability, { raw: true });
+          const speciesDescriptor = Object.getOwnPropertyDescriptor(Promise, Symbol.species);
+          let poisonCalls = 0;
+          let chained;
+          try {
+            function PoisonSpecies(executor) {
+              poisonCalls += 1;
+              return new Promise((_resolve, reject) => {
+                executor(
+                  () => reject(new Error('poisoned Promise species converted finally fulfillment to rejection')),
+                  reject,
+                );
+              });
+            }
+            Object.defineProperty(Promise, Symbol.species, {
+              value: PoisonSpecies,
+              configurable: true,
+              enumerable: false,
+              writable: true,
+            });
+            chained = consumePromise.finally(() => undefined);
+          } finally {
+            Object.defineProperty(Promise, Symbol.species, speciesDescriptor);
+          }
+
+          let observedFailure = null;
+          try {
+            const result = await chained;
+            assert.deepEqual(result, { accepted: true });
+          } catch (error) {
+            observedFailure = error;
+          }
+
+          try {
+            assert.equal(
+              harness.testAuthority.inspectCapabilityStateForTest(issued.capability),
+              'CONSUMED_SUCCESS',
+            );
+            assert.equal(
+              (await harness.testAuthority.inspectDurableStateForTest(issued.capability)).state,
+              'CONSUMED_SUCCESS',
+            );
+          } finally {
+            await harness.close().catch(() => {});
+            await rm(rootDir, { recursive: true, force: true });
+          }
+
+          if (observedFailure !== null && poisonCalls > 0) {
+            console.error('VULNERABLE: public finally chain was rewritten by mutable Promise[Symbol.species] after durable success');
+            console.error(observedFailure.message);
+            process.exit(1);
+          }
+          console.log('NOT_REPRODUCED: finally chain remained stable');
+          NODE
