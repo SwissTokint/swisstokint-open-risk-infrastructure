@@ -32,6 +32,7 @@ const CHILD_FORK = forkChildProcess;
 const CHILD_SEND = ChildProcess.prototype.send;
 const CHILD_KILL = ChildProcess.prototype.kill;
 const CHILD_DISCONNECT = ChildProcess.prototype.disconnect;
+const CHILD_UNREF = ChildProcess.prototype.unref;
 const EVENT_ON = EventEmitter.prototype.on;
 const OBJECT_CREATE = Object.create;
 const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
@@ -133,7 +134,7 @@ function mapSet(map, key, value) {
 }
 
 function mapDelete(map, key) {
-  return REFLECT_APPLY(MAP_DELETE, map, [key]);
+  REFLECT_APPLY(MAP_DELETE, map, [key]);
 }
 
 function mapForEach(map, callback) {
@@ -330,13 +331,53 @@ export function createReferenceDurableClaimStore(options) {
       execArgv: [],
     },
   ]);
+  const childChannel = child.channel;
+  if (!childChannel
+      || typeof childChannel.ref !== 'function'
+      || typeof childChannel.unref !== 'function') {
+    try {
+      REFLECT_APPLY(CHILD_KILL, child, []);
+    } catch {
+      // Best-effort cleanup on bootstrap failure.
+    }
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable owner IPC channel is unavailable');
+  }
+  const CHANNEL_REF = childChannel.ref;
+  const CHANNEL_UNREF = childChannel.unref;
+  // Idle stores must not keep a process alive merely because the durable owner
+  // exists. Each request temporarily refs the IPC channel until its matching
+  // response (or send failure) settles; the child process handle itself remains
+  // unrefed. This preserves request liveness while avoiding a process-lifecycle
+  // leak in callers that intentionally leave an idle reference store open.
+  REFLECT_APPLY(CHILD_UNREF, child, []);
+  REFLECT_APPLY(CHANNEL_UNREF, childChannel, []);
+
   const pending = new MAP_CONSTRUCTOR();
   const handleState = new WEAK_MAP_CONSTRUCTOR();
+  let pendingCount = 0;
   let lifecycleState = 'OPEN';
   let ownerFailed = false;
   let activeOperations = 0;
   let drainResolve = null;
   let closePromise = null;
+
+  function refRequestChannel() {
+    if (pendingCount === 0) {
+      REFLECT_APPLY(CHANNEL_REF, childChannel, []);
+    }
+    pendingCount += 1;
+  }
+
+  function unrefRequestChannel() {
+    if (pendingCount > 0) pendingCount -= 1;
+    if (pendingCount === 0) {
+      try {
+        REFLECT_APPLY(CHANNEL_UNREF, childChannel, []);
+      } catch {
+        // A disconnected/failed owner is already fail-closed elsewhere.
+      }
+    }
+  }
 
   function rejectAllOwnerFailure(message) {
     if (ownerFailed) return;
@@ -348,6 +389,12 @@ export function createReferenceDurableClaimStore(options) {
         message,
       ));
     });
+    pendingCount = 0;
+    try {
+      REFLECT_APPLY(CHANNEL_UNREF, childChannel, []);
+    } catch {
+      // Owner failure/disconnect already terminates authority.
+    }
   }
 
   function onOwnerMessage(rawMessage) {
@@ -362,6 +409,7 @@ export function createReferenceDurableClaimStore(options) {
     const entry = mapGet(pending, message.id);
     if (!entry) return;
     mapDelete(pending, message.id);
+    unrefRequestChannel();
 
     if (message.ok === true) {
       entry.resolve(message.payload);
@@ -405,6 +453,7 @@ export function createReferenceDurableClaimStore(options) {
     const id = REFLECT_APPLY(CRYPTO_RANDOM_UUID, undefined, []);
     return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
       mapSet(pending, id, { resolve, reject });
+      refRequestChannel();
       const message = makeWireMessage(id, command, payload);
       try {
         REFLECT_APPLY(CHILD_SEND, child, [message, (error) => {
@@ -412,6 +461,7 @@ export function createReferenceDurableClaimStore(options) {
           const entry = mapGet(pending, id);
           if (!entry) return;
           mapDelete(pending, id);
+          unrefRequestChannel();
           entry.reject(new PomRxDurableClaimStoreError(
             'POMRX_GATE_E_DURABLE_IO',
             'durable owner IPC send failed',
@@ -419,6 +469,7 @@ export function createReferenceDurableClaimStore(options) {
         }]);
       } catch {
         mapDelete(pending, id);
+        unrefRequestChannel();
         reject(new PomRxDurableClaimStoreError(
           'POMRX_GATE_E_DURABLE_IO',
           'durable owner IPC send failed',
