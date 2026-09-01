@@ -40,19 +40,12 @@ jobs:
           }
           """
           helper = marker + """
-          function defineDetachedDataProperty(
-            value,
-            key,
-            propertyValue,
-            enumerable = true,
-            writable = true,
-            configurable = true,
-          ) {
+          function defineDetachedDataProperty(value, key, propertyValue) {
             const descriptor = createObject(null);
             descriptor.value = propertyValue;
-            descriptor.enumerable = enumerable;
-            descriptor.writable = writable;
-            descriptor.configurable = configurable;
+            descriptor.enumerable = true;
+            descriptor.writable = true;
+            descriptor.configurable = true;
             objectDefineProperty(value, key, descriptor);
           }
           """
@@ -75,16 +68,6 @@ jobs:
                 rematerializeDetachedResult(descriptor.value),
               );""",
               'object detached assignment',
-          )
-          once(
-              """    objectDefineProperty(result, 'then', {
-              value: undefined,
-              enumerable: false,
-              writable: false,
-              configurable: false,
-            });""",
-              "    defineDetachedDataProperty(result, 'then', undefined, false, false, false);",
-              'root then descriptor',
           )
 
           path.write_text(s)
