@@ -114,15 +114,51 @@ function makePromiseDescriptor(value) {
 }
 
 const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(PROMISE_CONSTRUCTOR);
-const PROMISE_OWN_THEN_DESCRIPTOR = makePromiseDescriptor(PROMISE_THEN);
+
+function stablePromiseThen(onFulfilled, onRejected) {
+  const source = this;
+  return stabilizePromise(new PROMISE_CONSTRUCTOR((resolve, reject) => {
+    void (async () => {
+      try {
+        const value = await source;
+        if (typeof onFulfilled === 'function') resolve(onFulfilled(value));
+        else resolve(value);
+      } catch (error) {
+        if (typeof onRejected === 'function') {
+          try {
+            resolve(onRejected(error));
+          } catch (callbackError) {
+            reject(callbackError);
+          }
+        } else {
+          reject(error);
+        }
+      }
+    })();
+  }));
+}
+
+const PROMISE_OWN_SAFE_THEN_DESCRIPTOR = makePromiseDescriptor(stablePromiseThen);
 
 function stabilizePromise(promise) {
-  // Await uses PromiseResolve(%Promise%, value). An immutable own constructor
-  // equal to the captured intrinsic makes that operation return this native
-  // Promise directly instead of consulting a mutable inherited `.then`. The own
-  // captured `.then` also protects direct consumer chaining after module import.
-  objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
-  objectDefineProperty(promise, 'then', PROMISE_OWN_THEN_DESCRIPTOR);
+  // Await uses PromiseResolve(%Promise%, value). Pinning constructor=%Promise%
+  // preserves direct adoption without consulting inherited then. Public promises
+  // created by this boundary also receive a Core-owned then implementation that
+  // constructs its result with the captured Promise directly, so mutable
+  // Promise[Symbol.species] cannot rewrite a successful exposed chain.
+  const descriptors = objectGetOwnPropertyDescriptors(promise);
+  if (!objectHasOwn(descriptors, 'constructor')) {
+    objectDefineProperty(promise, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
+  } else if (descriptors.constructor.value !== PROMISE_CONSTRUCTOR) {
+    throw new TypeError('Reference durable Gate Promise constructor channel is invalid');
+  }
+
+  if (!objectHasOwn(descriptors, 'then')) {
+    objectDefineProperty(promise, 'then', PROMISE_OWN_SAFE_THEN_DESCRIPTOR);
+  } else if (descriptors.then.value !== PROMISE_THEN
+      && descriptors.then.value !== stablePromiseThen) {
+    throw new TypeError('Reference durable Gate Promise then channel is invalid');
+  }
   return promise;
 }
 

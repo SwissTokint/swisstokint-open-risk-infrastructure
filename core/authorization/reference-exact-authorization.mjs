@@ -206,7 +206,7 @@ function snapshotExactDataObject(value, expectedKeys, label) {
   for (let index = 0; index < expectedKeys.length; index += 1) {
     const key = expectedKeys[index];
     const descriptor = descriptors[key];
-    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+    if (!objectHasOwn(descriptors, key) || !isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_GATE_E_BINDING_MISMATCH', `${label}.${key} must be an enumerable data property`);
     }
     snapshot[key] = descriptor.value;

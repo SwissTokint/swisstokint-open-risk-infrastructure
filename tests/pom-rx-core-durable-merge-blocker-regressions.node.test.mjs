@@ -94,15 +94,22 @@ test(
     const rootDir = await mkdtemp(path.join(os.tmpdir(), 'pom-rx-direct-downstream-promise-'));
     let evidence;
     let rejectDownstream;
+    let notifyDownstreamStarted;
     let intercepts = 0;
     const downstreamPromise = new Promise((_resolve, reject) => {
       rejectDownstream = reject;
+    });
+    const downstreamStarted = new Promise((resolve) => {
+      notifyDownstreamStarted = resolve;
     });
     const harness = createReferenceDurableSingleUseGateHarness({
       rootDir,
       trustedClock: clock(),
       observeBinding: async () => observedFrom(evidence),
-      executeDownstream: () => downstreamPromise,
+      executeDownstream: () => {
+        notifyDownstreamStarted();
+        return downstreamPromise;
+      },
     });
     const issued = harness.testAuthority.issueReferenceAuthorizationForTest(bindingInput(1), {
       witnessValidUntil: '2026-08-30T12:01:00.000Z',
@@ -126,6 +133,7 @@ test(
       });
 
       const consumePromise = harness.gate.consume(issued.capability, { raw: true });
+      await downstreamStarted;
       queueMicrotask(() => rejectDownstream(new Error('real downstream rejection')));
       await assert.rejects(
         consumePromise,

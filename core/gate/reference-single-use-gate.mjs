@@ -60,6 +60,9 @@ const OBJECT_HAS_OWN = Object.hasOwn;
 const OBJECT_KEYS = Object.keys;
 const OBJECT_PROTOTYPE = Object.prototype;
 const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const UTIL_TYPES_IS_PROMISE = utilTypes.isPromise;
+const PROMISE_CONSTRUCTOR = Promise;
+const PROMISE_THEN = Promise.prototype.then;
 const WEAK_MAP_CONSTRUCTOR = WeakMap;
 const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
@@ -128,6 +131,10 @@ function isProxy(value) {
   return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
+function isPromise(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROMISE, utilTypes, [value]);
+}
+
 function weakMapGet(map, key) {
   return REFLECT_APPLY(WEAK_MAP_GET, map, [key]);
 }
@@ -154,6 +161,25 @@ function numberIsFinite(value) {
 
 function stringEndsWith(value, suffix) {
   return REFLECT_APPLY(STRING_ENDS_WITH, value, [suffix]);
+}
+
+function makePromiseDescriptor(value) {
+  const descriptor = createObject(null);
+  descriptor.value = value;
+  descriptor.enumerable = false;
+  descriptor.writable = false;
+  descriptor.configurable = false;
+  return freezeValue(descriptor);
+}
+
+const PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR = makePromiseDescriptor(PROMISE_CONSTRUCTOR);
+const PROMISE_OWN_THEN_DESCRIPTOR = makePromiseDescriptor(PROMISE_THEN);
+
+function stabilizeDownstreamPromise(value) {
+  if (!isPromise(value)) return value;
+  objectDefineProperty(value, 'constructor', PROMISE_OWN_CONSTRUCTOR_DESCRIPTOR);
+  objectDefineProperty(value, 'then', PROMISE_OWN_THEN_DESCRIPTOR);
+  return value;
 }
 
 function exactSortedKeys(value) {
@@ -565,7 +591,7 @@ export function createReferenceSingleUseGateHarness(options) {
 
     let resolvedResult;
     try {
-      resolvedResult = await downstreamResult;
+      resolvedResult = await stabilizeDownstreamPromise(downstreamResult);
     } catch {
       completeConsumption(capability, 'CONSUMED_UNKNOWN');
       throw gateError(
