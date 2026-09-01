@@ -91,6 +91,15 @@ function objectDefineProperty(value, key, descriptor) {
   return REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, Object, [value, key, descriptor]);
 }
 
+function defineDetachedDataProperty(value, key, propertyValue) {
+  const descriptor = createObject(null);
+  descriptor.value = propertyValue;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  objectDefineProperty(value, key, descriptor);
+}
+
 function objectGetOwnPropertyDescriptors(value) {
   return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
 }
@@ -313,7 +322,11 @@ function rematerializeDetachedResult(value, root = false) {
   if (arrayIsArray(value)) {
     result = REFLECT_CONSTRUCT(ARRAY_CONSTRUCTOR, [value.length]);
     for (let index = 0; index < value.length; index += 1) {
-      result[index] = rematerializeDetachedResult(value[index]);
+      defineDetachedDataProperty(
+      result,
+      index,
+      rematerializeDetachedResult(value[index]),
+    );
     }
   } else {
     result = createObject(OBJECT_PROTOTYPE);
@@ -328,7 +341,11 @@ function rematerializeDetachedResult(value, root = false) {
           'Detached downstream result lost its plain-data boundary',
         );
       }
-      result[key] = rematerializeDetachedResult(descriptor.value);
+      defineDetachedDataProperty(
+      result,
+      key,
+      rematerializeDetachedResult(descriptor.value),
+    );
     }
   }
 
