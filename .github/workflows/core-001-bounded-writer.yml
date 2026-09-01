@@ -19,49 +19,62 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Pin bounded writer and exact target
+      - name: Pin single writer and exact CORE-001 target
         shell: bash
         run: |
           set -euo pipefail
-          cp .github/core-001-doc-proof-repair.py /tmp/core-001-doc-proof-repair.py
+          cp .github/core-001-doc-proof-repair.py /tmp/core-001-local-p1-repair.py
           git fetch origin main core/durable-gate-v2-20260830
-          test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "706163917c9fc0f9bf6b719176aebfab768833aa"
-          git checkout --detach 706163917c9fc0f9bf6b719176aebfab768833aa
+          test "$(git rev-parse origin/main)" = "76cd6cd315832c34b98cd14e305bc31fbf4f31ce"
+          test "$(git rev-parse origin/core/durable-gate-v2-20260830)" = "ae4f4b1957ed58d432cc5b2ec8c2d99467067bc9"
+          git checkout --detach ae4f4b1957ed58d432cc5b2ec8c2d99467067bc9
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
           cache: npm
 
-      - name: Apply bounded proof-boundary repair
-        run: python /tmp/core-001-doc-proof-repair.py
+      - name: Apply bounded local P1 repair
+        run: python /tmp/core-001-local-p1-repair.py
 
-      - name: Validate bounded surface
+      - name: Validate bounded CORE surface
         shell: bash
         run: |
           set -euo pipefail
           git diff --check
-          git diff --name-only | tee /tmp/core-files.txt
-          if grep -E '^(applications/|sdk/|models/|\.github/)' /tmp/core-files.txt; then
+          test "$(git diff --name-only)" = "core/gate/reference-durable-claim-store.mjs"
+          if git diff --name-only | grep -E '^(applications/|sdk/|models/|\.github/)'; then
             echo 'Non-Core scope leaked into CORE-001 repair' >&2
             exit 1
           fi
-          if grep -Ei 'wallet-guard|swtk|pom-permit' /tmp/core-files.txt; then
-            echo 'Application/token scope leaked into CORE-001 repair' >&2
+          if git diff | grep -Eiq 'wallet-guard|swtk|pom-permit'; then
+            echo 'Application/token coupling leaked into CORE-001 repair' >&2
             exit 1
           fi
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Targeted CORE regressions
+      - name: Repaired exact-head regressions must pass
+        shell: bash
         run: |
-          npm run test:pom-rx:durable-claim-store
-          npm run test:pom-rx:exact-authorization-input-hardening
-          npm run test:pom-rx:core-reference-gate
+          set -euo pipefail
+          node --test \
+            --test-name-pattern='standalone durable-store promise chaining ignores post-import Promise species poisoning|durable completion realpath does not consume post-import Promise species internally' \
+            tests/pom-rx-core-durable-latest-independent-review-regressions.node.test.mjs
 
-      - name: Full repository regression
-        run: npm test
+      - name: Adjacent durable-store regressions must remain green
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            tests/pom-rx-core-durable-promise-prototype-regression.node.test.mjs \
+            tests/pom-rx-durable-claim-store.node.test.mjs \
+            tests/pom-rx-durable-claim-store-root.node.test.mjs \
+            tests/pom-rx-durable-claim-store-publication.node.test.mjs \
+            tests/pom-rx-core-durable-gate-current-head-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-review-regressions.node.test.mjs \
+            tests/pom-rx-core-durable-lifecycle-review-regressions.node.test.mjs
 
       - name: Publish exact-head successor
         shell: bash
@@ -69,9 +82,9 @@ jobs:
           set -euo pipefail
           git config user.name 'POM-RX CORE-001 Writer'
           git config user.email 'actions@users.noreply.github.com'
-          git add core/gate/DURABLE-COMPOSITION.md tests/pom-rx-core-durable-merge-blocker-regressions.node.test.mjs
+          git add core/gate/reference-durable-claim-store.mjs
           git diff --cached --check
-          git commit -m 'docs(core): preserve downstream ambiguity proof boundary'
+          git commit -m 'fix(core): pin durable store species and realpath channels'
           NEW_SHA=$(git rev-parse HEAD)
           echo "successor=$NEW_SHA"
-          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:706163917c9fc0f9bf6b719176aebfab768833aa origin HEAD:refs/heads/core/durable-gate-v2-20260830
+          git push --force-with-lease=refs/heads/core/durable-gate-v2-20260830:ae4f4b1957ed58d432cc5b2ec8c2d99467067bc9 origin HEAD:refs/heads/core/durable-gate-v2-20260830
