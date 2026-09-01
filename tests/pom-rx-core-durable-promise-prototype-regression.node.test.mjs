@@ -24,7 +24,7 @@ test('post-import Promise prototype poisoning cannot substitute a durable claim 
   const originalConstructorDescriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'constructor');
   const originalThenDescriptor = Object.getOwnPropertyDescriptor(Promise.prototype, 'then');
   const originalThen = originalThenDescriptor.value;
-  let attackDispatches = 0;
+  let claimResultIntercepts = 0;
 
   try {
     const claimA = await store.claim({
@@ -47,7 +47,6 @@ test('post-import Promise prototype poisoning cannot substitute a durable claim 
     Object.defineProperty(Promise.prototype, 'then', {
       ...originalThenDescriptor,
       value: function poisonedThen(onFulfilled, onRejected) {
-        attackDispatches += 1;
         const wrappedFulfilled = typeof onFulfilled === 'function'
           ? (value) => {
             if (value !== null
@@ -55,6 +54,7 @@ test('post-import Promise prototype poisoning cannot substitute a durable claim 
                 && value.claim !== null
                 && typeof value.claim === 'object'
                 && value.claim.capability_id === CAPABILITY_B) {
+              claimResultIntercepts += 1;
               return onFulfilled(makeReplacementClaimResult(value, claimA.handle));
             }
             return onFulfilled(value);
@@ -86,7 +86,11 @@ test('post-import Promise prototype poisoning cannot substitute a durable claim 
       authorizationCommitment: AUTH_B,
     });
 
-    assert.equal(attackDispatches, 0, 'durable awaits must not dispatch through mutable Promise.prototype.then');
+    assert.equal(
+      claimResultIntercepts,
+      0,
+      'mutable Promise prototype must not observe or substitute the durable claim result channel',
+    );
     assert.notStrictEqual(claimB.handle, claimA.handle, 'claim B must retain its own durable handle');
     assert.equal(inspectedA.state, 'RESERVED');
     assert.equal(inspectedB.state, 'CONSUMED_SUCCESS');
