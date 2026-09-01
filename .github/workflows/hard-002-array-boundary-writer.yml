@@ -32,52 +32,60 @@ jobs:
 
           policy = Path('applications/blockchain-digital-assets/wallet-guard/policy.mjs')
           text = policy.read_text()
-          old = """  if (Object.getPrototypeOf(values) !== Array.prototype) {
-            fail('POMRX_WG_POLICY_E_INVALID', `${field} must use the standard Array prototype`);
-          }
-          """
-          new = """  // The caller Array prototype is deliberately outside policy semantics.
-          // This boundary reads only bounded own data descriptors and rematerializes
-          // a fresh normalized Array, so inherited behavior must never participate.
-          """
+          old = "\n".join([
+              "  if (Object.getPrototypeOf(values) !== Array.prototype) {",
+              "    fail('POMRX_WG_POLICY_E_INVALID', `${field} must use the standard Array prototype`);",
+              "  }",
+              "",
+          ])
+          new = "\n".join([
+              "  // The caller Array prototype is deliberately outside policy semantics.",
+              "  // This boundary reads only bounded own data descriptors and rematerializes",
+              "  // a fresh normalized Array, so inherited behavior must never participate.",
+              "",
+          ])
           if text.count(old) != 1:
               raise SystemExit('unexpected Wallet Guard dense-array prototype guard shape')
           policy.write_text(text.replace(old, new, 1))
 
           tests = Path('tests/wallet-guard/policy-object-boundary.node.test.mjs')
           text = tests.read_text()
-          old = """test('custom-prototype policy arrays are rejected before inherited behavior can participate', () => {
-            class PolicyArray extends Array {}
-            const origins = new PolicyArray(ORIGIN);
-            assert.throws(
-              () => normalizeWalletGuardPolicy(basePolicy({ allowed_origins: origins })),
-              expectPolicyCode,
-            );
-          });
-          """
-          new = """test('custom-prototype policy arrays normalize from own data without inherited behavior', () => {
-            let inheritedGets = 0;
-            const hostilePrototype = Object.create(null);
-            Object.defineProperty(hostilePrototype, 'map', {
-              configurable: false,
-              enumerable: false,
-              get() {
-                inheritedGets += 1;
-                throw new Error('inherited array behavior must not execute');
-              },
-            });
-            Object.freeze(hostilePrototype);
-
-            const origins = [ORIGIN];
-            Object.setPrototypeOf(origins, hostilePrototype);
-
-            const normalized = normalizeWalletGuardPolicy(
-              basePolicy({ allowed_origins: origins }),
-            );
-            assert.deepEqual(normalized.allowed_origins, [ORIGIN]);
-            assert.equal(inheritedGets, 0);
-          });
-          """
+          old = "\n".join([
+              "test('custom-prototype policy arrays are rejected before inherited behavior can participate', () => {",
+              "  class PolicyArray extends Array {}",
+              "  const origins = new PolicyArray(ORIGIN);",
+              "  assert.throws(",
+              "    () => normalizeWalletGuardPolicy(basePolicy({ allowed_origins: origins })),",
+              "    expectPolicyCode,",
+              "  );",
+              "});",
+              "",
+          ])
+          new = "\n".join([
+              "test('custom-prototype policy arrays normalize from own data without inherited behavior', () => {",
+              "  let inheritedGets = 0;",
+              "  const hostilePrototype = Object.create(null);",
+              "  Object.defineProperty(hostilePrototype, 'map', {",
+              "    configurable: false,",
+              "    enumerable: false,",
+              "    get() {",
+              "      inheritedGets += 1;",
+              "      throw new Error('inherited array behavior must not execute');",
+              "    },",
+              "  });",
+              "  Object.freeze(hostilePrototype);",
+              "",
+              "  const origins = [ORIGIN];",
+              "  Object.setPrototypeOf(origins, hostilePrototype);",
+              "",
+              "  const normalized = normalizeWalletGuardPolicy(",
+              "    basePolicy({ allowed_origins: origins }),",
+              "  );",
+              "  assert.deepEqual(normalized.allowed_origins, [ORIGIN]);",
+              "  assert.equal(inheritedGets, 0);",
+              "});",
+              "",
+          ])
           if text.count(old) != 1:
               raise SystemExit('unexpected custom-prototype policy regression shape')
           tests.write_text(text.replace(old, new, 1))
