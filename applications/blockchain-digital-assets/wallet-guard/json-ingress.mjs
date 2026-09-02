@@ -13,6 +13,7 @@ const TRUSTED_BUFFER_BYTE_LENGTH = Buffer.byteLength;
 const TRUSTED_JSON_PARSE = JSON.parse;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TRUSTED_OBJECT_ENTRIES = Object.entries;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const TRUSTED_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
@@ -110,6 +111,15 @@ function trustedStringSlice(value, start, end) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_SLICE, value, [start, end]);
 }
 
+function defineOwnData(target, key, value) {
+  TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  }]);
+}
+
 function isWhitespace(character) {
   return character === ' ' || character === '\n' || character === '\r' || character === '\t';
 }
@@ -137,9 +147,9 @@ function assertUnicodeScalarString(value, label) {
 
 class StrictJsonScanner {
   constructor(raw) {
-    this.raw = raw;
-    this.index = 0;
-    this.nodes = 0;
+    defineOwnData(this, 'raw', raw);
+    defineOwnData(this, 'index', 0);
+    defineOwnData(this, 'nodes', 0);
   }
 
   skipWhitespace() {
@@ -373,7 +383,7 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
   if (TRUSTED_ARRAY_IS_ARRAY(value)) {
     const output = [];
     for (let index = 0; index < value.length; index += 1) {
-      output[index] = cloneParsed(value[index], depth + 1, budget);
+      defineOwnData(output, String(index), cloneParsed(value[index], depth + 1, budget));
     }
     return TRUSTED_OBJECT_FREEZE(output);
   }
