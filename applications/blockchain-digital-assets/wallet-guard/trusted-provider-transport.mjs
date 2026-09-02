@@ -20,6 +20,7 @@ import {
 // out of contract and requires a separately reviewed process/worker/RPC
 // isolation boundary. Covered pre-import poisoning remains limited to the
 // ECMAScript globals explicitly validated below.
+const TRUSTED_RANDOM_BYTES = randomBytes;
 
 const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -597,7 +598,7 @@ function localBridgeFailure(code) {
 }
 
 function createSessionId() {
-  const bytes = randomBytes(32);
+  const bytes = trustedApply(TRUSTED_RANDOM_BYTES, undefined, [32]);
   if (!bytes || bytes.length !== 32) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned an invalid session id');
   }
@@ -819,9 +820,9 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
           request,
         );
         const pending = constructPendingTransport();
+        defineArrayElement(state.sensitiveCalls, state.sensitiveCalls.length, command);
         state.nextSequence += 1;
         state.inFlight = true;
-        apply(TRUSTED_ARRAY_PUSH, state.sensitiveCalls, [command]);
 
         const resolve = pending.resolve;
         const reject = pending.reject;
@@ -832,6 +833,15 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
 
           const finish = (outcome) => {
             if (settled) return undefined;
+            try {
+              assertPromiseTransportRuntime();
+            } catch (error) {
+              settled = true;
+              state.destroyed = true;
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
+              return undefined;
+            }
             settled = true;
             state.inFlight = false;
             try {
