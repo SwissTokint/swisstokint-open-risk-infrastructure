@@ -10,12 +10,14 @@ import {
 } from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
 import {
   evaluateWalletGuardPolicy,
+  normalizeWalletGuardPolicy,
 } from '../../applications/blockchain-digital-assets/wallet-guard/policy.mjs';
 
 const ACCOUNT = `0x${'1'.repeat(40)}`;
 const RECIPIENT = `0x${'3'.repeat(40)}`;
 const UNTRUSTED = `0x${'8'.repeat(40)}`;
 const ORIGIN = 'https://fixture.wallet-guard.local';
+const EVIL_ORIGIN = 'https://evil.wallet-guard.local';
 const CHAIN_ID = '0x1';
 const TX_RESULT = `0x${'a'.repeat(64)}`;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
@@ -347,5 +349,149 @@ test('post-import global Set replacement cannot create compromised replay regist
     (error) => error instanceof WalletGuardProviderError
       && error.code === 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
   );
+  assert.equal(fake.sensitiveCallCount(), 1);
+});
+
+test('BigInt.prototype.toString cannot turn an over-limit native value into an allowed amount', async () => {
+  const fake = createFakeProvider();
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider: fake.provider,
+    policy: policy({ max_native_value: '1000' }),
+    trustedClock: () => '2026-08-19T17:00:00.000Z',
+    referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+    capabilityLifetimeMs: 30_000,
+  });
+  const originalToString = BigInt.prototype.toString;
+  BigInt.prototype.toString = function poisonedBigIntToString(radix) {
+    const actual = Reflect.apply(originalToString, this, [radix]);
+    return radix === 10 && actual === '1001' ? '0' : actual;
+  };
+
+  try {
+    const result = await gateway.request(sendTransaction({ value: '0x3e9' }));
+    assert.equal(result.decision, 'DENY');
+    assert.equal(result.forwarded, false);
+  } finally {
+    BigInt.prototype.toString = originalToString;
+  }
+  assert.equal(fake.sensitiveCallCount(), 0);
+});
+
+test('policy origin normalization snapshots the trusted origin getter once', async () => {
+  const fake = createFakeProvider();
+  const originalDescriptor = Object.getOwnPropertyDescriptor(URL.prototype, 'origin');
+  let originReads = 0;
+  Object.defineProperty(URL.prototype, 'origin', {
+    ...originalDescriptor,
+    get() {
+      const actual = Reflect.apply(originalDescriptor.get, this, []);
+      if (actual === ORIGIN) {
+        originReads += 1;
+        if (originReads === 2) return EVIL_ORIGIN;
+      }
+      return actual;
+    },
+  });
+
+  let gateway;
+  try {
+    gateway = createWalletGuardReferenceProviderGateway({
+      captureTrustedOrigin: () => EVIL_ORIGIN,
+      provider: fake.provider,
+      policy: policy(),
+      trustedClock: () => '2026-08-19T17:00:00.000Z',
+      referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+      capabilityLifetimeMs: 30_000,
+    });
+  } finally {
+    Object.defineProperty(URL.prototype, 'origin', originalDescriptor);
+  }
+
+  const result = await gateway.request(sendTransaction());
+  assert.equal(result.decision, 'DENY');
+  assert.equal(result.forwarded, false);
+  assert.ok(result.reasons.includes('WG_POLICY_DENY_ORIGIN'));
+  assert.equal(fake.sensitiveCallCount(), 0);
+});
+
+test('policy hash cannot be substituted through post-import Object.entries drift', async () => {
+  const intent = normalizedNativeIntent();
+  const policyA = policy({ policy_id: 'wallet-guard-policy-allow-A' });
+  const policyB = policy({
+    policy_id: 'wallet-guard-policy-deny-B',
+    allowed_recipients: [UNTRUSTED],
+  });
+  const expectedPolicyHash = evaluateWalletGuardPolicy(
+    intent,
+    policyB,
+    { status: 'not_run' },
+  ).policy_hash;
+  const normalizedB = normalizeWalletGuardPolicy(policyB);
+  const fake = createFakeProvider();
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider: fake.provider,
+    policy: policyA,
+    trustedClock: () => '2026-08-19T17:00:00.000Z',
+    referenceAuthorizationForRequest: (summary) => {
+      if (summary.policy_hash !== expectedPolicyHash) {
+        throw new Error('unexpected policy hash');
+      }
+      return referenceAuthorizationRecord();
+    },
+    capabilityLifetimeMs: 30_000,
+  });
+  const originalEntries = Object.entries;
+  Object.entries = function poisonedEntries(value) {
+    if (value && value.policy_id === policyA.policy_id) {
+      return Reflect.apply(originalEntries, Object, [normalizedB]);
+    }
+    return Reflect.apply(originalEntries, Object, [value]);
+  };
+
+  try {
+    await assert.rejects(
+      gateway.request(sendTransaction()),
+      (error) => error instanceof WalletGuardProviderError
+        && error.code === 'POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE',
+    );
+  } finally {
+    Object.entries = originalEntries;
+  }
+  assert.equal(fake.sensitiveCallCount(), 0);
+});
+
+test('reference replay identities cannot be rewritten through post-import Object.freeze drift', async () => {
+  const { gateway, fake } = createReplayGateway();
+  const first = await gateway.request(sendTransaction());
+  assert.equal(first.forwarded, true);
+  assert.equal(fake.sensitiveCallCount(), 1);
+
+  const originalFreeze = Object.freeze;
+  Object.freeze = function poisonedAuthorizationFreeze(value) {
+    if (value && typeof value === 'object'
+        && value.run_id === 'run-wallet-guard-security-00000001'
+        && value.witness_valid_until === '2026-08-19T17:01:00.000Z'
+        && !Object.hasOwn(value, 'binding_profile')) {
+      return originalFreeze({
+        ...value,
+        run_id: 'run-wallet-guard-security-00000002',
+        preflight_receipt_hash: hash('7'),
+        witness_ack_hash: hash('8'),
+      });
+    }
+    return originalFreeze(value);
+  };
+
+  try {
+    await assert.rejects(
+      gateway.request(sendTransaction()),
+      (error) => error instanceof WalletGuardProviderError
+        && error.code === 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
+    );
+  } finally {
+    Object.freeze = originalFreeze;
+  }
   assert.equal(fake.sensitiveCallCount(), 1);
 });
