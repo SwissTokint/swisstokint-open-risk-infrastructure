@@ -73,14 +73,8 @@ function referenceAuthorizationFactory() {
   };
 }
 
-function expectHostCode(error, code) {
-  assert.ok(error instanceof WalletGuardControlledHostError);
-  assert.equal(error.code, code);
-  return true;
-}
-
-test('post-import Array.prototype.push drift cannot bypass sensitive-call capacity', async () => {
-  const { page, testAuthority } = createWalletGuardControlledReferenceHost({
+function createHost() {
+  return createWalletGuardControlledReferenceHost({
     trustedOrigin: ORIGIN,
     chainId: CHAIN_ID,
     accounts: [ACCOUNT],
@@ -90,6 +84,16 @@ test('post-import Array.prototype.push drift cannot bypass sensitive-call capaci
     capabilityLifetimeMs: 30_000,
     providerResult: TX_RESULT,
   });
+}
+
+function expectHostCode(error, code) {
+  assert.ok(error instanceof WalletGuardControlledHostError);
+  assert.equal(error.code, code);
+  return true;
+}
+
+test('post-import Array.prototype.push drift cannot bypass sensitive-call capacity', async () => {
+  const { page, testAuthority } = createHost();
 
   const originalPush = Array.prototype.push;
   Array.prototype.push = function poisonedPush(...values) {
@@ -117,6 +121,57 @@ test('post-import Array.prototype.push drift cannot bypass sensitive-call capaci
   }
 
   const state = testAuthority.inspect();
+  assert.equal(state.sensitive_call_count, SENSITIVE_CALL_CAPACITY);
+  assert.equal(state.in_flight_request_count, 0);
+});
+
+test('inherited numeric setters cannot expose or re-arm the sensitive-call log', async () => {
+  const { page, testAuthority } = createHost();
+  const originalIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, '0');
+  let leakedLog = null;
+  let interceptedSensitiveWrites = 0;
+
+  Object.defineProperty(Array.prototype, '0', {
+    configurable: true,
+    set(value) {
+      if (value
+          && typeof value === 'object'
+          && value.method === 'eth_sendTransaction') {
+        interceptedSensitiveWrites += 1;
+        leakedLog = this;
+        return;
+      }
+      Object.defineProperty(this, '0', {
+        configurable: true,
+        enumerable: true,
+        value,
+        writable: true,
+      });
+    },
+  });
+
+  try {
+    for (let index = 0; index < SENSITIVE_CALL_CAPACITY; index += 1) {
+      const result = await page.ethereum.request(sendTransaction());
+      assert.equal(result.forwarded, true);
+      if (leakedLog) leakedLog.length = 0;
+    }
+
+    await assert.rejects(
+      page.ethereum.request(sendTransaction()),
+      (error) => expectHostCode(error, 'POMRX_WG_HOST_E_LOG_FULL'),
+    );
+  } finally {
+    if (originalIndexDescriptor) {
+      Object.defineProperty(Array.prototype, '0', originalIndexDescriptor);
+    } else {
+      delete Array.prototype[0];
+    }
+  }
+
+  const state = testAuthority.inspect();
+  assert.equal(interceptedSensitiveWrites, 0);
+  assert.equal(leakedLog, null);
   assert.equal(state.sensitive_call_count, SENSITIVE_CALL_CAPACITY);
   assert.equal(state.in_flight_request_count, 0);
 });

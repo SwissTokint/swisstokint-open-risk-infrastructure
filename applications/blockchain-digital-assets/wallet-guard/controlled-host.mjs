@@ -26,7 +26,6 @@ const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const ARRAY_CTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_PROTOTYPE = Array.prototype;
-const ARRAY_PUSH = Array.prototype.push;
 const ARRAY_SORT = Array.prototype.sort;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_CTOR = Set;
@@ -41,10 +40,6 @@ const URL_PASSWORD_GET = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(URL_CTOR.prototype, 
 
 function freeze(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, undefined, [value]);
-}
-
-function arrayPush(array, value) {
-  return REFLECT_APPLY(ARRAY_PUSH, array, [value]);
 }
 
 function regexpTest(pattern, value) {
@@ -323,7 +318,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
           'controlled provider sensitive-call log is full',
         );
       }
-      arrayPush(state.sensitiveCalls, captureSensitiveRequest(request));
+      appendArrayValue(state.sensitiveCalls, captureSensitiveRequest(request));
       return options.providerResult;
     },
   });
