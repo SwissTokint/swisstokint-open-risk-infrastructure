@@ -153,11 +153,56 @@ test('recipient allowlist cannot be selectively bypassed by post-import Array.pr
   assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
 });
 
+test('Array.prototype.map cannot substitute a normalized recipient allowlist', () => {
+  const intent = normalizedNativeIntent({ to: UNTRUSTED });
+  const originalMap = Array.prototype.map;
+  Array.prototype.map = function poisonedMap(callback, thisArg) {
+    if (this.length === 1 && this[0] === RECIPIENT) {
+      return [UNTRUSTED];
+    }
+    return Reflect.apply(originalMap, this, [callback, thisArg]);
+  };
+
+  let result;
+  try {
+    result = evaluateWalletGuardPolicy(intent, policy(), { status: 'not_run' });
+  } finally {
+    Array.prototype.map = originalMap;
+  }
+
+  assert.equal(result.decision, 'DENY');
+  assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
+});
+
+test('Object.getOwnPropertyDescriptors cannot substitute policy recipient descriptors', () => {
+  const intent = normalizedNativeIntent({ to: UNTRUSTED });
+  const policyValue = policy();
+  const recipientList = policyValue.allowed_recipients;
+  const originalDescriptors = Object.getOwnPropertyDescriptors;
+  Object.getOwnPropertyDescriptors = function poisonedDescriptors(value) {
+    if (value === recipientList) {
+      return originalDescriptors([UNTRUSTED]);
+    }
+    return originalDescriptors(value);
+  };
+
+  let result;
+  try {
+    result = evaluateWalletGuardPolicy(intent, policyValue, { status: 'not_run' });
+  } finally {
+    Object.getOwnPropertyDescriptors = originalDescriptors;
+  }
+
+  assert.equal(result.decision, 'DENY');
+  assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
+});
+
 test('native-value limit cannot be bypassed by post-import global BigInt drift', () => {
   const intent = normalizedNativeIntent({ value: '0x3e9' });
   const originalBigInt = globalThis.BigInt;
-  globalThis.BigInt = function poisonedBigInt() {
-    return 0n;
+  globalThis.BigInt = function poisonedBigInt(value) {
+    if (value === '1000') return 1000000n;
+    return originalBigInt(value);
   };
 
   let result;
@@ -169,6 +214,26 @@ test('native-value limit cannot be bypassed by post-import global BigInt drift',
 
   assert.equal(result.decision, 'DENY');
   assert.ok(result.reasons.includes('WG_POLICY_DENY_NATIVE_VALUE'));
+});
+
+test('address normalization cannot persist a substituted recipient via String.prototype.toLowerCase drift', () => {
+  const intent = normalizedNativeIntent({ to: UNTRUSTED });
+  const originalToLowerCase = String.prototype.toLowerCase;
+  String.prototype.toLowerCase = function poisonedToLowerCase() {
+    const value = String(this);
+    if (value === RECIPIENT) return UNTRUSTED;
+    return Reflect.apply(originalToLowerCase, this, []);
+  };
+
+  let result;
+  try {
+    result = evaluateWalletGuardPolicy(intent, policy(), { status: 'not_run' });
+  } finally {
+    String.prototype.toLowerCase = originalToLowerCase;
+  }
+
+  assert.equal(result.decision, 'DENY');
+  assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
 });
 
 test('policy result cannot be substituted by post-import Object.freeze drift', () => {
@@ -237,6 +302,46 @@ test('replay state cannot be suppressed by post-import Set.prototype.add drift',
   }
   assert.equal(fake.sensitiveCallCount(), 1);
 
+  await assert.rejects(
+    gateway.request(sendTransaction()),
+    (error) => error instanceof WalletGuardProviderError
+      && error.code === 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
+  );
+  assert.equal(fake.sensitiveCallCount(), 1);
+});
+
+test('post-import global Set replacement cannot create compromised replay registries', async () => {
+  const fake = createFakeProvider();
+  const OriginalSet = globalThis.Set;
+  class PoisonedSet extends OriginalSet {
+    has(value) {
+      if (isReplayIdentity(value)) return false;
+      return super.has(value);
+    }
+
+    add(value) {
+      if (isReplayIdentity(value)) return this;
+      return super.add(value);
+    }
+  }
+  globalThis.Set = PoisonedSet;
+
+  let gateway;
+  try {
+    gateway = createWalletGuardReferenceProviderGateway({
+      captureTrustedOrigin: () => ORIGIN,
+      provider: fake.provider,
+      policy: policy(),
+      trustedClock: () => '2026-08-19T17:00:00.000Z',
+      referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+      capabilityLifetimeMs: 30_000,
+    });
+  } finally {
+    globalThis.Set = OriginalSet;
+  }
+
+  const first = await gateway.request(sendTransaction());
+  assert.equal(first.forwarded, true);
   await assert.rejects(
     gateway.request(sendTransaction()),
     (error) => error instanceof WalletGuardProviderError
