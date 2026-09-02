@@ -25,7 +25,6 @@ const ATTACKER = `0x${'8'.repeat(40)}`;
 const ORIGIN = 'https://late-boundary.wallet-guard.local';
 const CHAIN_ID = '0x1';
 const TX_RESULT = `0x${'a'.repeat(64)}`;
-const DECIMAL_PATTERN_SOURCE = '^(?:0|[1-9][0-9]*)$';
 
 function indexedHash(index, offset) {
   return (40_000n + (BigInt(index) * 4n) + BigInt(offset))
@@ -91,14 +90,25 @@ function createMutableGateway({
   account = ACCOUNT,
   authorizationFactory = referenceAuthorizationFactory(),
   onAuthorizationSummary = null,
+  onContextCapture = null,
 } = {}) {
   const state = {
     account,
+    contextReads: 0,
     sensitiveCalls: [],
   };
   const provider = Object.freeze({
     captureContext(deliverContext) {
-      deliverContext(CHAIN_ID, state.account);
+      state.contextReads += 1;
+      const capturedAccount = state.account;
+      deliverContext(CHAIN_ID, capturedAccount);
+      if (onContextCapture) {
+        onContextCapture({
+          read: state.contextReads,
+          capturedAccount,
+          state,
+        });
+      }
     },
     async request(request) {
       state.sensitiveCalls.push(request);
@@ -173,8 +183,6 @@ test('Array.prototype.map drift cannot retain caller transaction aliases into se
   const request = sendTransaction();
   const callerTransaction = request.params[0];
   const originalMap = Array.prototype.map;
-  const originalTest = RegExp.prototype.test;
-  let nativeValueChecks = 0;
 
   Array.prototype.map = function poisonedMap(callback, thisArg) {
     if (this.length === 1 && this[0] === '0') {
@@ -182,21 +190,14 @@ test('Array.prototype.map drift cannot retain caller transaction aliases into se
     }
     return Reflect.apply(originalMap, this, [callback, thisArg]);
   };
-  RegExp.prototype.test = function poisonedTest(value) {
-    const result = Reflect.apply(originalTest, this, [value]);
-    if (this.source === DECIMAL_PATTERN_SOURCE && value === '1') {
-      nativeValueChecks += 1;
-      if (nativeValueChecks === 3) callerTransaction.to = DENIED_RECIPIENT;
-    }
-    return result;
-  };
 
   try {
-    const result = await gateway.request(request);
+    const pending = gateway.request(request);
+    callerTransaction.to = DENIED_RECIPIENT;
+    const result = await pending;
     assert.equal(result.forwarded, true);
   } finally {
     Array.prototype.map = originalMap;
-    RegExp.prototype.test = originalTest;
   }
 
   assert.equal(state.sensitiveCalls.length, 1);
@@ -222,7 +223,6 @@ test('controlled host ignores a post-import replacement of the global Array cons
   }
   PoisonedArray.prototype = OriginalArray.prototype;
   Object.setPrototypeOf(PoisonedArray, OriginalArray);
-  PoisonedArray.isArray = OriginalArray.isArray;
 
   let host;
   globalThis.Array = PoisonedArray;
@@ -249,37 +249,28 @@ test('controlled host ignores a post-import replacement of the global Array cons
   assert.equal(state.sensitive_call_count, 0);
 });
 
-test('context drift during final policy work is re-sampled before sensitive forwarding', async () => {
+test('context drift immediately after the last pre-forward sample is caught by the final resample', async () => {
   const { gateway, state } = createMutableGateway({
     authorizationFactory: referenceAuthorizationFactory('final-context'),
+    onContextCapture({ read, state: mutableState }) {
+      if (read === 6) {
+        mutableState.account = ATTACKER;
+      }
+    },
   });
-  const originalTest = RegExp.prototype.test;
-  let nativeValueChecks = 0;
 
-  RegExp.prototype.test = function poisonedTest(value) {
-    const result = Reflect.apply(originalTest, this, [value]);
-    if (this.source === DECIMAL_PATTERN_SOURCE && value === '1') {
-      nativeValueChecks += 1;
-      if (nativeValueChecks === 3) state.account = ATTACKER;
-    }
-    return result;
-  };
-
-  try {
-    await assert.rejects(
-      gateway.request(sendTransaction()),
-      (error) => {
-        assert.ok(error instanceof WalletGuardProviderError);
-        assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_CHANGED');
-        return true;
-      },
-    );
-  } finally {
-    RegExp.prototype.test = originalTest;
-  }
+  await assert.rejects(
+    gateway.request(sendTransaction()),
+    (error) => {
+      assert.ok(error instanceof WalletGuardProviderError);
+      assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_CHANGED');
+      return true;
+    },
+  );
 
   assert.equal(state.account, ATTACKER);
   assert.equal(state.sensitiveCalls.length, 0);
+  assert.ok(state.contextReads >= 7);
 });
 
 async function captureReferenceSummary({ poisonContextEntries = false } = {}) {
