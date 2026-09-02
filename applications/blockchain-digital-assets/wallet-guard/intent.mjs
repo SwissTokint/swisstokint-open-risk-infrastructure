@@ -15,9 +15,23 @@ import {
 export const WALLET_GUARD_INTENT_SCHEMA_VERSION = 'wallet_guard_intent/0.1';
 export const WALLET_GUARD_INTENT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-intent:v1:';
 
+const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
+const TRUSTED_ARRAY_SLICE = Array.prototype.slice;
+const TRUSTED_ARRAY_SORT = Array.prototype.sort;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
+const TRUSTED_OBJECT_KEYS = Object.keys;
 const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
 const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_WEAK_SET = WeakSet;
+const TRUSTED_WEAK_SET_ADD = WeakSet.prototype.add;
+const TRUSTED_WEAK_SET_HAS = WeakSet.prototype.has;
+const TRUSTED_URL = URL;
+const TRUSTED_URL_PROTOCOL_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'protocol').get;
+const TRUSTED_URL_ORIGIN_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'origin').get;
+const TRUSTED_URL_USERNAME_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'username').get;
+const TRUSTED_URL_PASSWORD_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'password').get;
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/u;
 const RPC_METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
@@ -32,7 +46,7 @@ const NORMALIZE_KEYS = TRUSTED_OBJECT_FREEZE([
   'request',
 ]);
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
-const normalizedIntentBrand = new WeakSet();
+const normalizedIntentBrand = new TRUSTED_WEAK_SET();
 
 export const WALLET_GUARD_INTENT_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
@@ -73,14 +87,67 @@ function setHas(set, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
 }
 
+function weakSetHas(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_WEAK_SET_HAS, set, [value]);
+}
+
+function weakSetAdd(set, value) {
+  TRUSTED_REFLECT_APPLY(TRUSTED_WEAK_SET_ADD, set, [value]);
+}
+
+function arrayIsArray(value) {
+  return TRUSTED_ARRAY_IS_ARRAY(value);
+}
+
+function objectKeys(value) {
+  return TRUSTED_OBJECT_KEYS(value);
+}
+
+function objectHasOwn(value, key) {
+  return TRUSTED_OBJECT_HAS_OWN(value, key);
+}
+
+function patternTest(pattern, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
+}
+
+function sortedCopy(values) {
+  const copy = TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SLICE, values, []);
+  TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, copy, []);
+  return copy;
+}
+
+class TrustedURL extends TRUSTED_URL {
+  get protocol() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PROTOCOL_GET, this, []);
+  }
+
+  get origin() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_ORIGIN_GET, this, []);
+  }
+
+  get username() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_USERNAME_GET, this, []);
+  }
+
+  get password() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PASSWORD_GET, this, []);
+  }
+}
+
 function assertExactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || arrayIsArray(value)) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const actual = sortedCopy(objectKeys(value));
+  const wanted = sortedCopy(expected);
+  if (actual.length !== wanted.length) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${label} has missing or unknown fields`);
+  }
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== wanted[index]) {
+      fail('POMRX_WG_E_REQUEST_INVALID', `${label} has missing or unknown fields`);
+    }
   }
 }
 
@@ -90,11 +157,14 @@ function normalizeTrustedOrigin(value) {
   }
   let url;
   try {
-    url = new URL(value);
+    url = new TrustedURL(value);
   } catch {
     fail('POMRX_WG_E_ORIGIN_INVALID', 'trusted origin must be an absolute URL origin');
   }
-  if (!['https:', 'http:'].includes(url.protocol) || url.origin !== value || url.username || url.password) {
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
+      || url.origin !== value
+      || url.username
+      || url.password) {
     fail('POMRX_WG_E_ORIGIN_INVALID', 'trusted origin must be a canonical HTTP(S) origin');
   }
   return url.origin;
@@ -102,10 +172,10 @@ function normalizeTrustedOrigin(value) {
 
 function normalizeRequest(request) {
   assertExactKeys(request, REQUEST_KEYS, 'EIP-1193 request');
-  if (typeof request.method !== 'string' || !RPC_METHOD_PATTERN.test(request.method)) {
+  if (typeof request.method !== 'string' || !patternTest(RPC_METHOD_PATTERN, request.method)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'RPC method is invalid');
   }
-  if (!Array.isArray(request.params)) {
+  if (!arrayIsArray(request.params)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'RPC params must be an array');
   }
   return request;
@@ -116,17 +186,17 @@ function normalizeSendTransaction(request, trustedAccount) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'eth_sendTransaction requires exactly one transaction object');
   }
   const tx = request.params[0];
-  if (!tx || typeof tx !== 'object' || Array.isArray(tx)) {
+  if (!tx || typeof tx !== 'object' || arrayIsArray(tx)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'transaction must be an object');
   }
-  const txKeys = Object.keys(tx);
+  const txKeys = objectKeys(tx);
   for (let index = 0; index < txKeys.length; index += 1) {
     const key = txKeys[index];
     if (!setHas(SEND_TX_KEYS, key)) {
       fail('POMRX_WG_E_REQUEST_INVALID', `unsupported transaction field: ${key}`);
     }
   }
-  if (!Object.hasOwn(tx, 'from') || !Object.hasOwn(tx, 'to')) {
+  if (!objectHasOwn(tx, 'from') || !objectHasOwn(tx, 'to')) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'transaction from and to are required');
   }
 
@@ -259,13 +329,13 @@ function assertNullableAddress(value, field) {
 }
 
 function assertNullableHash(value, field) {
-  if (value !== null && (typeof value !== 'string' || !HASH_PATTERN.test(value))) {
+  if (value !== null && (typeof value !== 'string' || !patternTest(HASH_PATTERN, value))) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${field} must be null or lowercase SHA-256`);
   }
 }
 
 function assertNullableDecimal(value, field) {
-  if (value !== null && (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value))) {
+  if (value !== null && (typeof value !== 'string' || !patternTest(DECIMAL_INTEGER_PATTERN, value))) {
     fail('POMRX_WG_E_REQUEST_INVALID', `${field} must be null or canonical decimal`);
   }
 }
@@ -275,7 +345,7 @@ export function validateWalletGuardIntent(intent) {
   if (intent.schema_version !== WALLET_GUARD_INTENT_SCHEMA_VERSION) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported Wallet Guard intent version');
   }
-  if (typeof intent.request_id !== 'string' || !REQUEST_ID_PATTERN.test(intent.request_id)) {
+  if (typeof intent.request_id !== 'string' || !patternTest(REQUEST_ID_PATTERN, intent.request_id)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'intent request_id is invalid');
   }
   if (normalizeTrustedOrigin(intent.origin) !== intent.origin) {
@@ -287,22 +357,26 @@ export function validateWalletGuardIntent(intent) {
   if (normalizeEvmAddress(intent.account, 'intent account') !== intent.account) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'intent account is not canonical');
   }
-  if (typeof intent.rpc_method !== 'string' || !RPC_METHOD_PATTERN.test(intent.rpc_method)
+  if (typeof intent.rpc_method !== 'string' || !patternTest(RPC_METHOD_PATTERN, intent.rpc_method)
       || typeof intent.request_class !== 'string' || intent.request_class.length < 1) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'intent RPC identity is invalid');
   }
-  for (const field of [
+  const addressFields = [
     'target',
     'spender',
     'recipient',
     'typed_data_owner',
     'typed_data_verifying_contract',
-  ]) {
+  ];
+  for (let index = 0; index < addressFields.length; index += 1) {
+    const field = addressFields[index];
     assertNullableAddress(intent[field], field);
   }
   assertNullableHash(intent.calldata_sha256, 'calldata_sha256');
   assertNullableHash(intent.typed_data_sha256, 'typed_data_sha256');
-  for (const field of ['native_value', 'requested_allowance', 'token_amount']) {
+  const decimalFields = ['native_value', 'requested_allowance', 'token_amount'];
+  for (let index = 0; index < decimalFields.length; index += 1) {
+    const field = decimalFields[index];
     assertNullableDecimal(intent[field], field);
   }
   if (intent.native_value === null) {
@@ -326,12 +400,12 @@ export function validateWalletGuardIntent(intent) {
 }
 
 export function isLocallyNormalizedWalletGuardIntent(intent) {
-  return normalizedIntentBrand.has(intent);
+  return weakSetHas(normalizedIntentBrand, intent);
 }
 
 export function normalizeWalletGuardIntent(input) {
   assertExactKeys(input, NORMALIZE_KEYS, 'Wallet Guard normalization input');
-  if (typeof input.requestId !== 'string' || !REQUEST_ID_PATTERN.test(input.requestId)) {
+  if (typeof input.requestId !== 'string' || !patternTest(REQUEST_ID_PATTERN, input.requestId)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'requestId has an invalid format');
   }
 
@@ -380,7 +454,7 @@ export function normalizeWalletGuardIntent(input) {
     simulation_required: action.simulation_required,
   });
   validateWalletGuardIntent(intent);
-  normalizedIntentBrand.add(intent);
+  weakSetAdd(normalizedIntentBrand, intent);
   return intent;
 }
 
