@@ -24,13 +24,16 @@ function capture(captureContext) {
   return captureWalletGuardTrustedContext(captureContext, TRUSTED_RUNTIME);
 }
 
-test('trusted context capture returns exact prototype-inert scalar context', () => {
-  const context = capture(validCapture);
+function assertExactContext(context) {
   assert.equal(Object.getPrototypeOf(context), null);
   assert.equal(Object.isFrozen(context), true);
   assert.deepEqual(Object.keys(context).sort(), ['account', 'chain_id']);
   assert.equal(context.chain_id, CHAIN_ID);
   assert.equal(context.account, ACCOUNT);
+}
+
+test('trusted context capture returns exact prototype-inert scalar context', () => {
+  assertExactContext(capture(validCapture));
 });
 
 test('trusted primordial runtime is mandatory', () => {
@@ -41,43 +44,74 @@ test('trusted primordial runtime is mandatory', () => {
   );
 });
 
-test('pre-import Object.create poisoning cannot change trusted context prototype', async () => {
+test('pre-import ambient primordial poisoning is not silently captured as trusted', async () => {
   const originalCreate = Object.create;
+  const originalDefineProperty = Object.defineProperty;
+  const originalFreeze = Object.freeze;
+  const originalApply = Reflect.apply;
+  const originalExec = RegExp.prototype.exec;
+  let poisonCalls = 0;
+
   Object.create = function poisonedCreate(prototype, properties) {
+    poisonCalls += 1;
     if (prototype === null) return {};
-    return Reflect.apply(originalCreate, Object, [prototype, properties]);
+    return originalApply(originalCreate, undefined, [prototype, properties]);
+  };
+  Object.defineProperty = function poisonedDefineProperty(...args) {
+    poisonCalls += 1;
+    return originalApply(originalDefineProperty, undefined, args);
+  };
+  Object.freeze = function poisonedFreeze(value) {
+    poisonCalls += 1;
+    return value;
+  };
+  Reflect.apply = function poisonedApply(...args) {
+    poisonCalls += 1;
+    return originalApply(...args);
+  };
+  RegExp.prototype.exec = function poisonedExec(...args) {
+    poisonCalls += 1;
+    return originalApply(originalExec, this, args);
   };
 
   let isolatedModule;
   try {
     isolatedModule = await import(
-      '../../applications/blockchain-digital-assets/wallet-guard/trusted-context-capture.mjs?preimport-object-create-regression'
+      '../../applications/blockchain-digital-assets/wallet-guard/trusted-context-capture.mjs?preimport-primordial-regression'
     );
   } finally {
     Object.create = originalCreate;
+    Object.defineProperty = originalDefineProperty;
+    Object.freeze = originalFreeze;
+    Reflect.apply = originalApply;
+    RegExp.prototype.exec = originalExec;
   }
 
+  const beforeCaptureCalls = poisonCalls;
   const context = isolatedModule.captureWalletGuardTrustedContext(validCapture, TRUSTED_RUNTIME);
-  assert.equal(Object.getPrototypeOf(context), null);
-  assert.equal(Object.isFrozen(context), true);
-  assert.equal(context.chain_id, CHAIN_ID);
-  assert.equal(context.account, ACCOUNT);
+  assert.equal(poisonCalls, beforeCaptureCalls);
+  assertExactContext(context);
 });
 
 test('post-import ambient primordial drift is ignored in favor of the trusted runtime', () => {
+  const originalCreate = Object.create;
   const originalFreeze = Object.freeze;
   const originalDefineProperty = Object.defineProperty;
   const originalApply = Reflect.apply;
   const originalExec = RegExp.prototype.exec;
   let poisonCalls = 0;
 
+  Object.create = function poisonedCreate(...args) {
+    poisonCalls += 1;
+    return originalApply(originalCreate, undefined, args);
+  };
   Object.freeze = function poisonedFreeze(value) {
     poisonCalls += 1;
     return value;
   };
   Object.defineProperty = function poisonedDefineProperty(...args) {
     poisonCalls += 1;
-    return originalDefineProperty(...args);
+    return originalApply(originalDefineProperty, undefined, args);
   };
   Reflect.apply = function poisonedApply(...args) {
     poisonCalls += 1;
@@ -92,6 +126,7 @@ test('post-import ambient primordial drift is ignored in favor of the trusted ru
   try {
     context = capture(validCapture);
   } finally {
+    Object.create = originalCreate;
     Object.freeze = originalFreeze;
     Object.defineProperty = originalDefineProperty;
     Reflect.apply = originalApply;
@@ -99,10 +134,7 @@ test('post-import ambient primordial drift is ignored in favor of the trusted ru
   }
 
   assert.equal(poisonCalls, 0);
-  assert.equal(Object.getPrototypeOf(context), null);
-  assert.equal(Object.isFrozen(context), true);
-  assert.equal(context.chain_id, CHAIN_ID);
-  assert.equal(context.account, ACCOUNT);
+  assertExactContext(context);
 });
 
 test('inherited Array/Object thenables cannot participate in scalar context delivery', () => {
