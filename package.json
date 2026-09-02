@@ -33,7 +33,7 @@
     "test:pom-rx:wallet-guard-preflight-evidence": "node --test tests/wallet-guard/preflight-evidence.node.test.mjs tests/wallet-guard/preflight-evidence-hardening.node.test.mjs tests/wallet-guard/preflight-evidence-reentrancy.node.test.mjs tests/wallet-guard/preflight-evidence-review-regressions.node.test.mjs tests/wallet-guard/method-commitment-continuity.node.test.mjs",
     "test:pom-rx:wallet-guard-witness-authorization": "node --test tests/wallet-guard/witness-authorization.node.test.mjs tests/wallet-guard/witness-authorization-hardening.node.test.mjs",
     "test:pom-rx:wallet-guard-decoded-effect": "node --test tests/wallet-guard/decoded-effect-evidence.node.test.mjs",
-    "test:pom-rx:wallet-guard-provider-gate": "node --test tests/wallet-guard/provider-gate.node.test.mjs tests/wallet-guard/trusted-provider-transport.node.test.mjs tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs",
+    "test:pom-rx:wallet-guard-provider-gate": "node --test tests/wallet-guard/provider-gate.node.test.mjs tests/wallet-guard/trusted-provider-transport.node.test.mjs tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs tests/wallet-guard/security-intrinsic-boundary-regressions.node.test.mjs",
     "test:pom-rx:wallet-guard-controlled-host": "node --test tests/wallet-guard/controlled-host-v2.node.test.mjs",
     "test:pom-rx:repository-layout": "node --test tests/pom-rx-repository-layout.node.test.mjs",
     "test:pom-rx:capability-map": "node --test tests/pom-rx-capability-map.node.test.mjs",
