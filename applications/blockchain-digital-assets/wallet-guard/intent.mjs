@@ -16,8 +16,9 @@ export const WALLET_GUARD_INTENT_SCHEMA_VERSION = 'wallet_guard_intent/0.1';
 export const WALLET_GUARD_INTENT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-intent:v1:';
 
 const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
-const TRUSTED_ARRAY_SLICE = Array.prototype.slice;
 const TRUSTED_ARRAY_SORT = Array.prototype.sort;
+const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
 const TRUSTED_OBJECT_KEYS = Object.keys;
@@ -111,8 +112,24 @@ function patternTest(pattern, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
 }
 
+function appendArrayValue(list, value) {
+  const descriptor = TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT_CREATE, undefined, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  descriptor.writable = true;
+  TRUSTED_REFLECT_APPLY(
+    TRUSTED_OBJECT_DEFINE_PROPERTY,
+    undefined,
+    [list, String(list.length), descriptor],
+  );
+}
+
 function sortedCopy(values) {
-  const copy = TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SLICE, values, []);
+  const copy = [];
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(copy, values[index]);
+  }
   TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, copy, []);
   return copy;
 }
