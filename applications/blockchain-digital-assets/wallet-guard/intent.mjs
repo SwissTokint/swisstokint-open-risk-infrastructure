@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   canonicalizePayload,
   sha256Hex,
@@ -17,6 +19,8 @@ export const WALLET_GUARD_INTENT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guar
 
 const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
 const TRUSTED_ARRAY_SORT = Array.prototype.sort;
+const TRUSTED_CREATE_HASH = createHash;
+const TRUSTED_JSON_STRINGIFY = JSON.stringify;
 const TRUSTED_OBJECT_CREATE = Object.create;
 const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
@@ -33,6 +37,9 @@ const TRUSTED_URL_PROTOCOL_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.pro
 const TRUSTED_URL_ORIGIN_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'origin').get;
 const TRUSTED_URL_USERNAME_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'username').get;
 const TRUSTED_URL_PASSWORD_GET = Object.getOwnPropertyDescriptor(TRUSTED_URL.prototype, 'password').get;
+const TRUSTED_HASH_PROBE = TRUSTED_CREATE_HASH('sha256');
+const TRUSTED_HASH_UPDATE = TRUSTED_HASH_PROBE.update;
+const TRUSTED_HASH_DIGEST = TRUSTED_HASH_PROBE.digest;
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/u;
 const RPC_METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
@@ -475,11 +482,55 @@ export function normalizeWalletGuardIntent(input) {
   return intent;
 }
 
+function quoteCanonicalString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_STRINGIFY, undefined, [value]);
+}
+
+function canonicalNullableString(value) {
+  return value === null ? 'null' : quoteCanonicalString(value);
+}
+
+function canonicalNullableBoolean(value) {
+  if (value === null) return 'null';
+  return value ? 'true' : 'false';
+}
+
+function canonicalizeValidatedIntent(intent) {
+  return `{"account":${quoteCanonicalString(intent.account)}`
+    + `,"calldata_sha256":${canonicalNullableString(intent.calldata_sha256)}`
+    + `,"chain_id":${quoteCanonicalString(intent.chain_id)}`
+    + `,"native_value":${quoteCanonicalString(intent.native_value)}`
+    + `,"origin":${quoteCanonicalString(intent.origin)}`
+    + `,"recipient":${canonicalNullableString(intent.recipient)}`
+    + `,"request_class":${quoteCanonicalString(intent.request_class)}`
+    + `,"request_id":${quoteCanonicalString(intent.request_id)}`
+    + `,"requested_allowance":${canonicalNullableString(intent.requested_allowance)}`
+    + `,"requested_operator_approval":${canonicalNullableBoolean(intent.requested_operator_approval)}`
+    + `,"rpc_method":${quoteCanonicalString(intent.rpc_method)}`
+    + `,"schema_version":${quoteCanonicalString(intent.schema_version)}`
+    + `,"simulation_required":${intent.simulation_required ? 'true' : 'false'}`
+    + `,"spender":${canonicalNullableString(intent.spender)}`
+    + `,"target":${canonicalNullableString(intent.target)}`
+    + `,"token_amount":${canonicalNullableString(intent.token_amount)}`
+    + `,"typed_data_domain_chain_id":${canonicalNullableString(intent.typed_data_domain_chain_id)}`
+    + `,"typed_data_owner":${canonicalNullableString(intent.typed_data_owner)}`
+    + `,"typed_data_sha256":${canonicalNullableString(intent.typed_data_sha256)}`
+    + `,"typed_data_verifying_contract":${canonicalNullableString(intent.typed_data_verifying_contract)}}`;
+}
+
+function trustedSha256Hex(value) {
+  const hash = TRUSTED_CREATE_HASH('sha256');
+  TRUSTED_REFLECT_APPLY(TRUSTED_HASH_UPDATE, hash, [value, 'utf8']);
+  return TRUSTED_REFLECT_APPLY(TRUSTED_HASH_DIGEST, hash, ['hex']);
+}
+
 export function commitWalletGuardIntent(intent) {
   validateWalletGuardIntent(intent);
-  const canonical_intent = canonicalizePayload(intent);
+  const canonical_intent = canonicalizeValidatedIntent(intent);
   return TRUSTED_OBJECT_FREEZE({
     canonical_intent,
-    intent_commitment: sha256Hex(`${WALLET_GUARD_INTENT_COMMIT_DOMAIN}${canonical_intent}`),
+    intent_commitment: trustedSha256Hex(
+      `${WALLET_GUARD_INTENT_COMMIT_DOMAIN}${canonical_intent}`,
+    ),
   });
 }

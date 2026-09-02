@@ -1,7 +1,5 @@
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../../sdk/typescript/swisstokint-proof.mjs';
+import { createHash } from 'node:crypto';
+
 import {
   createReferenceSingleUseGateHarness,
 } from '../../../core/gate/reference-single-use-gate.mjs';
@@ -31,12 +29,18 @@ const TRUSTED_SET = Set;
 const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
 const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
+const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
 
 const TRUSTED_OBJECT = globalThis.Object;
 const TRUSTED_ARRAY = globalThis.Array;
 const TRUSTED_NUMBER = globalThis.Number;
 const TRUSTED_DATE = globalThis.Date;
 const TRUSTED_URL = globalThis.URL;
+const TRUSTED_STRING = globalThis.String;
+const TRUSTED_JSON_STRINGIFY = globalThis.JSON.stringify;
+const TRUSTED_CREATE_HASH = createHash;
+const TRUSTED_ARRAY_SORT = TRUSTED_ARRAY.prototype.sort;
+const TRUSTED_STRING_PAD_START = TRUSTED_STRING.prototype.padStart;
 const TRUSTED_DATE_GET_TIME = TRUSTED_DATE.prototype.getTime;
 const TRUSTED_DATE_TO_ISO_STRING = TRUSTED_DATE.prototype.toISOString;
 const TRUSTED_URL_PROTOCOL_GET = globalThis.Object.getOwnPropertyDescriptor(
@@ -55,6 +59,9 @@ const TRUSTED_URL_PASSWORD_GET = globalThis.Object.getOwnPropertyDescriptor(
   TRUSTED_URL.prototype,
   'password',
 ).get;
+const TRUSTED_HASH_PROBE = TRUSTED_CREATE_HASH('sha256');
+const TRUSTED_HASH_UPDATE = TRUSTED_HASH_PROBE.update;
+const TRUSTED_HASH_DIGEST = TRUSTED_HASH_PROBE.digest;
 
 const Object = {
   create: TRUSTED_OBJECT.create,
@@ -182,14 +189,45 @@ function setAdd(set, value) {
   TRUSTED_REFLECT_APPLY(TRUSTED_SET_ADD, set, [value]);
 }
 
+function regexpTest(pattern, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
+}
+
+function appendArrayValue(list, value) {
+  const descriptor = TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT.create, undefined, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  descriptor.writable = true;
+  TRUSTED_REFLECT_APPLY(
+    TRUSTED_OBJECT.defineProperty,
+    undefined,
+    [list, `${list.length}`, descriptor],
+  );
+}
+
+function sortedCopy(values) {
+  const copy = new TRUSTED_ARRAY();
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(copy, values[index]);
+  }
+  TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, copy, []);
+  return copy;
+}
+
 function exactKeys(value, expected, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const actual = sortedCopy(Object.keys(value));
+  const wanted = sortedCopy(expected);
+  if (actual.length !== wanted.length) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+  }
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== wanted[index]) {
+      fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+    }
   }
 }
 
@@ -203,7 +241,7 @@ function canonicalOrigin(value) {
   } catch {
     fail('POMRX_WG_PROVIDER_E_ORIGIN_INVALID', 'trusted origin must be an absolute HTTP(S) origin');
   }
-  if (!['https:', 'http:'].includes(url.protocol)
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
       || url.origin !== value
       || url.username
       || url.password) {
@@ -226,7 +264,7 @@ function sampleTrustedOrigin(captureTrustedOrigin) {
 }
 
 function canonicalUtcInstant(value, field) {
-  if (typeof value !== 'string' || !value.endsWith('Z')) {
+  if (typeof value !== 'string' || value.length === 0 || value[value.length - 1] !== 'Z') {
     fail('POMRX_WG_PROVIDER_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
   }
   const parsed = new Date(value);
@@ -269,17 +307,25 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
   }
   if (Array.isArray(value)) {
     const keys = Object.keys(value);
-    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+    if (keys.length !== value.length) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays must be dense');
     }
+    for (let index = 0; index < keys.length; index += 1) {
+      if (keys[index] !== `${index}`) {
+        fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays must be dense');
+      }
+    }
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    return Object.freeze(keys.map((key) => {
+    const output = new TRUSTED_ARRAY();
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
       const descriptor = descriptors[key];
       if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
         fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays cannot contain accessors');
       }
-      return clonePlainRequest(descriptor.value, depth + 1, budget);
-    }));
+      appendArrayValue(output, clonePlainRequest(descriptor.value, depth + 1, budget));
+    }
+    return Object.freeze(output);
   }
 
   if (!value || typeof value !== 'object') {
@@ -295,7 +341,9 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
-  for (const key of Object.keys(value)) {
+  const keys = Object.keys(value);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
     if (key.length === 0 || key.length > MAX_REQUEST_KEY || setHas(FORBIDDEN_KEYS, key)) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request contains an unsafe key');
     }
@@ -376,31 +424,38 @@ function sampleTrustedContext(captureTrustedOrigin, provider, captureContext) {
   });
 }
 
+function quoteCanonicalString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_STRINGIFY, undefined, [value]);
+}
+
+function trustedSha256Hex(value) {
+  const hash = TRUSTED_CREATE_HASH('sha256');
+  TRUSTED_REFLECT_APPLY(TRUSTED_HASH_UPDATE, hash, [value, 'utf8']);
+  return TRUSTED_REFLECT_APPLY(TRUSTED_HASH_DIGEST, hash, ['hex']);
+}
+
 function commitContext(context, policyHash) {
-  const payload = Object.freeze({
-    schema_version: WALLET_GUARD_CONTEXT_SCHEMA_VERSION,
-    origin: context.origin,
-    chain_id: context.chain_id,
-    account: context.account,
-    policy_hash: policyHash,
-  });
-  const canonical = canonicalizePayload(payload);
-  return sha256Hex(`${CONTEXT_COMMIT_DOMAIN}${canonical}`);
+  const canonical = `{"account":${quoteCanonicalString(context.account)}`
+    + `,"chain_id":${quoteCanonicalString(context.chain_id)}`
+    + `,"origin":${quoteCanonicalString(context.origin)}`
+    + `,"policy_hash":${quoteCanonicalString(policyHash)}`
+    + `,"schema_version":${quoteCanonicalString(WALLET_GUARD_CONTEXT_SCHEMA_VERSION)}}`;
+  return trustedSha256Hex(`${CONTEXT_COMMIT_DOMAIN}${canonical}`);
 }
 
 function commitMethod(method) {
-  return sha256Hex(`${METHOD_COMMIT_DOMAIN}${method}`);
+  return trustedSha256Hex(`${METHOD_COMMIT_DOMAIN}${method}`);
 }
 
 function validateReferenceAuthorization(value) {
   exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
-    if (typeof value[field] !== 'string' || !ID_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(ID_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['verification_profile', 'verifier_version']) {
-    if (typeof value[field] !== 'string' || !PROFILE_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(PROFILE_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -410,12 +465,12 @@ function validateReferenceAuthorization(value) {
     'implementation_artifact_sha256',
     'effective_verification_policy_sha256',
   ]) {
-    if (typeof value[field] !== 'string' || !HASH_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(HASH_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['source_key_id', 'witness_key_id']) {
-    if (typeof value[field] !== 'string' || !KEY_ID_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -445,8 +500,10 @@ function validatePreparedExecution(prepared) {
   if (prepared.schema_version !== WALLET_GUARD_PREPARED_EXECUTION_VERSION) {
     fail('POMRX_WG_PROVIDER_E_PREPARED_INVALID', 'prepared execution version is invalid');
   }
-  if (typeof prepared.intent_commitment !== 'string' || !HASH_PATTERN.test(prepared.intent_commitment)
-      || typeof prepared.policy_hash !== 'string' || !HASH_PATTERN.test(prepared.policy_hash)) {
+  if (typeof prepared.intent_commitment !== 'string'
+      || !regexpTest(HASH_PATTERN, prepared.intent_commitment)
+      || typeof prepared.policy_hash !== 'string'
+      || !regexpTest(HASH_PATTERN, prepared.policy_hash)) {
     fail('POMRX_WG_PROVIDER_E_PREPARED_INVALID', 'prepared execution commitments are invalid');
   }
   return prepared;
@@ -563,6 +620,14 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the prepared request');
       }
 
+      const finalContext = sampleTrustedContext(
+        captureTrustedOrigin,
+        provider,
+        providerCaptureContext,
+      );
+      if (!exactContextMatches(prepared, finalContext)) {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
+      }
       return TRUSTED_REFLECT_APPLY(providerRequest, provider, [request]);
     },
   });
@@ -572,7 +637,13 @@ export function createWalletGuardReferenceProviderGateway(options) {
     // the dApp object after this call cannot change the request later forwarded.
     const requestSnapshot = clonePlainRequest(untrustedRequest);
     requestCounter += 1;
-    const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
+    const counterText = TRUSTED_REFLECT_APPLY(TRUSTED_STRING, undefined, [requestCounter]);
+    const paddedCounter = TRUSTED_REFLECT_APPLY(
+      TRUSTED_STRING_PAD_START,
+      counterText,
+      [8, '0'],
+    );
+    const requestId = `wg-reference-request-${paddedCounter}`;
 
     const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
     const intent = normalizeWalletGuardIntent({

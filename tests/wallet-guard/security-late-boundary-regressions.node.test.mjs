@@ -1,0 +1,325 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  canonicalizePayload,
+  sha256Hex,
+} from '../../sdk/typescript/swisstokint-proof.mjs';
+import {
+  createWalletGuardControlledReferenceHost,
+} from '../../applications/blockchain-digital-assets/wallet-guard/controlled-host.mjs';
+import {
+  WALLET_GUARD_INTENT_COMMIT_DOMAIN,
+  commitWalletGuardIntent,
+  normalizeWalletGuardIntent,
+} from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
+import {
+  WalletGuardProviderError,
+  createWalletGuardReferenceProviderGateway,
+} from '../../applications/blockchain-digital-assets/wallet-guard/provider.mjs';
+
+const ACCOUNT = `0x${'1'.repeat(40)}`;
+const RECIPIENT = `0x${'3'.repeat(40)}`;
+const DENIED_RECIPIENT = `0x${'7'.repeat(40)}`;
+const ATTACKER = `0x${'8'.repeat(40)}`;
+const ORIGIN = 'https://late-boundary.wallet-guard.local';
+const CHAIN_ID = '0x1';
+const TX_RESULT = `0x${'a'.repeat(64)}`;
+const DECIMAL_PATTERN_SOURCE = '^(?:0|[1-9][0-9]*)$';
+
+function indexedHash(index, offset) {
+  return (40_000n + (BigInt(index) * 4n) + BigInt(offset))
+    .toString(16)
+    .padStart(64, '0');
+}
+
+function referenceAuthorizationFactory(prefix = 'late-boundary') {
+  let counter = 0;
+  return () => {
+    counter += 1;
+    return {
+      run_id: `run-${prefix}-${String(counter).padStart(8, '0')}`,
+      agent_ref: `agent-${prefix}-0001`,
+      subject_ref: `subject-${prefix}-0001`,
+      preflight_receipt_hash: indexedHash(counter, 0),
+      witness_ack_hash: indexedHash(counter, 1),
+      source_key_id: `ed25519-${'a'.repeat(32)}`,
+      witness_key_id: `ed25519-${'b'.repeat(32)}`,
+      verification_profile: 'pom-rx-v0.1/strict-errata-1',
+      verifier_version: 'pom-rx-v0.1-strict-verifier/1',
+      implementation_artifact_sha256: indexedHash(counter, 2),
+      effective_verification_policy_sha256: indexedHash(counter, 3),
+      witness_valid_until: '2026-09-02T18:30:00.000Z',
+    };
+  };
+}
+
+function policy(overrides = {}) {
+  return {
+    schema_version: 'wallet-guard-policy/0.1',
+    policy_id: 'wallet-guard-late-boundary/0.1',
+    enabled: true,
+    kill_switch: false,
+    expected_chain_id: CHAIN_ID,
+    allowed_origins: [ORIGIN],
+    allowed_targets: [],
+    allowed_recipients: [RECIPIENT],
+    allowed_spenders: [],
+    allowed_typed_data_verifying_contracts: [],
+    max_native_value: '1000',
+    max_token_amount: '1000000',
+    deny_unlimited_allowance: true,
+    deny_operator_approval: true,
+    require_simulation_for: [],
+    ...overrides,
+  };
+}
+
+function sendTransaction({ from = ACCOUNT, to = RECIPIENT, value = '0x1' } = {}) {
+  return {
+    method: 'eth_sendTransaction',
+    params: [{
+      from,
+      to,
+      value,
+      data: '0x',
+    }],
+  };
+}
+
+function createMutableGateway({
+  account = ACCOUNT,
+  authorizationFactory = referenceAuthorizationFactory(),
+  onAuthorizationSummary = null,
+} = {}) {
+  const state = {
+    account,
+    sensitiveCalls: [],
+  };
+  const provider = Object.freeze({
+    captureContext(deliverContext) {
+      deliverContext(CHAIN_ID, state.account);
+    },
+    async request(request) {
+      state.sensitiveCalls.push(request);
+      return TX_RESULT;
+    },
+  });
+  const gateway = createWalletGuardReferenceProviderGateway({
+    captureTrustedOrigin: () => ORIGIN,
+    provider,
+    policy: policy(),
+    trustedClock: () => '2026-09-02T18:00:00.000Z',
+    referenceAuthorizationForRequest: (summary) => {
+      if (onAuthorizationSummary) onAuthorizationSummary(summary);
+      return authorizationFactory(summary);
+    },
+    capabilityLifetimeMs: 30_000,
+  });
+  return { gateway, state };
+}
+
+function normalizeControlIntent() {
+  return normalizeWalletGuardIntent({
+    requestId: 'wg-late-boundary-0001',
+    trustedOrigin: ORIGIN,
+    trustedChainId: CHAIN_ID,
+    trustedAccount: ACCOUNT,
+    request: sendTransaction(),
+  });
+}
+
+test('fixed-schema intent commitment remains byte-compatible with the historical canonical form', () => {
+  const intent = normalizeControlIntent();
+  const expectedCanonical = canonicalizePayload(intent);
+  const expectedCommitment = sha256Hex(
+    `${WALLET_GUARD_INTENT_COMMIT_DOMAIN}${expectedCanonical}`,
+  );
+  const committed = commitWalletGuardIntent(intent);
+
+  assert.equal(committed.canonical_intent, expectedCanonical);
+  assert.equal(committed.intent_commitment, expectedCommitment);
+});
+
+test('post-import Object.entries drift cannot rewrite a validated intent commitment', () => {
+  const intent = normalizeControlIntent();
+  const expected = commitWalletGuardIntent(intent);
+  const originalEntries = Object.entries;
+
+  Object.entries = function poisonedEntries(value) {
+    if (value === intent) {
+      return originalEntries({
+        ...intent,
+        recipient: DENIED_RECIPIENT,
+        target: DENIED_RECIPIENT,
+      });
+    }
+    return originalEntries(value);
+  };
+
+  try {
+    const actual = commitWalletGuardIntent(intent);
+    assert.equal(actual.canonical_intent, expected.canonical_intent);
+    assert.equal(actual.intent_commitment, expected.intent_commitment);
+  } finally {
+    Object.entries = originalEntries;
+  }
+});
+
+test('Array.prototype.map drift cannot retain caller transaction aliases into sensitive forwarding', async () => {
+  const { gateway, state } = createMutableGateway({
+    authorizationFactory: referenceAuthorizationFactory('map-alias'),
+  });
+  const request = sendTransaction();
+  const callerTransaction = request.params[0];
+  const originalMap = Array.prototype.map;
+  const originalTest = RegExp.prototype.test;
+  let nativeValueChecks = 0;
+
+  Array.prototype.map = function poisonedMap(callback, thisArg) {
+    if (this.length === 1 && this[0] === '0') {
+      return [callerTransaction];
+    }
+    return Reflect.apply(originalMap, this, [callback, thisArg]);
+  };
+  RegExp.prototype.test = function poisonedTest(value) {
+    const result = Reflect.apply(originalTest, this, [value]);
+    if (this.source === DECIMAL_PATTERN_SOURCE && value === '1') {
+      nativeValueChecks += 1;
+      if (nativeValueChecks === 3) callerTransaction.to = DENIED_RECIPIENT;
+    }
+    return result;
+  };
+
+  try {
+    const result = await gateway.request(request);
+    assert.equal(result.forwarded, true);
+  } finally {
+    Array.prototype.map = originalMap;
+    RegExp.prototype.test = originalTest;
+  }
+
+  assert.equal(state.sensitiveCalls.length, 1);
+  assert.equal(state.sensitiveCalls[0].params[0].to, RECIPIENT);
+  assert.equal(callerTransaction.to, DENIED_RECIPIENT);
+});
+
+test('controlled host ignores a post-import replacement of the global Array constructor for trusted accounts', async () => {
+  const OriginalArray = globalThis.Array;
+  function PoisonedArray(...args) {
+    const result = Reflect.construct(OriginalArray, args, OriginalArray);
+    if (args.length === 1 && args[0] === 1) {
+      Object.defineProperty(result, '0', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          return ATTACKER;
+        },
+        set() {},
+      });
+    }
+    return result;
+  }
+  PoisonedArray.prototype = OriginalArray.prototype;
+  Object.setPrototypeOf(PoisonedArray, OriginalArray);
+  PoisonedArray.isArray = OriginalArray.isArray;
+
+  let host;
+  globalThis.Array = PoisonedArray;
+  try {
+    host = createWalletGuardControlledReferenceHost({
+      trustedOrigin: ORIGIN,
+      chainId: CHAIN_ID,
+      accounts: [ACCOUNT],
+      policy: policy(),
+      trustedClock: () => '2026-09-02T18:00:00.000Z',
+      referenceAuthorizationForRequest: referenceAuthorizationFactory('array-ctor'),
+      capabilityLifetimeMs: 30_000,
+      providerResult: TX_RESULT,
+    });
+  } finally {
+    globalThis.Array = OriginalArray;
+  }
+
+  await assert.rejects(
+    host.page.ethereum.request(sendTransaction({ from: ATTACKER })),
+  );
+  const state = host.testAuthority.inspect();
+  assert.equal(state.accounts[0], ACCOUNT);
+  assert.equal(state.sensitive_call_count, 0);
+});
+
+test('context drift during final policy work is re-sampled before sensitive forwarding', async () => {
+  const { gateway, state } = createMutableGateway({
+    authorizationFactory: referenceAuthorizationFactory('final-context'),
+  });
+  const originalTest = RegExp.prototype.test;
+  let nativeValueChecks = 0;
+
+  RegExp.prototype.test = function poisonedTest(value) {
+    const result = Reflect.apply(originalTest, this, [value]);
+    if (this.source === DECIMAL_PATTERN_SOURCE && value === '1') {
+      nativeValueChecks += 1;
+      if (nativeValueChecks === 3) state.account = ATTACKER;
+    }
+    return result;
+  };
+
+  try {
+    await assert.rejects(
+      gateway.request(sendTransaction()),
+      (error) => {
+        assert.ok(error instanceof WalletGuardProviderError);
+        assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_CHANGED');
+        return true;
+      },
+    );
+  } finally {
+    RegExp.prototype.test = originalTest;
+  }
+
+  assert.equal(state.account, ATTACKER);
+  assert.equal(state.sensitiveCalls.length, 0);
+});
+
+async function captureReferenceSummary({ poisonContextEntries = false } = {}) {
+  let capturedSummary = null;
+  const { gateway } = createMutableGateway({
+    authorizationFactory: referenceAuthorizationFactory(
+      poisonContextEntries ? 'context-poison' : 'context-control',
+    ),
+    onAuthorizationSummary(summary) {
+      capturedSummary = summary;
+    },
+  });
+
+  const originalEntries = Object.entries;
+  if (poisonContextEntries) {
+    Object.entries = function poisonedEntries(value) {
+      if (value
+          && typeof value === 'object'
+          && value.schema_version === 'wallet_guard_context/0.1') {
+        return originalEntries({ ...value, account: ATTACKER });
+      }
+      return originalEntries(value);
+    };
+  }
+
+  try {
+    const result = await gateway.request(sendTransaction());
+    assert.equal(result.forwarded, true);
+  } finally {
+    Object.entries = originalEntries;
+  }
+  assert.ok(capturedSummary);
+  return capturedSummary;
+}
+
+test('context and method commitments ignore post-import Object.entries drift', async () => {
+  const control = await captureReferenceSummary();
+  const poisoned = await captureReferenceSummary({ poisonContextEntries: true });
+
+  assert.equal(poisoned.method_hash, control.method_hash);
+  assert.equal(poisoned.context_commitment, control.context_commitment);
+  assert.equal(poisoned.action_commitment, control.action_commitment);
+});

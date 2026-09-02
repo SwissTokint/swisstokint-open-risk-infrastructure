@@ -12,22 +12,35 @@ import {
 } from './provider.mjs';
 
 const REFLECT_APPLY = Reflect.apply;
+const OBJECT_CREATE = Object.create;
+const OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const OBJECT_FREEZE = Object.freeze;
 const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
 const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_PROTOTYPE = Object.prototype;
+const NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const ARRAY_CTOR = Array;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PROTOTYPE = Array.prototype;
 const ARRAY_PUSH = Array.prototype.push;
+const ARRAY_SORT = Array.prototype.sort;
 const REGEXP_TEST = RegExp.prototype.test;
+const SET_CTOR = Set;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
 const IS_PROXY = utilTypes.isProxy;
 const URL_CTOR = URL;
+const URL_PROTOCOL_GET = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(URL_CTOR.prototype, 'protocol').get;
+const URL_ORIGIN_GET = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(URL_CTOR.prototype, 'origin').get;
+const URL_USERNAME_GET = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(URL_CTOR.prototype, 'username').get;
+const URL_PASSWORD_GET = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(URL_CTOR.prototype, 'password').get;
 
 function freeze(value) {
-  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+  return REFLECT_APPLY(OBJECT_FREEZE, undefined, [value]);
 }
 
 function arrayPush(array, value) {
@@ -44,6 +57,50 @@ function setHas(set, value) {
 
 function setAdd(set, value) {
   REFLECT_APPLY(SET_ADD, set, [value]);
+}
+
+function appendArrayValue(list, value) {
+  const descriptor = REFLECT_APPLY(OBJECT_CREATE, undefined, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  descriptor.writable = true;
+  REFLECT_APPLY(OBJECT_DEFINE_PROPERTY, undefined, [list, `${list.length}`, descriptor]);
+}
+
+function sortedCopy(values) {
+  const output = new ARRAY_CTOR();
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(output, values[index]);
+  }
+  REFLECT_APPLY(ARRAY_SORT, output, []);
+  return output;
+}
+
+function copyFrozenArray(values) {
+  const output = new ARRAY_CTOR();
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(output, values[index]);
+  }
+  return freeze(output);
+}
+
+class TrustedURL extends URL_CTOR {
+  get protocol() {
+    return REFLECT_APPLY(URL_PROTOCOL_GET, this, []);
+  }
+
+  get origin() {
+    return REFLECT_APPLY(URL_ORIGIN_GET, this, []);
+  }
+
+  get username() {
+    return REFLECT_APPLY(URL_USERNAME_GET, this, []);
+  }
+
+  get password() {
+    return REFLECT_APPLY(URL_PASSWORD_GET, this, []);
+  }
 }
 
 const HOST_KEYS = freeze([
@@ -88,25 +145,30 @@ function captureExactRecord(value, expectedKeys, label) {
       || ARRAY_IS_ARRAY(value)) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must be a non-Proxy plain object`);
   }
-  const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, undefined, [value]);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
-  if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
+  if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, undefined, [value]).length !== 0) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} cannot contain symbol keys`);
   }
 
-  const actualNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  const actual = [...actualNames].sort();
-  const expected = [...expectedKeys].sort();
-  if (actual.length !== expected.length
-      || actual.some((key, index) => key !== expected[index])) {
+  const actualNames = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, undefined, [value]);
+  const actual = sortedCopy(actualNames);
+  const expected = sortedCopy(expectedKeys);
+  if (actual.length !== expected.length) {
     fail('POMRX_WG_HOST_E_INVALID', `${label} has missing, hidden or unknown fields`);
   }
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== expected[index]) {
+      fail('POMRX_WG_HOST_E_INVALID', `${label} has missing, hidden or unknown fields`);
+    }
+  }
 
-  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const captured = Object.create(null);
-  for (const key of expectedKeys) {
+  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, undefined, [value]);
+  const captured = REFLECT_APPLY(OBJECT_CREATE, undefined, [null]);
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_HOST_E_INVALID', `${label}.${key} must be an enumerable data property`);
@@ -122,7 +184,7 @@ function canonicalOrigin(value) {
   }
   let url;
   try {
-    url = new URL_CTOR(value);
+    url = new TrustedURL(value);
   } catch {
     fail('POMRX_WG_HOST_E_ORIGIN_INVALID', 'trusted origin must be an absolute HTTP(S) origin');
   }
@@ -135,36 +197,32 @@ function canonicalOrigin(value) {
   return url.origin;
 }
 
-function copyFrozenArray(values) {
-  const output = new Array(values.length);
-  for (let index = 0; index < values.length; index += 1) {
-    output[index] = values[index];
-  }
-  return freeze(output);
-}
-
 function canonicalAccounts(value) {
   if (!ARRAY_IS_ARRAY(value)
       || REFLECT_APPLY(IS_PROXY, utilTypes, [value])
-      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]) !== Array.prototype) {
+      || REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, undefined, [value]) !== ARRAY_PROTOTYPE) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a standard non-Proxy array');
   }
   if (value.length < 1 || value.length > MAX_ACCOUNTS) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a bounded non-empty array');
   }
-  if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]).length !== 0) {
+  if (REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, undefined, [value]).length !== 0) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain symbol keys');
   }
 
-  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
-  if (names.length !== value.length + 1 || !names.includes('length')) {
+  const names = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, undefined, [value]);
+  if (names.length !== value.length + 1) {
     fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must be a dense undecorated array');
   }
-  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
-  const normalized = new Array(value.length);
-  const seen = new Set();
+  const descriptors = REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, undefined, [value]);
+  if (!OBJECT_HAS_OWN(descriptors, 'length')) {
+    fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must expose an own length');
+  }
+
+  const normalized = new ARRAY_CTOR();
+  const seen = new SET_CTOR();
   for (let index = 0; index < value.length; index += 1) {
-    const key = String(index);
+    const key = `${index}`;
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts must contain dense data elements only');
@@ -174,7 +232,7 @@ function canonicalAccounts(value) {
       fail('POMRX_WG_HOST_E_ACCOUNTS_INVALID', 'accounts cannot contain duplicates');
     }
     setAdd(seen, account);
-    normalized[index] = account;
+    appendArrayValue(normalized, account);
   }
   return freeze(normalized);
 }
@@ -192,11 +250,14 @@ function captureSensitiveRequest(value) {
 }
 
 function inspectSensitiveCalls(calls) {
-  const output = new Array(calls.length);
+  const output = new ARRAY_CTOR();
   for (let index = 0; index < calls.length; index += 1) {
-    output[index] = captureReferencePlainData(
-      calls[index],
-      'Wallet Guard controlled provider recorded request',
+    appendArrayValue(
+      output,
+      captureReferencePlainData(
+        calls[index],
+        'Wallet Guard controlled provider recorded request',
+      ),
     );
   }
   return freeze(output);
@@ -215,7 +276,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
       'trusted clock and reference authorization supplier are required',
     );
   }
-  if (!Number.isSafeInteger(options.capabilityLifetimeMs)
+  if (!NUMBER_IS_SAFE_INTEGER(options.capabilityLifetimeMs)
       || options.capabilityLifetimeMs < 1_000
       || options.capabilityLifetimeMs > 300_000) {
     fail(
