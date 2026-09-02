@@ -19,9 +19,28 @@ import {
 export const WALLET_GUARD_POLICY_SCHEMA_VERSION = 'wallet-guard-policy/0.1';
 export const WALLET_GUARD_POLICY_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-policy:v1:';
 
+const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
+const TRUSTED_ARRAY_INCLUDES = Array.prototype.includes;
+const TRUSTED_ARRAY_SORT = Array.prototype.sort;
+const TRUSTED_BIGINT = BigInt;
+const TRUSTED_IS_PROXY = utilTypes.isProxy;
+const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const TRUSTED_OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const TRUSTED_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
+const TRUSTED_OBJECT_KEYS = Object.keys;
+const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_SET = Set;
+const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_URL = URL;
+
 const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const POLICY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{7,127}$/u;
-const POLICY_KEYS = Object.freeze([
+const POLICY_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
   'policy_id',
   'enabled',
@@ -38,7 +57,7 @@ const POLICY_KEYS = Object.freeze([
   'deny_operator_approval',
   'require_simulation_for',
 ]);
-const KNOWN_REQUEST_CLASSES = new Set([
+const KNOWN_REQUEST_CLASSES = new TRUSTED_SET([
   'native_transfer',
   'erc20_approve',
   'erc20_transfer',
@@ -51,14 +70,14 @@ const KNOWN_REQUEST_CLASSES = new Set([
   'generic_signature',
   'unsupported_rpc',
 ]);
-const CRITICAL_UNKNOWN_CLASSES = new Set([
+const CRITICAL_UNKNOWN_CLASSES = new TRUSTED_SET([
   'permit2_batch_unknown',
   'unknown_calldata',
   'unknown_typed_data',
   'generic_signature',
   'unsupported_rpc',
 ]);
-const SIMULATION_STATUSES = new Set(['not_run', 'pass', 'fail', 'unavailable', 'mismatch']);
+const SIMULATION_STATUSES = new TRUSTED_SET(['not_run', 'pass', 'fail', 'unavailable', 'mismatch']);
 
 export class WalletGuardPolicyError extends Error {
   constructor(code, message) {
@@ -73,95 +92,146 @@ function fail(code, message) {
 }
 
 function isProxy(value) {
-  return utilTypes.isProxy(value);
+  return TRUSTED_IS_PROXY(value);
+}
+
+function setHas(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
+}
+
+function arrayIncludes(list, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_INCLUDES, list, [value]);
+}
+
+function appendArrayValue(list, value) {
+  TRUSTED_OBJECT_DEFINE_PROPERTY(list, `${list.length}`, {
+    value,
+    enumerable: true,
+    configurable: true,
+    writable: true,
+  });
+}
+
+function cloneArray(values) {
+  const result = [];
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(result, values[index]);
+  }
+  return result;
+}
+
+function sortedArray(values) {
+  const result = cloneArray(values);
+  TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, result, []);
+  return result;
 }
 
 function isOwnEnumerableDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'enumerable')
+    && TRUSTED_OBJECT_HAS_OWN(descriptor, 'enumerable')
     && descriptor.enumerable === true
-    && Object.hasOwn(descriptor, 'value')
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'set');
 }
 
 function isOwnDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'value')
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+    && !TRUSTED_OBJECT_HAS_OWN(descriptor, 'set');
+}
+
+function hasExactSortedKeys(actual, expected) {
+  if (actual.length !== expected.length) return false;
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== expected[index]) return false;
+  }
+  return true;
 }
 
 function snapshotExactDataRecord(value, expected, label) {
-  if (!value || typeof value !== 'object' || isProxy(value) || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || isProxy(value) || TRUSTED_ARRAY_IS_ARRAY(value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an exact plain data object`);
   }
-  const prototype = Object.getPrototypeOf(value);
+  const prototype = TRUSTED_OBJECT_GET_PROTOTYPE_OF(value);
   if (prototype !== Object.prototype && prototype !== null) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (TRUSTED_OBJECT_GET_OWN_PROPERTY_SYMBOLS(value).length !== 0) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} cannot contain symbol keys`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const descriptors = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTORS(value);
+  const actual = sortedArray(TRUSTED_OBJECT_KEYS(descriptors));
+  const wanted = sortedArray(expected);
+  if (!hasExactSortedKeys(actual, wanted)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} has missing, hidden or unknown fields`);
   }
-  const snapshot = Object.create(null);
-  for (const key of expected) {
+  const snapshot = TRUSTED_OBJECT_CREATE(null);
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = expected[index];
     const descriptor = descriptors[key];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${label} fields must be enumerable data properties`);
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return TRUSTED_OBJECT_FREEZE(snapshot);
 }
 
 function snapshotDenseArray(values, field) {
-  if (!values || typeof values !== 'object' || isProxy(values) || !Array.isArray(values)) {
+  if (!values || typeof values !== 'object' || isProxy(values) || !TRUSTED_ARRAY_IS_ARRAY(values)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded plain array`);
   }
-  // The caller Array prototype is deliberately outside policy semantics.
-  // This boundary reads only bounded own data descriptors and rematerializes
-  // a fresh normalized Array, so inherited behavior must never participate.
-  if (Object.getOwnPropertySymbols(values).length !== 0) {
+  if (TRUSTED_OBJECT_GET_OWN_PROPERTY_SYMBOLS(values).length !== 0) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain symbol keys`);
   }
-  const descriptors = Object.getOwnPropertyDescriptors(values);
+  const descriptors = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTORS(values);
   const lengthDescriptor = descriptors.length;
   if (!isOwnDataDescriptor(lengthDescriptor)
-      || !Number.isSafeInteger(lengthDescriptor.value)
+      || !TRUSTED_NUMBER_IS_SAFE_INTEGER(lengthDescriptor.value)
       || lengthDescriptor.value < 0
       || lengthDescriptor.value > 256) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded array`);
   }
   const length = lengthDescriptor.value;
-  const keys = Object.keys(descriptors).filter((key) => key !== 'length');
-  if (keys.length !== length || keys.some((key, index) => key !== String(index))) {
+  const descriptorKeys = TRUSTED_OBJECT_KEYS(descriptors);
+  const keys = [];
+  for (let index = 0; index < descriptorKeys.length; index += 1) {
+    const key = descriptorKeys[index];
+    if (key !== 'length') appendArrayValue(keys, key);
+  }
+  if (keys.length !== length) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be dense and cannot contain extra or hidden properties`);
   }
-  const snapshot = keys.map((key) => {
-    const descriptor = descriptors[key];
+  for (let index = 0; index < keys.length; index += 1) {
+    if (keys[index] !== `${index}`) {
+      fail('POMRX_WG_POLICY_E_INVALID', `${field} must be dense and cannot contain extra or hidden properties`);
+    }
+  }
+  const snapshot = [];
+  for (let index = 0; index < keys.length; index += 1) {
+    const descriptor = descriptors[keys[index]];
     if (!isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} entries must be enumerable data properties`);
     }
-    return descriptor.value;
-  });
-  return Object.freeze(snapshot);
+    appendArrayValue(snapshot, descriptor.value);
+  }
+  return TRUSTED_OBJECT_FREEZE(snapshot);
 }
 
 function normalizeOrigin(value) {
   if (typeof value !== 'string') fail('POMRX_WG_POLICY_E_INVALID', 'origin must be a string');
   let url;
   try {
-    url = new URL(value);
+    url = new TRUSTED_URL(value);
   } catch {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be an absolute URL origin');
   }
-  if (!['https:', 'http:'].includes(url.protocol) || url.origin !== value || url.username || url.password) {
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
+      || url.origin !== value
+      || url.username
+      || url.password) {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be canonical HTTP(S) origin');
   }
   return url.origin;
@@ -171,7 +241,7 @@ function normalizeCanonicalDecimal(value, field) {
   if (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a canonical decimal integer string`);
   }
-  return BigInt(value).toString(10);
+  return TRUSTED_BIGINT(value).toString(10);
 }
 
 function normalizePolicyChainId(value) {
@@ -194,12 +264,16 @@ function normalizePolicyAddress(value, field) {
 
 function normalizeUniqueList(values, field, normalizeItem) {
   const snapshotted = snapshotDenseArray(values, field);
-  const normalized = snapshotted.map(normalizeItem);
-  const unique = new Set(normalized);
-  if (unique.size !== normalized.length) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
+  const normalized = [];
+  for (let index = 0; index < snapshotted.length; index += 1) {
+    const item = normalizeItem(snapshotted[index]);
+    if (arrayIncludes(normalized, item)) {
+      fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain duplicates`);
+    }
+    appendArrayValue(normalized, item);
   }
-  return Object.freeze([...normalized].sort());
+  TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, normalized, []);
+  return TRUSTED_OBJECT_FREEZE(normalized);
 }
 
 function normalizePolicy(policy) {
@@ -210,7 +284,9 @@ function normalizePolicy(policy) {
   if (typeof snapshot.policy_id !== 'string' || !POLICY_ID_PATTERN.test(snapshot.policy_id)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'policy_id has an invalid format');
   }
-  for (const field of ['enabled', 'kill_switch', 'deny_unlimited_allowance', 'deny_operator_approval']) {
+  const booleanFields = ['enabled', 'kill_switch', 'deny_unlimited_allowance', 'deny_operator_approval'];
+  for (let index = 0; index < booleanFields.length; index += 1) {
+    const field = booleanFields[index];
     if (typeof snapshot[field] !== 'boolean') {
       fail('POMRX_WG_POLICY_E_INVALID', `${field} must be boolean`);
     }
@@ -220,14 +296,14 @@ function normalizePolicy(policy) {
     snapshot.require_simulation_for,
     'require_simulation_for',
     (value) => {
-      if (typeof value !== 'string' || !KNOWN_REQUEST_CLASSES.has(value)) {
+      if (typeof value !== 'string' || !setHas(KNOWN_REQUEST_CLASSES, value)) {
         fail('POMRX_WG_POLICY_E_INVALID', 'require_simulation_for contains an unknown request class');
       }
       return value;
     },
   );
 
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     schema_version: WALLET_GUARD_POLICY_SCHEMA_VERSION,
     policy_id: snapshot.policy_id,
     enabled: snapshot.enabled,
@@ -272,36 +348,41 @@ function validateIntent(intent) {
   if (!isLocallyNormalizedWalletGuardIntent(intent)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard policy requires a locally normalized intent');
   }
-  if (!KNOWN_REQUEST_CLASSES.has(intent.request_class)) {
+  if (!setHas(KNOWN_REQUEST_CLASSES, intent.request_class)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard intent request class is unknown');
   }
 }
 
 function normalizeSimulation(simulation) {
-  const value = simulation ?? Object.freeze({ status: 'not_run' });
+  const value = simulation ?? TRUSTED_OBJECT_FREEZE({ status: 'not_run' });
   const snapshot = snapshotExactDataRecord(value, ['status'], 'simulation evidence');
-  if (typeof snapshot.status !== 'string' || !SIMULATION_STATUSES.has(snapshot.status)) {
+  if (typeof snapshot.status !== 'string' || !setHas(SIMULATION_STATUSES, snapshot.status)) {
     fail('POMRX_WG_POLICY_E_INVALID', 'simulation status is invalid');
   }
   return snapshot.status;
 }
 
 function includes(list, value) {
-  return value !== null && value !== undefined && list.includes(value);
+  return value !== null && value !== undefined && arrayIncludes(list, value);
 }
 
 function greaterThan(value, limit) {
   if (value === null || value === undefined || !DECIMAL_INTEGER_PATTERN.test(value)) {
     return true;
   }
-  return BigInt(value) > BigInt(limit);
+  return TRUSTED_BIGINT(value) > TRUSTED_BIGINT(limit);
 }
 
 function makeResult(decision, reasons, normalizedPolicy) {
   const canonicalPolicy = canonicalizePayload(normalizedPolicy);
-  return Object.freeze({
+  const uniqueReasons = [];
+  for (let index = 0; index < reasons.length; index += 1) {
+    const reason = reasons[index];
+    if (!arrayIncludes(uniqueReasons, reason)) appendArrayValue(uniqueReasons, reason);
+  }
+  return TRUSTED_OBJECT_FREEZE({
     decision,
-    reasons: Object.freeze([...new Set(reasons)]),
+    reasons: TRUSTED_OBJECT_FREEZE(uniqueReasons),
     policy_id: normalizedPolicy.policy_id,
     policy_hash: sha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
   });
@@ -314,103 +395,103 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   const denyReasons = [];
   const indeterminateReasons = [];
 
-  if (!normalizedPolicy.enabled) denyReasons.push('WG_POLICY_DENY_DISABLED');
-  if (normalizedPolicy.kill_switch) denyReasons.push('WG_POLICY_DENY_KILL_SWITCH');
-  if (!normalizedPolicy.allowed_origins.includes(intent.origin)) {
-    denyReasons.push('WG_POLICY_DENY_ORIGIN');
+  if (!normalizedPolicy.enabled) appendArrayValue(denyReasons, 'WG_POLICY_DENY_DISABLED');
+  if (normalizedPolicy.kill_switch) appendArrayValue(denyReasons, 'WG_POLICY_DENY_KILL_SWITCH');
+  if (!includes(normalizedPolicy.allowed_origins, intent.origin)) {
+    appendArrayValue(denyReasons, 'WG_POLICY_DENY_ORIGIN');
   }
   if (intent.chain_id !== normalizedPolicy.expected_chain_id) {
-    denyReasons.push('WG_POLICY_DENY_CHAIN');
+    appendArrayValue(denyReasons, 'WG_POLICY_DENY_CHAIN');
   }
   if (greaterThan(intent.native_value, normalizedPolicy.max_native_value)) {
-    denyReasons.push('WG_POLICY_DENY_NATIVE_VALUE');
+    appendArrayValue(denyReasons, 'WG_POLICY_DENY_NATIVE_VALUE');
   }
 
-  if (CRITICAL_UNKNOWN_CLASSES.has(intent.request_class)) {
-    indeterminateReasons.push('WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
+  if (setHas(CRITICAL_UNKNOWN_CLASSES, intent.request_class)) {
+    appendArrayValue(indeterminateReasons, 'WG_POLICY_INDETERMINATE_UNSUPPORTED_EFFECT');
   }
 
   if (intent.request_class === 'native_transfer') {
     if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
-      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_RECIPIENT');
     }
   }
 
   if (intent.request_class === 'erc20_transfer') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_recipients, intent.recipient)) {
-      denyReasons.push('WG_POLICY_DENY_RECIPIENT');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_RECIPIENT');
     }
     if (greaterThan(intent.token_amount, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_TOKEN_AMOUNT');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TOKEN_AMOUNT');
     }
   }
 
   if (intent.request_class === 'erc20_approve') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_SPENDER');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_SPENDER');
     }
     if (normalizedPolicy.deny_unlimited_allowance
         && intent.requested_allowance === MAX_UINT256_DECIMAL) {
-      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
     }
     if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_ALLOWANCE_LIMIT');
     }
   }
 
   if (intent.request_class === 'set_approval_for_all') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_OPERATOR');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_OPERATOR');
     }
     if (normalizedPolicy.deny_operator_approval && intent.requested_operator_approval === true) {
-      denyReasons.push('WG_POLICY_DENY_OPERATOR_APPROVAL');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_OPERATOR_APPROVAL');
     }
   }
 
   if (intent.request_class === 'permit_eip2612' || intent.request_class === 'permit2_single') {
     if (!includes(normalizedPolicy.allowed_targets, intent.target)) {
-      denyReasons.push('WG_POLICY_DENY_TARGET');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TARGET');
     }
     if (!includes(normalizedPolicy.allowed_spenders, intent.spender)) {
-      denyReasons.push('WG_POLICY_DENY_SPENDER');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_SPENDER');
     }
     if (intent.typed_data_domain_chain_id !== intent.chain_id) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_CHAIN');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_CHAIN');
     }
     if (!includes(
       normalizedPolicy.allowed_typed_data_verifying_contracts,
       intent.typed_data_verifying_contract,
     )) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_DOMAIN');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_DOMAIN');
     }
     if (intent.request_class === 'permit_eip2612' && intent.typed_data_owner !== intent.account) {
-      denyReasons.push('WG_POLICY_DENY_TYPED_DATA_OWNER');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_TYPED_DATA_OWNER');
     }
     if (normalizedPolicy.deny_unlimited_allowance
         && intent.requested_allowance === MAX_UINT256_DECIMAL) {
-      denyReasons.push('WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_UNLIMITED_ALLOWANCE');
     }
     if (greaterThan(intent.requested_allowance, normalizedPolicy.max_token_amount)) {
-      denyReasons.push('WG_POLICY_DENY_ALLOWANCE_LIMIT');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_ALLOWANCE_LIMIT');
     }
   }
 
   const simulationRequired = intent.simulation_required === true
-    || normalizedPolicy.require_simulation_for.includes(intent.request_class);
+    || includes(normalizedPolicy.require_simulation_for, intent.request_class);
   if (simulationRequired) {
     if (simulationStatus === 'fail' || simulationStatus === 'mismatch') {
-      denyReasons.push('WG_POLICY_DENY_SIMULATION');
+      appendArrayValue(denyReasons, 'WG_POLICY_DENY_SIMULATION');
     } else if (simulationStatus !== 'pass') {
-      indeterminateReasons.push('WG_POLICY_INDETERMINATE_SIMULATION');
+      appendArrayValue(indeterminateReasons, 'WG_POLICY_INDETERMINATE_SIMULATION');
     }
   }
 
@@ -420,7 +501,9 @@ export function evaluateWalletGuardPolicy(intent, policy, simulation = { status:
   if (indeterminateReasons.length > 0) {
     return makeResult('INDETERMINATE', indeterminateReasons, normalizedPolicy);
   }
-  return makeResult('ALLOW', ['WG_POLICY_ALLOW_EXACT'], normalizedPolicy);
+  const allowReasons = [];
+  appendArrayValue(allowReasons, 'WG_POLICY_ALLOW_EXACT');
+  return makeResult('ALLOW', allowReasons, normalizedPolicy);
 }
 
 export function normalizeWalletGuardPolicy(policy) {
