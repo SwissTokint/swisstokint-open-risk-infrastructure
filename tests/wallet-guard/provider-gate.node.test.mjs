@@ -120,7 +120,7 @@ function defaultClock() {
 function createFakeProvider({
   chainId = CHAIN_ID,
   accounts = [ACCOUNT],
-  onRead = async () => {},
+  onRead = () => {},
 } = {}) {
   const state = {
     chainId,
@@ -129,11 +129,30 @@ function createFakeProvider({
     sensitiveCalls: [],
   };
 
+  function logicalContextRead(method) {
+    state.readCount += 1;
+    // Existing temporal regressions hook this callback before the corresponding
+    // scalar is captured. Async callbacks without an awaited body still execute
+    // their mutation synchronously; the trusted callback contract itself never
+    // awaits or consumes their Promise return.
+    void onRead({ method, readCount: state.readCount, state });
+  }
+
   const provider = Object.freeze({
+    captureContext(deliverContext, reportFailure) {
+      logicalContextRead('eth_chainId');
+      const capturedChainId = state.chainId;
+      logicalContextRead('eth_accounts');
+      if (state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(capturedChainId, state.accounts[0]);
+      return undefined;
+    },
     async request(request) {
       if (request.method === 'eth_chainId' || request.method === 'eth_accounts') {
-        state.readCount += 1;
-        await onRead({ method: request.method, readCount: state.readCount, state });
+        logicalContextRead(request.method);
         if (request.method === 'eth_chainId') return state.chainId;
         return [...state.accounts];
       }
@@ -244,27 +263,12 @@ test('reusing one synthetic run/preflight/Witness evidence set across allowed re
 });
 
 test('caller mutation after gateway entry cannot change the request eventually forwarded', async () => {
-  let firstReadStarted;
-  const started = new Promise((resolve) => { firstReadStarted = resolve; });
-  let releaseFirstRead;
-  const barrier = new Promise((resolve) => { releaseFirstRead = resolve; });
-
-  const fakeProvider = createFakeProvider({
-    onRead: async ({ readCount }) => {
-      if (readCount === 1) {
-        firstReadStarted();
-        await barrier;
-      }
-    },
-  });
-  const { gateway, controller } = createGateway({ fakeProvider });
+  const { gateway, controller } = createGateway();
   const raw = sendTransaction({ value: '0x1' });
 
   const pending = gateway.request(raw);
-  await started;
   raw.params[0].value = '0x3e8';
   raw.params[0].to = UNTRUSTED;
-  releaseFirstRead();
 
   const result = await pending;
   assert.equal(result.decision, 'ALLOW');
@@ -388,7 +392,7 @@ test('context change after Gate observation but immediately before forwarding is
   assert.equal(controller.stats().sensitiveCalls.length, 0);
 });
 
-test('malformed provider responses and duplicate accounts fail closed with provider diagnostics', async () => {
+test('malformed scalar context fails closed with provider diagnostics', async () => {
   const malformedChain = createFakeProvider({ chainId: '1' });
   await assert.rejects(
     createGateway({ fakeProvider: malformedChain }).gateway.request(sendTransaction({ value: '0x1' })),
@@ -396,12 +400,19 @@ test('malformed provider responses and duplicate accounts fail closed with provi
   );
   assert.equal(malformedChain.controller.stats().sensitiveCalls.length, 0);
 
-  const duplicates = createFakeProvider({ accounts: [ACCOUNT, ACCOUNT] });
+  const malformedAccount = createFakeProvider({ accounts: ['0x1234'] });
   await assert.rejects(
-    createGateway({ fakeProvider: duplicates }).gateway.request(sendTransaction({ value: '0x1' })),
+    createGateway({ fakeProvider: malformedAccount }).gateway.request(sendTransaction({ value: '0x1' })),
     (error) => expectProviderCode(error, 'POMRX_WG_PROVIDER_E_CONTEXT_INVALID'),
   );
-  assert.equal(duplicates.controller.stats().sensitiveCalls.length, 0);
+  assert.equal(malformedAccount.controller.stats().sensitiveCalls.length, 0);
+
+  const noActiveAccount = createFakeProvider({ accounts: [] });
+  await assert.rejects(
+    createGateway({ fakeProvider: noActiveAccount }).gateway.request(sendTransaction({ value: '0x1' })),
+    (error) => expectProviderCode(error, 'POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE'),
+  );
+  assert.equal(noActiveAccount.controller.stats().sensitiveCalls.length, 0);
 });
 
 test('capability lifetime cannot outlive the bounded synthetic witness evidence', async () => {
