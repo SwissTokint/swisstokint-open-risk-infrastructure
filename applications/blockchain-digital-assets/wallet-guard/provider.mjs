@@ -27,6 +27,74 @@ const TRUSTED_SET = Set;
 const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
 
+const TRUSTED_OBJECT = globalThis.Object;
+const TRUSTED_ARRAY = globalThis.Array;
+const TRUSTED_NUMBER = globalThis.Number;
+const TRUSTED_DATE = globalThis.Date;
+const TRUSTED_URL = globalThis.URL;
+const TRUSTED_DATE_GET_TIME = TRUSTED_DATE.prototype.getTime;
+const TRUSTED_DATE_TO_ISO_STRING = TRUSTED_DATE.prototype.toISOString;
+const TRUSTED_URL_PROTOCOL_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'protocol',
+).get;
+const TRUSTED_URL_ORIGIN_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'origin',
+).get;
+const TRUSTED_URL_USERNAME_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'username',
+).get;
+const TRUSTED_URL_PASSWORD_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'password',
+).get;
+
+const Object = {
+  create: TRUSTED_OBJECT.create,
+  freeze: TRUSTED_OBJECT.freeze,
+  getOwnPropertyDescriptors: TRUSTED_OBJECT.getOwnPropertyDescriptors,
+  getOwnPropertySymbols: TRUSTED_OBJECT.getOwnPropertySymbols,
+  getPrototypeOf: TRUSTED_OBJECT.getPrototypeOf,
+  hasOwn: TRUSTED_OBJECT.hasOwn,
+  keys: TRUSTED_OBJECT.keys,
+  prototype: TRUSTED_OBJECT.prototype,
+};
+const Array = {
+  isArray: TRUSTED_ARRAY.isArray,
+};
+const Number = {
+  isFinite: TRUSTED_NUMBER.isFinite,
+  isSafeInteger: TRUSTED_NUMBER.isSafeInteger,
+};
+class Date extends TRUSTED_DATE {
+  getTime() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_DATE_GET_TIME, this, []);
+  }
+
+  toISOString() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_DATE_TO_ISO_STRING, this, []);
+  }
+}
+class URL extends TRUSTED_URL {
+  get protocol() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PROTOCOL_GET, this, []);
+  }
+
+  get origin() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_ORIGIN_GET, this, []);
+  }
+
+  get username() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_USERNAME_GET, this, []);
+  }
+
+  get password() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PASSWORD_GET, this, []);
+  }
+}
+
 const CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-context:v1:';
 const METHOD_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-method:v1:';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
