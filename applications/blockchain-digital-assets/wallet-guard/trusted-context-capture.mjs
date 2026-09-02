@@ -58,19 +58,19 @@ function patternMatches(runtime, pattern, value) {
 }
 
 function defineFrozenData(runtime, target, key, value) {
-  const descriptor = apply(runtime, runtime.objectCreate, Object, [null]);
+  const descriptor = apply(runtime, runtime.objectCreate, undefined, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
   descriptor.configurable = false;
   descriptor.writable = false;
-  apply(runtime, runtime.objectDefineProperty, Object, [target, key, descriptor]);
+  apply(runtime, runtime.objectDefineProperty, undefined, [target, key, descriptor]);
 }
 
 function makeContext(runtime, chainId, account) {
-  const context = apply(runtime, runtime.objectCreate, Object, [null]);
+  const context = apply(runtime, runtime.objectCreate, undefined, [null]);
   defineFrozenData(runtime, context, 'chain_id', chainId);
   defineFrozenData(runtime, context, 'account', account);
-  return apply(runtime, runtime.objectFreeze, Object, [context]);
+  return apply(runtime, runtime.objectFreeze, undefined, [context]);
 }
 
 /**
