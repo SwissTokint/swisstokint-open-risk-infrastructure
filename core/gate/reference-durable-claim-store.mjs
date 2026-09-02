@@ -30,9 +30,7 @@ const REFLECT_APPLY = Reflect.apply;
 const ARRAY_IS_ARRAY = Array.isArray;
 const ARRAY_SORT = Array.prototype.sort;
 const CHILD_FORK = forkChildProcess;
-const CHILD_SEND = ChildProcess.prototype.send;
 const CHILD_KILL = ChildProcess.prototype.kill;
-const CHILD_DISCONNECT = ChildProcess.prototype.disconnect;
 const CHILD_UNREF = ChildProcess.prototype.unref;
 const EVENT_ON = EventEmitter.prototype.on;
 const OBJECT_CREATE = Object.create;
@@ -202,6 +200,27 @@ function isOwnEnumerableDataDescriptor(descriptor) {
     && !objectHasOwn(descriptor, 'set');
 }
 
+function isOwnFunctionDataDescriptor(descriptors, key) {
+  if (!objectHasOwn(descriptors, key)) return false;
+  const descriptor = descriptors[key];
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && typeof descriptor.value === 'function'
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
+function isOwnObjectDataDescriptor(descriptors, key) {
+  if (!objectHasOwn(descriptors, key)) return false;
+  const descriptor = descriptors[key];
+  return Boolean(descriptor)
+    && objectHasOwn(descriptor, 'value')
+    && descriptor.value !== null
+    && typeof descriptor.value === 'object'
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
+}
+
 export class PomRxDurableClaimStoreError extends Error {
   constructor(code, message) {
     super(message);
@@ -336,10 +355,28 @@ export function createReferenceDurableClaimStore(options) {
       execArgv: [],
     },
   ]);
-  const childChannel = child.channel;
-  if (!childChannel
-      || typeof childChannel.ref !== 'function'
-      || typeof childChannel.unref !== 'function') {
+  const childDescriptors = objectGetOwnPropertyDescriptors(child);
+  if (!isOwnFunctionDataDescriptor(childDescriptors, 'send')
+      || !isOwnFunctionDataDescriptor(childDescriptors, 'disconnect')
+      || !isOwnObjectDataDescriptor(childDescriptors, 'channel')) {
+    try {
+      REFLECT_APPLY(CHILD_KILL, child, []);
+    } catch {
+      // Best-effort cleanup on bootstrap failure.
+    }
+    fail('POMRX_GATE_E_DURABLE_IO', 'durable owner IPC methods are unavailable');
+  }
+  const CHILD_SEND = childDescriptors.send.value;
+  const CHILD_DISCONNECT = childDescriptors.disconnect.value;
+  const childChannel = childDescriptors.channel.value;
+  const channelDescriptors = objectGetOwnPropertyDescriptors(childChannel);
+  if (!isOwnFunctionDataDescriptor(channelDescriptors, 'ref')
+      || !isOwnFunctionDataDescriptor(channelDescriptors, 'unref')) {
+    try {
+      REFLECT_APPLY(CHILD_DISCONNECT, child, []);
+    } catch {
+      // IPC may already be disconnected.
+    }
     try {
       REFLECT_APPLY(CHILD_KILL, child, []);
     } catch {
@@ -347,8 +384,8 @@ export function createReferenceDurableClaimStore(options) {
     }
     fail('POMRX_GATE_E_DURABLE_IO', 'durable owner IPC channel is unavailable');
   }
-  const CHANNEL_REF = childChannel.ref;
-  const CHANNEL_UNREF = childChannel.unref;
+  const CHANNEL_REF = channelDescriptors.ref.value;
+  const CHANNEL_UNREF = channelDescriptors.unref.value;
   // Idle stores must not keep a process alive merely because the durable owner
   // exists. Each request temporarily refs the IPC channel until its matching
   // response (or send failure) settles; the child process handle itself remains
