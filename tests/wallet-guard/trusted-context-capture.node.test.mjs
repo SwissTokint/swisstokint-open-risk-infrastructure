@@ -8,18 +8,37 @@ import {
 
 const CHAIN_ID = '0x1';
 const ACCOUNT = `0x${'1'.repeat(40)}`;
+const TRUSTED_RUNTIME = Object.freeze({
+  objectCreate: Object.create,
+  objectDefineProperty: Object.defineProperty,
+  objectFreeze: Object.freeze,
+  reflectApply: Reflect.apply,
+  regexpExec: RegExp.prototype.exec,
+});
 
 function validCapture(deliverContext) {
   deliverContext(CHAIN_ID, ACCOUNT);
 }
 
+function capture(captureContext) {
+  return captureWalletGuardTrustedContext(captureContext, TRUSTED_RUNTIME);
+}
+
 test('trusted context capture returns exact prototype-inert scalar context', () => {
-  const context = captureWalletGuardTrustedContext(validCapture);
+  const context = capture(validCapture);
   assert.equal(Object.getPrototypeOf(context), null);
   assert.equal(Object.isFrozen(context), true);
   assert.deepEqual(Object.keys(context).sort(), ['account', 'chain_id']);
   assert.equal(context.chain_id, CHAIN_ID);
   assert.equal(context.account, ACCOUNT);
+});
+
+test('trusted primordial runtime is mandatory', () => {
+  assert.throws(
+    () => captureWalletGuardTrustedContext(validCapture),
+    (error) => error instanceof WalletGuardTrustedContextError
+      && error.code === 'POMRX_WG_CONTEXT_E_RUNTIME',
+  );
 });
 
 test('pre-import Object.create poisoning cannot change trusted context prototype', async () => {
@@ -38,7 +57,48 @@ test('pre-import Object.create poisoning cannot change trusted context prototype
     Object.create = originalCreate;
   }
 
-  const context = isolatedModule.captureWalletGuardTrustedContext(validCapture);
+  const context = isolatedModule.captureWalletGuardTrustedContext(validCapture, TRUSTED_RUNTIME);
+  assert.equal(Object.getPrototypeOf(context), null);
+  assert.equal(Object.isFrozen(context), true);
+  assert.equal(context.chain_id, CHAIN_ID);
+  assert.equal(context.account, ACCOUNT);
+});
+
+test('post-import ambient primordial drift is ignored in favor of the trusted runtime', () => {
+  const originalFreeze = Object.freeze;
+  const originalDefineProperty = Object.defineProperty;
+  const originalApply = Reflect.apply;
+  const originalExec = RegExp.prototype.exec;
+  let poisonCalls = 0;
+
+  Object.freeze = function poisonedFreeze(value) {
+    poisonCalls += 1;
+    return value;
+  };
+  Object.defineProperty = function poisonedDefineProperty(...args) {
+    poisonCalls += 1;
+    return originalDefineProperty(...args);
+  };
+  Reflect.apply = function poisonedApply(...args) {
+    poisonCalls += 1;
+    return originalApply(...args);
+  };
+  RegExp.prototype.exec = function poisonedExec(...args) {
+    poisonCalls += 1;
+    return originalApply(originalExec, this, args);
+  };
+
+  let context;
+  try {
+    context = capture(validCapture);
+  } finally {
+    Object.freeze = originalFreeze;
+    Object.defineProperty = originalDefineProperty;
+    Reflect.apply = originalApply;
+    RegExp.prototype.exec = originalExec;
+  }
+
+  assert.equal(poisonCalls, 0);
   assert.equal(Object.getPrototypeOf(context), null);
   assert.equal(Object.isFrozen(context), true);
   assert.equal(context.chain_id, CHAIN_ID);
@@ -65,7 +125,7 @@ test('inherited Array/Object thenables cannot participate in scalar context deli
   });
 
   try {
-    const context = captureWalletGuardTrustedContext(validCapture);
+    const context = capture(validCapture);
     assert.equal(context.chain_id, CHAIN_ID);
     assert.equal(context.account, ACCOUNT);
     assert.equal(poisonCalls, 0);
@@ -85,7 +145,7 @@ test('inherited Array/Object thenables cannot participate in scalar context deli
 
 test('duplicate success callbacks fail closed', () => {
   assert.throws(
-    () => captureWalletGuardTrustedContext((deliverContext) => {
+    () => capture((deliverContext) => {
       deliverContext(CHAIN_ID, ACCOUNT);
       deliverContext(CHAIN_ID, ACCOUNT);
     }),
@@ -96,7 +156,7 @@ test('duplicate success callbacks fail closed', () => {
 
 test('success plus failure contradiction fails closed', () => {
   assert.throws(
-    () => captureWalletGuardTrustedContext((deliverContext, reportFailure) => {
+    () => capture((deliverContext, reportFailure) => {
       deliverContext(CHAIN_ID, ACCOUNT);
       reportFailure('CONTEXT_UNAVAILABLE');
     }),
@@ -107,7 +167,7 @@ test('success plus failure contradiction fails closed', () => {
 
 test('missing terminal callback fails closed', () => {
   assert.throws(
-    () => captureWalletGuardTrustedContext(() => undefined),
+    () => capture(() => undefined),
     (error) => error instanceof WalletGuardTrustedContextError
       && error.code === 'POMRX_WG_CONTEXT_E_MISSING',
   );
@@ -115,7 +175,7 @@ test('missing terminal callback fails closed', () => {
 
 test('dispatcher return values are outside the callback contract', () => {
   assert.throws(
-    () => captureWalletGuardTrustedContext((deliverContext) => {
+    () => capture((deliverContext) => {
       deliverContext(CHAIN_ID, ACCOUNT);
       return { chain_id: CHAIN_ID, account: ACCOUNT };
     }),
@@ -132,7 +192,7 @@ test('malformed chain or account scalar fails closed', () => {
     [CHAIN_ID, '0x1234'],
   ]) {
     assert.throws(
-      () => captureWalletGuardTrustedContext((deliverContext) => {
+      () => capture((deliverContext) => {
         deliverContext(chainId, account);
       }),
       (error) => error instanceof WalletGuardTrustedContextError
@@ -143,7 +203,7 @@ test('malformed chain or account scalar fails closed', () => {
 
 test('explicit context failure is preserved as a closed outcome', () => {
   assert.throws(
-    () => captureWalletGuardTrustedContext((_deliverContext, reportFailure) => {
+    () => capture((_deliverContext, reportFailure) => {
       reportFailure('CONTEXT_UNAVAILABLE');
     }),
     (error) => error instanceof WalletGuardTrustedContextError
