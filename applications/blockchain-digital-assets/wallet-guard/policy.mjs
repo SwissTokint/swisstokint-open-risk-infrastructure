@@ -1,9 +1,6 @@
+import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
 
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../../sdk/typescript/swisstokint-proof.mjs';
 import {
   MAX_UINT256_DECIMAL,
   WalletGuardDecoderError,
@@ -23,20 +20,44 @@ const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
 const TRUSTED_ARRAY_INCLUDES = Array.prototype.includes;
 const TRUSTED_ARRAY_SORT = Array.prototype.sort;
 const TRUSTED_BIGINT = BigInt;
+const TRUSTED_BIGINT_TO_STRING = BigInt.prototype.toString;
+const TRUSTED_CREATE_HASH = createHash;
 const TRUSTED_IS_PROXY = utilTypes.isProxy;
+const TRUSTED_JSON_STRINGIFY = JSON.stringify;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const TRUSTED_OBJECT_CREATE = Object.create;
 const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
 const TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const TRUSTED_OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const TRUSTED_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
 const TRUSTED_OBJECT_KEYS = Object.keys;
+const TRUSTED_OBJECT_PROTOTYPE = Object.prototype;
 const TRUSTED_REFLECT_APPLY = Reflect.apply;
 const TRUSTED_SET = Set;
 const TRUSTED_SET_HAS = Set.prototype.has;
 const TRUSTED_URL = URL;
+const TRUSTED_URL_PROTOCOL_GET = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+  TRUSTED_URL.prototype,
+  'protocol',
+).get;
+const TRUSTED_URL_ORIGIN_GET = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+  TRUSTED_URL.prototype,
+  'origin',
+).get;
+const TRUSTED_URL_USERNAME_GET = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+  TRUSTED_URL.prototype,
+  'username',
+).get;
+const TRUSTED_URL_PASSWORD_GET = TRUSTED_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(
+  TRUSTED_URL.prototype,
+  'password',
+).get;
+const TRUSTED_HASH_PROBE = TRUSTED_CREATE_HASH('sha256');
+const TRUSTED_HASH_UPDATE = TRUSTED_HASH_PROBE.update;
+const TRUSTED_HASH_DIGEST = TRUSTED_HASH_PROBE.digest;
 
 const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const POLICY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{7,127}$/u;
@@ -155,7 +176,7 @@ function snapshotExactDataRecord(value, expected, label) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must be an exact plain data object`);
   }
   const prototype = TRUSTED_OBJECT_GET_PROTOTYPE_OF(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  if (prototype !== TRUSTED_OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_WG_POLICY_E_INVALID', `${label} must use Object.prototype or a null prototype`);
   }
   if (TRUSTED_OBJECT_GET_OWN_PROPERTY_SYMBOLS(value).length !== 0) {
@@ -220,6 +241,10 @@ function snapshotDenseArray(values, field) {
   return TRUSTED_OBJECT_FREEZE(snapshot);
 }
 
+function trustedUrlValue(getter, url) {
+  return TRUSTED_REFLECT_APPLY(getter, url, []);
+}
+
 function normalizeOrigin(value) {
   if (typeof value !== 'string') fail('POMRX_WG_POLICY_E_INVALID', 'origin must be a string');
   let url;
@@ -228,20 +253,28 @@ function normalizeOrigin(value) {
   } catch {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be an absolute URL origin');
   }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
-      || url.origin !== value
-      || url.username
-      || url.password) {
+  const protocol = trustedUrlValue(TRUSTED_URL_PROTOCOL_GET, url);
+  const origin = trustedUrlValue(TRUSTED_URL_ORIGIN_GET, url);
+  const username = trustedUrlValue(TRUSTED_URL_USERNAME_GET, url);
+  const password = trustedUrlValue(TRUSTED_URL_PASSWORD_GET, url);
+  if ((protocol !== 'https:' && protocol !== 'http:')
+      || origin !== value
+      || username
+      || password) {
     fail('POMRX_WG_POLICY_E_INVALID', 'origin must be canonical HTTP(S) origin');
   }
-  return url.origin;
+  return origin;
+}
+
+function trustedBigIntToString(value, radix) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_BIGINT_TO_STRING, value, [radix]);
 }
 
 function normalizeCanonicalDecimal(value, field) {
   if (typeof value !== 'string' || !DECIMAL_INTEGER_PATTERN.test(value)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a canonical decimal integer string`);
   }
-  return TRUSTED_BIGINT(value).toString(10);
+  return trustedBigIntToString(TRUSTED_BIGINT(value), 10);
 }
 
 function normalizePolicyChainId(value) {
@@ -373,8 +406,49 @@ function greaterThan(value, limit) {
   return TRUSTED_BIGINT(value) > TRUSTED_BIGINT(limit);
 }
 
+function quoteString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_STRINGIFY, JSON, [value]);
+}
+
+function canonicalStringArray(values) {
+  let output = '[';
+  for (let index = 0; index < values.length; index += 1) {
+    if (index > 0) output += ',';
+    output += quoteString(values[index]);
+  }
+  return `${output}]`;
+}
+
+function canonicalBoolean(value) {
+  return value ? 'true' : 'false';
+}
+
+function canonicalizeNormalizedPolicy(policy) {
+  return `{"allowed_origins":${canonicalStringArray(policy.allowed_origins)}`
+    + `,"allowed_recipients":${canonicalStringArray(policy.allowed_recipients)}`
+    + `,"allowed_spenders":${canonicalStringArray(policy.allowed_spenders)}`
+    + `,"allowed_targets":${canonicalStringArray(policy.allowed_targets)}`
+    + `,"allowed_typed_data_verifying_contracts":${canonicalStringArray(policy.allowed_typed_data_verifying_contracts)}`
+    + `,"deny_operator_approval":${canonicalBoolean(policy.deny_operator_approval)}`
+    + `,"deny_unlimited_allowance":${canonicalBoolean(policy.deny_unlimited_allowance)}`
+    + `,"enabled":${canonicalBoolean(policy.enabled)}`
+    + `,"expected_chain_id":${quoteString(policy.expected_chain_id)}`
+    + `,"kill_switch":${canonicalBoolean(policy.kill_switch)}`
+    + `,"max_native_value":${quoteString(policy.max_native_value)}`
+    + `,"max_token_amount":${quoteString(policy.max_token_amount)}`
+    + `,"policy_id":${quoteString(policy.policy_id)}`
+    + `,"require_simulation_for":${canonicalStringArray(policy.require_simulation_for)}`
+    + `,"schema_version":${quoteString(policy.schema_version)}}`;
+}
+
+function trustedSha256Hex(value) {
+  const hash = TRUSTED_CREATE_HASH('sha256');
+  TRUSTED_REFLECT_APPLY(TRUSTED_HASH_UPDATE, hash, [value, 'utf8']);
+  return TRUSTED_REFLECT_APPLY(TRUSTED_HASH_DIGEST, hash, ['hex']);
+}
+
 function makeResult(decision, reasons, normalizedPolicy) {
-  const canonicalPolicy = canonicalizePayload(normalizedPolicy);
+  const canonicalPolicy = canonicalizeNormalizedPolicy(normalizedPolicy);
   const uniqueReasons = [];
   for (let index = 0; index < reasons.length; index += 1) {
     const reason = reasons[index];
@@ -384,7 +458,7 @@ function makeResult(decision, reasons, normalizedPolicy) {
     decision,
     reasons: TRUSTED_OBJECT_FREEZE(uniqueReasons),
     policy_id: normalizedPolicy.policy_id,
-    policy_hash: sha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
+    policy_hash: trustedSha256Hex(`${WALLET_GUARD_POLICY_COMMIT_DOMAIN}${canonicalPolicy}`),
   });
 }
 
