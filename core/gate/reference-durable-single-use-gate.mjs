@@ -52,6 +52,7 @@ const WEAK_MAP_GET = WeakMap.prototype.get;
 const WEAK_MAP_SET = WeakMap.prototype.set;
 const PROMISE_CONSTRUCTOR = Promise;
 const PROMISE_THEN = Promise.prototype.then;
+const PROMISE_CATCH = Promise.prototype.catch;
 const PROMISE_FINALLY = Promise.prototype.finally;
 const PROMISE_SPECIES_KEY = Symbol.species;
 const ASYNC_LOCAL_STORAGE_CONSTRUCTOR = AsyncLocalStorage;
@@ -218,7 +219,8 @@ function stabilizePromise(promise) {
 
   if (!objectHasOwn(descriptors, 'catch')) {
     objectDefineProperty(promise, 'catch', PROMISE_OWN_SAFE_CATCH_DESCRIPTOR);
-  } else if (descriptors.catch.value !== stablePromiseCatch) {
+  } else if (descriptors.catch.value !== PROMISE_CATCH
+      && descriptors.catch.value !== stablePromiseCatch) {
     throw new TypeError('Reference durable Gate Promise catch channel is invalid');
   }
 
