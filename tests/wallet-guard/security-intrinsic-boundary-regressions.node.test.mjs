@@ -132,11 +132,14 @@ test('policy DENY cannot be erased by post-import Array.prototype.push drift', (
   assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
 });
 
-test('recipient allowlist cannot be bypassed by post-import Array.prototype.includes drift', () => {
+test('recipient allowlist cannot be selectively bypassed by post-import Array.prototype.includes drift', () => {
   const intent = normalizedNativeIntent({ to: UNTRUSTED });
   const originalIncludes = Array.prototype.includes;
-  Array.prototype.includes = function poisonedIncludes() {
-    return true;
+  Array.prototype.includes = function poisonedIncludes(value, fromIndex) {
+    if (value === UNTRUSTED && this.length === 1 && this[0] === RECIPIENT) {
+      return true;
+    }
+    return Reflect.apply(originalIncludes, this, [value, fromIndex]);
   };
 
   let result;
@@ -148,6 +151,24 @@ test('recipient allowlist cannot be bypassed by post-import Array.prototype.incl
 
   assert.equal(result.decision, 'DENY');
   assert.ok(result.reasons.includes('WG_POLICY_DENY_RECIPIENT'));
+});
+
+test('native-value limit cannot be bypassed by post-import global BigInt drift', () => {
+  const intent = normalizedNativeIntent({ value: '0x3e9' });
+  const originalBigInt = globalThis.BigInt;
+  globalThis.BigInt = function poisonedBigInt() {
+    return 0n;
+  };
+
+  let result;
+  try {
+    result = evaluateWalletGuardPolicy(intent, policy({ max_native_value: '1000' }), { status: 'not_run' });
+  } finally {
+    globalThis.BigInt = originalBigInt;
+  }
+
+  assert.equal(result.decision, 'DENY');
+  assert.ok(result.reasons.includes('WG_POLICY_DENY_NATIVE_VALUE'));
 });
 
 test('policy result cannot be substituted by post-import Object.freeze drift', () => {
