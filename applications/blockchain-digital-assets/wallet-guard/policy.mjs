@@ -61,6 +61,8 @@ const TRUSTED_HASH_DIGEST = TRUSTED_HASH_PROBE.digest;
 
 const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const POLICY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{7,127}$/u;
+const POLICY_CANONICAL_MAX_NODES = 1_000;
+const POLICY_CANONICAL_MAX_BYTES = 16 * 1024;
 const POLICY_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
   'policy_id',
@@ -125,12 +127,12 @@ function arrayIncludes(list, value) {
 }
 
 function appendArrayValue(list, value) {
-  TRUSTED_OBJECT_DEFINE_PROPERTY(list, `${list.length}`, {
-    value,
-    enumerable: true,
-    configurable: true,
-    writable: true,
-  });
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  descriptor.writable = true;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(list, `${list.length}`, descriptor);
 }
 
 function cloneArray(values) {
@@ -309,6 +311,26 @@ function normalizeUniqueList(values, field, normalizeItem) {
   return TRUSTED_OBJECT_FREEZE(normalized);
 }
 
+function normalizedPolicyNodeCount(policy) {
+  return 16
+    + policy.allowed_origins.length
+    + policy.allowed_targets.length
+    + policy.allowed_recipients.length
+    + policy.allowed_spenders.length
+    + policy.allowed_typed_data_verifying_contracts.length
+    + policy.require_simulation_for.length;
+}
+
+function assertNormalizedPolicyBounds(policy) {
+  if (normalizedPolicyNodeCount(policy) > POLICY_CANONICAL_MAX_NODES) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard policy exceeds the canonical node bound');
+  }
+  const canonical = canonicalizeNormalizedPolicy(policy);
+  if (canonical.length > POLICY_CANONICAL_MAX_BYTES) {
+    fail('POMRX_WG_POLICY_E_INVALID', 'Wallet Guard policy exceeds the 16 KiB canonical bound');
+  }
+}
+
 function normalizePolicy(policy) {
   const snapshot = snapshotExactDataRecord(policy, POLICY_KEYS, 'Wallet Guard policy');
   if (snapshot.schema_version !== WALLET_GUARD_POLICY_SCHEMA_VERSION) {
@@ -336,7 +358,7 @@ function normalizePolicy(policy) {
     },
   );
 
-  return TRUSTED_OBJECT_FREEZE({
+  const normalized = {
     schema_version: WALLET_GUARD_POLICY_SCHEMA_VERSION,
     policy_id: snapshot.policy_id,
     enabled: snapshot.enabled,
@@ -368,7 +390,9 @@ function normalizePolicy(policy) {
     deny_unlimited_allowance: snapshot.deny_unlimited_allowance,
     deny_operator_approval: snapshot.deny_operator_approval,
     require_simulation_for: requireSimulationFor,
-  });
+  };
+  assertNormalizedPolicyBounds(normalized);
+  return TRUSTED_OBJECT_FREEZE(normalized);
 }
 
 function validateIntent(intent) {
