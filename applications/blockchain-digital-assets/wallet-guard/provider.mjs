@@ -194,13 +194,13 @@ function regexpTest(pattern, value) {
 }
 
 function appendArrayValue(list, value) {
-  const descriptor = TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT.create, undefined, [null]);
+  const descriptor = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
   descriptor.configurable = true;
   descriptor.writable = true;
   TRUSTED_REFLECT_APPLY(
-    TRUSTED_OBJECT.defineProperty,
+    Object.defineProperty,
     undefined,
     [list, `${list.length}`, descriptor],
   );
