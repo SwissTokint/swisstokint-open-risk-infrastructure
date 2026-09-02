@@ -73,6 +73,10 @@ function createRawGateway() {
     sensitiveCalls: 0,
   };
   const provider = Object.freeze({
+    captureContext(deliverContext) {
+      deliverContext(CHAIN_ID, ACCOUNT);
+      return undefined;
+    },
     async request(request) {
       if (request.method === 'eth_chainId') return CHAIN_ID;
       if (request.method === 'eth_accounts') return [ACCOUNT];
@@ -136,6 +140,10 @@ test('inherited Array thenable cannot substitute an attacker account before Wall
     let sensitiveCalls = 0;
 
     const provider = Object.freeze({
+      captureContext(deliverContext) {
+        deliverContext(CHAIN_ID, ACCOUNT);
+        return undefined;
+      },
       async request(request) {
         if (request.method === 'eth_chainId') return CHAIN_ID;
         if (request.method === 'eth_accounts') return [ACCOUNT];
