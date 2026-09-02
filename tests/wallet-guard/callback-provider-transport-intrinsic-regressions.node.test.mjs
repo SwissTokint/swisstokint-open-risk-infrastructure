@@ -106,6 +106,17 @@ function expectTransportCode(error, code) {
   return error instanceof WalletGuardTrustedProviderTransportError && error.code === code;
 }
 
+function expectGateCode(error, code) {
+  return Boolean(error) && typeof error === 'object' && error.code === code;
+}
+
+async function waitForBridge(getBridge) {
+  for (let attempt = 0; attempt < 50 && getBridge() === null; attempt += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  return getBridge();
+}
+
 test('StrictJsonScanner state cannot be redirected by an inherited raw setter', () => {
   const original = Object.getOwnPropertyDescriptor(Object.prototype, 'raw');
   let poisonCalls = 0;
@@ -244,9 +255,7 @@ test('asynchronous callback settlement rechecks Promise runtime before resolving
   const gateway = createAllowGateway(transport);
   const pending = gateway.request(sendTransaction(ACCOUNT));
 
-  for (let attempt = 0; attempt < 50 && bridge === null; attempt += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
-  }
+  await waitForBridge(() => bridge);
   assert.ok(bridge, 'gateway never reached callback dispatch');
 
   const original = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
@@ -275,9 +284,58 @@ test('asynchronous callback settlement rechecks Promise runtime before resolving
 
   assert.equal(result, undefined);
   assert.ok(
-    expectTransportCode(rejection, 'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY'),
+    expectGateCode(rejection, 'POMRX_GATE_E_DOWNSTREAM_FAILED'),
     `unexpected settlement: ${String(rejection?.code ?? result)}`,
   );
   assert.equal(poisonCalls, 0);
   assert.equal(transport.control.inspect().destroyed, true);
+});
+
+test('runtime drift introduced after callback return cannot substitute outer gateway settlement', async () => {
+  let bridge = null;
+  const transport = createTransport((command, deliverRawJson) => {
+    bridge = { command, deliverRawJson };
+  });
+  const gateway = createAllowGateway(transport);
+  const pending = gateway.request(sendTransaction(ACCOUNT));
+
+  await waitForBridge(() => bridge);
+  assert.ok(bridge, 'gateway never reached callback dispatch');
+
+  bridge.deliverRawJson(response(bridge.command));
+
+  const original = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
+  let poisonCalls = 0;
+  Object.defineProperty(Object.prototype, 'then', {
+    configurable: true,
+    writable: true,
+    value(resolve) {
+      poisonCalls += 1;
+      restoreDescriptor(Object.prototype, 'then', original);
+      resolve({
+        decision: 'ALLOW',
+        forwarded: true,
+        provider_result: 'OWNED',
+      });
+    },
+  });
+
+  let result;
+  let rejection = null;
+  try {
+    try {
+      result = await pending;
+    } catch (error) {
+      rejection = error;
+    }
+  } finally {
+    restoreDescriptor(Object.prototype, 'then', original);
+  }
+
+  assert.equal(poisonCalls, 0, 'outer gateway settlement must not consult inherited then');
+  assert.equal(rejection, null);
+  assert.equal(result?.decision, 'ALLOW');
+  assert.equal(result?.forwarded, true);
+  assert.equal(result?.provider_result, TX_HASH);
+  assert.equal(transport.control.inspect().destroyed, false);
 });
