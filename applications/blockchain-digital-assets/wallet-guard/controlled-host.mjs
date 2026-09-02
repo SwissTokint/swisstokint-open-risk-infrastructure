@@ -236,20 +236,21 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
     inFlightRequests: 0,
   };
 
-  // This fake raw provider never leaves this closure. The only externally
-  // returned request function comes from the already-reviewed provider/Gate
-  // gateway. Context mutation is available only through the separate test
-  // authority returned beside, never beneath, the controlled page graph.
+  // This fake raw provider never leaves this closure. Sensitive requests use
+  // the async EIP-1193 request path, while chain/account context is supplied
+  // only through the synchronous scalar capture contract. Context mutation is
+  // available only through the separate test authority returned beside, never
+  // beneath, the controlled page graph.
   const rawProvider = freeze({
+    captureContext(deliverContext) {
+      state.contextReads += 1;
+      REFLECT_APPLY(
+        deliverContext,
+        undefined,
+        [state.chainId, state.accounts[0]],
+      );
+    },
     async request(request) {
-      if (request && request.method === 'eth_chainId') {
-        state.contextReads += 1;
-        return state.chainId;
-      }
-      if (request && request.method === 'eth_accounts') {
-        state.contextReads += 1;
-        return copyFrozenArray(state.accounts);
-      }
       if (state.sensitiveCalls.length >= MAX_SENSITIVE_CALLS) {
         fail(
           'POMRX_WG_HOST_E_LOG_FULL',
