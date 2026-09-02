@@ -22,6 +22,29 @@ test('trusted context capture returns exact prototype-inert scalar context', () 
   assert.equal(context.account, ACCOUNT);
 });
 
+test('pre-import Object.create poisoning cannot change trusted context prototype', async () => {
+  const originalCreate = Object.create;
+  Object.create = function poisonedCreate(prototype, properties) {
+    if (prototype === null) return {};
+    return Reflect.apply(originalCreate, Object, [prototype, properties]);
+  };
+
+  let isolatedModule;
+  try {
+    isolatedModule = await import(
+      '../../applications/blockchain-digital-assets/wallet-guard/trusted-context-capture.mjs?preimport-object-create-regression'
+    );
+  } finally {
+    Object.create = originalCreate;
+  }
+
+  const context = isolatedModule.captureWalletGuardTrustedContext(validCapture);
+  assert.equal(Object.getPrototypeOf(context), null);
+  assert.equal(Object.isFrozen(context), true);
+  assert.equal(context.chain_id, CHAIN_ID);
+  assert.equal(context.account, ACCOUNT);
+});
+
 test('inherited Array/Object thenables cannot participate in scalar context delivery', () => {
   const originalArrayThen = Object.getOwnPropertyDescriptor(Array.prototype, 'then');
   const originalObjectThen = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
