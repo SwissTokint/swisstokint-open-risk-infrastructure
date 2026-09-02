@@ -19,6 +19,7 @@ const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
 const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
 const OBJECT_HAS_OWN = Object.hasOwn;
 const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_PUSH = Array.prototype.push;
 const REGEXP_TEST = RegExp.prototype.test;
 const SET_HAS = Set.prototype.has;
 const SET_ADD = Set.prototype.add;
@@ -27,6 +28,10 @@ const URL_CTOR = URL;
 
 function freeze(value) {
   return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function arrayPush(array, value) {
+  return REFLECT_APPLY(ARRAY_PUSH, array, [value]);
 }
 
 function regexpTest(pattern, value) {
@@ -257,7 +262,7 @@ export function createWalletGuardControlledReferenceHost(rawOptions) {
           'controlled provider sensitive-call log is full',
         );
       }
-      state.sensitiveCalls.push(captureSensitiveRequest(request));
+      arrayPush(state.sensitiveCalls, captureSensitiveRequest(request));
       return options.providerResult;
     },
   });
