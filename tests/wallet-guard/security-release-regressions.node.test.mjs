@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import {
@@ -118,40 +119,124 @@ test('provider account mapping cannot substitute an attacker account after modul
   assert.equal(sensitiveCallCount(), 0);
 });
 
-test('inherited Array thenable cannot substitute an attacker account before Wallet Guard capture', async () => {
-  const { gateway, sensitiveCallCount } = createRawGateway();
-  const originalThen = Object.getOwnPropertyDescriptor(Array.prototype, 'then');
-  const originalDefineProperty = Object.defineProperty;
+test('inherited Array thenable cannot substitute an attacker account before Wallet Guard capture', () => {
+  const providerModuleUrl = new URL(
+    '../../applications/blockchain-digital-assets/wallet-guard/provider.mjs',
+    import.meta.url,
+  ).href;
+  const childSource = `
+    import { createWalletGuardReferenceProviderGateway } from ${JSON.stringify(providerModuleUrl)};
 
-  Object.defineProperty(Array.prototype, 'then', {
-    configurable: true,
-    enumerable: false,
-    writable: true,
-    value(resolve) {
-      const replacement = this.length === 1 && this[0] === ACCOUNT
-        ? [ATTACKER]
-        : this;
-      originalDefineProperty(replacement, 'then', {
+    const ACCOUNT = '0x${'1'.repeat(40)}';
+    const ATTACKER = '0x${'8'.repeat(40)}';
+    const RECIPIENT = '0x${'3'.repeat(40)}';
+    const ORIGIN = ${JSON.stringify(ORIGIN)};
+    const CHAIN_ID = '0x1';
+    const TX_RESULT = '0x${'a'.repeat(64)}';
+    let sensitiveCalls = 0;
+
+    const provider = Object.freeze({
+      async request(request) {
+        if (request.method === 'eth_chainId') return CHAIN_ID;
+        if (request.method === 'eth_accounts') return [ACCOUNT];
+        sensitiveCalls += 1;
+        return TX_RESULT;
+      },
+    });
+    const policy = {
+      schema_version: 'wallet-guard-policy/0.1',
+      policy_id: 'wallet-guard-release-thenable/0.1',
+      enabled: true,
+      kill_switch: false,
+      expected_chain_id: CHAIN_ID,
+      allowed_origins: [ORIGIN],
+      allowed_targets: [],
+      allowed_recipients: [RECIPIENT],
+      allowed_spenders: [],
+      allowed_typed_data_verifying_contracts: [],
+      max_native_value: '1000',
+      max_token_amount: '1000000',
+      deny_unlimited_allowance: true,
+      deny_operator_approval: true,
+      require_simulation_for: [],
+    };
+    const referenceAuthorizationForRequest = () => ({
+      run_id: 'run-wallet-guard-release-00000002',
+      agent_ref: 'agent-wallet-guard-release-02',
+      subject_ref: 'subject-wallet-guard-release-02',
+      preflight_receipt_hash: '${'5'.repeat(64)}',
+      witness_ack_hash: '${'6'.repeat(64)}',
+      source_key_id: 'ed25519-${'a'.repeat(32)}',
+      witness_key_id: 'ed25519-${'b'.repeat(32)}',
+      verification_profile: 'pom-rx-v0.1/strict-errata-1',
+      verifier_version: 'pom-rx-v0.1-strict-verifier/1',
+      implementation_artifact_sha256: '${'3'.repeat(64)}',
+      effective_verification_policy_sha256: '${'4'.repeat(64)}',
+      witness_valid_until: '2026-08-19T17:01:00.000Z',
+    });
+
+    let gateway = null;
+    let safe = false;
+    try {
+      gateway = createWalletGuardReferenceProviderGateway({
+        captureTrustedOrigin: () => ORIGIN,
+        provider,
+        policy,
+        trustedClock: () => '2026-08-19T17:00:00.000Z',
+        referenceAuthorizationForRequest,
+        capabilityLifetimeMs: 30_000,
+      });
+    } catch {
+      safe = true;
+    }
+
+    if (gateway) {
+      const originalThen = Object.getOwnPropertyDescriptor(Array.prototype, 'then');
+      const originalDefineProperty = Object.defineProperty;
+      Object.defineProperty(Array.prototype, 'then', {
         configurable: true,
         enumerable: false,
         writable: true,
-        value: undefined,
+        value(resolve) {
+          const replacement = this.length === 1 && this[0] === ACCOUNT ? [ATTACKER] : this;
+          originalDefineProperty(replacement, 'then', {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: undefined,
+          });
+          resolve(replacement);
+        },
       });
-      resolve(replacement);
-    },
-  });
+      try {
+        await gateway.request({
+          method: 'eth_sendTransaction',
+          params: [{ from: ATTACKER, to: RECIPIENT, value: '0x0', data: '0x' }],
+        });
+      } catch {
+        safe = true;
+      } finally {
+        if (originalThen) Object.defineProperty(Array.prototype, 'then', originalThen);
+        else delete Array.prototype.then;
+      }
+    }
 
-  try {
-    await assert.rejects(
-      gateway.request(sendTransaction({ from: ATTACKER })),
-      expectNoSensitiveForward,
-    );
-  } finally {
-    if (originalThen) Object.defineProperty(Array.prototype, 'then', originalThen);
-    else delete Array.prototype.then;
-  }
+    if (!safe || sensitiveCalls !== 0) process.exitCode = 2;
+  `;
 
-  assert.equal(sensitiveCallCount(), 0);
+  const child = spawnSync(
+    process.execPath,
+    ['--unhandled-rejections=strict', '--input-type=module', '--eval', childSource],
+    { encoding: 'utf8', timeout: 5_000 },
+  );
+
+  assert.equal(
+    child.status,
+    0,
+    `thenable regression child failed\nstdout:\n${child.stdout}\nstderr:\n${child.stderr}`,
+  );
+  assert.equal(child.signal, null);
+  assert.equal(child.error, undefined);
 });
 
 test('Array species cannot hide an extra EIP-1193 root field during exact-shape validation', () => {
