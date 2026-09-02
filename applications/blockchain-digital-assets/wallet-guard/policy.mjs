@@ -124,9 +124,9 @@ function snapshotDenseArray(values, field) {
   if (!values || typeof values !== 'object' || isProxy(values) || !Array.isArray(values)) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} must be a bounded plain array`);
   }
-  if (Object.getPrototypeOf(values) !== Array.prototype) {
-    fail('POMRX_WG_POLICY_E_INVALID', `${field} must use the standard Array prototype`);
-  }
+  // The caller Array prototype is deliberately outside policy semantics.
+  // This boundary reads only bounded own data descriptors and rematerializes
+  // a fresh normalized Array, so inherited behavior must never participate.
   if (Object.getOwnPropertySymbols(values).length !== 0) {
     fail('POMRX_WG_POLICY_E_INVALID', `${field} cannot contain symbol keys`);
   }
