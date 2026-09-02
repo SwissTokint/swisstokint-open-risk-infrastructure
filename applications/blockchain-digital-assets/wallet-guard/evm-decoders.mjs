@@ -5,6 +5,7 @@ import {
 
 const TRUSTED_ARRAY_INCLUDES = Array.prototype.includes;
 const TRUSTED_BIGINT = BigInt;
+const TRUSTED_BIGINT_TO_STRING = BigInt.prototype.toString;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const TRUSTED_REFLECT_APPLY = Reflect.apply;
 const TRUSTED_STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
@@ -53,7 +54,7 @@ const PERMIT2_SINGLE_FIELDS = TRUSTED_OBJECT_FREEZE([
 export const ERC20_APPROVE_SELECTOR = '0x095ea7b3';
 export const ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
 export const SET_APPROVAL_FOR_ALL_SELECTOR = '0xa22cb465';
-export const MAX_UINT256_DECIMAL = ((1n << 256n) - 1n).toString(10);
+export const MAX_UINT256_DECIMAL = trustedBigIntToString((1n << 256n) - 1n, 10);
 
 export class WalletGuardDecoderError extends Error {
   constructor(code, message) {
@@ -65,6 +66,10 @@ export class WalletGuardDecoderError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardDecoderError(code, message);
+}
+
+function trustedBigIntToString(value, radix) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_BIGINT_TO_STRING, value, [radix]);
 }
 
 function trustedLowerCase(value) {
@@ -93,7 +98,7 @@ export function normalizeChainId(value) {
   if (typeof value !== 'string' || !HEX_QUANTITY_PATTERN.test(value)) {
     fail('POMRX_WG_E_CHAIN_INVALID', 'chain_id must be a canonical EIP-1193 hex quantity');
   }
-  return `0x${TRUSTED_BIGINT(value).toString(16)}`;
+  return `0x${trustedBigIntToString(TRUSTED_BIGINT(value), 16)}`;
 }
 
 export function normalizeQuantity(value, field = 'value') {
@@ -101,7 +106,7 @@ export function normalizeQuantity(value, field = 'value') {
   if (typeof value !== 'string' || !HEX_QUANTITY_PATTERN.test(value)) {
     fail('POMRX_WG_E_QUANTITY_INVALID', `${field} must be a canonical EVM hex quantity`);
   }
-  return TRUSTED_BIGINT(value).toString(10);
+  return trustedBigIntToString(TRUSTED_BIGINT(value), 10);
 }
 
 function normalizeNumberish(value, field, bits = 256) {
@@ -122,7 +127,7 @@ function normalizeNumberish(value, field, bits = 256) {
   if (parsed >= (1n << TRUSTED_BIGINT(bits))) {
     fail('POMRX_WG_E_TYPED_DATA_INVALID', `${field} exceeds uint${bits}`);
   }
-  return parsed.toString(10);
+  return trustedBigIntToString(parsed, 10);
 }
 
 function parseAddressWord(word, field) {
@@ -136,7 +141,7 @@ function parseUint256Word(word, field) {
   if (!/^[a-f0-9]{64}$/u.test(word)) {
     fail('POMRX_WG_E_CALLDATA_MALFORMED', `${field} is not a canonical uint256 word`);
   }
-  return TRUSTED_BIGINT(`0x${word}`).toString(10);
+  return trustedBigIntToString(TRUSTED_BIGINT(`0x${word}`), 10);
 }
 
 function parseBoolWord(word, field) {
@@ -357,7 +362,7 @@ function isExactPermit2Single(typedData) {
 function normalizeOptionalDomainChainId(domain) {
   if (!Object.hasOwn(domain, 'chainId')) return null;
   const decimal = normalizeNumberish(domain.chainId, 'typed data domain chainId', 256);
-  return `0x${TRUSTED_BIGINT(decimal).toString(16)}`;
+  return `0x${trustedBigIntToString(TRUSTED_BIGINT(decimal), 16)}`;
 }
 
 function unknownTypedDataResult(primaryType, typedDataSha256, domainChainId, domainVerifyingContract) {
