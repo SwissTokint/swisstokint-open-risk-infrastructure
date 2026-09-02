@@ -15,12 +15,16 @@ import {
 export const WALLET_GUARD_INTENT_SCHEMA_VERSION = 'wallet_guard_intent/0.1';
 export const WALLET_GUARD_INTENT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-intent:v1:';
 
+const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_SET_HAS = Set.prototype.has;
+
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$/u;
 const RPC_METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const DECIMAL_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
-const REQUEST_KEYS = Object.freeze(['method', 'params']);
-const NORMALIZE_KEYS = Object.freeze([
+const REQUEST_KEYS = TRUSTED_OBJECT_FREEZE(['method', 'params']);
+const NORMALIZE_KEYS = TRUSTED_OBJECT_FREEZE([
   'requestId',
   'trustedOrigin',
   'trustedChainId',
@@ -30,7 +34,7 @@ const NORMALIZE_KEYS = Object.freeze([
 const SEND_TX_KEYS = new Set(['from', 'to', 'value', 'data']);
 const normalizedIntentBrand = new WeakSet();
 
-export const WALLET_GUARD_INTENT_KEYS = Object.freeze([
+export const WALLET_GUARD_INTENT_KEYS = TRUSTED_OBJECT_FREEZE([
   'schema_version',
   'request_id',
   'origin',
@@ -63,6 +67,10 @@ export class WalletGuardIntentError extends Error {
 
 function fail(code, message) {
   throw new WalletGuardIntentError(code, message);
+}
+
+function setHas(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
 }
 
 function assertExactKeys(value, expected, label) {
@@ -111,8 +119,10 @@ function normalizeSendTransaction(request, trustedAccount) {
   if (!tx || typeof tx !== 'object' || Array.isArray(tx)) {
     fail('POMRX_WG_E_REQUEST_INVALID', 'transaction must be an object');
   }
-  for (const key of Object.keys(tx)) {
-    if (!SEND_TX_KEYS.has(key)) {
+  const txKeys = Object.keys(tx);
+  for (let index = 0; index < txKeys.length; index += 1) {
+    const key = txKeys[index];
+    if (!setHas(SEND_TX_KEYS, key)) {
       fail('POMRX_WG_E_REQUEST_INVALID', `unsupported transaction field: ${key}`);
     }
   }
@@ -130,7 +140,7 @@ function normalizeSendTransaction(request, trustedAccount) {
   const data = normalizeHexData(tx.data ?? '0x', 'transaction data');
   const decoded = decodeTransactionCalldata(data);
 
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     request_class: decoded.request_class,
     target,
     spender: decoded.spender,
@@ -160,7 +170,7 @@ function normalizeTypedDataRequest(request, trustedAccount) {
   if (decoded.request_class === 'permit_eip2612' && decoded.typed_data_owner !== trustedAccount) {
     fail('POMRX_WG_E_ACCOUNT_MISMATCH', 'Permit owner does not match trusted active account');
   }
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     request_class: decoded.request_class,
     target: decoded.target,
     spender: decoded.spender,
@@ -188,7 +198,7 @@ function normalizeGenericSignature(request) {
   } catch {
     fail('POMRX_WG_E_REQUEST_INVALID', 'generic signature payload is outside bounded canonical form');
   }
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     request_class: 'generic_signature',
     target: null,
     spender: null,
@@ -216,7 +226,7 @@ function normalizeUnsupportedRpc(request) {
   } catch {
     fail('POMRX_WG_E_REQUEST_INVALID', 'unsupported RPC payload is outside bounded canonical form');
   }
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     request_class: 'unsupported_rpc',
     target: null,
     spender: null,
@@ -235,7 +245,7 @@ function normalizeUnsupportedRpc(request) {
 }
 
 function freezeIntent(fields) {
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     schema_version: WALLET_GUARD_INTENT_SCHEMA_VERSION,
     ...fields,
   });
@@ -377,7 +387,7 @@ export function normalizeWalletGuardIntent(input) {
 export function commitWalletGuardIntent(intent) {
   validateWalletGuardIntent(intent);
   const canonical_intent = canonicalizePayload(intent);
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     canonical_intent,
     intent_commitment: sha256Hex(`${WALLET_GUARD_INTENT_COMMIT_DOMAIN}${canonical_intent}`),
   });
