@@ -496,6 +496,25 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
   };
 
   const provider = freeze({
+    captureContext(deliverContext, reportFailure) {
+      if (typeof deliverContext !== 'function' || typeof reportFailure !== 'function') {
+        fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
+      }
+      // One scalar capture replaces the former pair of eth_chainId/eth_accounts
+      // Promise reads. Count two logical context reads to preserve diagnostics.
+      state.contextReads += 2;
+      if (state.rejectNextContextMethod !== null) {
+        state.rejectNextContextMethod = null;
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      if (state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(state.chainId, state.accounts[0]);
+      return undefined;
+    },
     request(request) {
       // This check occurs before the controlled provider can originate any
       // transport. No caller-supplied provider request function exists on this
