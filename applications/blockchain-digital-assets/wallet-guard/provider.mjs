@@ -17,6 +17,10 @@ import {
   evaluateWalletGuardPolicy,
   normalizeWalletGuardPolicy,
 } from './policy.mjs';
+import {
+  WalletGuardTrustedContextError,
+  captureWalletGuardTrustedContext,
+} from './trusted-context-capture.mjs';
 
 export const WALLET_GUARD_BINDING_PROFILE = 'pom-rx-wallet-guard/0.1';
 export const WALLET_GUARD_CONTEXT_SCHEMA_VERSION = 'wallet_guard_context/0.1';
@@ -26,6 +30,7 @@ const TRUSTED_REFLECT_APPLY = Reflect.apply;
 const TRUSTED_SET = Set;
 const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
 
 const TRUSTED_OBJECT = globalThis.Object;
 const TRUSTED_ARRAY = globalThis.Array;
@@ -53,6 +58,7 @@ const TRUSTED_URL_PASSWORD_GET = globalThis.Object.getOwnPropertyDescriptor(
 
 const Object = {
   create: TRUSTED_OBJECT.create,
+  defineProperty: TRUSTED_OBJECT.defineProperty,
   freeze: TRUSTED_OBJECT.freeze,
   getOwnPropertyDescriptors: TRUSTED_OBJECT.getOwnPropertyDescriptors,
   getOwnPropertySymbols: TRUSTED_OBJECT.getOwnPropertySymbols,
@@ -95,6 +101,14 @@ class URL extends TRUSTED_URL {
   }
 }
 
+const TRUSTED_CONTEXT_RUNTIME = Object.freeze({
+  objectCreate: TRUSTED_OBJECT.create,
+  objectDefineProperty: TRUSTED_OBJECT.defineProperty,
+  objectFreeze: TRUSTED_OBJECT.freeze,
+  reflectApply: TRUSTED_REFLECT_APPLY,
+  regexpExec: TRUSTED_REGEXP_EXEC,
+});
+
 const CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-context:v1:';
 const METHOD_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-method:v1:';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
@@ -105,7 +119,6 @@ const MAX_REQUEST_DEPTH = 8;
 const MAX_REQUEST_NODES = 1_000;
 const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
-const MAX_ACCOUNTS = 64;
 const FORBIDDEN_KEYS = new TRUSTED_SET(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
@@ -299,65 +312,59 @@ function normalizeProviderChain(value) {
   try {
     return normalizeChainId(value);
   } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid chain id');
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context returned an invalid chain id');
   }
 }
 
 function normalizeProviderAccount(value) {
   try {
-    return normalizeEvmAddress(value, 'provider account');
+    return normalizeEvmAddress(value, 'trusted context account');
   } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid account');
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context returned an invalid account');
   }
 }
 
-function normalizeAccounts(value) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
-  }
-  const normalized = value.map(normalizeProviderAccount);
-  if (new TRUSTED_SET(normalized).size !== normalized.length) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
-  }
-  return Object.freeze(normalized);
-}
-
-async function providerRead(provider, method) {
+function captureProviderContext(provider, captureContext) {
+  let captured;
   try {
-    return await provider.request(Object.freeze({ method, params: Object.freeze([]) }));
-  } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', `provider ${method} read failed`);
+    captured = captureWalletGuardTrustedContext(
+      (deliverContext, reportFailure) => TRUSTED_REFLECT_APPLY(
+        captureContext,
+        provider,
+        [deliverContext, reportFailure],
+      ),
+      TRUSTED_CONTEXT_RUNTIME,
+    );
+  } catch (error) {
+    if (error instanceof WalletGuardTrustedContextError) {
+      if (error.code === 'POMRX_WG_CONTEXT_E_CONTRADICTORY') {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted context source emitted contradictory evidence');
+      }
+      if (error.code === 'POMRX_WG_CONTEXT_E_INVALID') {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context source emitted invalid evidence');
+      }
+      fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', 'trusted context source was unavailable');
+    }
+    throw error;
   }
-}
-
-async function readProviderSnapshot(provider) {
-  const chainRaw = await providerRead(provider, 'eth_chainId');
-  const accountsRaw = await providerRead(provider, 'eth_accounts');
   return Object.freeze({
-    chain_id: normalizeProviderChain(chainRaw),
-    accounts: normalizeAccounts(accountsRaw),
+    chain_id: normalizeProviderChain(captured.chain_id),
+    account: normalizeProviderAccount(captured.account),
   });
 }
 
-function sameAccounts(left, right) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-async function sampleStableProviderContext(provider) {
-  const first = await readProviderSnapshot(provider);
-  const second = await readProviderSnapshot(provider);
-  if (first.chain_id !== second.chain_id || !sameAccounts(first.accounts, second.accounts)) {
+function sampleStableProviderContext(provider, captureContext) {
+  const first = captureProviderContext(provider, captureContext);
+  const second = captureProviderContext(provider, captureContext);
+  if (first.chain_id !== second.chain_id || first.account !== second.account) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'provider chain/account context changed during sampling');
   }
-  return Object.freeze({
-    chain_id: first.chain_id,
-    account: first.accounts[0],
-  });
+  return first;
 }
 
-async function sampleTrustedContext(captureTrustedOrigin, provider) {
+function sampleTrustedContext(captureTrustedOrigin, provider, captureContext) {
   const originBefore = sampleTrustedOrigin(captureTrustedOrigin);
-  const providerContext = await sampleStableProviderContext(provider);
+  const providerContext = sampleStableProviderContext(provider, captureContext);
   const originAfter = sampleTrustedOrigin(captureTrustedOrigin);
   if (originBefore !== originAfter) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted origin changed during provider sampling');
@@ -475,9 +482,13 @@ export function createWalletGuardReferenceProviderGateway(options) {
       || !provider
       || typeof provider !== 'object'
       || typeof provider.request !== 'function'
+      || typeof provider.captureContext !== 'function'
       || typeof trustedClock !== 'function'
       || typeof referenceAuthorizationForRequest !== 'function') {
-    fail('POMRX_WG_PROVIDER_E_INVALID', 'trusted bootstrap dependencies are invalid');
+    fail(
+      'POMRX_WG_PROVIDER_E_INVALID',
+      'trusted bootstrap requires sensitive request plus synchronous scalar context capture',
+    );
   }
   if (!Number.isSafeInteger(options.capabilityLifetimeMs)
       || options.capabilityLifetimeMs < 1_000
@@ -485,6 +496,8 @@ export function createWalletGuardReferenceProviderGateway(options) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'capabilityLifetimeMs must be between 1 second and 5 minutes');
   }
 
+  const providerRequest = provider.request;
+  const providerCaptureContext = provider.captureContext;
   const policy = normalizeWalletGuardPolicy(options.policy);
   const usedRunIds = new TRUSTED_SET();
   const usedPreflightHashes = new TRUSTED_SET();
@@ -495,7 +508,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     trustedClock,
     observeBinding: async (attempt) => {
       exactKeys(attempt, ['request_id', 'request'], 'Wallet Guard execution attempt');
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
       const request = clonePlainRequest(attempt.request);
       const intent = normalizeWalletGuardIntent({
         requestId: attempt.request_id,
@@ -527,7 +540,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     },
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
       if (!exactContextMatches(prepared, context)) {
         fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
       }
@@ -550,7 +563,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the prepared request');
       }
 
-      return provider.request(request);
+      return TRUSTED_REFLECT_APPLY(providerRequest, provider, [request]);
     },
   });
 
@@ -561,7 +574,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     requestCounter += 1;
     const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
 
-    const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+    const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
     const intent = normalizeWalletGuardIntent({
       requestId,
       trustedOrigin: context.origin,
