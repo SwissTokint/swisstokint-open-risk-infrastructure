@@ -10,6 +10,7 @@ import {
 } from '../../applications/blockchain-digital-assets/wallet-guard/controlled-host.mjs';
 import {
   WALLET_GUARD_INTENT_COMMIT_DOMAIN,
+  WalletGuardIntentError,
   commitWalletGuardIntent,
   normalizeWalletGuardIntent,
 } from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
@@ -151,10 +152,12 @@ test('fixed-schema intent commitment remains byte-compatible with the historical
   assert.equal(committed.intent_commitment, expectedCommitment);
 });
 
-test('post-import Object.entries drift cannot rewrite a validated intent commitment', () => {
+test('post-import Object.entries drift cannot forge a validated intent commitment', () => {
   const intent = normalizeControlIntent();
   const expected = commitWalletGuardIntent(intent);
   const originalEntries = Object.entries;
+  let actual = null;
+  let rejected = null;
 
   Object.entries = function poisonedEntries(value) {
     if (value === intent) {
@@ -168,12 +171,24 @@ test('post-import Object.entries drift cannot rewrite a validated intent commitm
   };
 
   try {
-    const actual = commitWalletGuardIntent(intent);
-    assert.equal(actual.canonical_intent, expected.canonical_intent);
-    assert.equal(actual.intent_commitment, expected.intent_commitment);
+    try {
+      actual = commitWalletGuardIntent(intent);
+    } catch (error) {
+      rejected = error;
+    }
   } finally {
     Object.entries = originalEntries;
   }
+
+  if (rejected) {
+    assert.ok(rejected instanceof WalletGuardIntentError);
+    assert.equal(rejected.code, 'POMRX_WG_E_REQUEST_INVALID');
+    assert.equal(actual, null);
+    return;
+  }
+
+  assert.equal(actual.canonical_intent, expected.canonical_intent);
+  assert.equal(actual.intent_commitment, expected.intent_commitment);
 });
 
 test('Array.prototype.map drift cannot retain caller transaction aliases into sensitive forwarding', async () => {
