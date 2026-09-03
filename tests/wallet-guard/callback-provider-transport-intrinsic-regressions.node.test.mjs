@@ -184,6 +184,32 @@ test('parsed JSON arrays are materialized without inherited numeric setters', ()
   assert.equal(parsed.request.params[0].to, RECIPIENT);
 });
 
+test('parsed JSON array index conversion ignores post-import global String replacement', () => {
+  const raw = '{"method":"personal_sign","params":["safe","attacker"]}';
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'String');
+  let poisonCalls = 0;
+  let parsed;
+
+  Object.defineProperty(globalThis, 'String', {
+    ...original,
+    value(value) {
+      poisonCalls += 1;
+      if (value === 0) return '1';
+      if (value === 1) return '0';
+      return original.value(value);
+    },
+  });
+
+  try {
+    parsed = parseWalletGuardJsonIngress(raw);
+  } finally {
+    restoreDescriptor(globalThis, 'String', original);
+  }
+
+  assert.equal(poisonCalls, 0);
+  assert.deepEqual(parsed.request.params, ['safe', 'attacker']);
+});
+
 test('callback sensitive-call logging executes no inherited numeric setter', async () => {
   const original = Object.getOwnPropertyDescriptor(Array.prototype, '0');
   let poisonCalls = 0;
@@ -256,6 +282,24 @@ test('callback log index conversion ignores post-import global String replacemen
   assert.equal(inspected.sensitive_call_count, 1);
   assert.equal(inspected.sensitive_calls.length, 1);
   assert.equal(inspected.sensitive_calls[0].request.params[0].to, RECIPIENT);
+});
+
+test('callback transport rejects chain ids beyond the bridge command bound at construction', () => {
+  const oversizedChainId = `0x1${'0'.repeat(64)}`;
+  let dispatchCalls = 0;
+
+  assert.throws(
+    () => createWalletGuardControlledCallbackProviderTransport({
+      chainId: oversizedChainId,
+      accounts: [ACCOUNT],
+      maxSensitiveCalls: 1,
+      dispatchSensitive() {
+        dispatchCalls += 1;
+      },
+    }),
+    (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_INVALID'),
+  );
+  assert.equal(dispatchCalls, 0);
 });
 
 test('post-import builtin synchronization cannot replace the captured CSPRNG callable', () => {
