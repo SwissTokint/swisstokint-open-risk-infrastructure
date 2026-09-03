@@ -1,7 +1,5 @@
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../../sdk/typescript/swisstokint-proof.mjs';
+import { createHash } from 'node:crypto';
+
 import {
   createReferenceSingleUseGateHarness,
 } from '../../../core/gate/reference-single-use-gate.mjs';
@@ -17,10 +15,106 @@ import {
   evaluateWalletGuardPolicy,
   normalizeWalletGuardPolicy,
 } from './policy.mjs';
+import {
+  WalletGuardTrustedContextError,
+  captureWalletGuardTrustedContext,
+} from './trusted-context-capture.mjs';
 
 export const WALLET_GUARD_BINDING_PROFILE = 'pom-rx-wallet-guard/0.1';
 export const WALLET_GUARD_CONTEXT_SCHEMA_VERSION = 'wallet_guard_context/0.1';
 export const WALLET_GUARD_PREPARED_EXECUTION_VERSION = 'wallet_guard_prepared_execution/0.1';
+
+const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_SET = Set;
+const TRUSTED_SET_ADD = Set.prototype.add;
+const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
+const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
+
+const TRUSTED_OBJECT = globalThis.Object;
+const TRUSTED_ARRAY = globalThis.Array;
+const TRUSTED_NUMBER = globalThis.Number;
+const TRUSTED_DATE = globalThis.Date;
+const TRUSTED_URL = globalThis.URL;
+const TRUSTED_STRING = globalThis.String;
+const TRUSTED_JSON_STRINGIFY = globalThis.JSON.stringify;
+const TRUSTED_CREATE_HASH = createHash;
+const TRUSTED_ARRAY_SORT = TRUSTED_ARRAY.prototype.sort;
+const TRUSTED_STRING_PAD_START = TRUSTED_STRING.prototype.padStart;
+const TRUSTED_DATE_GET_TIME = TRUSTED_DATE.prototype.getTime;
+const TRUSTED_DATE_TO_ISO_STRING = TRUSTED_DATE.prototype.toISOString;
+const TRUSTED_URL_PROTOCOL_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'protocol',
+).get;
+const TRUSTED_URL_ORIGIN_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'origin',
+).get;
+const TRUSTED_URL_USERNAME_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'username',
+).get;
+const TRUSTED_URL_PASSWORD_GET = globalThis.Object.getOwnPropertyDescriptor(
+  TRUSTED_URL.prototype,
+  'password',
+).get;
+const TRUSTED_HASH_PROBE = TRUSTED_CREATE_HASH('sha256');
+const TRUSTED_HASH_UPDATE = TRUSTED_HASH_PROBE.update;
+const TRUSTED_HASH_DIGEST = TRUSTED_HASH_PROBE.digest;
+
+const Object = {
+  create: TRUSTED_OBJECT.create,
+  defineProperty: TRUSTED_OBJECT.defineProperty,
+  freeze: TRUSTED_OBJECT.freeze,
+  getOwnPropertyDescriptors: TRUSTED_OBJECT.getOwnPropertyDescriptors,
+  getOwnPropertySymbols: TRUSTED_OBJECT.getOwnPropertySymbols,
+  getPrototypeOf: TRUSTED_OBJECT.getPrototypeOf,
+  hasOwn: TRUSTED_OBJECT.hasOwn,
+  keys: TRUSTED_OBJECT.keys,
+  prototype: TRUSTED_OBJECT.prototype,
+};
+const Array = {
+  isArray: TRUSTED_ARRAY.isArray,
+};
+const Number = {
+  isFinite: TRUSTED_NUMBER.isFinite,
+  isSafeInteger: TRUSTED_NUMBER.isSafeInteger,
+};
+class Date extends TRUSTED_DATE {
+  getTime() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_DATE_GET_TIME, this, []);
+  }
+
+  toISOString() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_DATE_TO_ISO_STRING, this, []);
+  }
+}
+class URL extends TRUSTED_URL {
+  get protocol() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PROTOCOL_GET, this, []);
+  }
+
+  get origin() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_ORIGIN_GET, this, []);
+  }
+
+  get username() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_USERNAME_GET, this, []);
+  }
+
+  get password() {
+    return TRUSTED_REFLECT_APPLY(TRUSTED_URL_PASSWORD_GET, this, []);
+  }
+}
+
+const TRUSTED_CONTEXT_RUNTIME = Object.freeze({
+  objectCreate: TRUSTED_OBJECT.create,
+  objectDefineProperty: TRUSTED_OBJECT.defineProperty,
+  objectFreeze: TRUSTED_OBJECT.freeze,
+  reflectApply: TRUSTED_REFLECT_APPLY,
+  regexpExec: TRUSTED_REGEXP_EXEC,
+});
 
 const CONTEXT_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-context:v1:';
 const METHOD_COMMIT_DOMAIN = 'swisstokint:pom-rx-wallet-guard-method:v1:';
@@ -32,8 +126,7 @@ const MAX_REQUEST_DEPTH = 8;
 const MAX_REQUEST_NODES = 1_000;
 const MAX_REQUEST_STRING = 16_384;
 const MAX_REQUEST_KEY = 64;
-const MAX_ACCOUNTS = 64;
-const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const FORBIDDEN_KEYS = new TRUSTED_SET(['__proto__', 'constructor', 'prototype']);
 const BOOTSTRAP_KEYS = Object.freeze([
   'captureTrustedOrigin',
   'provider',
@@ -88,14 +181,53 @@ function fail(code, message) {
   throw new WalletGuardProviderError(code, message);
 }
 
+function setHas(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
+}
+
+function setAdd(set, value) {
+  TRUSTED_REFLECT_APPLY(TRUSTED_SET_ADD, set, [value]);
+}
+
+function regexpTest(pattern, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
+}
+
+function appendArrayValue(list, value) {
+  const descriptor = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.configurable = true;
+  descriptor.writable = true;
+  TRUSTED_REFLECT_APPLY(
+    Object.defineProperty,
+    undefined,
+    [list, `${list.length}`, descriptor],
+  );
+}
+
+function sortedCopy(values) {
+  const copy = new TRUSTED_ARRAY();
+  for (let index = 0; index < values.length; index += 1) {
+    appendArrayValue(copy, values[index]);
+  }
+  TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_SORT, copy, []);
+  return copy;
+}
+
 function exactKeys(value, expected, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const actual = sortedCopy(Object.keys(value));
+  const wanted = sortedCopy(expected);
+  if (actual.length !== wanted.length) {
     fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+  }
+  for (let index = 0; index < actual.length; index += 1) {
+    if (actual[index] !== wanted[index]) {
+      fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+    }
   }
 }
 
@@ -109,7 +241,7 @@ function canonicalOrigin(value) {
   } catch {
     fail('POMRX_WG_PROVIDER_E_ORIGIN_INVALID', 'trusted origin must be an absolute HTTP(S) origin');
   }
-  if (!['https:', 'http:'].includes(url.protocol)
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:')
       || url.origin !== value
       || url.username
       || url.password) {
@@ -132,7 +264,7 @@ function sampleTrustedOrigin(captureTrustedOrigin) {
 }
 
 function canonicalUtcInstant(value, field) {
-  if (typeof value !== 'string' || !value.endsWith('Z')) {
+  if (typeof value !== 'string' || value.length === 0 || value[value.length - 1] !== 'Z') {
     fail('POMRX_WG_PROVIDER_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
   }
   const parsed = new Date(value);
@@ -175,17 +307,25 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
   }
   if (Array.isArray(value)) {
     const keys = Object.keys(value);
-    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+    if (keys.length !== value.length) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays must be dense');
     }
+    for (let index = 0; index < keys.length; index += 1) {
+      if (keys[index] !== `${index}`) {
+        fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays must be dense');
+      }
+    }
     const descriptors = Object.getOwnPropertyDescriptors(value);
-    return Object.freeze(keys.map((key) => {
+    const output = new TRUSTED_ARRAY();
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
       const descriptor = descriptors[key];
       if (!descriptor || typeof descriptor.get === 'function' || typeof descriptor.set === 'function') {
         fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request arrays cannot contain accessors');
       }
-      return clonePlainRequest(descriptor.value, depth + 1, budget);
-    }));
+      appendArrayValue(output, clonePlainRequest(descriptor.value, depth + 1, budget));
+    }
+    return Object.freeze(output);
   }
 
   if (!value || typeof value !== 'object') {
@@ -201,8 +341,10 @@ function clonePlainRequest(value, depth = 0, budget = { remaining: MAX_REQUEST_N
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const output = Object.create(null);
-  for (const key of Object.keys(value)) {
-    if (key.length === 0 || key.length > MAX_REQUEST_KEY || FORBIDDEN_KEYS.has(key)) {
+  const keys = Object.keys(value);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    if (key.length === 0 || key.length > MAX_REQUEST_KEY || setHas(FORBIDDEN_KEYS, key)) {
       fail('POMRX_WG_PROVIDER_E_REQUEST_INVALID', 'request contains an unsafe key');
     }
     const descriptor = descriptors[key];
@@ -218,65 +360,59 @@ function normalizeProviderChain(value) {
   try {
     return normalizeChainId(value);
   } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid chain id');
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context returned an invalid chain id');
   }
 }
 
 function normalizeProviderAccount(value) {
   try {
-    return normalizeEvmAddress(value, 'provider account');
+    return normalizeEvmAddress(value, 'trusted context account');
   } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider returned an invalid account');
+    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context returned an invalid account');
   }
 }
 
-function normalizeAccounts(value) {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ACCOUNTS) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider must expose a bounded non-empty accounts array');
-  }
-  const normalized = value.map(normalizeProviderAccount);
-  if (new Set(normalized).size !== normalized.length) {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'provider accounts cannot contain duplicates');
-  }
-  return Object.freeze(normalized);
-}
-
-async function providerRead(provider, method) {
+function captureProviderContext(provider, captureContext) {
+  let captured;
   try {
-    return await provider.request(Object.freeze({ method, params: Object.freeze([]) }));
-  } catch {
-    fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', `provider ${method} read failed`);
+    captured = captureWalletGuardTrustedContext(
+      (deliverContext, reportFailure) => TRUSTED_REFLECT_APPLY(
+        captureContext,
+        provider,
+        [deliverContext, reportFailure],
+      ),
+      TRUSTED_CONTEXT_RUNTIME,
+    );
+  } catch (error) {
+    if (error instanceof WalletGuardTrustedContextError) {
+      if (error.code === 'POMRX_WG_CONTEXT_E_CONTRADICTORY') {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted context source emitted contradictory evidence');
+      }
+      if (error.code === 'POMRX_WG_CONTEXT_E_INVALID') {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_INVALID', 'trusted context source emitted invalid evidence');
+      }
+      fail('POMRX_WG_PROVIDER_E_CONTEXT_UNAVAILABLE', 'trusted context source was unavailable');
+    }
+    throw error;
   }
-}
-
-async function readProviderSnapshot(provider) {
-  const chainRaw = await providerRead(provider, 'eth_chainId');
-  const accountsRaw = await providerRead(provider, 'eth_accounts');
   return Object.freeze({
-    chain_id: normalizeProviderChain(chainRaw),
-    accounts: normalizeAccounts(accountsRaw),
+    chain_id: normalizeProviderChain(captured.chain_id),
+    account: normalizeProviderAccount(captured.account),
   });
 }
 
-function sameAccounts(left, right) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-async function sampleStableProviderContext(provider) {
-  const first = await readProviderSnapshot(provider);
-  const second = await readProviderSnapshot(provider);
-  if (first.chain_id !== second.chain_id || !sameAccounts(first.accounts, second.accounts)) {
+function sampleStableProviderContext(provider, captureContext) {
+  const first = captureProviderContext(provider, captureContext);
+  const second = captureProviderContext(provider, captureContext);
+  if (first.chain_id !== second.chain_id || first.account !== second.account) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'provider chain/account context changed during sampling');
   }
-  return Object.freeze({
-    chain_id: first.chain_id,
-    account: first.accounts[0],
-  });
+  return first;
 }
 
-async function sampleTrustedContext(captureTrustedOrigin, provider) {
+function sampleTrustedContext(captureTrustedOrigin, provider, captureContext) {
   const originBefore = sampleTrustedOrigin(captureTrustedOrigin);
-  const providerContext = await sampleStableProviderContext(provider);
+  const providerContext = sampleStableProviderContext(provider, captureContext);
   const originAfter = sampleTrustedOrigin(captureTrustedOrigin);
   if (originBefore !== originAfter) {
     fail('POMRX_WG_PROVIDER_E_CONTEXT_UNSTABLE', 'trusted origin changed during provider sampling');
@@ -288,31 +424,38 @@ async function sampleTrustedContext(captureTrustedOrigin, provider) {
   });
 }
 
+function quoteCanonicalString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_STRINGIFY, undefined, [value]);
+}
+
+function trustedSha256Hex(value) {
+  const hash = TRUSTED_CREATE_HASH('sha256');
+  TRUSTED_REFLECT_APPLY(TRUSTED_HASH_UPDATE, hash, [value, 'utf8']);
+  return TRUSTED_REFLECT_APPLY(TRUSTED_HASH_DIGEST, hash, ['hex']);
+}
+
 function commitContext(context, policyHash) {
-  const payload = Object.freeze({
-    schema_version: WALLET_GUARD_CONTEXT_SCHEMA_VERSION,
-    origin: context.origin,
-    chain_id: context.chain_id,
-    account: context.account,
-    policy_hash: policyHash,
-  });
-  const canonical = canonicalizePayload(payload);
-  return sha256Hex(`${CONTEXT_COMMIT_DOMAIN}${canonical}`);
+  const canonical = `{"account":${quoteCanonicalString(context.account)}`
+    + `,"chain_id":${quoteCanonicalString(context.chain_id)}`
+    + `,"origin":${quoteCanonicalString(context.origin)}`
+    + `,"policy_hash":${quoteCanonicalString(policyHash)}`
+    + `,"schema_version":${quoteCanonicalString(WALLET_GUARD_CONTEXT_SCHEMA_VERSION)}}`;
+  return trustedSha256Hex(`${CONTEXT_COMMIT_DOMAIN}${canonical}`);
 }
 
 function commitMethod(method) {
-  return sha256Hex(`${METHOD_COMMIT_DOMAIN}${method}`);
+  return trustedSha256Hex(`${METHOD_COMMIT_DOMAIN}${method}`);
 }
 
 function validateReferenceAuthorization(value) {
   exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
-    if (typeof value[field] !== 'string' || !ID_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(ID_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['verification_profile', 'verifier_version']) {
-    if (typeof value[field] !== 'string' || !PROFILE_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(PROFILE_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -322,12 +465,12 @@ function validateReferenceAuthorization(value) {
     'implementation_artifact_sha256',
     'effective_verification_policy_sha256',
   ]) {
-    if (typeof value[field] !== 'string' || !HASH_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(HASH_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['source_key_id', 'witness_key_id']) {
-    if (typeof value[field] !== 'string' || !KEY_ID_PATTERN.test(value[field])) {
+    if (typeof value[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, value[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -357,8 +500,10 @@ function validatePreparedExecution(prepared) {
   if (prepared.schema_version !== WALLET_GUARD_PREPARED_EXECUTION_VERSION) {
     fail('POMRX_WG_PROVIDER_E_PREPARED_INVALID', 'prepared execution version is invalid');
   }
-  if (typeof prepared.intent_commitment !== 'string' || !HASH_PATTERN.test(prepared.intent_commitment)
-      || typeof prepared.policy_hash !== 'string' || !HASH_PATTERN.test(prepared.policy_hash)) {
+  if (typeof prepared.intent_commitment !== 'string'
+      || !regexpTest(HASH_PATTERN, prepared.intent_commitment)
+      || typeof prepared.policy_hash !== 'string'
+      || !regexpTest(HASH_PATTERN, prepared.policy_hash)) {
     fail('POMRX_WG_PROVIDER_E_PREPARED_INVALID', 'prepared execution commitments are invalid');
   }
   return prepared;
@@ -394,9 +539,13 @@ export function createWalletGuardReferenceProviderGateway(options) {
       || !provider
       || typeof provider !== 'object'
       || typeof provider.request !== 'function'
+      || typeof provider.captureContext !== 'function'
       || typeof trustedClock !== 'function'
       || typeof referenceAuthorizationForRequest !== 'function') {
-    fail('POMRX_WG_PROVIDER_E_INVALID', 'trusted bootstrap dependencies are invalid');
+    fail(
+      'POMRX_WG_PROVIDER_E_INVALID',
+      'trusted bootstrap requires sensitive request plus synchronous scalar context capture',
+    );
   }
   if (!Number.isSafeInteger(options.capabilityLifetimeMs)
       || options.capabilityLifetimeMs < 1_000
@@ -404,17 +553,19 @@ export function createWalletGuardReferenceProviderGateway(options) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'capabilityLifetimeMs must be between 1 second and 5 minutes');
   }
 
+  const providerRequest = provider.request;
+  const providerCaptureContext = provider.captureContext;
   const policy = normalizeWalletGuardPolicy(options.policy);
-  const usedRunIds = new Set();
-  const usedPreflightHashes = new Set();
-  const usedWitnessHashes = new Set();
+  const usedRunIds = new TRUSTED_SET();
+  const usedPreflightHashes = new TRUSTED_SET();
+  const usedWitnessHashes = new TRUSTED_SET();
   let requestCounter = 0;
 
   const coreGateHarness = createReferenceSingleUseGateHarness({
     trustedClock,
     observeBinding: async (attempt) => {
       exactKeys(attempt, ['request_id', 'request'], 'Wallet Guard execution attempt');
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
       const request = clonePlainRequest(attempt.request);
       const intent = normalizeWalletGuardIntent({
         requestId: attempt.request_id,
@@ -446,7 +597,7 @@ export function createWalletGuardReferenceProviderGateway(options) {
     },
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);
-      const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+      const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
       if (!exactContextMatches(prepared, context)) {
         fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
       }
@@ -469,7 +620,15 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the prepared request');
       }
 
-      return provider.request(request);
+      const finalContext = sampleTrustedContext(
+        captureTrustedOrigin,
+        provider,
+        providerCaptureContext,
+      );
+      if (!exactContextMatches(prepared, finalContext)) {
+        fail('POMRX_WG_PROVIDER_E_CONTEXT_CHANGED', 'trusted context changed immediately before forwarding');
+      }
+      return TRUSTED_REFLECT_APPLY(providerRequest, provider, [request]);
     },
   });
 
@@ -478,9 +637,15 @@ export function createWalletGuardReferenceProviderGateway(options) {
     // the dApp object after this call cannot change the request later forwarded.
     const requestSnapshot = clonePlainRequest(untrustedRequest);
     requestCounter += 1;
-    const requestId = `wg-reference-request-${String(requestCounter).padStart(8, '0')}`;
+    const counterText = TRUSTED_REFLECT_APPLY(TRUSTED_STRING, undefined, [requestCounter]);
+    const paddedCounter = TRUSTED_REFLECT_APPLY(
+      TRUSTED_STRING_PAD_START,
+      counterText,
+      [8, '0'],
+    );
+    const requestId = `wg-reference-request-${paddedCounter}`;
 
-    const context = await sampleTrustedContext(captureTrustedOrigin, provider);
+    const context = sampleTrustedContext(captureTrustedOrigin, provider, providerCaptureContext);
     const intent = normalizeWalletGuardIntent({
       requestId,
       trustedOrigin: context.origin,
@@ -519,14 +684,21 @@ export function createWalletGuardReferenceProviderGateway(options) {
     if (new Date(expiresAt).getTime() > witnessValidUntil.getTime()) {
       fail('POMRX_WG_PROVIDER_E_TIME_INVALID', 'capability expiry exceeds witness validity');
     }
-    if (usedRunIds.has(referenceAuthorization.run_id)
-        || usedPreflightHashes.has(referenceAuthorization.preflight_receipt_hash)
-        || usedWitnessHashes.has(referenceAuthorization.witness_ack_hash)) {
+    if (setHas(usedRunIds, referenceAuthorization.run_id)
+        || setHas(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash)
+        || setHas(usedWitnessHashes, referenceAuthorization.witness_ack_hash)) {
       fail(
         'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY',
         'reference authorization evidence was already used by this gateway',
       );
     }
+
+    // Reserve replay identities before any capability-issuer work can execute.
+    // Reservations are intentionally not rolled back: if issuance fails, the
+    // evidence remains consumed so a reentrant or retried path cannot re-arm it.
+    setAdd(usedRunIds, referenceAuthorization.run_id);
+    setAdd(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash);
+    setAdd(usedWitnessHashes, referenceAuthorization.witness_ack_hash);
 
     const bindingInput = Object.freeze({
       binding_profile: WALLET_GUARD_BINDING_PROFILE,
@@ -553,9 +725,6 @@ export function createWalletGuardReferenceProviderGateway(options) {
       bindingInput,
       { witnessValidUntil: referenceAuthorization.witness_valid_until },
     );
-    usedRunIds.add(referenceAuthorization.run_id);
-    usedPreflightHashes.add(referenceAuthorization.preflight_receipt_hash);
-    usedWitnessHashes.add(referenceAuthorization.witness_ack_hash);
 
     const providerResult = await coreGateHarness.gate.consume(
       capability,
