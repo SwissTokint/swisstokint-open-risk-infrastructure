@@ -277,8 +277,9 @@ test('context drift immediately after the last pre-forward sample is caught by t
   await assert.rejects(
     gateway.request(sendTransaction()),
     (error) => {
-      assert.ok(error instanceof WalletGuardProviderError);
-      assert.equal(error.code, 'POMRX_WG_PROVIDER_E_CONTEXT_CHANGED');
+      assert.equal(error?.name, 'PomRxGateError');
+      assert.equal(error?.code, 'POMRX_GATE_E_DOWNSTREAM_FAILED');
+      assert.equal(error?.message, 'Downstream execution failed');
       return true;
     },
   );
@@ -286,6 +287,56 @@ test('context drift immediately after the last pre-forward sample is caught by t
   assert.equal(state.account, ATTACKER);
   assert.equal(state.sensitiveCalls.length, 0);
   assert.ok(state.contextReads >= 7);
+});
+
+test('reentrant capability issuance cannot reuse the same replay evidence twice', async () => {
+  const fixedAuthorization = referenceAuthorizationFactory('reentrant-replay')();
+  let gateway;
+  let state;
+  let armed = false;
+  let reentryStarted = false;
+  let nestedPromise = null;
+
+  const originalFreeze = Object.freeze;
+  const originalGetPrototypeOf = Object.getPrototypeOf;
+  const originalOwnKeys = Reflect.ownKeys;
+
+  Object.freeze = function poisonedFreeze(value) {
+    if (armed
+        && !reentryStarted
+        && value
+        && typeof value === 'object'
+        && Reflect.apply(originalGetPrototypeOf, Object, [value]) === null
+        && Reflect.apply(originalOwnKeys, Reflect, [value]).length === 0) {
+      reentryStarted = true;
+      nestedPromise = gateway.request(sendTransaction());
+    }
+    return Reflect.apply(originalFreeze, Object, [value]);
+  };
+
+  try {
+    ({ gateway, state } = createMutableGateway({
+      authorizationFactory: () => {
+        armed = true;
+        return fixedAuthorization;
+      },
+    }));
+
+    const outerPromise = gateway.request(sendTransaction());
+    assert.equal(reentryStarted, true);
+    assert.ok(nestedPromise);
+
+    const [outer, nested] = await Promise.allSettled([outerPromise, nestedPromise]);
+    assert.equal(outer.status, 'fulfilled');
+    assert.equal(outer.value.forwarded, true);
+    assert.equal(nested.status, 'rejected');
+    assert.ok(nested.reason instanceof WalletGuardProviderError);
+    assert.equal(nested.reason.code, 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY');
+  } finally {
+    Object.freeze = originalFreeze;
+  }
+
+  assert.equal(state.sensitiveCalls.length, 1);
 });
 
 async function captureReferenceSummary({ poisonContextEntries = false } = {}) {
