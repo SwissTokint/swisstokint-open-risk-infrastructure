@@ -26,6 +26,7 @@ const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
 const TRUSTED_SET = Set;
 const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_STRING = String;
 const TRUSTED_STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const TRUSTED_STRING_INCLUDES = String.prototype.includes;
 const TRUSTED_STRING_SLICE = String.prototype.slice;
@@ -97,6 +98,10 @@ function trustedSetAdd(set, value) {
 
 function trustedSetHas(set, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
+}
+
+function trustedString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING, undefined, [value]);
 }
 
 function trustedStringCharCodeAt(value, index) {
@@ -383,7 +388,7 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
   if (TRUSTED_ARRAY_IS_ARRAY(value)) {
     const output = [];
     for (let index = 0; index < value.length; index += 1) {
-      defineOwnData(output, String(index), cloneParsed(value[index], depth + 1, budget));
+      defineOwnData(output, trustedString(index), cloneParsed(value[index], depth + 1, budget));
     }
     return TRUSTED_OBJECT_FREEZE(output);
   }
