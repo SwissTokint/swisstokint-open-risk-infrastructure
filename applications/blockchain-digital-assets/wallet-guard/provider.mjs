@@ -193,17 +193,21 @@ function regexpTest(pattern, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
 }
 
-function appendArrayValue(list, value) {
+function defineOwnDataProperty(target, key, value, writable = false, configurable = false) {
   const descriptor = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
-  descriptor.configurable = true;
-  descriptor.writable = true;
+  descriptor.configurable = configurable;
+  descriptor.writable = writable;
   TRUSTED_REFLECT_APPLY(
     Object.defineProperty,
     undefined,
-    [list, `${list.length}`, descriptor],
+    [target, key, descriptor],
   );
+}
+
+function appendArrayValue(list, value) {
+  defineOwnDataProperty(list, `${list.length}`, value, true, true);
 }
 
 function sortedCopy(values) {
@@ -516,15 +520,15 @@ function exactContextMatches(prepared, context) {
 }
 
 function makeDecisionResult(policyResult, committed, forwarded, providerResult = null) {
-  return Object.freeze({
-    decision: policyResult.decision,
-    reasons: policyResult.reasons,
-    policy_hash: policyResult.policy_hash,
-    intent_commitment: committed.intent_commitment,
-    forwarded,
-    provider_result: providerResult,
-    reference_authorization_only: true,
-  });
+  const result = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+  defineOwnDataProperty(result, 'decision', policyResult.decision);
+  defineOwnDataProperty(result, 'reasons', policyResult.reasons);
+  defineOwnDataProperty(result, 'policy_hash', policyResult.policy_hash);
+  defineOwnDataProperty(result, 'intent_commitment', committed.intent_commitment);
+  defineOwnDataProperty(result, 'forwarded', forwarded);
+  defineOwnDataProperty(result, 'provider_result', providerResult);
+  defineOwnDataProperty(result, 'reference_authorization_only', true);
+  return TRUSTED_REFLECT_APPLY(Object.freeze, undefined, [result]);
 }
 
 export function createWalletGuardReferenceProviderGateway(options) {
