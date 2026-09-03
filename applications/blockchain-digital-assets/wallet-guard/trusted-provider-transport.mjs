@@ -790,6 +790,18 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
   };
 
   const provider = freeze({
+    captureContext(deliverContext, reportFailure) {
+      if (typeof deliverContext !== 'function' || typeof reportFailure !== 'function') {
+        fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
+      }
+      state.contextReads += 2;
+      if (state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(state.chainId, state.accounts[0]);
+      return undefined;
+    },
     request(request) {
       assertPromiseTransportRuntime();
 
