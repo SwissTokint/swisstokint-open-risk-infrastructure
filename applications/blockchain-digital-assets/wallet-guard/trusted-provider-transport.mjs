@@ -763,6 +763,7 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
   assertPromiseTransportRuntime();
 
   if (typeof rawOptions.chainId !== 'string'
+      || rawOptions.chainId.length > 66
       || !trustedPatternTest(CHAIN_ID_PATTERN, rawOptions.chainId)
       || typeof rawOptions.dispatchSensitive !== 'function'
       || isProxy(rawOptions.dispatchSensitive)
