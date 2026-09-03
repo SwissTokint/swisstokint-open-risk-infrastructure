@@ -4,7 +4,7 @@ This directory owns the common execution-side Gate consumption semantics for POM
 
 The Gate is the boundary that may call a downstream execution adapter after exact authorization. Application blocks must not fork the common capability lifecycle, temporal-validity, replay or terminal-state rules.
 
-Current status: **Core contract ratified; local reference implementation exists; production Gate unproved**.
+Current status: **Core contract ratified; local reference implementation and reference durable composition exist; production Gate unproved**.
 
 Reference state machine:
 
@@ -27,7 +27,7 @@ The generic Core Gate still passes the caller-owned execution attempt to the ins
 
 The untrusted-facing Gate handle exposes consumption only. Reference issuance/state inspection live on a separately named local `testAuthority` retained by the trusted harness. This authority is reference-only and must never be represented as a production issuer.
 
-The local reference Gate uses fake/test downstream adapters only. A production Gate remains blocked by production-grade source/Witness trust, trusted production time, production issuer integration and, outside one process, durable atomic consumption. The temporal hardening proves only local enforcement against the installed synchronous clock; it does not prove wall-clock correctness, tamper resistance, distributed time or production trusted-time service semantics. Durable consumption remains a separately reviewed lot.
+The local reference Gate uses fake/test downstream adapters only. A production Gate remains blocked by production-grade source/Witness trust, trusted production time, production issuer integration and durable semantics beyond the explicitly documented local-filesystem reference assumptions. The temporal hardening proves only local enforcement against the installed synchronous clock; it does not prove wall-clock correctness, tamper resistance, distributed time or production trusted-time service semantics.
 
 ## Reference durable claim store
 
@@ -41,7 +41,13 @@ The persisted record separates observations from deployment assumptions. `exclus
 
 The configured root must be an absolute direct directory path without symlink indirection. On Unix-like platforms exposing ownership/mode bits, the reference store rejects group/world-writable roots and requires ownership by the current process user. Public bootstrap and per-call records are captured from exact own enumerable data descriptors: revoked/live Proxies, accessors, hidden/unknown fields, symbols and custom prototypes are rejected before their values are trusted. Descriptor-kind checks use own fields only, so inherited `Object.prototype.get` / `set` poisoning cannot substitute data while the supported Node built-ins remain trusted.
 
-This primitive is **not integrated into the reference Gate yet** and does not claim durable Gate consumption by itself. It does not prove resistance to a hostile same-OS-user process, mount/path substitution after validation, storage corruption, network/distributed filesystem behavior, crash recovery/lease takeover, distributed consensus, production issuer correctness or external execution. Those remain separate reviewed integration/operational concerns.
+Public durable-store Promise channels use captured Promise dispatch plus an immutable null-prototype `Symbol.species` carrier, so post-import mutation of `Promise[Symbol.species]` cannot substitute chained store results. The security-critical realpath adapter uses the captured callback-form filesystem primitive so Core creates and stabilizes the result Promise before any Promise-species boundary exists.
+
+## Reference durable Gate composition
+
+`reference-durable-single-use-gate.mjs` composes the process-local Gate with the reference durable claim store. The wrapper reserves locally before its first `await`, acquires the durable capability tombstone before the inner Gate can observe or forward, and persists `CONSUMED_SUCCESS` before returning a downstream success. A synchronous throw from `executeDownstream` before it returns a result channel is locally classifiable and may persist `CONSUMED_ERROR`; once an asynchronous result channel exists, a rejection is kept ambiguous rather than being promoted to proof of external failure. A validation or binding rejection after the durable claim intentionally leaves the durable state `RESERVED`: the capability remains fail-closed/non-reusable without pretending an external action executed.
+
+This is still a **reference-only local-filesystem composition**, not a production Gate. It does not prove hostile same-user storage resistance, network-filesystem atomicity, crash recovery, distributed consensus, production issuer/Witness/time correctness, external execution truth or independent effect truth. See `DURABLE-COMPOSITION.md` for ordering and deliberate non-claims.
 
 Design and hardening decisions:
 

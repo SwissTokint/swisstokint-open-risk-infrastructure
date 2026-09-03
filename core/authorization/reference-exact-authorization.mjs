@@ -1,9 +1,5 @@
+import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
-
-import {
-  canonicalizePayload,
-  sha256Hex,
-} from '../../sdk/typescript/swisstokint-proof.mjs';
 
 export const POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION = 'pom-rx-exact-authorization/0.1';
 export const POM_RX_EXACT_AUTHORIZATION_COMMIT_DOMAIN = 'swisstokint:pom-rx-exact-authorization:v1:';
@@ -16,7 +12,114 @@ const KEY_ID_PATTERN = /^ed25519-[a-f0-9]{32}$/u;
 const MAX_LIFETIME_MS = 300_000;
 const MIN_LIFETIME_MS = 1_000;
 
-const INPUT_KEYS = Object.freeze([
+// Exact authorization is part of the Gate's trust boundary. Capture every
+// mutable same-realm intrinsic used to classify/snapshot caller-owned records,
+// validate patterns, canonicalize/hash the exact binding and interpret time at
+// module initialization. In particular, commitment derivation is Core-local and
+// does not transitively re-enter SDK Object.entries/JSON/crypto dispatch after
+// import. Poisoning before module initialization remains outside this
+// reference-runtime guarantee.
+const REFLECT_APPLY = Reflect.apply;
+const ARRAY_IS_ARRAY = Array.isArray;
+const ARRAY_SORT = Array.prototype.sort;
+const JSON_OBJECT = JSON;
+const JSON_STRINGIFY = JSON.stringify;
+const OBJECT_CREATE = Object.create;
+const OBJECT_FREEZE = Object.freeze;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTORS = Object.getOwnPropertyDescriptors;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_HAS_OWN = Object.hasOwn;
+const OBJECT_PROTOTYPE = Object.prototype;
+const REGEXP_EXEC = RegExp.prototype.exec;
+const STRING_ENDS_WITH = String.prototype.endsWith;
+const STRING_NORMALIZE = String.prototype.normalize;
+const NUMBER_IS_FINITE = Number.isFinite;
+const DATE_CONSTRUCTOR = Date;
+const DATE_GET_TIME = Date.prototype.getTime;
+const DATE_TO_ISO_STRING = Date.prototype.toISOString;
+const UTIL_TYPES_IS_PROXY = utilTypes.isProxy;
+const CRYPTO_CREATE_HASH = createHash;
+const HASH_PROTOTYPE = REFLECT_APPLY(
+  OBJECT_GET_PROTOTYPE_OF,
+  Object,
+  [REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256'])],
+);
+const HASH_UPDATE = HASH_PROTOTYPE.update;
+const HASH_DIGEST = HASH_PROTOTYPE.digest;
+
+function freezeValue(value) {
+  return REFLECT_APPLY(OBJECT_FREEZE, Object, [value]);
+}
+
+function objectCreate(prototype) {
+  return REFLECT_APPLY(OBJECT_CREATE, Object, [prototype]);
+}
+
+function objectGetOwnPropertyDescriptors(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_DESCRIPTORS, Object, [value]);
+}
+
+function objectGetOwnPropertyNames(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_NAMES, Object, [value]);
+}
+
+function objectGetOwnPropertySymbols(value) {
+  return REFLECT_APPLY(OBJECT_GET_OWN_PROPERTY_SYMBOLS, Object, [value]);
+}
+
+function objectGetPrototypeOf(value) {
+  return REFLECT_APPLY(OBJECT_GET_PROTOTYPE_OF, Object, [value]);
+}
+
+function objectHasOwn(value, key) {
+  return REFLECT_APPLY(OBJECT_HAS_OWN, Object, [value, key]);
+}
+
+function arrayIsArray(value) {
+  return REFLECT_APPLY(ARRAY_IS_ARRAY, Array, [value]);
+}
+
+function isProxy(value) {
+  return REFLECT_APPLY(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
+}
+
+function regexpTest(pattern, value) {
+  return REFLECT_APPLY(REGEXP_EXEC, pattern, [value]) !== null;
+}
+
+function stringEndsWith(value, suffix) {
+  return REFLECT_APPLY(STRING_ENDS_WITH, value, [suffix]);
+}
+
+function stringNormalize(value, form) {
+  return REFLECT_APPLY(STRING_NORMALIZE, value, [form]);
+}
+
+function dateGetTime(value) {
+  return REFLECT_APPLY(DATE_GET_TIME, value, []);
+}
+
+function dateToISOString(value) {
+  return REFLECT_APPLY(DATE_TO_ISO_STRING, value, []);
+}
+
+function jsonStringify(value) {
+  return REFLECT_APPLY(JSON_STRINGIFY, JSON_OBJECT, [value]);
+}
+
+function sortArray(value) {
+  return REFLECT_APPLY(ARRAY_SORT, value, []);
+}
+
+function sha256Hex(value) {
+  const hash = REFLECT_APPLY(CRYPTO_CREATE_HASH, undefined, ['sha256']);
+  REFLECT_APPLY(HASH_UPDATE, hash, [value, 'utf8']);
+  return REFLECT_APPLY(HASH_DIGEST, hash, ['hex']);
+}
+
+const INPUT_KEYS = freezeValue([
   'binding_profile',
   'run_id',
   'agent_ref',
@@ -37,15 +140,21 @@ const INPUT_KEYS = Object.freeze([
   'expires_at',
 ]);
 
-const BINDING_KEYS = Object.freeze([
+const BINDING_KEYS = freezeValue([
   'schema_version',
   'capability_id',
   ...INPUT_KEYS,
 ]);
 
-const PREPARE_OPTION_KEYS = Object.freeze([
-  'witnessValidUntil',
-  'capabilityId',
+const HASH_FIELDS = freezeValue([
+  'method_hash',
+  'policy_hash',
+  'action_commitment',
+  'context_commitment',
+  'preflight_receipt_hash',
+  'witness_ack_hash',
+  'implementation_artifact_sha256',
+  'effective_verification_policy_sha256',
 ]);
 
 export class PomRxReferenceCapabilityError extends Error {
@@ -62,55 +171,60 @@ function fail(code, message) {
 
 function isOwnEnumerableDataDescriptor(descriptor) {
   return Boolean(descriptor)
-    && Object.hasOwn(descriptor, 'value')
-    && Object.hasOwn(descriptor, 'enumerable')
+    && objectHasOwn(descriptor, 'value')
+    && objectHasOwn(descriptor, 'enumerable')
     && descriptor.enumerable === true
-    && !Object.hasOwn(descriptor, 'get')
-    && !Object.hasOwn(descriptor, 'set');
+    && !objectHasOwn(descriptor, 'get')
+    && !objectHasOwn(descriptor, 'set');
 }
 
 function assertPlainObjectBoundary(value, label) {
-  if (!value || typeof value !== 'object' || utilTypes.isProxy(value)) {
+  if (!value || typeof value !== 'object' || isProxy(value)) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be a non-Proxy object`);
   }
-  if (Array.isArray(value)) {
+  if (arrayIsArray(value)) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be an object`);
   }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
+  const prototype = objectGetPrototypeOf(value);
+  if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} must be a plain object`);
   }
-  if (Object.getOwnPropertySymbols(value).length !== 0) {
+  if (objectGetOwnPropertySymbols(value).length !== 0) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} cannot contain symbol keys`);
   }
 }
 
 function snapshotExactDataObject(value, expectedKeys, label) {
   assertPlainObjectBoundary(value, label);
-  const actual = Object.getOwnPropertyNames(value).sort();
-  const expected = [...expectedKeys].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  const actual = objectGetOwnPropertyNames(value);
+  if (actual.length !== expectedKeys.length) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${label} has missing or unknown fields`);
   }
 
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const snapshot = Object.create(null);
-  for (const key of expectedKeys) {
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const snapshot = objectCreate(null);
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
-    if (!isOwnEnumerableDataDescriptor(descriptor)) {
+    if (!objectHasOwn(descriptors, key) || !isOwnEnumerableDataDescriptor(descriptor)) {
       fail('POMRX_GATE_E_BINDING_MISMATCH', `${label}.${key} must be an enumerable data property`);
     }
     snapshot[key] = descriptor.value;
   }
-  return Object.freeze(snapshot);
+  return freezeValue(snapshot);
 }
 
 function snapshotPrepareOptions(value) {
   assertPlainObjectBoundary(value, 'Reference exact authorization options');
-  const actual = Object.getOwnPropertyNames(value);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  for (const key of actual) {
-    if (!PREPARE_OPTION_KEYS.includes(key)) {
+  const actual = objectGetOwnPropertyNames(value);
+  if (actual.length > 2) {
+    fail('POMRX_GATE_E_BINDING_MISMATCH', 'Reference exact authorization options have unknown fields');
+  }
+
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  for (let index = 0; index < actual.length; index += 1) {
+    const key = actual[index];
+    if (key !== 'witnessValidUntil' && key !== 'capabilityId') {
       fail('POMRX_GATE_E_BINDING_MISMATCH', 'Reference exact authorization options have unknown fields');
     }
     if (!isOwnEnumerableDataDescriptor(descriptors[key])) {
@@ -121,30 +235,31 @@ function snapshotPrepareOptions(value) {
     }
   }
 
-  const witnessDescriptor = Object.hasOwn(descriptors, 'witnessValidUntil')
+  const witnessDescriptor = objectHasOwn(descriptors, 'witnessValidUntil')
     ? descriptors.witnessValidUntil
     : undefined;
-  const capabilityDescriptor = Object.hasOwn(descriptors, 'capabilityId')
+  const capabilityDescriptor = objectHasOwn(descriptors, 'capabilityId')
     ? descriptors.capabilityId
     : undefined;
-  return Object.freeze({
+  return freezeValue({
     witnessValidUntil: witnessDescriptor ? witnessDescriptor.value : undefined,
     capabilityId: capabilityDescriptor ? capabilityDescriptor.value : undefined,
   });
 }
 
 function assertStringPattern(value, pattern, field) {
-  if (typeof value !== 'string' || !pattern.test(value)) {
+  if (typeof value !== 'string' || !regexpTest(pattern, value)) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', `${field} has an invalid format`);
   }
 }
 
 function canonicalUtcInstant(value, field) {
-  if (typeof value !== 'string' || !value.endsWith('Z')) {
+  if (typeof value !== 'string' || !stringEndsWith(value, 'Z')) {
     fail('POMRX_GATE_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
   }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+  const parsed = new DATE_CONSTRUCTOR(value);
+  const parsedMs = dateGetTime(parsed);
+  if (!REFLECT_APPLY(NUMBER_IS_FINITE, Number, [parsedMs]) || dateToISOString(parsed) !== value) {
     fail('POMRX_GATE_E_TIME_INVALID', `${field} must be a canonical UTC instant`);
   }
   return parsed;
@@ -169,22 +284,14 @@ function validateBindingSnapshot(binding) {
     fail('POMRX_GATE_E_BINDING_MISMATCH', 'Source and witness identities must be distinct');
   }
 
-  for (const field of [
-    'method_hash',
-    'policy_hash',
-    'action_commitment',
-    'context_commitment',
-    'preflight_receipt_hash',
-    'witness_ack_hash',
-    'implementation_artifact_sha256',
-    'effective_verification_policy_sha256',
-  ]) {
+  for (let index = 0; index < HASH_FIELDS.length; index += 1) {
+    const field = HASH_FIELDS[index];
     assertStringPattern(binding[field], HASH_PATTERN, field);
   }
 
   const issuedAt = canonicalUtcInstant(binding.issued_at, 'issued_at');
   const expiresAt = canonicalUtcInstant(binding.expires_at, 'expires_at');
-  const lifetimeMs = expiresAt.getTime() - issuedAt.getTime();
+  const lifetimeMs = dateGetTime(expiresAt) - dateGetTime(issuedAt);
   if (lifetimeMs < MIN_LIFETIME_MS || lifetimeMs > MAX_LIFETIME_MS) {
     fail(
       'POMRX_GATE_E_TIME_INVALID',
@@ -192,21 +299,37 @@ function validateBindingSnapshot(binding) {
     );
   }
 
-  return Object.freeze({ issuedAt, expiresAt });
+  return freezeValue({ issuedAt, expiresAt });
 }
 
 function snapshotAndValidateBinding(binding) {
   const snapshot = snapshotExactDataObject(binding, BINDING_KEYS, 'Exact authorization binding');
   const times = validateBindingSnapshot(snapshot);
-  return Object.freeze({ binding: snapshot, ...times });
+  return freezeValue({ binding: snapshot, ...times });
+}
+
+function canonicalizeValidatedBinding(binding) {
+  const descriptors = objectGetOwnPropertyDescriptors(binding);
+  const keys = sortArray(objectGetOwnPropertyNames(binding));
+  let canonical = '{';
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    const descriptor = descriptors[key];
+    if (!isOwnEnumerableDataDescriptor(descriptor) || typeof descriptor.value !== 'string') {
+      fail('POMRX_GATE_E_BINDING_MISMATCH', 'Exact authorization commitment input is not canonical string data');
+    }
+    if (index > 0) canonical += ',';
+    canonical += `${jsonStringify(key)}:${jsonStringify(stringNormalize(descriptor.value, 'NFC'))}`;
+  }
+  return `${canonical}}`;
 }
 
 function commitValidatedBinding(binding) {
-  const canonicalBinding = canonicalizePayload(binding);
+  const canonicalBinding = canonicalizeValidatedBinding(binding);
   const authorizationCommitment = sha256Hex(
     `${POM_RX_EXACT_AUTHORIZATION_COMMIT_DOMAIN}${canonicalBinding}`,
   );
-  return Object.freeze({ canonicalBinding, authorizationCommitment });
+  return freezeValue({ canonicalBinding, authorizationCommitment });
 }
 
 export function commitExactAuthorizationBinding(binding) {
@@ -227,14 +350,14 @@ export function prepareReferenceExactAuthorizationRecord(bindingInput, options =
     'witness_valid_until',
   );
 
-  const binding = Object.freeze({
+  const binding = freezeValue({
     schema_version: POM_RX_EXACT_AUTHORIZATION_SCHEMA_VERSION,
     capability_id: optionSnapshot.capabilityId,
     ...inputSnapshot,
   });
 
   const { expiresAt } = validateBindingSnapshot(binding);
-  if (expiresAt.getTime() > witnessExpiry.getTime()) {
+  if (dateGetTime(expiresAt) > dateGetTime(witnessExpiry)) {
     fail(
       'POMRX_GATE_E_TIME_INVALID',
       'Reference capability expiry cannot exceed witness validity',
@@ -242,7 +365,7 @@ export function prepareReferenceExactAuthorizationRecord(bindingInput, options =
   }
 
   const committed = commitValidatedBinding(binding);
-  const evidence = Object.freeze({
+  const evidence = freezeValue({
     binding,
     authorization_commitment: committed.authorizationCommitment,
     reference_only: true,
@@ -250,5 +373,5 @@ export function prepareReferenceExactAuthorizationRecord(bindingInput, options =
     authorization_proved: false,
   });
 
-  return Object.freeze({ binding, evidence });
+  return freezeValue({ binding, evidence });
 }
