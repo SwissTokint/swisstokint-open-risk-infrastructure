@@ -36,6 +36,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const arrayPush = Array.prototype.push;
   const numberIsSafeInteger = Number.isSafeInteger;
   const functionToString = Function.prototype.toString;
+  const stringConstructor = String;
   const stringSlice = String.prototype.slice;
   const stringPadStart = String.prototype.padStart;
   const regexpExec = RegExp.prototype.exec;
@@ -60,6 +61,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     arrayPush,
     numberIsSafeInteger,
     functionToString,
+    stringConstructor,
     stringSlice,
     stringPadStart,
     regexpExec,
@@ -99,6 +101,7 @@ const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
 const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
+const TRUSTED_STRING_CONSTRUCTOR = PRISTINE_RUNTIME.stringConstructor;
 const TRUSTED_REGEXP_EXEC = PRISTINE_RUNTIME.regexpExec;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
@@ -135,6 +138,10 @@ const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
 
 function trustedApply(fn, receiver, args) {
   return TRUSTED_REFLECT_APPLY(fn, receiver, args);
+}
+
+function trustedString(value) {
+  return trustedApply(TRUSTED_STRING_CONSTRUCTOR, undefined, [value]);
 }
 
 function trustedOwnDescriptor(value, key) {
@@ -318,7 +325,8 @@ function promiseRuntimeMatchesTrustedPrimordial() {
 }
 
 function runtimeBaselineWasSupported() {
-  return nodeUtilDetectorRuntimeMatchesBootstrap()
+  return typeof TRUSTED_STRING_CONSTRUCTOR === 'function'
+    && nodeUtilDetectorRuntimeMatchesBootstrap()
     && promiseRuntimeMatchesTrustedPrimordial()
     && sameDescriptor(
       PROMISE_PROTOTYPE_DESCRIPTOR,
@@ -409,7 +417,7 @@ function defineArrayElement(output, index, value) {
   descriptor.enumerable = true;
   descriptor.writable = false;
   descriptor.configurable = false;
-  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, String(index), descriptor]);
+  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, trustedString(index), descriptor]);
 }
 
 function snapshotTransportValue(value, label, depth = 0) {
@@ -446,7 +454,8 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'array literal prototype drifted');
   }
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    const indexKey = trustedString(index);
+    const descriptor = descriptors[indexKey];
     if (!descriptor
         || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
         || descriptor.enumerable !== true
@@ -457,7 +466,7 @@ function snapshotTransportValue(value, label, depth = 0) {
     defineArrayElement(
       output,
       index,
-      snapshotTransportValue(descriptor.value, `${label}[${String(index)}]`, depth + 1),
+      snapshotTransportValue(descriptor.value, `${label}[${indexKey}]`, depth + 1),
     );
   }
   return freeze(output);
