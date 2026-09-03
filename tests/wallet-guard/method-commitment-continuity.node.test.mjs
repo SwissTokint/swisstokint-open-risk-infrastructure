@@ -47,6 +47,10 @@ function sequenceClock() {
 test('provider authorization summary matches canonical Wallet Guard RPC method commitment', async () => {
   const summaries = [];
   const provider = Object.freeze({
+    captureContext(deliverContext) {
+      deliverContext(CHAIN_ID, ACCOUNT);
+      return undefined;
+    },
     async request(request) {
       if (request.method === 'eth_chainId') return CHAIN_ID;
       if (request.method === 'eth_accounts') return [ACCOUNT];
