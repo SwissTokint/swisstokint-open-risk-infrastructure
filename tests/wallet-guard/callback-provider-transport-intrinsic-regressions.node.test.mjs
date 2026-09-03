@@ -221,6 +221,43 @@ test('callback sensitive-call logging executes no inherited numeric setter', asy
   assert.equal(inspected.sensitive_calls[0].request.params[0].to, RECIPIENT);
 });
 
+test('callback log index conversion ignores post-import global String replacement', async () => {
+  let dispatchCalls = 0;
+  const transport = createTransport((command, deliverRawJson) => {
+    dispatchCalls += 1;
+    deliverRawJson(response(command));
+  }, 1);
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'String');
+  let poisonCalls = 0;
+  let forgedSlot = 0;
+
+  Object.defineProperty(globalThis, 'String', {
+    ...original,
+    value() {
+      poisonCalls += 1;
+      forgedSlot += 1;
+      return `forged-slot-${forgedSlot}`;
+    },
+  });
+
+  try {
+    assert.equal(await transport.provider.request(sendTransaction()), TX_HASH);
+    await assert.rejects(
+      transport.provider.request(sendTransaction()),
+      (error) => expectTransportCode(error, 'POMRX_WG_TRANSPORT_E_LOG_FULL'),
+    );
+  } finally {
+    restoreDescriptor(globalThis, 'String', original);
+  }
+
+  assert.equal(poisonCalls, 0);
+  assert.equal(dispatchCalls, 1);
+  const inspected = transport.control.inspect();
+  assert.equal(inspected.sensitive_call_count, 1);
+  assert.equal(inspected.sensitive_calls.length, 1);
+  assert.equal(inspected.sensitive_calls[0].request.params[0].to, RECIPIENT);
+});
+
 test('post-import builtin synchronization cannot replace the captured CSPRNG callable', () => {
   const original = Object.getOwnPropertyDescriptor(crypto, 'randomBytes');
   let poisonCalls = 0;
