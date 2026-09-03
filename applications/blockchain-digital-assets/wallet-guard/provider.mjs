@@ -693,6 +693,13 @@ export function createWalletGuardReferenceProviderGateway(options) {
       );
     }
 
+    // Reserve replay identities before any capability-issuer work can execute.
+    // Reservations are intentionally not rolled back: if issuance fails, the
+    // evidence remains consumed so a reentrant or retried path cannot re-arm it.
+    setAdd(usedRunIds, referenceAuthorization.run_id);
+    setAdd(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash);
+    setAdd(usedWitnessHashes, referenceAuthorization.witness_ack_hash);
+
     const bindingInput = Object.freeze({
       binding_profile: WALLET_GUARD_BINDING_PROFILE,
       run_id: referenceAuthorization.run_id,
@@ -718,9 +725,6 @@ export function createWalletGuardReferenceProviderGateway(options) {
       bindingInput,
       { witnessValidUntil: referenceAuthorization.witness_valid_until },
     );
-    setAdd(usedRunIds, referenceAuthorization.run_id);
-    setAdd(usedPreflightHashes, referenceAuthorization.preflight_receipt_hash);
-    setAdd(usedWitnessHashes, referenceAuthorization.witness_ack_hash);
 
     const providerResult = await coreGateHarness.gate.consume(
       capability,
