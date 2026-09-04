@@ -493,8 +493,16 @@ function getReferenceAuthorizationForRequest(factory, requestSummary) {
   } catch {
     fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier failed');
   }
-  if (value && typeof value === 'object' && typeof value.then === 'function') {
-    fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier must be synchronous');
+  if (value && typeof value === 'object') {
+    const prototype = Object.getPrototypeOf(value);
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if ((prototype !== Object.prototype && prototype !== null)
+        || Object.hasOwn(descriptors, 'then')) {
+      fail(
+        'POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE',
+        'reference authorization evidence supplier must return a synchronous exact record',
+      );
+    }
   }
   return validateReferenceAuthorization(value);
 }
