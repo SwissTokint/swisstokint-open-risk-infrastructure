@@ -196,8 +196,8 @@ function regexpTest(pattern, value) {
 }
 
 function isProxy(value) {
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
+  return ((typeof value === 'object' && value !== null)
+      || typeof value === 'function')
     && TRUSTED_REFLECT_APPLY(TRUSTED_IS_PROXY, utilTypes, [value]);
 }
 
