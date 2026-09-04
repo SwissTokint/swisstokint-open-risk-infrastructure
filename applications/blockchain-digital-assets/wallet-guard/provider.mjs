@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 
 import {
   createReferenceSingleUseGateHarness,
@@ -30,6 +31,7 @@ const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
 const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
 const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
+const TRUSTED_IS_PROXY = utilTypes.isProxy;
 
 const TRUSTED_OBJECT = globalThis.Object;
 const TRUSTED_ARRAY = globalThis.Array;
@@ -193,6 +195,12 @@ function regexpTest(pattern, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
 }
 
+function isProxy(value) {
+  return Boolean(value)
+    && (typeof value === 'object' || typeof value === 'function')
+    && TRUSTED_REFLECT_APPLY(TRUSTED_IS_PROXY, utilTypes, [value]);
+}
+
 function defineOwnDataProperty(target, key, value, writable = false, configurable = false) {
   const descriptor = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
   descriptor.value = value;
@@ -233,6 +241,41 @@ function exactKeys(value, expected, label) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
     }
   }
+}
+
+function snapshotExactOwnDataRecord(value, expected, label) {
+  if (!value
+      || typeof value !== 'object'
+      || isProxy(value)
+      || Array.isArray(value)) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be a non-Proxy object`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be a plain object`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} cannot contain symbol fields`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const names = Object.keys(descriptors);
+  if (names.length !== expected.length) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+  }
+  const snapshot = Object.create(null);
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = expected[index];
+    const descriptor = descriptors[key];
+    if (!descriptor
+        || descriptor.enumerable !== true
+        || !Object.hasOwn(descriptor, 'value')
+        || Object.hasOwn(descriptor, 'get')
+        || Object.hasOwn(descriptor, 'set')) {
+      fail('POMRX_WG_PROVIDER_E_INVALID', `${label}.${key} must be an enumerable data property`);
+    }
+    defineOwnDataProperty(snapshot, key, descriptor.value);
+  }
+  return Object.freeze(snapshot);
 }
 
 function canonicalOrigin(value) {
@@ -452,14 +495,18 @@ function commitMethod(method) {
 }
 
 function validateReferenceAuthorization(value) {
-  exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
+  const snapshot = snapshotExactOwnDataRecord(
+    value,
+    REFERENCE_AUTH_KEYS,
+    'reference authorization evidence',
+  );
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
-    if (typeof value[field] !== 'string' || !regexpTest(ID_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(ID_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['verification_profile', 'verifier_version']) {
-    if (typeof value[field] !== 'string' || !regexpTest(PROFILE_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(PROFILE_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -469,20 +516,20 @@ function validateReferenceAuthorization(value) {
     'implementation_artifact_sha256',
     'effective_verification_policy_sha256',
   ]) {
-    if (typeof value[field] !== 'string' || !regexpTest(HASH_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(HASH_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['source_key_id', 'witness_key_id']) {
-    if (typeof value[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
-  if (value.source_key_id === value.witness_key_id) {
+  if (snapshot.source_key_id === snapshot.witness_key_id) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'source and witness identities must be distinct');
   }
-  canonicalUtcInstant(value.witness_valid_until, 'witness_valid_until');
-  return Object.freeze({ ...value });
+  canonicalUtcInstant(snapshot.witness_valid_until, 'witness_valid_until');
+  return snapshot;
 }
 
 function getReferenceAuthorizationForRequest(factory, requestSummary) {
@@ -492,17 +539,6 @@ function getReferenceAuthorizationForRequest(factory, requestSummary) {
     value = factory(Object.freeze({ ...requestSummary }));
   } catch {
     fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier failed');
-  }
-  if (value && typeof value === 'object') {
-    const prototype = Object.getPrototypeOf(value);
-    const descriptors = Object.getOwnPropertyDescriptors(value);
-    if ((prototype !== Object.prototype && prototype !== null)
-        || Object.hasOwn(descriptors, 'then')) {
-      fail(
-        'POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE',
-        'reference authorization evidence supplier must return a synchronous exact record',
-      );
-    }
   }
   return validateReferenceAuthorization(value);
 }
