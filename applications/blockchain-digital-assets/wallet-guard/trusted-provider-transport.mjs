@@ -28,6 +28,8 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyNames = Object.getOwnPropertyNames;
   const getOwnPropertySymbols = Object.getOwnPropertySymbols;
   const getPrototypeOf = Object.getPrototypeOf;
+  const typedArrayPrototype = getPrototypeOf(Uint8Array.prototype);
+  const typedArrayLengthGetter = getOwnPropertyDescriptor(typedArrayPrototype, 'length')?.get;
   const objectFreeze = Object.freeze;
   const objectCreate = Object.create;
   const objectHasOwn = Object.hasOwn;
@@ -53,6 +55,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     getOwnPropertyNames,
     getOwnPropertySymbols,
     getPrototypeOf,
+    typedArrayLengthGetter,
     objectFreeze,
     objectCreate,
     objectHasOwn,
@@ -93,6 +96,7 @@ const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = PRISTINE_RUNTIME.getOwnPropertyDesc
 const TRUSTED_GET_OWN_PROPERTY_NAMES = PRISTINE_RUNTIME.getOwnPropertyNames;
 const TRUSTED_GET_OWN_PROPERTY_SYMBOLS = PRISTINE_RUNTIME.getOwnPropertySymbols;
 const TRUSTED_GET_PROTOTYPE_OF = PRISTINE_RUNTIME.getPrototypeOf;
+const TRUSTED_TYPED_ARRAY_LENGTH_GETTER = PRISTINE_RUNTIME.typedArrayLengthGetter;
 const TRUSTED_OBJECT_FREEZE = PRISTINE_RUNTIME.objectFreeze;
 const TRUSTED_OBJECT_CREATE = PRISTINE_RUNTIME.objectCreate;
 const TRUSTED_OBJECT_HAS_OWN = PRISTINE_RUNTIME.objectHasOwn;
@@ -142,6 +146,17 @@ function trustedApply(fn, receiver, args) {
 
 function trustedString(value) {
   return trustedApply(TRUSTED_STRING_CONSTRUCTOR, undefined, [value]);
+}
+
+function trustedTypedArrayLength(value) {
+  try {
+    return trustedApply(TRUSTED_TYPED_ARRAY_LENGTH_GETTER, value, []);
+  } catch {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'Node CSPRNG returned a non-typed-array session buffer',
+    );
+  }
 }
 
 function trustedOwnDescriptor(value, key) {
@@ -326,6 +341,7 @@ function promiseRuntimeMatchesTrustedPrimordial() {
 
 function runtimeBaselineWasSupported() {
   return typeof TRUSTED_STRING_CONSTRUCTOR === 'function'
+    && typeof TRUSTED_TYPED_ARRAY_LENGTH_GETTER === 'function'
     && nodeUtilDetectorRuntimeMatchesBootstrap()
     && promiseRuntimeMatchesTrustedPrimordial()
     && sameDescriptor(
@@ -608,12 +624,13 @@ function localBridgeFailure(code) {
 
 function createSessionId() {
   const bytes = trustedApply(TRUSTED_RANDOM_BYTES, undefined, [32]);
-  if (!bytes || bytes.length !== 32) {
+  const length = trustedTypedArrayLength(bytes);
+  if (length !== 32) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned an invalid session id');
   }
   const alphabet = '0123456789abcdef';
   let output = '';
-  for (let index = 0; index < bytes.length; index += 1) {
+  for (let index = 0; index < length; index += 1) {
     const value = bytes[index];
     if (!apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [value]) || value < 0 || value > 255) {
       fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned invalid bytes');
@@ -759,22 +776,30 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
 }
 
 export function createWalletGuardControlledCallbackProviderTransport(rawOptions) {
-  exactKeys(rawOptions, CALLBACK_OPTIONS_KEYS, 'trusted callback provider transport options');
+  const optionDescriptors = exactKeys(
+    rawOptions,
+    CALLBACK_OPTIONS_KEYS,
+    'trusted callback provider transport options',
+  );
+  const chainId = optionDescriptors.chainId.value;
+  const accountsInput = optionDescriptors.accounts.value;
+  const maxSensitiveCalls = optionDescriptors.maxSensitiveCalls.value;
+  const dispatchSensitive = optionDescriptors.dispatchSensitive.value;
   assertPromiseTransportRuntime();
 
-  if (typeof rawOptions.chainId !== 'string'
-      || rawOptions.chainId.length > 66
-      || !trustedPatternTest(CHAIN_ID_PATTERN, rawOptions.chainId)
-      || typeof rawOptions.dispatchSensitive !== 'function'
-      || isProxy(rawOptions.dispatchSensitive)
-      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [rawOptions.maxSensitiveCalls])
-      || rawOptions.maxSensitiveCalls < 1
-      || rawOptions.maxSensitiveCalls > 1_000) {
+  if (typeof chainId !== 'string'
+      || chainId.length > 66
+      || !trustedPatternTest(CHAIN_ID_PATTERN, chainId)
+      || typeof dispatchSensitive !== 'function'
+      || isProxy(dispatchSensitive)
+      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [maxSensitiveCalls])
+      || maxSensitiveCalls < 1
+      || maxSensitiveCalls > 1_000) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback provider transport options are invalid');
   }
 
   const accounts = snapshotTransportValue(
-    rawOptions.accounts,
+    accountsInput,
     'trusted callback provider accounts',
   );
   if (accounts.length !== 1
@@ -786,12 +811,13 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
     );
   }
 
+  const sessionId = createSessionId();
   const state = {
-    chainId: rawOptions.chainId,
+    chainId,
     accounts,
-    sessionId: createSessionId(),
-    maxSensitiveCalls: rawOptions.maxSensitiveCalls,
-    dispatchSensitive: rawOptions.dispatchSensitive,
+    sessionId,
+    maxSensitiveCalls,
+    dispatchSensitive,
     contextReads: 0,
     sensitiveCalls: [],
     inFlight: false,
