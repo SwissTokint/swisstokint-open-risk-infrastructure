@@ -110,7 +110,7 @@ function makeReplacementObservation(observed) {
   };
 }
 
-test('Gate observation settlement cannot inherit then and substitute a different allowed transaction', async () => {
+function createGatewayFixture() {
   const dispatchedRecipients = [];
   const transport = createWalletGuardControlledCallbackProviderTransport({
     chainId: CHAIN_ID,
@@ -129,7 +129,11 @@ test('Gate observation settlement cannot inherit then and substitute a different
     referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
     capabilityLifetimeMs: 30_000,
   });
+  return { gateway, dispatchedRecipients };
+}
 
+test('Gate observation settlement cannot inherit then and substitute a different allowed transaction', async () => {
+  const { gateway, dispatchedRecipients } = createGatewayFixture();
   const originalThen = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
   const ownDescriptor = Object.getOwnPropertyDescriptor;
   let observationThenCalls = 0;
@@ -183,5 +187,58 @@ test('Gate observation settlement cannot inherit then and substitute a different
     observationThenCalls,
     0,
     'Gate observation settlement must not consult inherited then',
+  );
+});
+
+test('reference authorization validation cannot inherit then and reenter before replay reservation', async () => {
+  const { gateway, dispatchedRecipients } = createGatewayFixture();
+  const originalThen = Object.getOwnPropertyDescriptor(Object.prototype, 'then');
+  const ownDescriptor = Object.getOwnPropertyDescriptor;
+  let authorizationThenCalls = 0;
+  let nestedPromise = null;
+  let armed = true;
+
+  Object.defineProperty(Object.prototype, 'then', {
+    configurable: true,
+    get() {
+      const runId = ownDescriptor(this, 'run_id');
+      const preflightHash = ownDescriptor(this, 'preflight_receipt_hash');
+      if (armed
+          && runId?.value === 'run-observer-boundary-00000001'
+          && preflightHash?.value === '1'.repeat(64)) {
+        armed = false;
+        authorizationThenCalls += 1;
+        nestedPromise = gateway.request(sendTransaction(RECIPIENT_B));
+      }
+      return undefined;
+    },
+  });
+
+  let outcomes;
+  try {
+    const outerPromise = gateway.request(sendTransaction(RECIPIENT_A));
+    const pending = nestedPromise === null
+      ? [outerPromise]
+      : [outerPromise, nestedPromise];
+    outcomes = await Promise.allSettled(pending);
+  } finally {
+    if (originalThen === undefined) delete Object.prototype.then;
+    else Object.defineProperty(Object.prototype, 'then', originalThen);
+  }
+
+  assert.equal(
+    authorizationThenCalls,
+    0,
+    'reference authorization validation must not consult inherited then',
+  );
+  assert.equal(nestedPromise, null, 'inherited then must not start a nested request before replay reservation');
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].status, 'fulfilled');
+  assert.equal(outcomes[0].value?.decision, 'ALLOW');
+  assert.equal(outcomes[0].value?.forwarded, true);
+  assert.deepEqual(
+    dispatchedRecipients,
+    [RECIPIENT_A],
+    'the single-use evidence must remain bound to the original request path',
   );
 });
