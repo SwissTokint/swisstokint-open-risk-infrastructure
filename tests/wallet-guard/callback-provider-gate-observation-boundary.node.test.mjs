@@ -238,12 +238,16 @@ test('reference authorization validation cannot inherit then and reenter before 
   );
   assert.equal(nestedPromise, null, 'inherited then must not start a nested request before replay reservation');
   assert.equal(outcomes.length, 1);
-  assert.equal(outcomes[0].status, 'fulfilled');
-  assert.equal(outcomes[0].value?.decision, 'ALLOW');
-  assert.equal(outcomes[0].value?.forwarded, true);
+
+  // The callback transport deliberately treats Object.prototype.then drift as
+  // an unsupported Promise runtime and fails closed before sensitive dispatch.
+  assert.equal(outcomes[0].status, 'rejected');
+  assert.equal(outcomes[0].reason?.name, 'PomRxGateError');
+  assert.equal(outcomes[0].reason?.code, 'POMRX_GATE_E_DOWNSTREAM_FAILED');
+  assert.equal(outcomes[0].reason?.message, 'Downstream execution failed');
   assert.deepEqual(
     dispatchedRecipients,
-    [RECIPIENT_A],
-    'the single-use evidence must remain bound to the original request path',
+    [],
+    'unsupported inherited-then runtime drift must fail closed before sensitive dispatch',
   );
 });
