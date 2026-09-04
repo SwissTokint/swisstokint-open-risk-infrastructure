@@ -174,8 +174,8 @@ const PREPARED_KEYS = Object.freeze([
 export class WalletGuardProviderError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardProviderError';
-    this.code = code;
+    defineOwnDataProperty(this, 'name', 'WalletGuardProviderError', true, true);
+    defineOwnDataProperty(this, 'code', code, true, true);
   }
 }
 
