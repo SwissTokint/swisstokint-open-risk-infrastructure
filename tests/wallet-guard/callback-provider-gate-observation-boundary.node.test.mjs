@@ -321,3 +321,45 @@ test('reference authorization Proxy is rejected before reflective traps execute'
   assert.equal(outcome[0].status, 'rejected');
   assert.deepEqual(fixture.dispatchedRecipients, [], 'authorization Proxy must never dispatch');
 });
+
+test('mutable global Boolean cannot suppress authorization Proxy rejection', async () => {
+  let trapCalls = 0;
+  const rawAuthorization = referenceAuthorizationRecord();
+  const proxyAuthorization = new Proxy(rawAuthorization, {
+    getPrototypeOf() {
+      trapCalls += 1;
+      return Object.prototype;
+    },
+    ownKeys(target) {
+      trapCalls += 1;
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, key) {
+      trapCalls += 1;
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+    get(target, key, receiver) {
+      trapCalls += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const fixture = createGatewayFixture(() => proxyAuthorization);
+  const OriginalBoolean = globalThis.Boolean;
+
+  globalThis.Boolean = function poisonedBoolean(value) {
+    return value === proxyAuthorization ? false : OriginalBoolean(value);
+  };
+
+  let outcome;
+  try {
+    outcome = await Promise.allSettled([
+      fixture.gateway.request(sendTransaction(RECIPIENT_A)),
+    ]);
+  } finally {
+    globalThis.Boolean = OriginalBoolean;
+  }
+
+  assert.equal(trapCalls, 0, 'authorization Proxy rejection must not consult mutable Boolean');
+  assert.equal(outcome[0].status, 'rejected');
+  assert.deepEqual(fixture.dispatchedRecipients, [], 'masked authorization Proxy must never dispatch');
+});
