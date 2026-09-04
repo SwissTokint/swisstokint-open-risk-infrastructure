@@ -200,8 +200,8 @@ function trustedPrototypeOf(value) {
 
 function trustedIsProxy(value) {
   assertNodeUtilDetectorRuntime();
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
+  return ((typeof value === 'object' && value !== null)
+      || typeof value === 'function')
     && trustedApply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
@@ -310,8 +310,8 @@ function sameDescriptorShape(current, baseline) {
   return current.writable === baseline.writable
     && current.enumerable === baseline.enumerable
     && current.configurable === baseline.configurable
-    && Boolean(current.get) === Boolean(baseline.get)
-    && Boolean(current.set) === Boolean(baseline.set);
+    && (current.get !== undefined) === (baseline.get !== undefined)
+    && (current.set !== undefined) === (baseline.set !== undefined);
 }
 
 function promiseRuntimeMatchesTrustedPrimordial() {
