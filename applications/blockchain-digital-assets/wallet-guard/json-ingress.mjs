@@ -6,26 +6,136 @@ import {
 
 export const WALLET_GUARD_JSON_INGRESS_SCHEMA_VERSION = 'wallet_guard_json_ingress/0.1';
 
+const TRUSTED_REFLECT_APPLY = Reflect.apply;
+const TRUSTED_ARRAY_INCLUDES = Array.prototype.includes;
+const TRUSTED_ARRAY_IS_ARRAY = Array.isArray;
+const TRUSTED_BUFFER_BYTE_LENGTH = Buffer.byteLength;
+const TRUSTED_JSON_PARSE = JSON.parse;
+const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const TRUSTED_OBJECT_ENTRIES = Object.entries;
+const TRUSTED_OBJECT_FREEZE = Object.freeze;
+const TRUSTED_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const TRUSTED_OBJECT_HAS_OWN = Object.hasOwn;
+const TRUSTED_OBJECT_IS = Object.is;
+const TRUSTED_OBJECT_KEYS = Object.keys;
+const TRUSTED_OBJECT_PROTOTYPE = Object.prototype;
+const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
+const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
+const TRUSTED_SET = Set;
+const TRUSTED_SET_ADD = Set.prototype.add;
+const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_STRING = String;
+const TRUSTED_STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
+const TRUSTED_STRING_INCLUDES = String.prototype.includes;
+const TRUSTED_STRING_SLICE = String.prototype.slice;
+
 const MAX_RAW_BYTES = 64 * 1024;
 const MAX_DEPTH = 8;
 const MAX_NODES = 1_000;
 const MAX_STRING_LENGTH = 2_048;
 const MAX_KEY_LENGTH = 64;
 const METHOD_PATTERN = /^[A-Za-z0-9_]{1,64}$/u;
-const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const EIP1193_KEYS = Object.freeze(['method', 'params']);
-const JSONRPC_KEYS = Object.freeze(['jsonrpc', 'id', 'method', 'params']);
+const FORBIDDEN_KEYS = new TRUSTED_SET(['__proto__', 'constructor', 'prototype']);
+const EIP1193_KEYS = TRUSTED_OBJECT_FREEZE(['method', 'params']);
+const JSONRPC_KEYS = TRUSTED_OBJECT_FREEZE(['jsonrpc', 'id', 'method', 'params']);
 
 export class WalletGuardJsonIngressError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardJsonIngressError';
-    this.code = code;
+    defineJsonIngressErrorField(this, 'name', 'WalletGuardJsonIngressError');
+    defineJsonIngressErrorField(this, 'code', code);
   }
+}
+
+function defineJsonIngressErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(error, key, descriptor);
+}
+
+export function parseWalletGuardBoundedJsonData(raw) {
+  if (typeof raw !== 'string') {
+    fail('POMRX_WG_JSON_E_INPUT', 'Wallet Guard JSON ingress requires a string');
+  }
+  const rawBytes = TRUSTED_BUFFER_BYTE_LENGTH(raw, 'utf8');
+  if (rawBytes < 2 || rawBytes > MAX_RAW_BYTES) {
+    fail('POMRX_WG_JSON_E_BOUNDS', 'Wallet Guard JSON ingress exceeds the byte bounds');
+  }
+  if (trustedStringCharCodeAt(raw, 0) === 0xfeff) {
+    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress does not accept a leading BOM');
+  }
+
+  new StrictJsonScanner(raw).scan();
+
+  let parsed;
+  try {
+    parsed = trustedJsonParse(raw);
+  } catch {
+    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
+  }
+  return cloneParsed(parsed);
 }
 
 function fail(code, message) {
   throw new WalletGuardJsonIngressError(code, message);
+}
+
+function trustedJsonParse(raw) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_JSON_PARSE, null, [raw]);
+}
+
+function trustedArrayIncludes(value, entry) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_ARRAY_INCLUDES, value, [entry]);
+}
+
+function trustedRegExpExec(pattern, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_EXEC, pattern, [value]);
+}
+
+function trustedRegExpTest(pattern, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
+}
+
+function trustedSetAdd(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_SET_ADD, set, [value]);
+}
+
+function trustedSetHas(set, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
+}
+
+function trustedString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING, undefined, [value]);
+}
+
+function trustedStringCharCodeAt(value, index) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_CHAR_CODE_AT, value, [index]);
+}
+
+function trustedStringIncludes(value, entry) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_INCLUDES, value, [entry]);
+}
+
+function trustedStringSlice(value, start, end) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_SLICE, value, [start, end]);
+}
+
+function defineOwnData(target, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_REFLECT_APPLY(
+    TRUSTED_OBJECT_DEFINE_PROPERTY,
+    null,
+    [target, key, descriptor],
+  );
 }
 
 function isWhitespace(character) {
@@ -34,12 +144,12 @@ function isWhitespace(character) {
 
 function assertUnicodeScalarString(value, label) {
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = trustedStringCharCodeAt(value, index);
     if (code >= 0xd800 && code <= 0xdbff) {
       if (index + 1 >= value.length) {
         fail('POMRX_WG_JSON_E_UNICODE', `${label} contains an unpaired high surrogate`);
       }
-      const next = value.charCodeAt(index + 1);
+      const next = trustedStringCharCodeAt(value, index + 1);
       if (next < 0xdc00 || next > 0xdfff) {
         fail('POMRX_WG_JSON_E_UNICODE', `${label} contains an unpaired high surrogate`);
       }
@@ -55,9 +165,9 @@ function assertUnicodeScalarString(value, label) {
 
 class StrictJsonScanner {
   constructor(raw) {
-    this.raw = raw;
-    this.index = 0;
-    this.nodes = 0;
+    defineOwnData(this, 'raw', raw);
+    defineOwnData(this, 'index', 0);
+    defineOwnData(this, 'nodes', 0);
   }
 
   skipWhitespace() {
@@ -134,7 +244,7 @@ class StrictJsonScanner {
       return;
     }
 
-    const keys = new Set();
+    const keys = new TRUSTED_SET();
     while (this.index < this.raw.length) {
       if (this.raw[this.index] !== '"') {
         fail('POMRX_WG_JSON_E_SYNTAX', 'JSON object key must be a string');
@@ -143,13 +253,13 @@ class StrictJsonScanner {
       if (key.length === 0 || key.length > MAX_KEY_LENGTH) {
         fail('POMRX_WG_JSON_E_BOUNDS', 'JSON object key has an invalid length');
       }
-      if (FORBIDDEN_KEYS.has(key)) {
+      if (trustedSetHas(FORBIDDEN_KEYS, key)) {
         fail('POMRX_WG_JSON_E_UNSAFE_KEY', 'JSON contains a forbidden object key');
       }
-      if (keys.has(key)) {
+      if (trustedSetHas(keys, key)) {
         fail('POMRX_WG_JSON_E_DUPLICATE_KEY', `JSON contains duplicate object key: ${key}`);
       }
-      keys.add(key);
+      trustedSetAdd(keys, key);
 
       this.skipWhitespace();
       if (this.raw[this.index] !== ':') {
@@ -204,10 +314,10 @@ class StrictJsonScanner {
       const character = this.raw[this.index];
       if (character === '"') {
         this.index += 1;
-        const token = this.raw.slice(start, this.index);
+        const token = trustedStringSlice(this.raw, start, this.index);
         let decoded;
         try {
-          decoded = JSON.parse(token);
+          decoded = trustedJsonParse(token);
         } catch {
           fail('POMRX_WG_JSON_E_SYNTAX', 'JSON string escape sequence is invalid');
         }
@@ -224,21 +334,21 @@ class StrictJsonScanner {
         }
         const escaped = this.raw[this.index];
         if (escaped === 'u') {
-          const hex = this.raw.slice(this.index + 1, this.index + 5);
-          if (!/^[0-9a-fA-F]{4}$/u.test(hex)) {
+          const hex = trustedStringSlice(this.raw, this.index + 1, this.index + 5);
+          if (!trustedRegExpTest(/^[0-9a-fA-F]{4}$/u, hex)) {
             fail('POMRX_WG_JSON_E_SYNTAX', 'JSON unicode escape is invalid');
           }
           this.index += 5;
           continue;
         }
-        if (!['"', '\\', '/', 'b', 'f', 'n', 'r', 't'].includes(escaped)) {
+        if (!trustedArrayIncludes(['"', '\\', '/', 'b', 'f', 'n', 'r', 't'], escaped)) {
           fail('POMRX_WG_JSON_E_SYNTAX', 'JSON string escape is invalid');
         }
         this.index += 1;
         continue;
       }
 
-      if (character.charCodeAt(0) <= 0x1f) {
+      if (trustedStringCharCodeAt(character, 0) <= 0x1f) {
         fail('POMRX_WG_JSON_E_SYNTAX', 'JSON string contains an unescaped control character');
       }
       this.index += 1;
@@ -247,20 +357,24 @@ class StrictJsonScanner {
   }
 
   scanLiteral(literal) {
-    if (this.raw.slice(this.index, this.index + literal.length) !== literal) {
+    if (trustedStringSlice(this.raw, this.index, this.index + literal.length) !== literal) {
       fail('POMRX_WG_JSON_E_SYNTAX', 'JSON literal is invalid');
     }
     this.index += literal.length;
   }
 
   scanNumber() {
-    const remainder = this.raw.slice(this.index);
-    const match = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/u.exec(remainder);
+    const remainder = trustedStringSlice(this.raw, this.index);
+    const match = trustedRegExpExec(
+      /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/u,
+      remainder,
+    );
     if (!match) {
       fail('POMRX_WG_JSON_E_SYNTAX', 'JSON number is invalid');
     }
     const token = match[0];
-    if (token === '-0' || token.includes('.') || token.includes('e') || token.includes('E')) {
+    if (token === '-0' || trustedStringIncludes(token, '.')
+        || trustedStringIncludes(token, 'e') || trustedStringIncludes(token, 'E')) {
       fail('POMRX_WG_JSON_E_NUMBER', 'Wallet Guard JSON numbers must use canonical integer syntax');
     }
     this.index += token.length;
@@ -279,45 +393,58 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
     return assertUnicodeScalarString(value, 'parsed JSON string');
   }
   if (typeof value === 'number') {
-    if (!Number.isSafeInteger(value) || Object.is(value, -0)) {
+    if (!TRUSTED_NUMBER_IS_SAFE_INTEGER(value) || TRUSTED_OBJECT_IS(value, -0)) {
       fail('POMRX_WG_JSON_E_NUMBER', 'Wallet Guard JSON numbers must be canonical safe integers');
     }
     return value;
   }
-  if (Array.isArray(value)) {
-    return Object.freeze(value.map((entry) => cloneParsed(entry, depth + 1, budget)));
+  if (TRUSTED_ARRAY_IS_ARRAY(value)) {
+    const output = [];
+    for (let index = 0; index < value.length; index += 1) {
+      defineOwnData(output, trustedString(index), cloneParsed(value[index], depth + 1, budget));
+    }
+    return TRUSTED_OBJECT_FREEZE(output);
   }
-  if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) {
+  if (!value || typeof value !== 'object'
+      || TRUSTED_OBJECT_GET_PROTOTYPE_OF(value) !== TRUSTED_OBJECT_PROTOTYPE) {
     fail('POMRX_WG_JSON_E_SHAPE', 'parsed JSON must contain plain objects only');
   }
 
-  const output = Object.create(null);
-  for (const [key, entry] of Object.entries(value)) {
+  const output = TRUSTED_OBJECT_CREATE(null);
+  const entries = TRUSTED_OBJECT_ENTRIES(value);
+  for (let index = 0; index < entries.length; index += 1) {
+    const pair = entries[index];
+    const key = pair[0];
+    const entry = pair[1];
     assertUnicodeScalarString(key, 'parsed JSON key');
-    if (key.length === 0 || key.length > MAX_KEY_LENGTH || FORBIDDEN_KEYS.has(key)) {
+    if (key.length === 0 || key.length > MAX_KEY_LENGTH || trustedSetHas(FORBIDDEN_KEYS, key)) {
       fail('POMRX_WG_JSON_E_UNSAFE_KEY', 'parsed JSON contains an unsafe object key');
     }
     output[key] = cloneParsed(entry, depth + 1, budget);
   }
-  return Object.freeze(output);
+  return TRUSTED_OBJECT_FREEZE(output);
 }
 
 function exactKeys(value, expected, label) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || TRUSTED_ARRAY_IS_ARRAY(value)) {
     fail('POMRX_WG_JSON_E_SHAPE', `${label} must be an object`);
   }
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  const actual = TRUSTED_OBJECT_KEYS(value);
+  if (actual.length !== expected.length) {
     fail('POMRX_WG_JSON_E_SHAPE', `${label} has missing or unknown fields`);
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    if (!trustedArrayIncludes(actual, expected[index])) {
+      fail('POMRX_WG_JSON_E_SHAPE', `${label} has missing or unknown fields`);
+    }
   }
 }
 
 function validateMethodAndParams(value) {
-  if (typeof value.method !== 'string' || !METHOD_PATTERN.test(value.method)) {
+  if (typeof value.method !== 'string' || !trustedRegExpTest(METHOD_PATTERN, value.method)) {
     fail('POMRX_WG_JSON_E_METHOD', 'Wallet Guard JSON method is invalid');
   }
-  if (!Array.isArray(value.params)) {
+  if (!TRUSTED_ARRAY_IS_ARRAY(value.params)) {
     fail('POMRX_WG_JSON_E_PARAMS', 'Wallet Guard JSON params must be an array');
   }
 }
@@ -329,7 +456,9 @@ function validateJsonRpcId(value) {
     }
     return value;
   }
-  if (Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0)) return value;
+  if (TRUSTED_NUMBER_IS_SAFE_INTEGER(value) && value >= 0 && !TRUSTED_OBJECT_IS(value, -0)) {
+    return value;
+  }
   fail('POMRX_WG_JSON_E_ID', 'JSON-RPC id must be a non-negative safe integer or bounded string');
 }
 
@@ -348,35 +477,15 @@ function canonicalRequestHash(request) {
 }
 
 export function parseWalletGuardJsonIngress(raw) {
-  if (typeof raw !== 'string') {
-    fail('POMRX_WG_JSON_E_INPUT', 'Wallet Guard JSON ingress requires a string');
-  }
-  const rawBytes = Buffer.byteLength(raw, 'utf8');
-  if (rawBytes < 2 || rawBytes > MAX_RAW_BYTES) {
-    fail('POMRX_WG_JSON_E_BOUNDS', 'Wallet Guard JSON ingress exceeds the byte bounds');
-  }
-  if (raw.charCodeAt(0) === 0xfeff) {
-    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress does not accept a leading BOM');
-  }
-
-  new StrictJsonScanner(raw).scan();
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    fail('POMRX_WG_JSON_E_SYNTAX', 'Wallet Guard JSON ingress is not valid JSON');
-  }
-
-  const snapshot = cloneParsed(parsed);
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+  const snapshot = parseWalletGuardBoundedJsonData(raw);
+  if (!snapshot || typeof snapshot !== 'object' || TRUSTED_ARRAY_IS_ARRAY(snapshot)) {
     fail('POMRX_WG_JSON_E_SHAPE', 'Wallet Guard JSON ingress root must be an object');
   }
 
   let transport;
   let jsonrpcId = null;
   let request;
-  if (Object.hasOwn(snapshot, 'jsonrpc')) {
+  if (TRUSTED_OBJECT_HAS_OWN(snapshot, 'jsonrpc')) {
     exactKeys(snapshot, JSONRPC_KEYS, 'JSON-RPC 2.0 request');
     if (snapshot.jsonrpc !== '2.0') {
       fail('POMRX_WG_JSON_E_VERSION', 'JSON-RPC version must be exactly 2.0');
@@ -384,15 +493,15 @@ export function parseWalletGuardJsonIngress(raw) {
     jsonrpcId = validateJsonRpcId(snapshot.id);
     validateMethodAndParams(snapshot);
     transport = 'jsonrpc2';
-    request = Object.freeze({ method: snapshot.method, params: snapshot.params });
+    request = TRUSTED_OBJECT_FREEZE({ method: snapshot.method, params: snapshot.params });
   } else {
     exactKeys(snapshot, EIP1193_KEYS, 'EIP-1193 request');
     validateMethodAndParams(snapshot);
     transport = 'eip1193-json';
-    request = Object.freeze({ method: snapshot.method, params: snapshot.params });
+    request = TRUSTED_OBJECT_FREEZE({ method: snapshot.method, params: snapshot.params });
   }
 
-  return Object.freeze({
+  return TRUSTED_OBJECT_FREEZE({
     schema_version: WALLET_GUARD_JSON_INGRESS_SCHEMA_VERSION,
     transport,
     jsonrpc_id: jsonrpcId,

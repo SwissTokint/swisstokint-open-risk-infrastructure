@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 
 import {
   createReferenceSingleUseGateHarness,
@@ -30,6 +31,7 @@ const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
 const TRUSTED_REGEXP_EXEC = RegExp.prototype.exec;
 const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
+const TRUSTED_IS_PROXY = utilTypes.isProxy;
 
 const TRUSTED_OBJECT = globalThis.Object;
 const TRUSTED_ARRAY = globalThis.Array;
@@ -172,8 +174,8 @@ const PREPARED_KEYS = Object.freeze([
 export class WalletGuardProviderError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardProviderError';
-    this.code = code;
+    defineOwnDataProperty(this, 'name', 'WalletGuardProviderError', true, true);
+    defineOwnDataProperty(this, 'code', code, true, true);
   }
 }
 
@@ -193,17 +195,27 @@ function regexpTest(pattern, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_REGEXP_TEST, pattern, [value]);
 }
 
-function appendArrayValue(list, value) {
+function isProxy(value) {
+  return ((typeof value === 'object' && value !== null)
+      || typeof value === 'function')
+    && TRUSTED_REFLECT_APPLY(TRUSTED_IS_PROXY, utilTypes, [value]);
+}
+
+function defineOwnDataProperty(target, key, value, writable = false, configurable = false) {
   const descriptor = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
   descriptor.value = value;
   descriptor.enumerable = true;
-  descriptor.configurable = true;
-  descriptor.writable = true;
+  descriptor.configurable = configurable;
+  descriptor.writable = writable;
   TRUSTED_REFLECT_APPLY(
     Object.defineProperty,
     undefined,
-    [list, `${list.length}`, descriptor],
+    [target, key, descriptor],
   );
+}
+
+function appendArrayValue(list, value) {
+  defineOwnDataProperty(list, `${list.length}`, value, true, true);
 }
 
 function sortedCopy(values) {
@@ -229,6 +241,41 @@ function exactKeys(value, expected, label) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
     }
   }
+}
+
+function snapshotExactOwnDataRecord(value, expected, label) {
+  if (!value
+      || typeof value !== 'object'
+      || isProxy(value)
+      || Array.isArray(value)) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be a non-Proxy object`);
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} must be a plain object`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} cannot contain symbol fields`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const names = Object.keys(descriptors);
+  if (names.length !== expected.length) {
+    fail('POMRX_WG_PROVIDER_E_INVALID', `${label} has missing or unknown fields`);
+  }
+  const snapshot = Object.create(null);
+  for (let index = 0; index < expected.length; index += 1) {
+    const key = expected[index];
+    const descriptor = descriptors[key];
+    if (!descriptor
+        || descriptor.enumerable !== true
+        || !Object.hasOwn(descriptor, 'value')
+        || Object.hasOwn(descriptor, 'get')
+        || Object.hasOwn(descriptor, 'set')) {
+      fail('POMRX_WG_PROVIDER_E_INVALID', `${label}.${key} must be an enumerable data property`);
+    }
+    defineOwnDataProperty(snapshot, key, descriptor.value);
+  }
+  return Object.freeze(snapshot);
 }
 
 function canonicalOrigin(value) {
@@ -448,14 +495,18 @@ function commitMethod(method) {
 }
 
 function validateReferenceAuthorization(value) {
-  exactKeys(value, REFERENCE_AUTH_KEYS, 'reference authorization evidence');
+  const snapshot = snapshotExactOwnDataRecord(
+    value,
+    REFERENCE_AUTH_KEYS,
+    'reference authorization evidence',
+  );
   for (const field of ['run_id', 'agent_ref', 'subject_ref']) {
-    if (typeof value[field] !== 'string' || !regexpTest(ID_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(ID_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['verification_profile', 'verifier_version']) {
-    if (typeof value[field] !== 'string' || !regexpTest(PROFILE_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(PROFILE_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
@@ -465,20 +516,20 @@ function validateReferenceAuthorization(value) {
     'implementation_artifact_sha256',
     'effective_verification_policy_sha256',
   ]) {
-    if (typeof value[field] !== 'string' || !regexpTest(HASH_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(HASH_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
   for (const field of ['source_key_id', 'witness_key_id']) {
-    if (typeof value[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, value[field])) {
+    if (typeof snapshot[field] !== 'string' || !regexpTest(KEY_ID_PATTERN, snapshot[field])) {
       fail('POMRX_WG_PROVIDER_E_INVALID', `${field} is invalid`);
     }
   }
-  if (value.source_key_id === value.witness_key_id) {
+  if (snapshot.source_key_id === snapshot.witness_key_id) {
     fail('POMRX_WG_PROVIDER_E_INVALID', 'source and witness identities must be distinct');
   }
-  canonicalUtcInstant(value.witness_valid_until, 'witness_valid_until');
-  return Object.freeze({ ...value });
+  canonicalUtcInstant(snapshot.witness_valid_until, 'witness_valid_until');
+  return snapshot;
 }
 
 function getReferenceAuthorizationForRequest(factory, requestSummary) {
@@ -488,9 +539,6 @@ function getReferenceAuthorizationForRequest(factory, requestSummary) {
     value = factory(Object.freeze({ ...requestSummary }));
   } catch {
     fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier failed');
-  }
-  if (value && typeof value === 'object' && typeof value.then === 'function') {
-    fail('POMRX_WG_PROVIDER_E_REFERENCE_UNAVAILABLE', 'reference authorization evidence supplier must be synchronous');
   }
   return validateReferenceAuthorization(value);
 }
@@ -516,15 +564,15 @@ function exactContextMatches(prepared, context) {
 }
 
 function makeDecisionResult(policyResult, committed, forwarded, providerResult = null) {
-  return Object.freeze({
-    decision: policyResult.decision,
-    reasons: policyResult.reasons,
-    policy_hash: policyResult.policy_hash,
-    intent_commitment: committed.intent_commitment,
-    forwarded,
-    provider_result: providerResult,
-    reference_authorization_only: true,
-  });
+  const result = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+  defineOwnDataProperty(result, 'decision', policyResult.decision);
+  defineOwnDataProperty(result, 'reasons', policyResult.reasons);
+  defineOwnDataProperty(result, 'policy_hash', policyResult.policy_hash);
+  defineOwnDataProperty(result, 'intent_commitment', committed.intent_commitment);
+  defineOwnDataProperty(result, 'forwarded', forwarded);
+  defineOwnDataProperty(result, 'provider_result', providerResult);
+  defineOwnDataProperty(result, 'reference_authorization_only', true);
+  return TRUSTED_REFLECT_APPLY(Object.freeze, undefined, [result]);
 }
 
 export function createWalletGuardReferenceProviderGateway(options) {
@@ -579,21 +627,40 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the execution attempt');
       }
       const committed = commitWalletGuardIntent(intent);
-      return Object.freeze({
-        binding_profile: WALLET_GUARD_BINDING_PROFILE,
-        action_commitment: committed.intent_commitment,
-        context_commitment: commitContext(context, policyResult.policy_hash),
-        prepared_execution: Object.freeze({
-          schema_version: WALLET_GUARD_PREPARED_EXECUTION_VERSION,
-          request_id: attempt.request_id,
-          origin: context.origin,
-          chain_id: context.chain_id,
-          account: context.account,
-          intent_commitment: committed.intent_commitment,
-          policy_hash: policyResult.policy_hash,
-          request,
-        }),
-      });
+
+      const preparedExecution = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+      defineOwnDataProperty(
+        preparedExecution,
+        'schema_version',
+        WALLET_GUARD_PREPARED_EXECUTION_VERSION,
+      );
+      defineOwnDataProperty(preparedExecution, 'request_id', attempt.request_id);
+      defineOwnDataProperty(preparedExecution, 'origin', context.origin);
+      defineOwnDataProperty(preparedExecution, 'chain_id', context.chain_id);
+      defineOwnDataProperty(preparedExecution, 'account', context.account);
+      defineOwnDataProperty(
+        preparedExecution,
+        'intent_commitment',
+        committed.intent_commitment,
+      );
+      defineOwnDataProperty(preparedExecution, 'policy_hash', policyResult.policy_hash);
+      defineOwnDataProperty(preparedExecution, 'request', request);
+      const frozenPreparedExecution = TRUSTED_REFLECT_APPLY(
+        Object.freeze,
+        undefined,
+        [preparedExecution],
+      );
+
+      const observed = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+      defineOwnDataProperty(observed, 'binding_profile', WALLET_GUARD_BINDING_PROFILE);
+      defineOwnDataProperty(observed, 'action_commitment', committed.intent_commitment);
+      defineOwnDataProperty(
+        observed,
+        'context_commitment',
+        commitContext(context, policyResult.policy_hash),
+      );
+      defineOwnDataProperty(observed, 'prepared_execution', frozenPreparedExecution);
+      return TRUSTED_REFLECT_APPLY(Object.freeze, undefined, [observed]);
     },
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);

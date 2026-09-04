@@ -1,5 +1,6 @@
 import { runInNewContext } from 'node:vm';
 import { types as utilTypes } from 'node:util';
+import { randomBytes } from 'node:crypto';
 
 import {
   captureReferencePlainData,
@@ -7,6 +8,10 @@ import {
 import {
   createWalletGuardReferenceProviderGateway,
 } from './provider.mjs';
+import {
+  makeWalletGuardBridgeCommand,
+  parseWalletGuardBridgeResponse,
+} from './bridge-json-envelope.mjs';
 
 // Bootstrap TCB: this Node-only transport must be imported in a clean,
 // application-owned process before any untrusted same-process code. The
@@ -15,6 +20,7 @@ import {
 // out of contract and requires a separately reviewed process/worker/RPC
 // isolation boundary. Covered pre-import poisoning remains limited to the
 // ECMAScript globals explicitly validated below.
+const TRUSTED_RANDOM_BYTES = randomBytes;
 
 const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -22,6 +28,8 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyNames = Object.getOwnPropertyNames;
   const getOwnPropertySymbols = Object.getOwnPropertySymbols;
   const getPrototypeOf = Object.getPrototypeOf;
+  const typedArrayPrototype = getPrototypeOf(Uint8Array.prototype);
+  const typedArrayLengthGetter = getOwnPropertyDescriptor(typedArrayPrototype, 'length')?.get;
   const objectFreeze = Object.freeze;
   const objectCreate = Object.create;
   const objectHasOwn = Object.hasOwn;
@@ -30,17 +38,24 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const arrayPush = Array.prototype.push;
   const numberIsSafeInteger = Number.isSafeInteger;
   const functionToString = Function.prototype.toString;
+  const stringConstructor = String;
+  const stringSlice = String.prototype.slice;
+  const stringPadStart = String.prototype.padStart;
+  const regexpExec = RegExp.prototype.exec;
   const reflectApply = Reflect.apply;
+  const reflectConstruct = Reflect.construct;
   const speciesKey = Symbol.species;
   const promisePrototype = Promise.prototype;
   const speciesDescriptor = getOwnPropertyDescriptor(Promise, speciesKey);
   return {
     reflectApply,
+    reflectConstruct,
     getOwnPropertyDescriptor,
     getOwnPropertyDescriptors,
     getOwnPropertyNames,
     getOwnPropertySymbols,
     getPrototypeOf,
+    typedArrayLengthGetter,
     objectFreeze,
     objectCreate,
     objectHasOwn,
@@ -49,6 +64,10 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     arrayPush,
     numberIsSafeInteger,
     functionToString,
+    stringConstructor,
+    stringSlice,
+    stringPadStart,
+    regexpExec,
     promiseResolve: Promise.resolve,
     promiseReject: Promise.reject,
     weakSetConstructor: WeakSet,
@@ -71,11 +90,13 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
 })()`);
 
 const TRUSTED_REFLECT_APPLY = PRISTINE_RUNTIME.reflectApply;
+const TRUSTED_REFLECT_CONSTRUCT = PRISTINE_RUNTIME.reflectConstruct;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTOR = PRISTINE_RUNTIME.getOwnPropertyDescriptor;
 const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = PRISTINE_RUNTIME.getOwnPropertyDescriptors;
 const TRUSTED_GET_OWN_PROPERTY_NAMES = PRISTINE_RUNTIME.getOwnPropertyNames;
 const TRUSTED_GET_OWN_PROPERTY_SYMBOLS = PRISTINE_RUNTIME.getOwnPropertySymbols;
 const TRUSTED_GET_PROTOTYPE_OF = PRISTINE_RUNTIME.getPrototypeOf;
+const TRUSTED_TYPED_ARRAY_LENGTH_GETTER = PRISTINE_RUNTIME.typedArrayLengthGetter;
 const TRUSTED_OBJECT_FREEZE = PRISTINE_RUNTIME.objectFreeze;
 const TRUSTED_OBJECT_CREATE = PRISTINE_RUNTIME.objectCreate;
 const TRUSTED_OBJECT_HAS_OWN = PRISTINE_RUNTIME.objectHasOwn;
@@ -84,6 +105,8 @@ const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
 const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
+const TRUSTED_STRING_CONSTRUCTOR = PRISTINE_RUNTIME.stringConstructor;
+const TRUSTED_REGEXP_EXEC = PRISTINE_RUNTIME.regexpExec;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
 const TRUSTED_WEAK_SET_CONSTRUCTOR = PRISTINE_RUNTIME.weakSetConstructor;
@@ -93,9 +116,18 @@ const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 export class WalletGuardTrustedProviderTransportError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardTrustedProviderTransportError';
-    this.code = code;
+    defineTransportErrorField(this, 'name', 'WalletGuardTrustedProviderTransportError');
+    defineTransportErrorField(this, 'code', code);
   }
+}
+
+function defineTransportErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  trustedApply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [error, key, descriptor]);
 }
 
 function fail(code, message) {
@@ -119,6 +151,21 @@ const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
 
 function trustedApply(fn, receiver, args) {
   return TRUSTED_REFLECT_APPLY(fn, receiver, args);
+}
+
+function trustedString(value) {
+  return trustedApply(TRUSTED_STRING_CONSTRUCTOR, undefined, [value]);
+}
+
+function trustedTypedArrayLength(value) {
+  try {
+    return trustedApply(TRUSTED_TYPED_ARRAY_LENGTH_GETTER, value, []);
+  } catch {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'Node CSPRNG returned a non-typed-array session buffer',
+    );
+  }
 }
 
 function trustedOwnDescriptor(value, key) {
@@ -153,8 +200,8 @@ function trustedPrototypeOf(value) {
 
 function trustedIsProxy(value) {
   assertNodeUtilDetectorRuntime();
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
+  return ((typeof value === 'object' && value !== null)
+      || typeof value === 'function')
     && trustedApply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
@@ -220,6 +267,12 @@ const OPTIONS_KEYS = freeze([
   'providerResult',
   'maxSensitiveCalls',
 ]);
+const CALLBACK_OPTIONS_KEYS = freeze([
+  'chainId',
+  'accounts',
+  'maxSensitiveCalls',
+  'dispatchSensitive',
+]);
 const TRUSTED_GATEWAY_KEYS = freeze([
   'captureTrustedOrigin',
   'provider',
@@ -229,24 +282,48 @@ const TRUSTED_GATEWAY_KEYS = freeze([
   'capabilityLifetimeMs',
 ]);
 const MAX_CONTEXT_ACCOUNTS = 64;
+const SESSION_ID_PATTERN = /^[0-9a-f]{64}$/u;
+const CHAIN_ID_PATTERN = /^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
+const ACCOUNT_PATTERN = /^0x[0-9a-f]{40}$/u;
+const TX_HASH_PATTERN = /^0x[0-9a-f]{64}$/u;
+const BRIDGE_FAILURE_CODES = freeze([
+  'BRIDGE_CLOSED',
+  'CONTEXT_CHANGED',
+  'INTERNAL_ERROR',
+  'TIMEOUT',
+  'USER_REJECTED',
+  'WALLET_UNAVAILABLE',
+]);
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
-  return current.value === baseline.value
-    && current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && current.get === baseline.get
-    && current.set === baseline.set;
+  return sameOwnDescriptorField(current, baseline, 'value')
+    && sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorField(current, baseline, 'get')
+    && sameOwnDescriptorField(current, baseline, 'set');
+}
+
+function sameOwnDescriptorField(current, baseline, key) {
+  const currentHas = TRUSTED_OBJECT_HAS_OWN(current, key);
+  const baselineHas = TRUSTED_OBJECT_HAS_OWN(baseline, key);
+  return currentHas === baselineHas
+    && (!currentHas || current[key] === baseline[key]);
+}
+
+function sameOwnDescriptorFieldPresence(current, baseline, key) {
+  return TRUSTED_OBJECT_HAS_OWN(current, key)
+    === TRUSTED_OBJECT_HAS_OWN(baseline, key);
 }
 
 function sameDescriptorShape(current, baseline) {
   if (!current || !baseline) return false;
-  return current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && Boolean(current.get) === Boolean(baseline.get)
-    && Boolean(current.set) === Boolean(baseline.set);
+  return sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'get')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'set');
 }
 
 function promiseRuntimeMatchesTrustedPrimordial() {
@@ -284,7 +361,9 @@ function promiseRuntimeMatchesTrustedPrimordial() {
 }
 
 function runtimeBaselineWasSupported() {
-  return nodeUtilDetectorRuntimeMatchesBootstrap()
+  return typeof TRUSTED_STRING_CONSTRUCTOR === 'function'
+    && typeof TRUSTED_TYPED_ARRAY_LENGTH_GETTER === 'function'
+    && nodeUtilDetectorRuntimeMatchesBootstrap()
     && promiseRuntimeMatchesTrustedPrimordial()
     && sameDescriptor(
       PROMISE_PROTOTYPE_DESCRIPTOR,
@@ -375,7 +454,7 @@ function defineArrayElement(output, index, value) {
   descriptor.enumerable = true;
   descriptor.writable = false;
   descriptor.configurable = false;
-  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, String(index), descriptor]);
+  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, trustedString(index), descriptor]);
 }
 
 function snapshotTransportValue(value, label, depth = 0) {
@@ -412,7 +491,8 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'array literal prototype drifted');
   }
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    const indexKey = trustedString(index);
+    const descriptor = descriptors[indexKey];
     if (!descriptor
         || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
         || descriptor.enumerable !== true
@@ -423,7 +503,7 @@ function snapshotTransportValue(value, label, depth = 0) {
     defineArrayElement(
       output,
       index,
-      snapshotTransportValue(descriptor.value, `${label}[${String(index)}]`, depth + 1),
+      snapshotTransportValue(descriptor.value, `${label}[${indexKey}]`, depth + 1),
     );
   }
   return freeze(output);
@@ -461,6 +541,32 @@ function rejectedTransport(error) {
   return assertOwnedPromise(transport);
 }
 
+function constructPendingTransport() {
+  assertPromiseTransportRuntime();
+  let resolveTransport;
+  let rejectTransport;
+  const transport = trustedApply(
+    TRUSTED_REFLECT_CONSTRUCT,
+    null,
+    [PROMISE_CONSTRUCTOR, [(resolve, reject) => {
+      resolveTransport = resolve;
+      rejectTransport = reject;
+    }], PROMISE_CONSTRUCTOR],
+  );
+  assertPromiseTransportRuntime();
+  if (typeof resolveTransport !== 'function' || typeof rejectTransport !== 'function') {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'native Promise constructor did not provide settlement functions',
+    );
+  }
+  return freeze({
+    transport: assertOwnedPromise(transport),
+    resolve: resolveTransport,
+    reject: rejectTransport,
+  });
+}
+
 function trustedTransportHas(provider) {
   return trustedApply(TRUSTED_WEAK_SET_HAS, WEAK_SET, [provider]);
 }
@@ -471,6 +577,102 @@ function trustedTransportAdd(provider) {
 
 function copySensitiveCalls(calls) {
   return captureReferencePlainData(calls, 'trusted provider sensitive calls');
+}
+
+function copyCallbackSensitiveCalls(calls) {
+  const output = [];
+  for (let index = 0; index < calls.length; index += 1) {
+    defineArrayElement(output, index, calls[index]);
+  }
+  return freeze(output);
+}
+
+function inspectCallbackRequest(request) {
+  const prototype = request && typeof request === 'object' && !isProxy(request)
+    ? trustedPrototypeOf(request)
+    : undefined;
+  if (!request || typeof request !== 'object' || isProxy(request)
+      || apply(TRUSTED_ARRAY_IS_ARRAY, null, [request])
+      || (prototype !== OBJECT_PROTOTYPE && prototype !== null)
+      || apply(TRUSTED_GET_OWN_PROPERTY_SYMBOLS, null, [request]).length !== 0) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request must be a plain object');
+  }
+  const names = apply(TRUSTED_GET_OWN_PROPERTY_NAMES, null, [request]);
+  if (names.length < 1 || names.length > 2) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request has invalid fields');
+  }
+  const descriptors = apply(TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS, null, [request]);
+  for (let index = 0; index < names.length; index += 1) {
+    const key = names[index];
+    if (key !== 'method' && key !== 'params') {
+      fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request has unknown fields');
+    }
+    const descriptor = descriptors[key];
+    if (!descriptor || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
+        || descriptor.enumerable !== true
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'get')
+        || TRUSTED_OBJECT_HAS_OWN(descriptor, 'set')) {
+      fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request fields must be data');
+    }
+  }
+  if (!descriptors.method || typeof descriptors.method.value !== 'string') {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback request method is invalid');
+  }
+  return freeze({
+    method: descriptors.method.value,
+    params: descriptors.params?.value,
+  });
+}
+
+function bridgeFailureCodeSupported(code) {
+  for (let index = 0; index < BRIDGE_FAILURE_CODES.length; index += 1) {
+    if (BRIDGE_FAILURE_CODES[index] === code) return true;
+  }
+  return false;
+}
+
+function trustedPatternTest(pattern, value) {
+  return trustedApply(TRUSTED_REGEXP_EXEC, pattern, [value]) !== null;
+}
+
+function localBridgeFailure(code) {
+  const safeCode = bridgeFailureCodeSupported(code) ? code : 'INTERNAL_ERROR';
+  return new WalletGuardTrustedProviderTransportError(
+    `POMRX_WG_TRANSPORT_E_BRIDGE_${safeCode}`,
+    `captured provider bridge failed with ${safeCode}`,
+  );
+}
+
+function createSessionId() {
+  const bytes = trustedApply(TRUSTED_RANDOM_BYTES, undefined, [32]);
+  const length = trustedTypedArrayLength(bytes);
+  if (length !== 32) {
+    fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned an invalid session id');
+  }
+  const alphabet = '0123456789abcdef';
+  let output = '';
+  for (let index = 0; index < length; index += 1) {
+    const value = bytes[index];
+    if (!apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [value]) || value < 0 || value > 255) {
+      fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned invalid bytes');
+    }
+    output += alphabet[(value >>> 4) & 15];
+    output += alphabet[value & 15];
+  }
+  if (!trustedPatternTest(SESSION_ID_PATTERN, output)) {
+    fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG session encoding failed');
+  }
+  return output;
+}
+
+function makeCapturedBridgeCommand(sessionId, sequence, chainId, account, request) {
+  return makeWalletGuardBridgeCommand({
+    sessionId,
+    sequence,
+    expectedChainId: chainId,
+    expectedAccount: account,
+    request,
+  });
 }
 
 export function createWalletGuardControlledProviderTransport(rawOptions) {
@@ -587,6 +789,255 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
         context_reads: state.contextReads,
         sensitive_call_count: state.sensitiveCalls.length,
         sensitive_calls: copySensitiveCalls(state.sensitiveCalls),
+      });
+    },
+  });
+
+  return freeze({ provider, control });
+}
+
+export function createWalletGuardControlledCallbackProviderTransport(rawOptions) {
+  const optionDescriptors = exactKeys(
+    rawOptions,
+    CALLBACK_OPTIONS_KEYS,
+    'trusted callback provider transport options',
+  );
+  const chainId = optionDescriptors.chainId.value;
+  const accountsInput = optionDescriptors.accounts.value;
+  const maxSensitiveCalls = optionDescriptors.maxSensitiveCalls.value;
+  const dispatchSensitive = optionDescriptors.dispatchSensitive.value;
+  assertPromiseTransportRuntime();
+
+  if (typeof chainId !== 'string'
+      || chainId.length > 66
+      || !trustedPatternTest(CHAIN_ID_PATTERN, chainId)
+      || typeof dispatchSensitive !== 'function'
+      || isProxy(dispatchSensitive)
+      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [maxSensitiveCalls])
+      || maxSensitiveCalls < 1
+      || maxSensitiveCalls > 1_000) {
+    fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback provider transport options are invalid');
+  }
+
+  const accounts = snapshotTransportValue(
+    accountsInput,
+    'trusted callback provider accounts',
+  );
+  if (accounts.length !== 1
+      || typeof accounts[0] !== 'string'
+      || !trustedPatternTest(ACCOUNT_PATTERN, accounts[0])) {
+    fail(
+      'POMRX_WG_TRANSPORT_E_INVALID',
+      'trusted callback provider requires exactly one lowercase EVM account',
+    );
+  }
+
+  const sessionId = createSessionId();
+  const state = {
+    chainId,
+    accounts,
+    sessionId,
+    maxSensitiveCalls,
+    dispatchSensitive,
+    contextReads: 0,
+    sensitiveCalls: [],
+    inFlight: false,
+    nextSequence: 1,
+    destroyed: false,
+  };
+
+  const provider = freeze({
+    captureContext(deliverContext, reportFailure) {
+      if (typeof deliverContext !== 'function' || typeof reportFailure !== 'function') {
+        fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
+      }
+      state.contextReads += 2;
+      if (state.destroyed || state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(state.chainId, state.accounts[0]);
+      return undefined;
+    },
+    request(request) {
+      assertPromiseTransportRuntime();
+
+      try {
+        const requestShape = inspectCallbackRequest(request);
+        if (state.destroyed) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_SESSION_CLOSED',
+            'captured provider session is closed and must be re-armed',
+          );
+        }
+        const method = requestShape.method;
+        if (method === 'eth_chainId' || method === 'eth_accounts') {
+          state.contextReads += 1;
+          const value = method === 'eth_chainId'
+            ? state.chainId
+            : snapshotTransportValue(state.accounts, 'trusted callback provider accounts result');
+          assertPromiseTransportRuntime();
+          return fulfilledTransport(value);
+        }
+
+        if (method !== 'eth_sendTransaction') {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_METHOD',
+            'captured provider supports eth_sendTransaction only',
+          );
+        }
+        if (state.inFlight) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_IN_FLIGHT',
+            'captured provider permits one sensitive command in flight',
+          );
+        }
+        if (state.sensitiveCalls.length >= state.maxSensitiveCalls
+            || state.nextSequence > 99_999_999) {
+          throw new WalletGuardTrustedProviderTransportError(
+            'POMRX_WG_TRANSPORT_E_LOG_FULL',
+            'captured provider sensitive-call capacity is exhausted',
+          );
+        }
+
+        const command = makeCapturedBridgeCommand(
+          state.sessionId,
+          state.nextSequence,
+          state.chainId,
+          state.accounts[0],
+          request,
+        );
+        const pending = constructPendingTransport();
+        defineArrayElement(state.sensitiveCalls, state.sensitiveCalls.length, command);
+        state.nextSequence += 1;
+        state.inFlight = true;
+
+        const resolve = pending.resolve;
+        const reject = pending.reject;
+        {
+          let settled = false;
+          let dispatchComplete = false;
+          let earlyOutcome = null;
+
+          const finish = (outcome) => {
+            if (settled) return undefined;
+            try {
+              assertPromiseTransportRuntime();
+            } catch (error) {
+              settled = true;
+              state.destroyed = true;
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
+              return undefined;
+            }
+            settled = true;
+            try {
+              if (outcome.kind === 'raw') {
+                const parsed = parseWalletGuardBridgeResponse(outcome.raw, {
+                  session_id: command.session_id,
+                  sequence: command.sequence,
+                  request_id: command.request_id,
+                  expected_chain_id: command.expected_chain_id,
+                  expected_account: command.expected_account,
+                });
+                if (parsed.outcome === 'result'
+                    && typeof parsed.result === 'string'
+                    && trustedPatternTest(TX_HASH_PATTERN, parsed.result)) {
+                  state.inFlight = false;
+                  trustedApply(resolve, undefined, [parsed.result]);
+                  return undefined;
+                }
+                state.destroyed = true;
+                const error = localBridgeFailure(parsed.error_code);
+                state.inFlight = false;
+                trustedApply(reject, undefined, [error]);
+                return undefined;
+              }
+              state.destroyed = true;
+              const error = localBridgeFailure(outcome.code);
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
+            } catch {
+              state.destroyed = true;
+              const error = localBridgeFailure('INTERNAL_ERROR');
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
+            }
+            return undefined;
+          };
+
+          const deliverRawJson = (raw) => {
+            if (settled) return undefined;
+            const outcome = { kind: 'raw', raw };
+            if (!dispatchComplete) {
+              earlyOutcome = earlyOutcome === null
+                ? outcome
+                : { kind: 'failure', code: 'INTERNAL_ERROR' };
+              return undefined;
+            }
+            return finish(outcome);
+          };
+
+          const reportFailure = (code) => {
+            if (settled) return undefined;
+            const outcome = { kind: 'failure', code };
+            if (!dispatchComplete) {
+              earlyOutcome = earlyOutcome === null
+                ? outcome
+                : { kind: 'failure', code: 'INTERNAL_ERROR' };
+              return undefined;
+            }
+            return finish(outcome);
+          };
+
+          let dispatchReturn;
+          let dispatchThrew = false;
+          try {
+            dispatchReturn = trustedApply(
+              state.dispatchSensitive,
+              undefined,
+              [command, deliverRawJson, reportFailure],
+            );
+          } catch {
+            dispatchThrew = true;
+          }
+          dispatchComplete = true;
+          try {
+            assertPromiseTransportRuntime();
+          } catch (error) {
+            state.destroyed = true;
+            throw error;
+          }
+          if (dispatchThrew || dispatchReturn !== undefined) {
+            finish({ kind: 'failure', code: 'INTERNAL_ERROR' });
+          } else if (earlyOutcome !== null) {
+            finish(earlyOutcome);
+          }
+        }
+        return pending.transport;
+      } catch (error) {
+        assertPromiseTransportRuntime();
+        return rejectedTransport(error);
+      }
+    },
+  });
+  trustedTransportAdd(provider);
+
+  const control = freeze({
+    sensitiveCallCount() {
+      return state.sensitiveCalls.length;
+    },
+    inspect() {
+      return freeze({
+        chain_id: state.chainId,
+        accounts: snapshotTransportValue(state.accounts, 'trusted callback provider inspected accounts'),
+        session_id: state.sessionId,
+        context_reads: state.contextReads,
+        sensitive_call_count: state.sensitiveCalls.length,
+        sensitive_calls: copyCallbackSensitiveCalls(state.sensitiveCalls),
+        in_flight: state.inFlight,
+        next_sequence: state.nextSequence,
+        destroyed: state.destroyed,
       });
     },
   });
