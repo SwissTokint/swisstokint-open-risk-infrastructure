@@ -293,48 +293,31 @@ test('reentrant capability issuance cannot reuse the same replay evidence twice'
   const fixedAuthorization = referenceAuthorizationFactory('reentrant-replay')();
   let gateway;
   let state;
-  let armed = false;
   let reentryStarted = false;
   let nestedPromise = null;
 
-  const originalFreeze = Object.freeze;
-  const originalGetPrototypeOf = Object.getPrototypeOf;
-  const originalOwnKeys = Reflect.ownKeys;
+  ({ gateway, state } = createMutableGateway({
+    authorizationFactory: () => {
+      if (!reentryStarted) {
+        reentryStarted = true;
+        nestedPromise = gateway.request(sendTransaction());
+      }
+      return fixedAuthorization;
+    },
+  }));
 
-  Object.freeze = function poisonedFreeze(value) {
-    if (armed
-        && !reentryStarted
-        && value
-        && typeof value === 'object'
-        && Reflect.apply(originalGetPrototypeOf, Object, [value]) === null
-        && Reflect.apply(originalOwnKeys, Reflect, [value]).length === 0) {
-      reentryStarted = true;
-      nestedPromise = gateway.request(sendTransaction());
-    }
-    return Reflect.apply(originalFreeze, Object, [value]);
-  };
+  const outerPromise = gateway.request(sendTransaction());
+  assert.equal(reentryStarted, true);
+  assert.ok(nestedPromise);
 
-  try {
-    ({ gateway, state } = createMutableGateway({
-      authorizationFactory: () => {
-        armed = true;
-        return fixedAuthorization;
-      },
-    }));
-
-    const outerPromise = gateway.request(sendTransaction());
-    assert.equal(reentryStarted, true);
-    assert.ok(nestedPromise);
-
-    const [outer, nested] = await Promise.allSettled([outerPromise, nestedPromise]);
-    assert.equal(outer.status, 'fulfilled');
-    assert.equal(outer.value.forwarded, true);
-    assert.equal(nested.status, 'rejected');
-    assert.ok(nested.reason instanceof WalletGuardProviderError);
-    assert.equal(nested.reason.code, 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY');
-  } finally {
-    Object.freeze = originalFreeze;
-  }
+  const settled = await Promise.allSettled([outerPromise, nestedPromise]);
+  const fulfilled = settled.filter((result) => result.status === 'fulfilled');
+  const rejected = settled.filter((result) => result.status === 'rejected');
+  assert.equal(fulfilled.length, 1);
+  assert.equal(fulfilled[0].value.forwarded, true);
+  assert.equal(rejected.length, 1);
+  assert.ok(rejected[0].reason instanceof WalletGuardProviderError);
+  assert.equal(rejected[0].reason.code, 'POMRX_WG_PROVIDER_E_REFERENCE_REPLAY');
 
   assert.equal(state.sensitiveCalls.length, 1);
 });

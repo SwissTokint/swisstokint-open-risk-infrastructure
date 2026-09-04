@@ -62,9 +62,18 @@ const RESPONSE_KEYS = TRUSTED_OBJECT_FREEZE([
 export class WalletGuardBridgeEnvelopeError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardBridgeEnvelopeError';
-    this.code = code;
+    defineErrorField(this, 'name', 'WalletGuardBridgeEnvelopeError');
+    defineErrorField(this, 'code', code);
   }
+}
+
+function defineErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(error, key, descriptor);
 }
 
 function fail(code, message) {

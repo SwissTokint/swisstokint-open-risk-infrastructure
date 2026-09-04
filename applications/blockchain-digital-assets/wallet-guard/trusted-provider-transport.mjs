@@ -116,9 +116,18 @@ const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 export class WalletGuardTrustedProviderTransportError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardTrustedProviderTransportError';
-    this.code = code;
+    defineTransportErrorField(this, 'name', 'WalletGuardTrustedProviderTransportError');
+    defineTransportErrorField(this, 'code', code);
   }
+}
+
+function defineTransportErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  trustedApply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [error, key, descriptor]);
 }
 
 function fail(code, message) {
@@ -910,7 +919,6 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
               return undefined;
             }
             settled = true;
-            state.inFlight = false;
             try {
               if (outcome.kind === 'raw') {
                 const parsed = parseWalletGuardBridgeResponse(outcome.raw, {
@@ -923,18 +931,25 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
                 if (parsed.outcome === 'result'
                     && typeof parsed.result === 'string'
                     && trustedPatternTest(TX_HASH_PATTERN, parsed.result)) {
+                  state.inFlight = false;
                   trustedApply(resolve, undefined, [parsed.result]);
                   return undefined;
                 }
                 state.destroyed = true;
-                trustedApply(reject, undefined, [localBridgeFailure(parsed.error_code)]);
+                const error = localBridgeFailure(parsed.error_code);
+                state.inFlight = false;
+                trustedApply(reject, undefined, [error]);
                 return undefined;
               }
               state.destroyed = true;
-              trustedApply(reject, undefined, [localBridgeFailure(outcome.code)]);
+              const error = localBridgeFailure(outcome.code);
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
             } catch {
               state.destroyed = true;
-              trustedApply(reject, undefined, [localBridgeFailure('INTERNAL_ERROR')]);
+              const error = localBridgeFailure('INTERNAL_ERROR');
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
             }
             return undefined;
           };
