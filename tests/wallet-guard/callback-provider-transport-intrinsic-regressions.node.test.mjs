@@ -607,3 +607,47 @@ test('destroyed callback sessions fail context capture before requesting new aut
   );
   assert.equal(transport.control.inspect().sensitive_call_count, 1);
 });
+
+test('post-dispatch WeakMap.get drift cannot turn success into a retryable Gate failure', async () => {
+  const originalGet = Object.getOwnPropertyDescriptor(WeakMap.prototype, 'get');
+  let poisonCalls = 0;
+  let dispatchCalls = 0;
+  const transport = createTransport((command, deliverRawJson) => {
+    dispatchCalls += 1;
+    Object.defineProperty(WeakMap.prototype, 'get', {
+      ...originalGet,
+      value(key) {
+        if (key !== null
+            && typeof key === 'object'
+            && Object.getPrototypeOf(key) === null
+            && Object.getOwnPropertyNames(key).length === 0) {
+          poisonCalls += 1;
+          return undefined;
+        }
+        return Reflect.apply(originalGet.value, this, [key]);
+      },
+    });
+    deliverRawJson(response(command));
+  });
+  const gateway = createAllowGateway(transport);
+
+  let result;
+  let rejection = null;
+  try {
+    try {
+      result = await gateway.request(sendTransaction(ACCOUNT));
+    } catch (error) {
+      rejection = error;
+    }
+  } finally {
+    restoreDescriptor(WeakMap.prototype, 'get', originalGet);
+  }
+
+  assert.equal(rejection, null, 'confirmed dispatch must not become a retryable Gate failure');
+  assert.equal(result?.decision, 'ALLOW');
+  assert.equal(result?.forwarded, true);
+  assert.equal(result?.provider_result, TX_HASH);
+  assert.equal(poisonCalls, 0, 'Gate capability state must use its captured WeakMap getter');
+  assert.equal(dispatchCalls, 1);
+  assert.equal(transport.control.inspect().destroyed, false);
+});
