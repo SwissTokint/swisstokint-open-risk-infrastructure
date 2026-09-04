@@ -172,6 +172,11 @@ test('Gate observation settlement cannot inherit then and substitute a different
 
   if (rejection !== null) {
     assert.equal(dispatchedRecipients.length, 0, 'a rejected observation must never dispatch');
+    assert.equal(
+      observationThenCalls,
+      0,
+      'a fail-closed rejection must still avoid inherited then lookup on the observation',
+    );
     return;
   }
 
