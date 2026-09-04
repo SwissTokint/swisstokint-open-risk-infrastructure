@@ -10,6 +10,7 @@ import {
 } from '../../applications/blockchain-digital-assets/wallet-guard/intent.mjs';
 import {
   WALLET_GUARD_BINDING_PROFILE,
+  WalletGuardProviderError,
 } from '../../applications/blockchain-digital-assets/wallet-guard/provider.mjs';
 import {
   createWalletGuardControlledCallbackProviderTransport,
@@ -362,4 +363,49 @@ test('mutable global Boolean cannot suppress authorization Proxy rejection', asy
   assert.equal(trapCalls, 0, 'authorization Proxy rejection must not consult mutable Boolean');
   assert.equal(outcome[0].status, 'rejected');
   assert.deepEqual(fixture.dispatchedRecipients, [], 'masked authorization Proxy must never dispatch');
+});
+
+test('authorization Proxy rejection cannot reenter through an inherited provider-error setter', async () => {
+  let gateway;
+  let supplierCalls = 0;
+  let nestedPromise = null;
+  let armed = true;
+  const invalidAuthorization = new Proxy(referenceAuthorizationRecord(), {});
+  const fixture = createGatewayFixture(() => {
+    supplierCalls += 1;
+    return supplierCalls === 1 ? invalidAuthorization : referenceAuthorizationRecord();
+  });
+  gateway = fixture.gateway;
+
+  const original = Object.getOwnPropertyDescriptor(WalletGuardProviderError.prototype, 'name');
+  let setterCalls = 0;
+  Object.defineProperty(WalletGuardProviderError.prototype, 'name', {
+    configurable: true,
+    set() {
+      setterCalls += 1;
+      if (armed) {
+        armed = false;
+        nestedPromise = gateway.request(sendTransaction(RECIPIENT_B));
+      }
+    },
+  });
+
+  let outerOutcome;
+  try {
+    outerOutcome = await Promise.allSettled([
+      gateway.request(sendTransaction(RECIPIENT_A)),
+    ]);
+    if (nestedPromise !== null) {
+      await Promise.allSettled([nestedPromise]);
+    }
+  } finally {
+    if (original === undefined) delete WalletGuardProviderError.prototype.name;
+    else Object.defineProperty(WalletGuardProviderError.prototype, 'name', original);
+  }
+
+  assert.equal(setterCalls, 0, 'provider error construction must not invoke inherited name setters');
+  assert.equal(nestedPromise, null, 'invalid authorization rejection must not originate a nested request');
+  assert.equal(outerOutcome.length, 1);
+  assert.equal(outerOutcome[0].status, 'rejected');
+  assert.deepEqual(fixture.dispatchedRecipients, [], 'invalid authorization must never dispatch');
 });
