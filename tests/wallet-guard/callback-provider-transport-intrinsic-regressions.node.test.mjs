@@ -74,6 +74,7 @@ function referenceAuthorizationRecord() {
 function createAllowGateway(
   transport,
   referenceAuthorizationForRequest = () => referenceAuthorizationRecord(),
+  trustedClock = () => '2026-09-02T11:00:00.000Z',
 ) {
   return createWalletGuardTrustedProviderGateway({
     captureTrustedOrigin: () => ORIGIN,
@@ -95,7 +96,7 @@ function createAllowGateway(
       deny_operator_approval: true,
       require_simulation_for: [],
     },
-    trustedClock: () => '2026-09-02T11:00:00.000Z',
+    trustedClock,
     referenceAuthorizationForRequest,
     capabilityLifetimeMs: 30_000,
   });
@@ -650,4 +651,61 @@ test('post-dispatch WeakMap.get drift cannot turn success into a retryable Gate 
   assert.equal(poisonCalls, 0, 'Gate capability state must use its captured WeakMap getter');
   assert.equal(dispatchCalls, 1);
   assert.equal(transport.control.inspect().destroyed, false);
+});
+
+test('post-import Date replacement cannot revive an expired Gate capability', async () => {
+  let dispatchCalls = 0;
+  let clockReads = 0;
+  const transport = createTransport((command, deliverRawJson) => {
+    dispatchCalls += 1;
+    deliverRawJson(response(command));
+  });
+  const gateway = createAllowGateway(
+    transport,
+    () => referenceAuthorizationRecord(),
+    () => {
+      clockReads += 1;
+      return clockReads < 3
+        ? '2026-09-02T11:00:00.000Z'
+        : '2026-09-02T11:01:00.000Z';
+    },
+  );
+  const OriginalDate = globalThis.Date;
+  const originalGetTime = OriginalDate.prototype.getTime;
+  const originalToISOString = OriginalDate.prototype.toISOString;
+  let poisonCalls = 0;
+
+  class PoisonedDate extends OriginalDate {
+    constructor(...args) {
+      super(...args);
+      poisonCalls += 1;
+    }
+
+    getTime() {
+      const instant = Reflect.apply(originalToISOString, this, []);
+      if (instant === '2026-09-02T11:00:30.000Z') {
+        return Reflect.apply(originalGetTime, new OriginalDate('2026-09-02T12:00:00.000Z'), []);
+      }
+      return Reflect.apply(originalGetTime, this, []);
+    }
+
+    toISOString() {
+      return Reflect.apply(originalToISOString, this, []);
+    }
+  }
+
+  globalThis.Date = PoisonedDate;
+  let outcome;
+  try {
+    outcome = await Promise.allSettled([
+      gateway.request(sendTransaction(ACCOUNT)),
+    ]);
+  } finally {
+    globalThis.Date = OriginalDate;
+  }
+
+  assert.equal(poisonCalls, 0, 'Gate time checks must not consult the replaced Date constructor');
+  assert.equal(outcome[0].status, 'rejected');
+  assert.ok(expectGateCode(outcome[0].reason, 'POMRX_GATE_E_CAPABILITY_EXPIRED'));
+  assert.equal(dispatchCalls, 0, 'expired capability must fail before sensitive dispatch');
 });
