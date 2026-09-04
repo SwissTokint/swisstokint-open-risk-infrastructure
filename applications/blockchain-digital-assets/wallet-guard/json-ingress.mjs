@@ -44,9 +44,18 @@ const JSONRPC_KEYS = TRUSTED_OBJECT_FREEZE(['jsonrpc', 'id', 'method', 'params']
 export class WalletGuardJsonIngressError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardJsonIngressError';
-    this.code = code;
+    defineJsonIngressErrorField(this, 'name', 'WalletGuardJsonIngressError');
+    defineJsonIngressErrorField(this, 'code', code);
   }
+}
+
+function defineJsonIngressErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(error, key, descriptor);
 }
 
 export function parseWalletGuardBoundedJsonData(raw) {
@@ -117,12 +126,16 @@ function trustedStringSlice(value, start, end) {
 }
 
 function defineOwnData(target, key, value) {
-  TRUSTED_REFLECT_APPLY(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [target, key, {
-    value,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  }]);
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_REFLECT_APPLY(
+    TRUSTED_OBJECT_DEFINE_PROPERTY,
+    null,
+    [target, key, descriptor],
+  );
 }
 
 function isWhitespace(character) {

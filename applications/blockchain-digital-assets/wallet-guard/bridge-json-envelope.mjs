@@ -82,12 +82,19 @@ function fail(code, message) {
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
-  return current.value === baseline.value
-    && current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && current.get === baseline.get
-    && current.set === baseline.set;
+  return sameOwnDescriptorField(current, baseline, 'value')
+    && sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorField(current, baseline, 'get')
+    && sameOwnDescriptorField(current, baseline, 'set');
+}
+
+function sameOwnDescriptorField(current, baseline, key) {
+  const currentHas = TRUSTED_OBJECT_HAS_OWN(current, key);
+  const baselineHas = TRUSTED_OBJECT_HAS_OWN(baseline, key);
+  return currentHas === baselineHas
+    && (!currentHas || current[key] === baseline[key]);
 }
 
 function assertProxyDetectorIntegrity() {

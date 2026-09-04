@@ -297,21 +297,33 @@ const BRIDGE_FAILURE_CODES = freeze([
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
-  return current.value === baseline.value
-    && current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && current.get === baseline.get
-    && current.set === baseline.set;
+  return sameOwnDescriptorField(current, baseline, 'value')
+    && sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorField(current, baseline, 'get')
+    && sameOwnDescriptorField(current, baseline, 'set');
+}
+
+function sameOwnDescriptorField(current, baseline, key) {
+  const currentHas = TRUSTED_OBJECT_HAS_OWN(current, key);
+  const baselineHas = TRUSTED_OBJECT_HAS_OWN(baseline, key);
+  return currentHas === baselineHas
+    && (!currentHas || current[key] === baseline[key]);
+}
+
+function sameOwnDescriptorFieldPresence(current, baseline, key) {
+  return TRUSTED_OBJECT_HAS_OWN(current, key)
+    === TRUSTED_OBJECT_HAS_OWN(baseline, key);
 }
 
 function sameDescriptorShape(current, baseline) {
   if (!current || !baseline) return false;
-  return current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && (current.get !== undefined) === (baseline.get !== undefined)
-    && (current.set !== undefined) === (baseline.set !== undefined);
+  return sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'get')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'set');
 }
 
 function promiseRuntimeMatchesTrustedPrimordial() {
@@ -840,7 +852,7 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
         fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
       }
       state.contextReads += 2;
-      if (state.accounts.length < 1) {
+      if (state.destroyed || state.accounts.length < 1) {
         reportFailure('CONTEXT_UNAVAILABLE');
         return undefined;
       }
