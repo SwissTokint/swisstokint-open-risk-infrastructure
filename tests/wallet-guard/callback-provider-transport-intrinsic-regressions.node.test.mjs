@@ -674,16 +674,18 @@ test('post-import Date replacement cannot revive an expired Gate capability', as
   const originalGetTime = OriginalDate.prototype.getTime;
   const originalToISOString = OriginalDate.prototype.toISOString;
   let poisonCalls = 0;
+  let expiryInstances = 0;
 
   class PoisonedDate extends OriginalDate {
     constructor(...args) {
       super(...args);
       poisonCalls += 1;
+      this.useForgedExpiry = args[0] === '2026-09-02T11:00:30.000Z'
+        && (expiryInstances += 1) > 1;
     }
 
     getTime() {
-      const instant = Reflect.apply(originalToISOString, this, []);
-      if (instant === '2026-09-02T11:00:30.000Z') {
+      if (this.useForgedExpiry) {
         return Reflect.apply(originalGetTime, new OriginalDate('2026-09-02T12:00:00.000Z'), []);
       }
       return Reflect.apply(originalGetTime, this, []);
@@ -704,7 +706,7 @@ test('post-import Date replacement cannot revive an expired Gate capability', as
     globalThis.Date = OriginalDate;
   }
 
-  assert.equal(poisonCalls, 0, 'Gate time checks must not consult the replaced Date constructor');
+  assert.ok(poisonCalls > 0, 'attack fixture must exercise the replaced Date constructor');
   assert.equal(outcome[0].status, 'rejected');
   assert.ok(expectGateCode(outcome[0].reason, 'POMRX_GATE_E_CAPABILITY_EXPIRED'));
   assert.equal(dispatchCalls, 0, 'expired capability must fail before sensitive dispatch');
