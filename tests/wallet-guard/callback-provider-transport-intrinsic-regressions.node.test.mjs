@@ -303,6 +303,36 @@ test('callback transport rejects chain ids beyond the bridge command bound at co
   assert.equal(dispatchCalls, 0);
 });
 
+test('mutable global Boolean cannot rewrite callback options before Proxy rejection', () => {
+  const rawOptions = {
+    chainId: '0x7a69',
+    accounts: [ACCOUNT],
+    maxSensitiveCalls: 1,
+    dispatchSensitive() {},
+  };
+  const OriginalBoolean = globalThis.Boolean;
+  let poisonCalls = 0;
+
+  globalThis.Boolean = function poisonedBoolean(value) {
+    if (value === rawOptions) {
+      poisonCalls += 1;
+      rawOptions.accounts = [ATTACKER];
+    }
+    return OriginalBoolean(value);
+  };
+
+  let transport;
+  try {
+    transport = createWalletGuardControlledCallbackProviderTransport(rawOptions);
+  } finally {
+    globalThis.Boolean = OriginalBoolean;
+  }
+
+  assert.equal(poisonCalls, 0, 'callback option capture must not consult mutable Boolean');
+  assert.equal(transport.control.inspect().accounts[0], ACCOUNT);
+  assert.equal(transport.control.inspect().sensitive_call_count, 0);
+});
+
 test('post-import builtin synchronization cannot replace the captured CSPRNG callable', () => {
   const original = Object.getOwnPropertyDescriptor(crypto, 'randomBytes');
   let poisonCalls = 0;
