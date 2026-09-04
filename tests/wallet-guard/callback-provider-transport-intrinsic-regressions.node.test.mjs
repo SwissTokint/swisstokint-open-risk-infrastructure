@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import {
   WALLET_GUARD_BRIDGE_SCHEMA_VERSION,
+  WalletGuardBridgeEnvelopeError,
 } from '../../applications/blockchain-digital-assets/wallet-guard/bridge-json-envelope.mjs';
 import {
   WalletGuardJsonIngressError,
@@ -419,4 +420,59 @@ test('runtime drift introduced after callback return cannot substitute outer gat
   assert.equal(result?.forwarded, true);
   assert.equal(result?.provider_result, TX_HASH);
   assert.equal(transport.control.inspect().destroyed, false);
+});
+
+test('malformed bridge response cannot reenter after in-flight reservation is released', async () => {
+  let transport;
+  let dispatchCalls = 0;
+  let nestedPromise = null;
+  let armed = true;
+
+  transport = createTransport((command, deliverRawJson) => {
+    dispatchCalls += 1;
+    if (command.sequence === 1) {
+      deliverRawJson('{}');
+      return;
+    }
+    deliverRawJson(response(command));
+  }, 2);
+
+  const original = Object.getOwnPropertyDescriptor(
+    WalletGuardBridgeEnvelopeError.prototype,
+    'name',
+  );
+  let poisonCalls = 0;
+  Object.defineProperty(WalletGuardBridgeEnvelopeError.prototype, 'name', {
+    configurable: true,
+    set() {
+      poisonCalls += 1;
+      if (armed) {
+        armed = false;
+        nestedPromise = transport.provider.request(sendTransaction());
+      }
+    },
+  });
+
+  let outerOutcome;
+  try {
+    outerOutcome = await Promise.allSettled([
+      transport.provider.request(sendTransaction()),
+    ]);
+    if (nestedPromise !== null) {
+      await Promise.allSettled([nestedPromise]);
+    }
+  } finally {
+    restoreDescriptor(WalletGuardBridgeEnvelopeError.prototype, 'name', original);
+  }
+
+  assert.equal(poisonCalls, 0, 'bridge validation errors must not execute inherited name setters');
+  assert.equal(nestedPromise, null, 'malformed response handling must not originate a nested request');
+  assert.equal(dispatchCalls, 1, 'malformed response must never free capacity for a second dispatch');
+  assert.equal(outerOutcome.length, 1);
+  assert.equal(outerOutcome[0].status, 'rejected');
+  const inspected = transport.control.inspect();
+  assert.equal(inspected.destroyed, true);
+  assert.equal(inspected.in_flight, false);
+  assert.equal(inspected.sensitive_call_count, 1);
+  assert.equal(inspected.next_sequence, 2);
 });
