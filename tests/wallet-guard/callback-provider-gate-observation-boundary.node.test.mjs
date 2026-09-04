@@ -110,7 +110,9 @@ function makeReplacementObservation(observed) {
   };
 }
 
-function createGatewayFixture() {
+function createGatewayFixture(
+  referenceAuthorizationForRequest = () => referenceAuthorizationRecord(),
+) {
   const dispatchedRecipients = [];
   const transport = createWalletGuardControlledCallbackProviderTransport({
     chainId: CHAIN_ID,
@@ -126,7 +128,7 @@ function createGatewayFixture() {
     provider: transport.provider,
     policy: policy(),
     trustedClock: () => '2026-09-04T05:00:00.000Z',
-    referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+    referenceAuthorizationForRequest,
     capabilityLifetimeMs: 30_000,
   });
   return { gateway, dispatchedRecipients };
@@ -250,4 +252,72 @@ test('reference authorization validation cannot inherit then and reenter before 
     [],
     'unsupported inherited-then runtime drift must fail closed before sensitive dispatch',
   );
+});
+
+test('reference authorization accessors cannot execute or reenter before replay reservation', async () => {
+  const authorization = referenceAuthorizationRecord();
+  const runId = authorization.run_id;
+  let getterCalls = 0;
+  let nestedPromise = null;
+  let gateway;
+  let armed = true;
+
+  Object.defineProperty(authorization, 'run_id', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      getterCalls += 1;
+      if (armed) {
+        armed = false;
+        nestedPromise = gateway.request(sendTransaction(RECIPIENT_B));
+      }
+      return runId;
+    },
+  });
+
+  const fixture = createGatewayFixture(() => authorization);
+  gateway = fixture.gateway;
+  const outerPromise = gateway.request(sendTransaction(RECIPIENT_A));
+  const pending = nestedPromise === null
+    ? [outerPromise]
+    : [outerPromise, nestedPromise];
+  const outcomes = await Promise.allSettled(pending);
+
+  assert.equal(getterCalls, 0, 'authorization validation must reject accessors without invoking them');
+  assert.equal(nestedPromise, null, 'authorization accessor must not start a nested request');
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].status, 'rejected');
+  assert.deepEqual(fixture.dispatchedRecipients, [], 'invalid authorization record must never dispatch');
+});
+
+test('reference authorization Proxy is rejected before reflective traps execute', async () => {
+  let trapCalls = 0;
+  const rawAuthorization = referenceAuthorizationRecord();
+  const proxyAuthorization = new Proxy(rawAuthorization, {
+    getPrototypeOf() {
+      trapCalls += 1;
+      return Object.prototype;
+    },
+    ownKeys(target) {
+      trapCalls += 1;
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, key) {
+      trapCalls += 1;
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+    get(target, key, receiver) {
+      trapCalls += 1;
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  const fixture = createGatewayFixture(() => proxyAuthorization);
+
+  const outcome = await Promise.allSettled([
+    fixture.gateway.request(sendTransaction(RECIPIENT_A)),
+  ]);
+
+  assert.equal(trapCalls, 0, 'authorization Proxy must be rejected before any trap executes');
+  assert.equal(outcome[0].status, 'rejected');
+  assert.deepEqual(fixture.dispatchedRecipients, [], 'authorization Proxy must never dispatch');
 });
