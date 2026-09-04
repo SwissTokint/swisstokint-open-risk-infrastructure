@@ -11,8 +11,13 @@ import {
 
 const TRUSTED_OBJECT = globalThis.Object;
 const TRUSTED_ARRAY = globalThis.Array;
+const TRUSTED_REFLECT_APPLY = globalThis.Reflect.apply;
+const TRUSTED_WEAK_MAP = globalThis.WeakMap;
+const TRUSTED_WEAK_MAP_GET = TRUSTED_WEAK_MAP.prototype.get;
+const TRUSTED_WEAK_MAP_SET = TRUSTED_WEAK_MAP.prototype.set;
 const Object = TRUSTED_OBJECT.freeze({
   create: TRUSTED_OBJECT.create,
+  defineProperty: TRUSTED_OBJECT.defineProperty,
   freeze: TRUSTED_OBJECT.freeze,
   getOwnPropertyDescriptors: TRUSTED_OBJECT.getOwnPropertyDescriptors,
   getOwnPropertySymbols: TRUSTED_OBJECT.getOwnPropertySymbols,
@@ -42,9 +47,26 @@ const HARNESS_KEYS = Object.freeze([
 export class PomRxGateError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'PomRxGateError';
-    this.code = code;
+    defineGateErrorField(this, 'name', 'PomRxGateError');
+    defineGateErrorField(this, 'code', code);
   }
+}
+
+function defineGateErrorField(error, key, value) {
+  const descriptor = Object.create(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_REFLECT_APPLY(Object.defineProperty, null, [error, key, descriptor]);
+}
+
+function weakMapGet(map, key) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_WEAK_MAP_GET, map, [key]);
+}
+
+function weakMapSet(map, key, value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_WEAK_MAP_SET, map, [key, value]);
 }
 
 function gateError(code, message) {
@@ -240,7 +262,7 @@ export function createReferenceSingleUseGateHarness(options) {
 
   // Capability lifecycle is private and bound to this Gate instance. A capability
   // created by another reference Gate cannot be consumed here.
-  const capabilityState = new WeakMap();
+  const capabilityState = new TRUSTED_WEAK_MAP();
   let lastTrustedTimeMs = null;
 
   function sampleGateClock() {
@@ -260,7 +282,7 @@ export function createReferenceSingleUseGateHarness(options) {
       capabilityId,
     });
     const capability = Object.freeze(Object.create(null));
-    capabilityState.set(capability, {
+    weakMapSet(capabilityState, capability, {
       state: 'AVAILABLE',
       binding: prepared.binding,
     });
@@ -268,11 +290,11 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function inspectCapabilityStateForTest(capability) {
-    return capabilityState.get(capability)?.state ?? null;
+    return weakMapGet(capabilityState, capability)?.state ?? null;
   }
 
   function reserveCapability(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record) {
       throw gateError('POMRX_GATE_E_CAPABILITY_REQUIRED', 'A capability from this reference Gate is required');
     }
@@ -284,7 +306,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function rejectCapability(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'VALIDATING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot be rejected from its current state');
     }
@@ -292,7 +314,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function beginConsumption(capability) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'VALIDATING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability cannot begin consumption');
     }
@@ -300,7 +322,7 @@ export function createReferenceSingleUseGateHarness(options) {
   }
 
   function completeConsumption(capability, success) {
-    const record = capabilityState.get(capability);
+    const record = weakMapGet(capabilityState, capability);
     if (!record || record.state !== 'CONSUMING') {
       throw gateError('POMRX_GATE_E_CAPABILITY_STALE', 'Reference capability is not consuming');
     }
