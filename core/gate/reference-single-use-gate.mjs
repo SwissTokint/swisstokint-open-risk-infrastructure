@@ -9,6 +9,22 @@ import {
   captureReferencePlainData,
 } from '../reference-data/plain-data-snapshot.mjs';
 
+const TRUSTED_OBJECT = globalThis.Object;
+const TRUSTED_ARRAY = globalThis.Array;
+const Object = TRUSTED_OBJECT.freeze({
+  create: TRUSTED_OBJECT.create,
+  freeze: TRUSTED_OBJECT.freeze,
+  getOwnPropertyDescriptors: TRUSTED_OBJECT.getOwnPropertyDescriptors,
+  getOwnPropertySymbols: TRUSTED_OBJECT.getOwnPropertySymbols,
+  getPrototypeOf: TRUSTED_OBJECT.getPrototypeOf,
+  hasOwn: TRUSTED_OBJECT.hasOwn,
+  keys: TRUSTED_OBJECT.keys,
+  prototype: TRUSTED_OBJECT.prototype,
+});
+const Array = TRUSTED_OBJECT.freeze({
+  isArray: TRUSTED_ARRAY.isArray,
+});
+
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{2,127}$/u;
 const OBSERVED_KEYS = Object.freeze([
@@ -49,10 +65,14 @@ function snapshotExactReferences(value, expectedKeys, label) {
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const expected = [...expectedKeys].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  const actual = Object.keys(descriptors);
+  if (actual.length !== expectedKeys.length) {
     throw new TypeError(`${label} has missing, hidden or unknown fields`);
+  }
+  for (const key of expectedKeys) {
+    if (!Object.hasOwn(descriptors, key)) {
+      throw new TypeError(`${label} has missing, hidden or unknown fields`);
+    }
   }
 
   const snapshot = Object.create(null);
@@ -84,10 +104,14 @@ function snapshotObservedRecord(value) {
   }
 
   const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Object.keys(descriptors).sort();
-  const expected = [...OBSERVED_KEYS].sort();
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+  const actual = Object.keys(descriptors);
+  if (actual.length !== OBSERVED_KEYS.length) {
     throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
+  }
+  for (const key of OBSERVED_KEYS) {
+    if (!Object.hasOwn(descriptors, key)) {
+      throw gateError('POMRX_GATE_E_OBSERVER_FAILED', 'Trusted binding observer returned an invalid record');
+    }
   }
 
   const snapshot = Object.create(null);
