@@ -71,7 +71,10 @@ function referenceAuthorizationRecord() {
   };
 }
 
-function createAllowGateway(transport) {
+function createAllowGateway(
+  transport,
+  referenceAuthorizationForRequest = () => referenceAuthorizationRecord(),
+) {
   return createWalletGuardTrustedProviderGateway({
     captureTrustedOrigin: () => ORIGIN,
     provider: transport.provider,
@@ -93,7 +96,7 @@ function createAllowGateway(transport) {
       require_simulation_for: [],
     },
     trustedClock: () => '2026-09-02T11:00:00.000Z',
-    referenceAuthorizationForRequest: () => referenceAuthorizationRecord(),
+    referenceAuthorizationForRequest,
     capabilityLifetimeMs: 30_000,
   });
 }
@@ -452,6 +455,74 @@ test('runtime drift introduced after callback return cannot substitute outer gat
   assert.equal(transport.control.inspect().destroyed, false);
 });
 
+test('bridge descriptor integrity checks ignore inherited get and set accessors', async () => {
+  const transport = createTransport((command, deliverRawJson) => {
+    deliverRawJson(response(command));
+  });
+  const originalGet = Object.getOwnPropertyDescriptor(Object.prototype, 'get');
+  const originalSet = Object.getOwnPropertyDescriptor(Object.prototype, 'set');
+  let poisonCalls = 0;
+
+  Object.defineProperty(Object.prototype, 'get', {
+    configurable: true,
+    get() {
+      poisonCalls += 1;
+      return undefined;
+    },
+  });
+  Object.defineProperty(Object.prototype, 'set', {
+    configurable: true,
+    get() {
+      poisonCalls += 1;
+      return undefined;
+    },
+  });
+
+  let pending;
+  try {
+    pending = transport.provider.request(sendTransaction());
+  } finally {
+    restoreDescriptor(Object.prototype, 'get', originalGet);
+    restoreDescriptor(Object.prototype, 'set', originalSet);
+  }
+
+  assert.equal(await pending, TX_HASH);
+  assert.equal(poisonCalls, 0, 'descriptor integrity checks must read own fields only');
+});
+
+test('invalid JSON errors cannot poison Promise runtime through an inherited name setter', async () => {
+  const transport = createTransport((_command, deliverRawJson) => {
+    deliverRawJson('{');
+  });
+  const originalName = Object.getOwnPropertyDescriptor(WalletGuardJsonIngressError.prototype, 'name');
+  const originalThen = Object.getOwnPropertyDescriptor(Promise.prototype, 'then');
+  let setterCalls = 0;
+  let pending;
+
+  Object.defineProperty(WalletGuardJsonIngressError.prototype, 'name', {
+    configurable: true,
+    set() {
+      setterCalls += 1;
+      Object.defineProperty(Promise.prototype, 'then', {
+        configurable: true,
+        writable: true,
+        value() {},
+      });
+    },
+  });
+
+  try {
+    pending = transport.provider.request(sendTransaction());
+  } finally {
+    restoreDescriptor(WalletGuardJsonIngressError.prototype, 'name', originalName);
+    restoreDescriptor(Promise.prototype, 'then', originalThen);
+  }
+
+  await assert.rejects(pending);
+  assert.equal(setterCalls, 0, 'JSON ingress errors must not invoke inherited name setters');
+  assert.equal(transport.control.inspect().destroyed, true);
+});
+
 test('malformed bridge response cannot reenter after in-flight reservation is released', async () => {
   let transport;
   let dispatchCalls = 0;
@@ -505,4 +576,34 @@ test('malformed bridge response cannot reenter after in-flight reservation is re
   assert.equal(inspected.in_flight, false);
   assert.equal(inspected.sensitive_call_count, 1);
   assert.equal(inspected.next_sequence, 2);
+});
+
+test('destroyed callback sessions fail context capture before requesting new authorization', async () => {
+  let authorizationCalls = 0;
+  const transport = createTransport((_command, deliverRawJson) => {
+    deliverRawJson('{}');
+  }, 2);
+  const gateway = createAllowGateway(transport, () => {
+    authorizationCalls += 1;
+    const authorization = referenceAuthorizationRecord();
+    if (authorizationCalls === 1) return authorization;
+    return {
+      ...authorization,
+      run_id: 'run-callback-intrinsic-00000002',
+      preflight_receipt_hash: '5'.repeat(64),
+      witness_ack_hash: '6'.repeat(64),
+    };
+  });
+
+  await assert.rejects(gateway.request(sendTransaction(ACCOUNT)));
+  assert.equal(transport.control.inspect().destroyed, true);
+  assert.equal(authorizationCalls, 1);
+
+  await assert.rejects(gateway.request(sendTransaction(ACCOUNT)));
+  assert.equal(
+    authorizationCalls,
+    1,
+    'closed sessions must fail their first context sample before consuming authorization',
+  );
+  assert.equal(transport.control.inspect().sensitive_call_count, 1);
 });
