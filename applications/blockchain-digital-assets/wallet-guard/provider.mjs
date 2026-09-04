@@ -583,21 +583,40 @@ export function createWalletGuardReferenceProviderGateway(options) {
         fail('POMRX_WG_PROVIDER_E_POLICY_CHANGED', 'policy no longer allows the execution attempt');
       }
       const committed = commitWalletGuardIntent(intent);
-      return Object.freeze({
-        binding_profile: WALLET_GUARD_BINDING_PROFILE,
-        action_commitment: committed.intent_commitment,
-        context_commitment: commitContext(context, policyResult.policy_hash),
-        prepared_execution: Object.freeze({
-          schema_version: WALLET_GUARD_PREPARED_EXECUTION_VERSION,
-          request_id: attempt.request_id,
-          origin: context.origin,
-          chain_id: context.chain_id,
-          account: context.account,
-          intent_commitment: committed.intent_commitment,
-          policy_hash: policyResult.policy_hash,
-          request,
-        }),
-      });
+
+      const preparedExecution = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+      defineOwnDataProperty(
+        preparedExecution,
+        'schema_version',
+        WALLET_GUARD_PREPARED_EXECUTION_VERSION,
+      );
+      defineOwnDataProperty(preparedExecution, 'request_id', attempt.request_id);
+      defineOwnDataProperty(preparedExecution, 'origin', context.origin);
+      defineOwnDataProperty(preparedExecution, 'chain_id', context.chain_id);
+      defineOwnDataProperty(preparedExecution, 'account', context.account);
+      defineOwnDataProperty(
+        preparedExecution,
+        'intent_commitment',
+        committed.intent_commitment,
+      );
+      defineOwnDataProperty(preparedExecution, 'policy_hash', policyResult.policy_hash);
+      defineOwnDataProperty(preparedExecution, 'request', request);
+      const frozenPreparedExecution = TRUSTED_REFLECT_APPLY(
+        Object.freeze,
+        undefined,
+        [preparedExecution],
+      );
+
+      const observed = TRUSTED_REFLECT_APPLY(Object.create, undefined, [null]);
+      defineOwnDataProperty(observed, 'binding_profile', WALLET_GUARD_BINDING_PROFILE);
+      defineOwnDataProperty(observed, 'action_commitment', committed.intent_commitment);
+      defineOwnDataProperty(
+        observed,
+        'context_commitment',
+        commitContext(context, policyResult.policy_hash),
+      );
+      defineOwnDataProperty(observed, 'prepared_execution', frozenPreparedExecution);
+      return TRUSTED_REFLECT_APPLY(Object.freeze, undefined, [observed]);
     },
     executeDownstream: async (preparedInput) => {
       const prepared = validatePreparedExecution(preparedInput);
