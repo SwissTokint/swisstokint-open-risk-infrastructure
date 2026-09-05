@@ -63,6 +63,13 @@ arms success after the authenticated stream has ended. A regression replaces
 `process.exitCode` from a later exit listener; the trusted runner must remain
 red. These controls keep lifecycle evidence and terminal process state outside
 candidate-controlled mutation surfaces while the test modules share a process.
+The trusted test transformer is installed with Node's synchronous registration
+API before the preload seals both `node:module.register` and
+`node:module.registerHooks` in the CommonJS and synchronized ESM views. Worker
+permission is then unnecessary and withheld. Candidate code therefore cannot
+register a later hook that substitutes genuine source for the remaining
+base-owned manifest files; a three-file regression proves two unconditional
+later failures cannot be rewritten into genuine-looking passes.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from

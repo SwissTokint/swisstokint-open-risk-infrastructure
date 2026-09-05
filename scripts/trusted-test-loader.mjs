@@ -45,8 +45,8 @@ const primordialBindings = [
   'setImmediate', 'setInterval', 'setTimeout',
 ];
 
-export async function load(url, context, nextLoad) {
-  const loaded = await nextLoad(url, context);
+export function load(url, context, nextLoad) {
+  const loaded = nextLoad(url, context);
   if (!trustedTestUrls.has(url)) return loaded;
   if (loaded.format !== 'module') {
     throw new Error(`trusted test must load as an ES module: ${url}`);

@@ -208,7 +208,7 @@ test('candidate tests run without network, write access or ambient privilege', (
     trustedWorkflow,
     /--no-addons/u,
   );
-  assert.doesNotMatch(trustedWorkflow, /--allow-(?:addons|wasi)/u);
+  assert.doesNotMatch(trustedWorkflow, /--allow-(?:addons|wasi|worker)/u);
   assert.match(
     trustedWorkflow,
     /--import=\.\/scripts\/trusted-test-loader-register\.mjs/u,

@@ -292,7 +292,6 @@ jobs:
               --allow-fs-read=/tmp \
               --allow-fs-write=/tmp \
               --allow-child-process \
-              --allow-worker \
               --no-addons \
               --import=./scripts/trusted-test-loader-register.mjs \
               --import=./scripts/trusted-assert-preload.mjs \

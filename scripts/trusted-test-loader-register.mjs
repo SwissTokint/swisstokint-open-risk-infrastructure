@@ -1,3 +1,5 @@
-import { register } from 'node:module';
+import { registerHooks } from 'node:module';
 
-register('./trusted-test-loader.mjs', import.meta.url);
+import { load } from './trusted-test-loader.mjs';
+
+registerHooks({ load });

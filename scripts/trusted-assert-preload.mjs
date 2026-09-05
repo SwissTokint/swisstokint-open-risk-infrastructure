@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 
 const SafeError = Error;
 const SafeObjectDefineProperty = Object.defineProperty;
@@ -18,6 +18,7 @@ const SafeReflectSet = Reflect.set;
 const SafeString = String;
 
 const requiredAssert = createRequire(import.meta.url)('node:assert/strict');
+const requiredModule = createRequire(import.meta.url)('node:module');
 
 if (requiredAssert !== assert || assert.strict !== assert) {
   throw new SafeError('trusted strict-assert identity is inconsistent');
@@ -28,6 +29,25 @@ SafeObjectFreeze(assert);
 if (!SafeObjectIsFrozen(assert)) {
   throw new SafeError('trusted strict-assert object did not freeze');
 }
+
+function forbidCandidateLoaderRegistration() {
+  throw new SafeError('candidate ESM loader registration is forbidden');
+}
+
+SafeObjectFreeze(forbidCandidateLoaderRegistration);
+for (const property of ['register', 'registerHooks']) {
+  const descriptor = SafeObjectGetOwnPropertyDescriptor(requiredModule, property);
+  if (descriptor === undefined || typeof descriptor.value !== 'function') {
+    throw new SafeError(`trusted module loader API is unavailable: ${property}`);
+  }
+  SafeObjectDefineProperty(requiredModule, property, {
+    value: forbidCandidateLoaderRegistration,
+    writable: false,
+    enumerable: descriptor.enumerable,
+    configurable: false,
+  });
+}
+syncBuiltinESMExports();
 
 function forbiddenEarlyExit(code) {
   throw new SafeError(`candidate-controlled early process exit is forbidden: ${SafeString(code)}`);
