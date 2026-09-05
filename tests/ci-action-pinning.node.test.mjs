@@ -31,16 +31,16 @@ test('CI workflows reference every external action by a full immutable commit SH
 });
 
 test('CI pins the reviewed v7 action revisions and preserves release annotations', () => {
-  const refsByAction = new Map(actionRefs.map(({ reference, annotation }) => {
-    const [action, sha] = reference.split('@');
-    return [action, { sha, annotation }];
-  }));
-
   for (const [action, expectedSha] of requiredPins) {
-    assert.deepEqual(
-      refsByAction.get(action),
-      { sha: expectedSha, annotation: 'v7' },
-      `${action} must match the reviewed v7 commit and annotation`,
-    );
+    const occurrences = actionRefs.filter(({ reference }) => reference.startsWith(`${action}@`));
+    assert.ok(occurrences.length > 0, `${action} must occur in a CI workflow`);
+    for (const { reference, annotation } of occurrences) {
+      const [, sha] = reference.split('@');
+      assert.deepEqual(
+        { sha, annotation },
+        { sha: expectedSha, annotation: 'v7' },
+        `every ${action} occurrence must match the reviewed v7 commit and annotation`,
+      );
+    }
   }
 });

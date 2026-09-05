@@ -46,7 +46,7 @@ export function buildTrustedPrStatusRequest(environment) {
   const targetUrl = `${serverUrl}/${repository}/actions/runs/${runId}`;
   return Object.freeze({
     apiPath: `repos/${repository}/statuses/${headSha}`,
-    expectedApiUrl: `${apiUrl}/repos/${repository}/statuses/${headSha}`,
+    expectedStatusUrlPrefix: `${apiUrl}/repos/${repository}/statuses/`,
     payload: Object.freeze({
       state,
       target_url: targetUrl,
@@ -64,8 +64,9 @@ export function validateTrustedPrStatusResponse(responseText, request) {
   if (!Number.isSafeInteger(body.id) || body.id < 1) {
     throw new Error('commit-status API returned an invalid status id');
   }
+  const expectedStatusUrl = `${request.expectedStatusUrlPrefix}${body.id}`;
   if (
-    body.url !== request.expectedApiUrl
+    body.url !== expectedStatusUrl
     || body.context !== request.payload.context
     || body.state !== request.payload.state
     || body.target_url !== request.payload.target_url

@@ -38,7 +38,7 @@ test('publisher sends only the fixed status payload through the trusted gh path'
   const request = buildTrustedPrStatusRequest(baseEnvironment);
   const response = {
     id: 42,
-    url: request.expectedApiUrl,
+    url: `${request.expectedStatusUrlPrefix}42`,
     context: request.payload.context,
     state: request.payload.state,
     target_url: request.payload.target_url,
@@ -77,8 +77,19 @@ test('publisher rejects malformed provenance and response substitution', () => {
   assert.throws(
     () => validateTrustedPrStatusResponse(JSON.stringify({
       id: 42,
-      url: request.expectedApiUrl,
+      url: `${request.expectedStatusUrlPrefix}42`,
       context: 'attacker/context',
+      state: request.payload.state,
+      target_url: request.payload.target_url,
+      description: request.payload.description,
+    }), request),
+    /changed the trusted status binding/u,
+  );
+  assert.throws(
+    () => validateTrustedPrStatusResponse(JSON.stringify({
+      id: 42,
+      url: `${request.expectedStatusUrlPrefix}41`,
+      context: request.payload.context,
       state: request.payload.state,
       target_url: request.payload.target_url,
       description: request.payload.description,

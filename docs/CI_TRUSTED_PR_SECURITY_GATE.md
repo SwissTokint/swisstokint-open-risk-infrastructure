@@ -24,7 +24,10 @@ file list after Git proves that no tracked byte drifted,
 the target branch's security tests are overlaid, and the resulting tree is
 mounted read-only into a non-root container with no network, no Linux
 capabilities and `no-new-privileges`. A mandatory write probe proves the mount
-is non-writable before the security tests run.
+is non-writable before the security tests run. A base-owned custom reporter
+requires one successful per-file summary for every manifest entry, so a
+candidate-triggered early `process.exit(0)` cannot turn missing assertions into
+a successful gate.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from

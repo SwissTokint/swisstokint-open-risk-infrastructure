@@ -1,6 +1,7 @@
 tests/ci-action-pinning.node.test.mjs
 tests/trusted-pr-security-workflow.node.test.mjs
 tests/trusted-pr-status-publisher.node.test.mjs
+tests/trusted-test-reporter.node.test.mjs
 tests/pom-rx-core-reference-gate.node.test.mjs
 tests/pom-rx-core-reference-gate-intrinsic-boundary.node.test.mjs
 tests/pom-rx-core-reference-gate-object-boundary.node.test.mjs

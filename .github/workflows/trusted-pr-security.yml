@@ -181,6 +181,12 @@ jobs:
           install -m 0555 \
             trusted-base/scripts/publish-trusted-pr-status.mjs \
             "$evaluation_root/scripts/publish-trusted-pr-status.mjs"
+          install -m 0555 \
+            trusted-base/scripts/trusted-test-reporter.mjs \
+            "$evaluation_root/scripts/trusted-test-reporter.mjs"
+          install -m 0444 \
+            trusted-base/.github/trusted-security-tests.txt \
+            "$evaluation_root/scripts/trusted-security-tests.txt"
 
           while IFS= read -r test_path; do
             test -n "$test_path"
@@ -229,10 +235,11 @@ jobs:
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
             --env HOME=/tmp \
             --env TMPDIR=/tmp \
+            --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-security-tests.txt \
             --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
             --workdir /workspace \
             "$NODE_IMAGE" \
-            node --test "${trusted_tests[@]}"
+            node --test --test-reporter=./scripts/trusted-test-reporter.mjs "${trusted_tests[@]}"
 
       - name: Preserve strict legacy expected-red evidence
         shell: bash

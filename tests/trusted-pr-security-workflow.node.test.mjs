@@ -70,6 +70,8 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
     /rm -rf "\$evaluation_root\/node_modules" "\$evaluation_root\/scripts" "\$evaluation_root\/tests"/u,
   );
   assert.match(trustedWorkflow, /cp -a trusted-base\/tests\/\. "\$evaluation_root\/tests\/"/u);
+  assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-test-reporter\.mjs/u);
+  assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-security-tests\.txt/u);
   assert.match(trustedWorkflow, /type=bind,src=\$GITHUB_WORKSPACE\/evaluation,dst=\/workspace,readonly/u);
   assert.match(trustedWorkflow, /Candidate sandbox unexpectedly allowed source mutation\./u);
   assert.match(trustedWorkflow, /node scripts\/assert-pom-rx-integrity-baseline-red\.mjs/u);
@@ -85,6 +87,14 @@ test('candidate tests run without network, write access or ambient privilege', (
   assert.ok([...trustedWorkflow.matchAll(/^\s+--cap-drop ALL \\$/gmu)].length >= 3);
   assert.ok([...trustedWorkflow.matchAll(/^\s+--security-opt no-new-privileges \\$/gmu)].length >= 3);
   assert.ok([...trustedWorkflow.matchAll(/^\s+--user 65532:65532 \\$/gmu)].length >= 3);
+  assert.match(
+    trustedWorkflow,
+    /--test-reporter=\.\/scripts\/trusted-test-reporter\.mjs "\$\{trusted_tests\[@\]\}"/u,
+  );
+  assert.match(
+    trustedWorkflow,
+    /--env TRUSTED_TEST_MANIFEST=\/workspace\/scripts\/trusted-security-tests\.txt/u,
+  );
 });
 
 test('ordinary CI remains a distinct canonical push or merge-candidate lane', () => {
