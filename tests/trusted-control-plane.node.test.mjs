@@ -20,10 +20,15 @@ import {
 } from '../scripts/verify-trusted-control-plane.mjs';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const manifestPaths = readFileSync(
-  join(repositoryRoot, '.github/trusted-security-tests.txt'),
+const manifestPaths = [
+  '.github/trusted-security-tests.txt',
+  '.github/trusted-mutation-security-tests.txt',
+  '.github/trusted-child-tests.txt',
+  '.github/trusted-expected-red-test.txt',
+].flatMap((relativePath) => readFileSync(
+  join(repositoryRoot, relativePath),
   'utf8',
-).replace(/\r\n/gu, '\n').trim().split('\n');
+).replace(/\r\n/gu, '\n').trim().split('\n'));
 
 assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
   'tests/pom-rx-post-merge-assurance-policy.node.test.mjs',
@@ -33,6 +38,12 @@ assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
 ));
 assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
   'tests/fixtures/trusted-runner/self-restoring-instance-poison.test.mjs',
+));
+assert.ok(manifestPaths.includes(
+  'tests/wallet-guard/security-intent-shape-regressions.node.test.mjs',
+));
+assert.ok(manifestPaths.includes(
+  'tests/fixtures/trusted-runner/authenticated-child-source.test.mjs',
 ));
 
 function copyControlTree(targetRoot) {

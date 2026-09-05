@@ -44,7 +44,7 @@ eligible to start. Departure invalidators remain outside the group and are not
 cancelled by a rapid retarget or push.
 
 Before any candidate-controlled dependency or test module is evaluated, the
-controller byte-compares its workflow, both trusted manifests, every manifest
+controller byte-compares its workflow, all trusted manifests, every manifest
 test, the status publishers, the loader/preloads/reporters, action-pinning
 tests, package scripts, and the reviewed YAML artifact binding against `main`.
 Any in-band control-plane drift is rejected. This deliberately means that a
@@ -54,7 +54,10 @@ review path; an ordinary PR cannot rewrite its own judge.
 Candidate dependencies are installed with lifecycle scripts disabled. The
 evaluated source is then reconstructed only from the exact checkout's tracked
 file list after Git proves that no tracked byte drifted,
-the target branch's security tests are overlaid, and the resulting tree is
+the target branch's security tests and controller scripts are overlaid, and the
+candidate's remaining tracked product scripts are preserved for the tests that
+exercise them. The trusted risk wrapper imports tracked TypeScript source
+directly, so it does not depend on an untracked `dist/` artifact. The resulting tree is
 mounted read-only into a non-root container with no network, no Linux
 capabilities and `no-new-privileges`. A mandatory write probe proves the mount
 is non-writable before the security tests run. The Node permission model denies
@@ -66,9 +69,10 @@ candidate module initializes. It also blocks process replacement through
 non-configurable properties, removes inherited child preload variables, and
 prevents their later mutation. CommonJS and ESM export tables for the built-ins
 used by the trusted tests are included in the integrity snapshot. A base-owned
-preload also locks the container's explicit executable search path and both
-working-directory APIs; candidate code cannot redirect a trusted child command
-or relative fixture read into writable `/tmp` content. A base-owned
+preload also locks the container's explicit executable search path, runtime
+platform/version identity and both working-directory APIs; candidate code
+cannot redirect a trusted child command, forge a platform branch, or redirect a
+relative fixture read into writable `/tmp` content. A base-owned
 loader injects a primordial-integrity
 checkpoint as the first executable statement of every manifest test; because
 static dependencies evaluate first, candidate initialization that replaces a
@@ -79,8 +83,11 @@ primordial facades. The authoritative runner starts Node with
 instance method, use it to falsify an assertion, and restore the original
 descriptor before the post-test checkpoint. A literal self-restoring poison
 regression must remain non-zero without a trusted pass marker. Tests whose
-purpose is to mutate JavaScript intrinsics remain in canonical CI instead of
-the frozen trusted manifest. Process-level test isolation
+purpose is to mutate JavaScript intrinsics execute in a separate immutable,
+authenticated non-frozen manifest lane as well as canonical CI. They retain the
+same base-owned loader, preload, direct reporter and one-container-per-file
+boundary without disabling the mutations they are designed to exercise.
+Process-level test isolation
 is deliberately disabled. An `afterEach` checkpoint therefore re-verifies the
 captured globals, prototypes and built-in exports after candidate execution, so
 persistent instance-method poisoning is rejected before the next test:
@@ -114,14 +121,21 @@ security test file. The manifest covers the base-owned security, protocol,
 proof, public-identity and wallet-guard regression suites; candidate changes to
 those test bytes are rejected before execution. Child-process permission remains necessary for specific
 base-owned regressions, so the preload makes `process.execve` non-replaceable
-and fail-closed alongside `process.exit` and `process.reallyExit`. A literal
-process-replacement regression must remain non-zero without a trusted pass
-marker.
+and fail-closed alongside `process.exit` and `process.reallyExit`. The pre-import
+transport regressions run their non-frozen child source through a minimal
+base-owned child manifest and the same direct lifecycle reporter; inherited
+`NODE_TEST_CONTEXT` is removed, and the child has its own explicit permission
+model. A literal child `process.exit(0)` attempt must remain non-zero without a
+trusted pass marker. The process-replacement regression has the same
+fail-closed requirement.
 
 The reporter accepts only the reviewed Linux-only skip in the strict activation
 suite and the two reviewed compatibility skips: the Windows-only metadata case
 and the source-binding case that requires host `git`. Every other skip or any
-additional skip remains a failure. The remaining host-independent compatibility
+additional skip remains a failure. It validates the exact source path and test
+name for every accepted skip, not only the aggregate count, while the preload
+makes `process.platform` non-configurable before candidate initialization. The
+remaining host-independent compatibility
 corpus runs in the authenticated, frozen trusted runner; candidate imports
 cannot terminate it successfully before direct lifecycle evidence is complete.
 Host-tool scenarios that require `git` or `python3` stay in canonical required

@@ -14,6 +14,7 @@ const SafeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const SafeReflectApply = Reflect.apply;
 const SafeRegExpTest = RegExp.prototype.test;
 const SafeResolve = resolve;
+const SafeString = String;
 const SafeEventEmitterOn = EventEmitter.prototype.on;
 const trustedPlatform = process.platform;
 const protectedLifecycleMethods = [
@@ -22,16 +23,29 @@ const protectedLifecycleMethods = [
 ];
 const trustedPathPattern = /^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u;
 const reviewedPlatformSkips = Object.freeze([
-  Object.freeze(['linux', 'tests/pom-rx-v01-compat-fixtures.node.test.mjs', 2]),
-  Object.freeze(['linux', 'tests/pom-rx-v01-strict-activation.node.test.mjs', 1]),
+  Object.freeze([
+    'linux',
+    'tests/pom-rx-v01-compat-fixtures.node.test.mjs',
+    Object.freeze([
+      'Windows native metadata is revalidated after enumeration before a standalone read',
+      'frozen source binding rejects blob, raw-byte, import-URL and four-file drift',
+    ]),
+  ]),
+  Object.freeze([
+    'linux',
+    'tests/pom-rx-v01-strict-activation.node.test.mjs',
+    Object.freeze([
+      'Windows strict production boundary is explicit fail-closed until native metadata evidence exists',
+    ]),
+  ]),
 ]);
 
-function reviewedSkipCount(testPath, platform) {
+function reviewedSkipNames(testPath, platform) {
   for (let index = 0; index < reviewedPlatformSkips.length; index += 1) {
-    const [reviewedPlatform, reviewedPath, count] = reviewedPlatformSkips[index];
-    if (reviewedPlatform === platform && reviewedPath === testPath) return count;
+    const [reviewedPlatform, reviewedPath, names] = reviewedPlatformSkips[index];
+    if (reviewedPlatform === platform && reviewedPath === testPath) return names;
   }
-  return 0;
+  return Object.freeze([]);
 }
 
 function lockLifecycleMethod(target, property, descriptor) {
@@ -131,7 +145,7 @@ function validateExpectedPaths(testPaths, platform) {
       typeof testPath !== 'string'
       || !SafeReflectApply(SafeRegExpTest, trustedPathPattern, [testPath])
     ) {
-      throw new SafeError(`invalid trusted test path: ${String(testPath)}`);
+      throw new SafeError(`invalid trusted test path: ${SafeString(testPath)}`);
     }
     const absolutePath = SafeResolve(testPath);
     for (let previous = 0; previous < expectedRecords.length; previous += 1) {
@@ -141,7 +155,7 @@ function validateExpectedPaths(testPaths, platform) {
     }
     expectedRecords.push({
       absolutePath,
-      expectedSkips: reviewedSkipCount(testPath, platform),
+      expectedSkipNames: reviewedSkipNames(testPath, platform),
       testPath,
     });
   }
@@ -156,11 +170,18 @@ export function createTrustedTestReporter(expectedTestPaths, { platform = truste
   const expectedRecords = validateExpectedPaths(expectedTestPaths, platform);
   let expectedSkippedTests = 0;
   for (let index = 0; index < expectedRecords.length; index += 1) {
-    expectedSkippedTests += expectedRecords[index].expectedSkips;
+    expectedSkippedTests += expectedRecords[index].expectedSkipNames.length;
   }
   return async function* trustedTestReporter(source) {
     const passCounts = new SafeArray(expectedRecords.length);
+    const observedSkipNames = new SafeArray(expectedRecords.length);
     for (let index = 0; index < passCounts.length; index += 1) passCounts[index] = 0;
+    for (let index = 0; index < observedSkipNames.length; index += 1) {
+      observedSkipNames[index] = new SafeArray(expectedRecords[index].expectedSkipNames.length);
+      for (let skipIndex = 0; skipIndex < observedSkipNames[index].length; skipIndex += 1) {
+        observedSkipNames[index][skipIndex] = false;
+      }
+    }
     let finalSummary;
 
     for await (const event of source) {
@@ -184,6 +205,25 @@ export function createTrustedTestReporter(expectedTestPaths, { platform = truste
         }
         if (expectedIndex < 0) {
           throw new SafeError(`test runner passed an unexpected source file: ${eventFile}`);
+        }
+        const isSkipped = event.data?.skip !== undefined && event.data.skip !== false;
+        if (isSkipped) {
+          const eventName = event.data?.name;
+          let reviewedSkipIndex = -1;
+          for (
+            let skipIndex = 0;
+            skipIndex < expectedRecords[expectedIndex].expectedSkipNames.length;
+            skipIndex += 1
+          ) {
+            if (expectedRecords[expectedIndex].expectedSkipNames[skipIndex] === eventName) {
+              reviewedSkipIndex = skipIndex;
+              break;
+            }
+          }
+          if (reviewedSkipIndex < 0 || observedSkipNames[expectedIndex][reviewedSkipIndex]) {
+            throw new SafeError(`test runner emitted an unreviewed skipped test: ${SafeString(eventName)}`);
+          }
+          observedSkipNames[expectedIndex][reviewedSkipIndex] = true;
         }
         passCounts[expectedIndex] += 1;
         continue;
@@ -224,6 +264,13 @@ export function createTrustedTestReporter(expectedTestPaths, { platform = truste
     for (let index = 0; index < expectedRecords.length; index += 1) {
       if (passCounts[index] < 1) {
         missingPaths += `${missingPaths === '' ? '' : ', '}${expectedRecords[index].testPath}`;
+      }
+      for (let skipIndex = 0; skipIndex < observedSkipNames[index].length; skipIndex += 1) {
+        if (!observedSkipNames[index][skipIndex]) {
+          throw new SafeError(
+            `trusted test did not emit the reviewed platform skip: ${expectedRecords[index].expectedSkipNames[skipIndex]}`,
+          );
+        }
       }
     }
     if (missingPaths !== '') {

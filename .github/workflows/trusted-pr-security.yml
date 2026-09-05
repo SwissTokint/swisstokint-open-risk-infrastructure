@@ -18,7 +18,7 @@ jobs:
   trusted-exact-head:
     if: github.event_name == 'pull_request_target' && github.event.action != 'closed' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     concurrency:
       group: trusted-exact-head-${{ github.event.pull_request.number }}
       cancel-in-progress: true
@@ -212,11 +212,13 @@ jobs:
             tar --directory=candidate --null --no-recursion --files-from=- --create --file=- | \
             tar --extract --file=- --directory="$evaluation_root"
 
-          rm -rf "$evaluation_root/node_modules" "$evaluation_root/scripts" "$evaluation_root/tests"
+          rm -rf "$evaluation_root/node_modules" "$evaluation_root/tests"
           cp -a candidate/node_modules "$evaluation_root/node_modules"
           rm -rf "$evaluation_root/node_modules/yaml"
           cp -a trusted-base/node_modules/yaml "$evaluation_root/node_modules/yaml"
-          mkdir "$evaluation_root/scripts" "$evaluation_root/tests"
+          test -d "$evaluation_root/scripts"
+          test ! -L "$evaluation_root/scripts"
+          mkdir "$evaluation_root/tests"
           cp -a trusted-base/tests/. "$evaluation_root/tests/"
           install -m 0555 \
             trusted-base/scripts/assert-pom-rx-integrity-baseline-red.mjs \
@@ -243,16 +245,28 @@ jobs:
             trusted-base/.github/trusted-security-tests.txt \
             "$evaluation_root/scripts/trusted-security-tests.txt"
           install -m 0444 \
+            trusted-base/.github/trusted-mutation-security-tests.txt \
+            "$evaluation_root/scripts/trusted-mutation-security-tests.txt"
+          install -m 0444 \
+            trusted-base/.github/trusted-child-tests.txt \
+            "$evaluation_root/scripts/trusted-child-tests.txt"
+          install -m 0444 \
             trusted-base/.github/trusted-expected-red-test.txt \
             "$evaluation_root/scripts/trusted-expected-red-test.txt"
 
-          while IFS= read -r test_path; do
-            test -n "$test_path"
-            [[ "$test_path" =~ ^tests/[A-Za-z0-9._/-]+\.test\.mjs$ ]]
-            test -f "trusted-base/$test_path"
-            test ! -L "trusted-base/$test_path"
-            test -f "$evaluation_root/$test_path"
-          done < trusted-base/.github/trusted-security-tests.txt
+          for manifest_path in \
+            trusted-base/.github/trusted-security-tests.txt \
+            trusted-base/.github/trusted-mutation-security-tests.txt \
+            trusted-base/.github/trusted-child-tests.txt \
+            trusted-base/.github/trusted-expected-red-test.txt; do
+            while IFS= read -r test_path; do
+              test -n "$test_path"
+              [[ "$test_path" =~ ^tests/[A-Za-z0-9._/-]+\.test\.mjs$ ]]
+              test -f "trusted-base/$test_path"
+              test ! -L "trusted-base/$test_path"
+              test -f "$evaluation_root/$test_path"
+            done < "$manifest_path"
+          done
 
       - name: Prove candidate sandbox is read-only
         shell: bash
@@ -316,6 +330,46 @@ jobs:
                 --test-reporter=./scripts/trusted-test-reporter.mjs \
                 "$trusted_test"
           done < trusted-base/.github/trusted-security-tests.txt
+
+      - name: Run authenticated intrinsic-mutation regressions on exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r trusted_test; do
+            test -n "$trusted_test"
+            docker run --rm \
+              --platform linux/amd64 \
+              --network none \
+              --read-only \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --pids-limit 256 \
+              --memory 1g \
+              --cpus 2 \
+              --user 65532:65532 \
+              --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
+              --env HOME=/tmp \
+              --env TMPDIR=/tmp \
+              --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-mutation-security-tests.txt \
+              --env TRUSTED_TEST_PATH="$trusted_test" \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+              --workdir /workspace \
+              "$NODE_IMAGE" \
+              node \
+                --permission \
+                --allow-fs-read=/workspace \
+                --allow-fs-read=/tmp \
+                --allow-fs-write=/tmp \
+                --allow-child-process \
+                --no-addons \
+                --import=./scripts/trusted-test-loader-register.mjs \
+                --import=./scripts/trusted-assert-preload.mjs \
+                --test \
+                --experimental-test-isolation=none \
+                --test-reporter=./scripts/trusted-test-reporter.mjs \
+                "$trusted_test"
+          done < trusted-base/.github/trusted-mutation-security-tests.txt
 
       - name: Preserve strict legacy expected-red evidence
         shell: bash

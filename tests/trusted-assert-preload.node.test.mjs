@@ -42,6 +42,12 @@ test('trusted preload freezes strict assert and captures primordial identities',
   await import('../scripts/trusted-assert-preload.mjs');
   assert.equal(Object.isFrozen(assert), true);
   assert.equal(assert.strict, assert);
+  for (const property of ['platform', 'arch', 'version', 'versions']) {
+    const descriptor = Object.getOwnPropertyDescriptor(process, property);
+    assert.equal(descriptor?.writable, false);
+    assert.equal(descriptor?.configurable, false);
+  }
+  assert.equal(Object.isFrozen(process.versions), true);
 });
 
 test('candidate initialization cannot replace trusted assertion methods', () => {

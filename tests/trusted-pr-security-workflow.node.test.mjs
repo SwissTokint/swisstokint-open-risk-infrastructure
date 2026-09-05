@@ -22,6 +22,12 @@ const trustedExactHeadJob = trustedWorkflowData.jobs['trusted-exact-head'];
 const trustedTests = read('../.github/trusted-security-tests.txt')
   .trim()
   .split('\n');
+const trustedMutationTests = read('../.github/trusted-mutation-security-tests.txt')
+  .trim()
+  .split('\n');
+const trustedChildTests = read('../.github/trusted-child-tests.txt')
+  .trim()
+  .split('\n');
 
 const tokenExposurePattern = /(?:(?:github|secrets)\s*(?:\.\s*(?:token|github_token)|\[\s*["'](?:token|github_token)["']\s*\])|tojson\s*\(\s*(?:github|secrets)\s*\))/iu;
 
@@ -226,14 +232,19 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
   assert.match(trustedWorkflow, /tar --directory=candidate --null --no-recursion --files-from=-/u);
   assert.match(
     trustedWorkflow,
-    /rm -rf "\$evaluation_root\/node_modules" "\$evaluation_root\/scripts" "\$evaluation_root\/tests"/u,
+    /rm -rf "\$evaluation_root\/node_modules" "\$evaluation_root\/tests"/u,
   );
+  assert.doesNotMatch(trustedWorkflow, /rm -rf[^\n]+\$evaluation_root\/scripts/u);
+  assert.match(trustedWorkflow, /test -d "\$evaluation_root\/scripts"/u);
+  assert.match(trustedWorkflow, /test ! -L "\$evaluation_root\/scripts"/u);
   assert.match(trustedWorkflow, /cp -a trusted-base\/tests\/\. "\$evaluation_root\/tests\/"/u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-test-reporter\.mjs/u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-test-loader\.mjs/u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-test-loader-register\.mjs/u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-assert-preload\.mjs/u);
   assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-security-tests\.txt/u);
+  assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-mutation-security-tests\.txt/u);
+  assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-child-tests\.txt/u);
   assert.match(trustedWorkflow, /type=bind,src=\$GITHUB_WORKSPACE\/evaluation,dst=\/workspace,readonly/u);
   assert.match(trustedWorkflow, /Candidate sandbox unexpectedly allowed source mutation\./u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-expected-red-reporter\.mjs/u);
@@ -247,11 +258,11 @@ test('candidate tests run without network, write access or ambient privilege', (
     trustedWorkflow,
     /node:22\.23\.2-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5/u,
   );
-  assert.ok([...trustedWorkflow.matchAll(/^\s+--network none \\$/gmu)].length >= 3);
-  assert.ok([...trustedWorkflow.matchAll(/^\s+--read-only \\$/gmu)].length >= 3);
-  assert.ok([...trustedWorkflow.matchAll(/^\s+--cap-drop ALL \\$/gmu)].length >= 3);
-  assert.ok([...trustedWorkflow.matchAll(/^\s+--security-opt no-new-privileges \\$/gmu)].length >= 3);
-  assert.ok([...trustedWorkflow.matchAll(/^\s+--user 65532:65532 \\$/gmu)].length >= 3);
+  assert.ok([...trustedWorkflow.matchAll(/^\s+--network none \\$/gmu)].length >= 4);
+  assert.ok([...trustedWorkflow.matchAll(/^\s+--read-only \\$/gmu)].length >= 4);
+  assert.ok([...trustedWorkflow.matchAll(/^\s+--cap-drop ALL \\$/gmu)].length >= 4);
+  assert.ok([...trustedWorkflow.matchAll(/^\s+--security-opt no-new-privileges \\$/gmu)].length >= 4);
+  assert.ok([...trustedWorkflow.matchAll(/^\s+--user 65532:65532 \\$/gmu)].length >= 4);
   assert.match(
     trustedWorkflow,
     /--permission/u,
@@ -302,10 +313,14 @@ test('candidate tests run without network, write access or ambient privilege', (
   assert.match(trustedWorkflow, /while IFS= read -r trusted_test; do/u);
   assert.match(trustedWorkflow, /--env TRUSTED_TEST_PATH="\$trusted_test"/u);
   assert.match(trustedWorkflow, /done < trusted-base\/\.github\/trusted-security-tests\.txt/u);
+  assert.match(
+    trustedWorkflow,
+    /done < trusted-base\/\.github\/trusted-mutation-security-tests\.txt/u,
+  );
   assert.equal(
     [...trustedWorkflow.matchAll(/--env PATH=\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/gu)].length,
-    2,
-    'both candidate-evaluation lanes must use the fixed image executable path',
+    3,
+    'all candidate-evaluation lanes must use the fixed image executable path',
   );
 });
 
@@ -317,10 +332,17 @@ test('ordinary CI remains a distinct canonical push or merge-candidate lane', ()
   assert.doesNotMatch(mergeCandidateWorkflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
 });
 
-test('trusted regression manifest is bounded, unique and present', () => {
+test('trusted regression manifests are bounded, disjoint and present', () => {
   assert.ok(trustedTests.length >= 40, 'trusted security suite unexpectedly shrank');
-  assert.equal(new Set(trustedTests).size, trustedTests.length, 'trusted test paths must be unique');
-  for (const testPath of trustedTests) {
+  assert.ok(trustedMutationTests.length >= 20, 'trusted mutation suite unexpectedly shrank');
+  assert.equal(trustedChildTests.length, 1, 'trusted child suite must stay minimal');
+  const allTrustedTests = [...trustedTests, ...trustedMutationTests, ...trustedChildTests];
+  assert.equal(
+    new Set(allTrustedTests).size,
+    allTrustedTests.length,
+    'trusted test paths must be unique across manifests',
+  );
+  for (const testPath of allTrustedTests) {
     assert.match(testPath, /^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u);
     const contents = read(`../${testPath}`);
     assert.ok(contents.length > 0, `trusted test is missing or empty: ${testPath}`);
@@ -328,5 +350,14 @@ test('trusted regression manifest is bounded, unique and present', () => {
   assert.ok(
     trustedTests.includes('tests/pom-rx-v01-compat-fixtures.node.test.mjs'),
     'host-independent compatibility coverage must execute in the authenticated runner',
+  );
+  assert.ok(
+    trustedMutationTests.includes('tests/wallet-guard/security-intent-shape-regressions.node.test.mjs'),
+    'intrinsic-boundary coverage must execute in the authenticated mutation runner',
+  );
+  assert.match(
+    read('../tests/trusted-risk-engine.node.test.mjs'),
+    /from '\.\.\/src\/risk-engine\.ts'/u,
+    'trusted risk coverage must import tracked candidate source',
   );
 });

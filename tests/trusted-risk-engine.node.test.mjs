@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateRiskRules } from '../dist/risk-engine.js';
+import { evaluateRiskRules } from '../src/risk-engine.ts';
 
 test('trusted risk rules exercise the candidate runtime', () => {
   const results = evaluateRiskRules({

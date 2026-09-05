@@ -128,6 +128,42 @@ SafeObjectDefineProperty(process, 'emit', {
   configurable: false,
 });
 
+for (const property of ['platform', 'arch', 'version']) {
+  const descriptor = SafeObjectGetOwnPropertyDescriptor(process, property);
+  if (
+    descriptor === undefined
+    || typeof descriptor.value !== 'string'
+    || descriptor.writable !== false
+    || descriptor.get !== undefined
+    || descriptor.set !== undefined
+  ) {
+    throw new SafeError(`trusted process identity is unavailable: ${property}`);
+  }
+  SafeObjectDefineProperty(process, property, {
+    value: descriptor.value,
+    writable: false,
+    enumerable: descriptor.enumerable,
+    configurable: false,
+  });
+}
+
+const versionsDescriptor = SafeObjectGetOwnPropertyDescriptor(process, 'versions');
+if (
+  versionsDescriptor === undefined
+  || versionsDescriptor.value === null
+  || typeof versionsDescriptor.value !== 'object'
+  || versionsDescriptor.writable !== false
+) {
+  throw new SafeError('trusted process versions are unavailable');
+}
+SafeObjectFreeze(versionsDescriptor.value);
+SafeObjectDefineProperty(process, 'versions', {
+  value: versionsDescriptor.value,
+  writable: false,
+  enumerable: versionsDescriptor.enumerable,
+  configurable: false,
+});
+
 const clearedChildEnvironmentNames = [
   'BASH_ENV',
   'ENV',
@@ -141,6 +177,7 @@ const clearedChildEnvironmentNames = [
 const protectedChildEnvironmentNames = [
   ...clearedChildEnvironmentNames,
   'PATH',
+  'TRUSTED_CHILD_SOURCE_BASE64',
   'TRUSTED_MINIMAL_NODE_CONTAINER',
 ];
 const originalEnvironment = process.env;

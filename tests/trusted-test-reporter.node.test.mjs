@@ -95,7 +95,11 @@ test('reporter accepts only the exact reviewed Linux platform skip count', async
   };
   assert.deepEqual(await collect(createTrustedTestReporter([reviewedPath], { platform: 'linux' }), [
     passEvent({ file: resolve(reviewedPath), name: 'reviewed green test' }),
-    passEvent({ file: resolve(reviewedPath), name: 'reviewed platform skip' }),
+    passEvent({
+      file: resolve(reviewedPath),
+      name: 'Windows strict production boundary is explicit fail-closed until native metadata evidence exists',
+      skip: true,
+    }),
     reviewedSummary,
   ]), [
     `trusted-test-file-pass ${reviewedPath} tests=2\n`,
@@ -126,13 +130,30 @@ test('reporter accepts only the exact reviewed Linux platform skip count', async
   assert.deepEqual(
     await collect(createTrustedTestReporter([compatibilityPath], { platform: 'linux' }), [
       passEvent({ file: resolve(compatibilityPath), name: 'reviewed compatibility assertion' }),
-      passEvent({ file: resolve(compatibilityPath), name: 'reviewed Windows-only metadata skip' }),
-      passEvent({ file: resolve(compatibilityPath), name: 'reviewed host-git skip' }),
+      passEvent({
+        file: resolve(compatibilityPath),
+        name: 'Windows native metadata is revalidated after enumeration before a standalone read',
+        skip: true,
+      }),
+      passEvent({
+        file: resolve(compatibilityPath),
+        name: 'frozen source binding rejects blob, raw-byte, import-URL and four-file drift',
+        skip: 'host git integration remains in canonical CI',
+      }),
       compatibilitySummary,
     ]),
     [
       `trusted-test-file-pass ${compatibilityPath} tests=3\n`,
       'trusted-test-suite-pass files=1\n',
     ],
+  );
+
+  await assert.rejects(
+    collect(createTrustedTestReporter([reviewedPath], { platform: 'linux' }), [
+      passEvent({ file: resolve(reviewedPath), name: 'reviewed green test' }),
+      passEvent({ file: resolve(reviewedPath), name: 'different security assertion', skip: true }),
+      reviewedSummary,
+    ]),
+    /unreviewed skipped test/u,
   );
 });

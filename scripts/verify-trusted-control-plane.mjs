@@ -10,6 +10,8 @@ export const REVIEWED_YAML_ARTIFACT = Object.freeze({
 });
 
 export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
+  '.github/trusted-child-tests.txt',
+  '.github/trusted-mutation-security-tests.txt',
   '.github/trusted-security-tests.txt',
   '.github/trusted-expected-red-test.txt',
   '.github/workflows/ci.yml',
@@ -27,6 +29,7 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'tests/ci-action-pinning.node.test.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison-candidate.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison.test.mjs',
+  'tests/fixtures/trusted-runner/authenticated-child-source.test.mjs',
   'tests/fixtures/trusted-runner/forged-summary-candidate.mjs',
   'tests/fixtures/trusted-runner/forged-summary.test.mjs',
   'tests/fixtures/trusted-runner/lifecycle-stream-forgery-candidate.mjs',
@@ -53,6 +56,13 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'tests/trusted-pr-security-workflow.node.test.mjs',
   'tests/trusted-pr-status-publisher.node.test.mjs',
   'tests/trusted-test-reporter.node.test.mjs',
+]);
+
+const TRUSTED_TEST_MANIFEST_PATHS = Object.freeze([
+  '.github/trusted-security-tests.txt',
+  '.github/trusted-mutation-security-tests.txt',
+  '.github/trusted-child-tests.txt',
+  '.github/trusted-expected-red-test.txt',
 ]);
 
 function readRegularBytes(root, relativePath) {
@@ -85,25 +95,32 @@ export function verifyTrustedControlPlane(baseRoot, candidateRoot) {
     }
   }
 
-  const manifestText = readRegularBytes(baseRoot, '.github/trusted-security-tests.txt')
-    .toString('utf8')
-    .replace(/\r\n/gu, '\n')
-    .trim();
-  const manifestPaths = manifestText.split('\n');
-  if (manifestPaths.length === 0 || manifestPaths.length > 128) {
-    throw new Error('trusted manifest cardinality is invalid');
-  }
-  for (const relativePath of manifestPaths) {
-    if (
-      !/^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u.test(relativePath)
-      || relativePath.split('/').some((segment) => segment === '.' || segment === '..')
-    ) {
-      throw new Error(`trusted manifest path is invalid: ${relativePath}`);
+  const reviewedTestPaths = new Set();
+  for (const manifestPath of TRUSTED_TEST_MANIFEST_PATHS) {
+    const manifestText = readRegularBytes(baseRoot, manifestPath)
+      .toString('utf8')
+      .replace(/\r\n/gu, '\n')
+      .trim();
+    const manifestPaths = manifestText.split('\n');
+    if (manifestPaths.length === 0 || manifestPaths.length > 128) {
+      throw new Error(`trusted manifest cardinality is invalid: ${manifestPath}`);
     }
-    const baseBytes = readRegularBytes(baseRoot, relativePath);
-    const candidateBytes = readRegularBytes(candidateRoot, relativePath);
-    if (!baseBytes.equals(candidateBytes)) {
-      throw new Error(`base-owned trusted test changed in-band: ${relativePath}`);
+    for (const relativePath of manifestPaths) {
+      if (
+        !/^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u.test(relativePath)
+        || relativePath.split('/').some((segment) => segment === '.' || segment === '..')
+      ) {
+        throw new Error(`trusted manifest path is invalid: ${relativePath}`);
+      }
+      if (reviewedTestPaths.has(relativePath)) {
+        throw new Error(`trusted test path appears in multiple manifests: ${relativePath}`);
+      }
+      reviewedTestPaths.add(relativePath);
+      const baseBytes = readRegularBytes(baseRoot, relativePath);
+      const candidateBytes = readRegularBytes(candidateRoot, relativePath);
+      if (!baseBytes.equals(candidateBytes)) {
+        throw new Error(`base-owned trusted test changed in-band: ${relativePath}`);
+      }
     }
   }
 
