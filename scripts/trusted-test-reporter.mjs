@@ -43,6 +43,12 @@ function lockLifecycleEvidenceSurfaces() {
     const [target, property, descriptor] = protectedLifecycleMethods[index];
     lockLifecycleMethod(target, property, descriptor);
   }
+  SafeObjectDefineProperty(process, 'emit', {
+    value: EventEmitter.prototype.emit,
+    writable: false,
+    enumerable: false,
+    configurable: false,
+  });
 }
 
 function installFailClosedExitGuard(isTrustedPass) {
@@ -138,7 +144,9 @@ export function createTrustedTestReporter(expectedTestPaths) {
 
     for await (const event of source) {
       if (event?.type === 'test:fail' || event?.type === 'test:cancel') {
-        throw new SafeError(`test runner emitted a failing lifecycle event: ${event.type}`);
+        throw new SafeError(
+          `test runner emitted a failing lifecycle event: ${event.type} ${event.data?.name ?? ''}`,
+        );
       }
       if (event?.type === 'test:pass') {
         const eventFile = event.data?.file;

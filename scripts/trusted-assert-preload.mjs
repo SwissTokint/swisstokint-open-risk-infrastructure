@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { createRequire, syncBuiltinESMExports } from 'node:module';
+import { Readable } from 'node:stream';
 
 const SafeError = Error;
 const SafeObjectDefineProperty = Object.defineProperty;
@@ -16,9 +18,31 @@ const SafeReflectGet = Reflect.get;
 const SafeReflectOwnKeys = Reflect.ownKeys;
 const SafeReflectSet = Reflect.set;
 const SafeString = String;
+const SafeStringToUpperCase = String.prototype.toUpperCase;
 
 const requiredAssert = createRequire(import.meta.url)('node:assert/strict');
 const requiredModule = createRequire(import.meta.url)('node:module');
+const trustedRequire = createRequire(import.meta.url);
+const protectedBuiltinNames = [
+  'node:child_process',
+  'node:crypto',
+  'node:events',
+  'node:fs',
+  'node:fs/promises',
+  'node:module',
+  'node:os',
+  'node:path',
+  'node:stream',
+  'node:test',
+  'node:url',
+  'node:util',
+  'node:v8',
+];
+const trustedBuiltinEntries = await Promise.all(protectedBuiltinNames.map(async (name) => [
+  name,
+  trustedRequire(name),
+  await import(name),
+]));
 
 if (requiredAssert !== assert || assert.strict !== assert) {
   throw new SafeError('trusted strict-assert identity is inconsistent');
@@ -61,6 +85,77 @@ for (const property of ['exit', 'reallyExit', 'execve']) {
     configurable: false,
   });
 }
+
+for (const [target, property] of [
+  [Readable.prototype, 'push'],
+  [EventEmitter.prototype, 'emit'],
+]) {
+  const descriptor = SafeObjectGetOwnPropertyDescriptor(target, property);
+  if (descriptor === undefined || typeof descriptor.value !== 'function') {
+    throw new SafeError(`trusted lifecycle method is unavailable: ${property}`);
+  }
+  SafeObjectDefineProperty(target, property, {
+    value: descriptor.value,
+    writable: false,
+    enumerable: descriptor.enumerable,
+    configurable: false,
+  });
+}
+
+SafeObjectDefineProperty(process, 'emit', {
+  value: EventEmitter.prototype.emit,
+  writable: false,
+  enumerable: false,
+  configurable: false,
+});
+
+const dangerousChildEnvironmentNames = [
+  'BASH_ENV',
+  'ENV',
+  'LD_PRELOAD',
+  'NODE_EXTRA_CA_CERTS',
+  'NODE_OPTIONS',
+  'NODE_PATH',
+  'PYTHONPATH',
+  'RUBYOPT',
+];
+const originalEnvironment = process.env;
+
+function isDangerousChildEnvironmentName(property) {
+  if (typeof property !== 'string') return false;
+  const normalized = SafeReflectApply(SafeStringToUpperCase, property, []);
+  for (let index = 0; index < dangerousChildEnvironmentNames.length; index += 1) {
+    if (normalized === dangerousChildEnvironmentNames[index]) return true;
+  }
+  return false;
+}
+
+for (const name of dangerousChildEnvironmentNames) delete originalEnvironment[name];
+const protectedEnvironment = new SafeProxy(originalEnvironment, {
+  set(target, property, value, receiver) {
+    if (isDangerousChildEnvironmentName(property)) {
+      throw new SafeError(`candidate child environment mutation is forbidden: ${SafeString(property)}`);
+    }
+    return SafeReflectSet(target, property, value, receiver);
+  },
+  defineProperty(target, property, descriptor) {
+    if (isDangerousChildEnvironmentName(property)) {
+      throw new SafeError(`candidate child environment mutation is forbidden: ${SafeString(property)}`);
+    }
+    return SafeReflectDefineProperty(target, property, descriptor);
+  },
+  deleteProperty(target, property) {
+    if (isDangerousChildEnvironmentName(property)) return false;
+    return delete target[property];
+  },
+});
+const environmentDescriptor = SafeObjectGetOwnPropertyDescriptor(process, 'env');
+SafeObjectDefineProperty(process, 'env', {
+  value: protectedEnvironment,
+  writable: false,
+  enumerable: environmentDescriptor?.enumerable ?? true,
+  configurable: false,
+});
 
 const globalBindingNames = [
   'AggregateError',
@@ -157,6 +252,7 @@ const globalBindings = globalBindingNames.map((name) => [
   name,
   captureDescriptor(globalThis, name),
 ]);
+const trustedArrayPrototypeLength = captureDescriptor(Array.prototype, 'length');
 
 const primordialTargets = [];
 const seenTargets = new Set();
@@ -187,6 +283,12 @@ addTarget('%MapIteratorPrototype%', SafeObjectGetPrototypeOf(new Map()[Symbol.it
 addTarget('%SetIteratorPrototype%', SafeObjectGetPrototypeOf(new Set()[Symbol.iterator]()));
 addTarget('%StringIteratorPrototype%', SafeObjectGetPrototypeOf(''[Symbol.iterator]()));
 addTarget('%TypedArrayPrototype%', SafeObjectGetPrototypeOf(Uint8Array.prototype));
+
+for (const [name, commonJsExports, esmNamespace] of trustedBuiltinEntries) {
+  addTarget(`builtin-cjs:${name}`, commonJsExports);
+  addTarget(`builtin-esm:${name}`, esmNamespace);
+  if (name === 'node:util') addTarget('builtin-cjs:node:util.types', commonJsExports.types);
+}
 
 export function verifyTrustedPrimordials() {
   for (let bindingIndex = 0; bindingIndex < globalBindings.length; bindingIndex += 1) {
@@ -219,6 +321,28 @@ export function verifyTrustedPrimordials() {
 }
 
 SafeObjectFreeze(verifyTrustedPrimordials);
+
+export function verifyTrustedPrimordialsAfterTest() {
+  const currentLength = captureDescriptor(Array.prototype, 'length');
+  if (
+    currentLength
+    && trustedArrayPrototypeLength
+    && currentLength.value !== trustedArrayPrototypeLength.value
+    && currentLength.configurable === trustedArrayPrototypeLength.configurable
+    && currentLength.enumerable === trustedArrayPrototypeLength.enumerable
+    && currentLength.writable === trustedArrayPrototypeLength.writable
+  ) {
+    SafeObjectDefineProperty(Array.prototype, 'length', {
+      value: trustedArrayPrototypeLength.value,
+      writable: trustedArrayPrototypeLength.writable,
+      enumerable: trustedArrayPrototypeLength.enumerable,
+      configurable: trustedArrayPrototypeLength.configurable,
+    });
+  }
+  verifyTrustedPrimordials();
+}
+
+SafeObjectFreeze(verifyTrustedPrimordialsAfterTest);
 
 function createTrustedFacade(target) {
   const descriptors = SafeReflectOwnKeys(target).map((property) => [

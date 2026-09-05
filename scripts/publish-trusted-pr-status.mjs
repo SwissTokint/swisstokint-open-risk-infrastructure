@@ -133,7 +133,62 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
   if (result.signal !== null || result.status !== 0) {
     throw new Error('trusted commit-status publication failed');
   }
-  return validateTrustedPrStatusResponse(result.stdout, request);
+  const published = validateTrustedPrStatusResponse(result.stdout, request);
+
+  function invalidateUncertainPublication(cause) {
+    const invalidationRequest = buildTrustedPrStatusRequest({
+      ...environment,
+      STATUS_STATE: 'pending',
+    });
+    const invalidationResult = spawn(
+      '/usr/bin/gh',
+      ['api', '--method', 'POST', invalidationRequest.apiPath, '--input', '-'],
+      {
+        input: JSON.stringify(invalidationRequest.payload),
+        ...commonOptions,
+      },
+    );
+    let invalidationError = invalidationResult.error;
+    if (!invalidationError && (invalidationResult.signal !== null || invalidationResult.status !== 0)) {
+      invalidationError = new Error('trusted stale-status invalidation failed');
+    }
+    if (!invalidationError) {
+      try {
+        validateTrustedPrStatusResponse(invalidationResult.stdout, invalidationRequest);
+      } catch (error) {
+        invalidationError = error;
+      }
+    }
+    if (invalidationError) {
+      throw new AggregateError(
+        [cause, invalidationError],
+        'stale trusted success could not be invalidated',
+      );
+    }
+    throw cause;
+  }
+
+  const postPublishBaseResult = spawn(
+    '/usr/bin/gh',
+    ['api', '--method', 'GET', request.baseRefPath],
+    commonOptions,
+  );
+  if (
+    postPublishBaseResult.error
+    || postPublishBaseResult.signal !== null
+    || postPublishBaseResult.status !== 0
+  ) {
+    invalidateUncertainPublication(
+      postPublishBaseResult.error
+        ?? new Error('trusted post-publication freshness lookup failed'),
+    );
+  }
+  try {
+    validateTrustedBaseRefResponse(postPublishBaseResult.stdout, request);
+  } catch (error) {
+    invalidateUncertainPublication(error);
+  }
+  return published;
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;

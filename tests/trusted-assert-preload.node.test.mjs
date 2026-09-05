@@ -12,6 +12,7 @@ const reporterUrl = new URL('../scripts/trusted-test-reporter.mjs', import.meta.
 function standaloneTestEnv(overrides = {}) {
   const env = { ...process.env, ...overrides };
   delete env.NODE_TEST_CONTEXT;
+  delete env.TRUSTED_TEST_PATH;
   return env;
 }
 
@@ -139,6 +140,26 @@ test('candidate cannot replace the trusted runner process', () => {
   }
 });
 
+test('candidate cannot inject inherited child preloads', () => {
+  for (const property of ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD']) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        preloadUrl,
+        '--input-type=module',
+        '--eval',
+        `process.env[${JSON.stringify(property)}] = '/tmp/candidate-preload';`,
+      ],
+      { encoding: 'utf8', timeout: 10_000, windowsHide: true },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${property} mutation was accepted`);
+    assert.match(result.stderr, /child environment mutation is forbidden/u);
+  }
+});
+
 test('loader rejects primordial poisoning performed by a static candidate import', () => {
   const sandbox = mkdtempSync(join(tmpdir(), 'trusted-loader-manifest-'));
   const manifestPath = join(sandbox, 'manifest.txt');
@@ -172,6 +193,43 @@ test('loader rejects primordial poisoning performed by a static candidate import
       `${result.stdout}\n${result.stderr}`,
       /candidate initialization changed primordial descriptor/u,
     );
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('loader rejects built-in export poisoning performed by a static candidate import', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-builtin-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/builtin-export-poison.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/builtin-export-poison.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
@@ -213,6 +271,43 @@ test('captured test facades resist primordial poisoning during candidate calls',
       /candidate initialization changed/u,
       'the failing observation must occur after the initialization checkpoint',
     );
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('post-test checkpoint rejects poisoned instance method dispatch', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-instance-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/runtime-instance-poison.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/runtime-instance-poison.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
@@ -274,6 +369,43 @@ test('candidate cannot rewrite direct lifecycle events or reset a failing exit',
         '--experimental-test-isolation=none',
         `--test-reporter=${reporterUrl}`,
         'tests/fixtures/trusted-runner/lifecycle-stream-forgery.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('candidate cannot shadow process.emit to suppress lifecycle failure', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-process-emit-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/process-emit-shadow.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/process-emit-shadow.test.mjs',
       ],
       {
         encoding: 'utf8',

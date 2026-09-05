@@ -18,11 +18,12 @@ const trustedWorkflowDocument = parseDocument(trustedWorkflow, {
 assert.equal(trustedWorkflowDocument.errors.length, 0);
 assert.equal(trustedWorkflowDocument.warnings.length, 0);
 const trustedWorkflowData = trustedWorkflowDocument.toJS({ maxAliasCount: 0 });
+const trustedExactHeadJob = trustedWorkflowData.jobs['trusted-exact-head'];
 const trustedTests = read('../.github/trusted-security-tests.txt')
   .trim()
   .split('\n');
 
-const tokenExposurePattern = /(?:github\s*(?:\.\s*token|\[\s*["']token["']\s*\])|tojson\s*\(\s*github\s*\))/iu;
+const tokenExposurePattern = /(?:(?:github|secrets)\s*(?:\.\s*(?:token|github_token)|\[\s*["'](?:token|github_token)["']\s*\])|tojson\s*\(\s*(?:github|secrets)\s*\))/iu;
 
 function collectTokenExposures(value, path = [], exposures = []) {
   if (typeof value === 'string') {
@@ -45,7 +46,7 @@ function collectTokenExposures(value, path = [], exposures = []) {
 
 test('trusted PR gate is base-owned, narrowly writable and exact-head bound', () => {
   assert.match(trustedWorkflow, /^on:\n  pull_request_target:\n/mu);
-  assert.match(trustedWorkflow, /^    types: \[opened, synchronize, reopened, ready_for_review, edited\]$/mu);
+  assert.match(trustedWorkflow, /^    types: \[opened, synchronize, reopened, ready_for_review, edited, closed\]$/mu);
   assert.match(trustedWorkflow, /^  push:\n    branches: \[main\]$/mu);
   assert.doesNotMatch(trustedWorkflow, /^  pull_request:\s*$/mu);
   assert.match(
@@ -57,10 +58,15 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   assert.doesNotMatch(trustedWorkflow, /permissions:\s*write-all/u);
   assert.doesNotMatch(trustedWorkflow, /\b(?:contents|actions|checks|pull-requests): write\b/u);
   assert.doesNotMatch(trustedWorkflow, /\$\{\{\s*secrets\./u);
+  assert.doesNotMatch(trustedWorkflow, /\$\{\{\s*secrets\s*\[/u);
   assert.match(trustedWorkflow, /^  trusted-exact-head:$/mu);
+  assert.equal(
+    trustedExactHeadJob.env.NODE_IMAGE,
+    'node:22.23.2-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5',
+  );
   assert.match(
     trustedWorkflow,
-    /^    if: github\.event_name == 'pull_request_target' && github\.event\.pull_request\.base\.ref == 'main'$/mu,
+    /^    if: github\.event_name == 'pull_request_target' && github\.event\.action != 'closed' && github\.event\.pull_request\.base\.ref == 'main'$/mu,
   );
   assert.match(trustedWorkflow, /EXPECTED_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
@@ -73,17 +79,18 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   assert.match(trustedWorkflow, /test "\$\(git -C candidate rev-parse HEAD\)" = "\$EXPECTED_HEAD_SHA"/u);
   assert.equal(
     [...trustedWorkflow.matchAll(/^\s+GH_TOKEN: \$\{\{ github\.token \}\}$/gmu)].length,
-    3,
-    'the token must exist only in the pending, terminal and invalidation publisher steps',
+    4,
+    'the token must exist only in the reviewed status publisher steps',
   );
   const approvedTokenSteps = new Set([
     'Publish exact-head pending status',
     'Publish exact-head terminal status',
+    'Invalidate departing exact-head evidence',
     'Invalidate open PR evidence from the previous main commit',
   ]);
   const approvedTokenStepCounts = new Map();
   const allTokenExposures = collectTokenExposures(trustedWorkflowData);
-  assert.equal(allTokenExposures.length, 3, 'every GitHub token exposure must be allowlisted');
+  assert.equal(allTokenExposures.length, 4, 'every GitHub token exposure must be allowlisted');
   for (const [jobName, job] of Object.entries(trustedWorkflowData.jobs)) {
     for (const step of job.steps) {
       const exposures = collectTokenExposures(step);
@@ -110,6 +117,18 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
     [...trustedWorkflow.matchAll(/node trusted-base\/scripts\/publish-trusted-pr-status\.mjs/gu)].length,
     3,
   );
+  const pendingPublisher = trustedExactHeadJob.steps.find(
+    (step) => step.name === 'Publish exact-head pending status',
+  );
+  const terminalPublisher = trustedExactHeadJob.steps.find(
+    (step) => step.name === 'Publish exact-head terminal status',
+  );
+  assert.equal(pendingPublisher.run, 'node trusted-base/scripts/publish-trusted-pr-status.mjs');
+  assert.equal(terminalPublisher.run, 'node trusted-base/scripts/publish-trusted-pr-status.mjs');
+  assert.ok(trustedExactHeadJob.steps.some(
+    (step) => step.name === 'Reject in-band trusted control-plane changes'
+      && step.run === 'node trusted-base/scripts/verify-trusted-control-plane.mjs',
+  ));
 });
 
 test('a main advance invalidates every open PR exact-head status', () => {
@@ -128,17 +147,35 @@ test('a main advance invalidates every open PR exact-head status', () => {
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA="\$head_sha"/u);
 });
 
+test('departing and closed PR heads cannot replay historical success', () => {
+  assert.match(trustedWorkflow, /^  invalidate-departing-exact-head:$/mu);
+  assert.match(
+    trustedWorkflow,
+    /github\.event\.action == 'synchronize' \|\| github\.event\.action == 'closed'/u,
+  );
+  assert.match(trustedWorkflow, /github\.event\.before/u);
+  assert.match(trustedWorkflow, /github\.event\.pull_request\.head\.sha/u);
+  const job = trustedWorkflowData.jobs['invalidate-departing-exact-head'];
+  const step = job.steps.find((entry) => entry.name === 'Invalidate departing exact-head evidence');
+  assert.equal(step.env.GH_TOKEN, '${{ github.token }}');
+  assert.equal(step.run, 'node trusted-base/scripts/invalidate-trusted-pr-head-status.mjs');
+});
+
 test('token exposure detection is independent of the environment variable spelling', () => {
   assert.deepEqual(collectTokenExposures({
     env: {
       ATTACKER_TOKEN: '${{ github.token }}',
       BRACKET_TOKEN: "${{ github['token'] }}",
       WHOLE_CONTEXT: '${{ toJSON(github) }}',
+      SECRET_DOT: '${{ secrets.GITHUB_TOKEN }}',
+      SECRET_BRACKET: "${{ secrets['GITHUB_TOKEN'] }}",
     },
   }), [
     'env.ATTACKER_TOKEN',
     'env.BRACKET_TOKEN',
     'env.WHOLE_CONTEXT',
+    'env.SECRET_DOT',
+    'env.SECRET_BRACKET',
   ]);
 });
 
@@ -175,7 +212,10 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
   assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-security-tests\.txt/u);
   assert.match(trustedWorkflow, /type=bind,src=\$GITHUB_WORKSPACE\/evaluation,dst=\/workspace,readonly/u);
   assert.match(trustedWorkflow, /Candidate sandbox unexpectedly allowed source mutation\./u);
-  assert.match(trustedWorkflow, /node scripts\/assert-pom-rx-integrity-baseline-red\.mjs/u);
+  assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-expected-red-reporter\.mjs/u);
+  assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-expected-red-test\.txt/u);
+  assert.match(trustedWorkflow, /--test-reporter=\.\/scripts\/trusted-expected-red-reporter\.mjs/u);
+  assert.match(trustedWorkflow, /TRUSTED_TEST_PATH=tests\/pom-rx-integrity-baseline\.node\.test\.mjs/u);
 });
 
 test('candidate tests run without network, write access or ambient privilege', () => {

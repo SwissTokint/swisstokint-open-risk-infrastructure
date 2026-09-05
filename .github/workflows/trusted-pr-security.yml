@@ -2,7 +2,7 @@ name: Trusted PR security
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review, edited, closed]
   push:
     branches: [main]
 
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   trusted-exact-head:
-    if: github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main'
+    if: github.event_name == 'pull_request_target' && github.event.action != 'closed' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -72,6 +72,12 @@ jobs:
           test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           test -z "$(git -C trusted-base status --porcelain --untracked-files=no)"
           test -z "$(git -C candidate status --porcelain --untracked-files=no)"
+
+      - name: Reject in-band trusted control-plane changes
+        env:
+          TRUSTED_BASE_ROOT: ${{ github.workspace }}/trusted-base
+          CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+        run: node trusted-base/scripts/verify-trusted-control-plane.mjs
 
       - name: Publish exact-head pending status
         env:
@@ -222,6 +228,9 @@ jobs:
           install -m 0555 \
             trusted-base/scripts/trusted-test-reporter.mjs \
             "$evaluation_root/scripts/trusted-test-reporter.mjs"
+          install -m 0555 \
+            trusted-base/scripts/trusted-expected-red-reporter.mjs \
+            "$evaluation_root/scripts/trusted-expected-red-reporter.mjs"
           install -m 0444 \
             trusted-base/scripts/trusted-test-loader.mjs \
             "$evaluation_root/scripts/trusted-test-loader.mjs"
@@ -234,6 +243,9 @@ jobs:
           install -m 0444 \
             trusted-base/.github/trusted-security-tests.txt \
             "$evaluation_root/scripts/trusted-security-tests.txt"
+          install -m 0444 \
+            trusted-base/.github/trusted-expected-red-test.txt \
+            "$evaluation_root/scripts/trusted-expected-red-test.txt"
 
           while IFS= read -r test_path; do
             test -n "$test_path"
@@ -320,10 +332,23 @@ jobs:
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
             --env HOME=/tmp \
             --env TMPDIR=/tmp \
+            --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-expected-red-test.txt \
+            --env TRUSTED_TEST_PATH=tests/pom-rx-integrity-baseline.node.test.mjs \
             --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
             --workdir /workspace \
             "$NODE_IMAGE" \
-            node scripts/assert-pom-rx-integrity-baseline-red.mjs
+            node \
+              --permission \
+              --allow-fs-read=/workspace \
+              --allow-fs-read=/tmp \
+              --allow-fs-write=/tmp \
+              --no-addons \
+              --import=./scripts/trusted-test-loader-register.mjs \
+              --import=./scripts/trusted-assert-preload.mjs \
+              --test \
+              --experimental-test-isolation=none \
+              --test-reporter=./scripts/trusted-expected-red-reporter.mjs \
+              tests/pom-rx-integrity-baseline.node.test.mjs
 
       - name: Publish exact-head terminal status
         if: ${{ always() }}
@@ -331,6 +356,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           STATUS_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+  invalidate-departing-exact-head:
+    if: github.event_name == 'pull_request_target' && (github.event.action == 'synchronize' || github.event.action == 'closed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      INVALIDATED_HEAD_SHA: ${{ github.event.action == 'synchronize' && github.event.before || github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out trusted departing-head invalidator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install exact trusted Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.2
+
+      - name: Invalidate departing exact-head evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted-base/scripts/invalidate-trusted-pr-head-status.mjs
 
   invalidate-stale-exact-head:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

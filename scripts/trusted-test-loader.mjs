@@ -39,7 +39,9 @@ if (selectedTestPath !== undefined) {
 }
 const verificationModuleUrl = new URL('./trusted-assert-preload.mjs', import.meta.url).href;
 const reservedIdentifier = '__pomRxVerifyTrustedPrimordials';
+const reservedAfterIdentifier = '__pomRxVerifyTrustedPrimordialsAfterTest';
 const reservedNamespace = '__pomRxTrustedTestPrimordials';
+const reservedAfterEach = '__pomRxAfterEachVerifyTrustedPrimordials';
 const primordialBindings = [
   'AggregateError', 'Array', 'ArrayBuffer', 'Atomics', 'BigInt', 'BigInt64Array',
   'BigUint64Array', 'Boolean', 'Buffer', 'DataView', 'Date', 'DOMException', 'Error',
@@ -64,16 +66,23 @@ export function load(url, context, nextLoad) {
   const source = typeof loaded.source === 'string'
     ? loaded.source
     : Buffer.from(loaded.source).toString('utf8');
-  if (source.includes(reservedIdentifier) || source.includes(reservedNamespace)) {
+  if (
+    source.includes(reservedIdentifier)
+    || source.includes(reservedAfterIdentifier)
+    || source.includes(reservedNamespace)
+    || source.includes(reservedAfterEach)
+  ) {
     throw new Error(`trusted test contains the loader-reserved identifier: ${url}`);
   }
 
   return {
     ...loaded,
     source: [
-      `import { trustedTestPrimordials as ${reservedNamespace}, verifyTrustedPrimordials as ${reservedIdentifier} } from ${JSON.stringify(verificationModuleUrl)};`,
+      `import { trustedTestPrimordials as ${reservedNamespace}, verifyTrustedPrimordials as ${reservedIdentifier}, verifyTrustedPrimordialsAfterTest as ${reservedAfterIdentifier} } from ${JSON.stringify(verificationModuleUrl)};`,
+      `import { afterEach as ${reservedAfterEach} } from "node:test";`,
       `const { ${primordialBindings.join(', ')} } = ${reservedNamespace};`,
       `${reservedIdentifier}();`,
+      `${reservedAfterEach}(() => ${reservedAfterIdentifier}());`,
       source,
     ].join('\n'),
   };

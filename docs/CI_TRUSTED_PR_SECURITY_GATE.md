@@ -18,7 +18,9 @@ persists no checkout credential and does not pass a GitHub token or secret to
 candidate code. Two trusted host-side steps publish pending and terminal states
 directly on the exact head under the fixed `pom-rx/trusted-exact-head` context.
 The publisher also verifies that the PR base SHA is still the current `main`
-commit immediately before it writes that status.
+commit immediately before it writes that status. It repeats the lookup after
+publication; a changed base or an uncertain post-publication lookup causes the
+new result to be overwritten with `pending` and the job to fail.
 
 Every push to `main` changes the trust base. The base-owned workflow therefore
 lists all open PRs targeting `main` and replaces each prior
@@ -26,6 +28,17 @@ exact-head result with `pending`. A PR must then be updated, reopened, marked
 ready, or have its base edited so the trusted evaluation runs again against the
 new base. An already-running evaluation whose base has become stale fails the
 publisher's current-base check instead of producing fresh success evidence.
+When a PR is synchronized or closed, a separate base-owned job also replaces
+the departing head's prior result with `pending`, so a historical successful
+head cannot be replayed after it stops being the current PR head.
+
+Before any candidate-controlled dependency or test module is evaluated, the
+controller byte-compares its workflow, both trusted manifests, every manifest
+test, the status publishers, the loader/preloads/reporters, action-pinning
+tests, package scripts, and the reviewed YAML artifact binding against `main`.
+Any in-band control-plane drift is rejected. This deliberately means that a
+future trusted-control change must use the documented out-of-band bootstrap
+review path; an ordinary PR cannot rewrite its own judge.
 
 Candidate dependencies are installed with lifecycle scripts disabled. The
 evaluated source is then reconstructed only from the exact checkout's tracked
@@ -37,7 +50,12 @@ is non-writable before the security tests run. The Node permission model denies
 WASI and native addons, while the explicit CLI flags also disable addon loading.
 A base-owned preload freezes the shared strict-assert identity and the two
 successful early-exit paths (`process.exit` and `process.reallyExit`) before any
-candidate module initializes. A base-owned loader injects a primordial-integrity
+candidate module initializes. It also blocks process replacement through
+`process.execve`, locks `process.emit` and the lifecycle methods as own
+non-configurable properties, removes inherited child preload variables, and
+prevents their later mutation. CommonJS and ESM export tables for the built-ins
+used by the trusted tests are included in the integrity snapshot. A base-owned
+loader injects a primordial-integrity
 checkpoint as the first executable statement of every manifest test; because
 static dependencies evaluate first, candidate initialization that replaces a
 global binding or intrinsic descriptor is detected before any test body can use
@@ -46,7 +64,9 @@ primordial facades. Deliberate mutation tests still forward writes to the real
 runtime seen by candidate code, while their assertions read the pre-candidate
 intrinsic identities. This prevents poisoning performed later inside a candidate
 call from falsifying the observed assertion values. Process-level test isolation
-is deliberately disabled:
+is deliberately disabled. An `afterEach` checkpoint therefore re-verifies the
+captured globals, prototypes and built-in exports after candidate execution, so
+persistent instance-method poisoning is rejected before the next test:
 the base-owned reporter therefore consumes Node's direct in-process lifecycle
 stream rather than deserializing candidate-controlled worker stdout. It requires
 at least one direct pass event from every manifest file, validates the sole final
@@ -73,11 +93,18 @@ later failures cannot be rewritten into genuine-looking passes.
 Each manifest file also runs in a fresh container, selected from the immutable
 base manifest by the trusted host loop. Cross-file module caches, background
 children and mutated process state therefore do not survive into the next
-security test file. Child-process permission remains necessary for specific
+security test file. The manifest covers the base-owned security, protocol,
+proof, public-identity and wallet-guard regression suites; candidate changes to
+those test bytes are rejected before execution. Child-process permission remains necessary for specific
 base-owned regressions, so the preload makes `process.execve` non-replaceable
 and fail-closed alongside `process.exit` and `process.reallyExit`. A literal
 process-replacement regression must remain non-zero without a trusted pass
 marker.
+
+The intentionally vulnerable v0.1 integrity baseline uses a separate immutable
+one-file manifest and a direct lifecycle reporter. Success requires exactly the
+seven reviewed assertion failures plus the one unmodified green control; TAP
+text emitted by candidate code is never parsed as evidence.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from
@@ -126,8 +153,10 @@ approval. Do not name a placeholder or single author as the sole code owner.
 
 ## Change rule
 
-Changes to the trusted workflow, its test manifest, action pins, container
-digest or ruleset are control-plane changes. Review them on the exact head,
+Changes to the trusted workflow, its test manifests, trusted scripts or tests,
+action pins, container digest, package command plane, reviewed parser binding,
+or ruleset are control-plane changes. The live gate rejects such changes
+in-band. Prepare them through a separate bootstrap path, review the exact head,
 retain both required checks, and obtain an independent approval before merge.
 
 After a control-plane merge, require canonical `main` CI and the existing
