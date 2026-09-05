@@ -216,6 +216,43 @@ test('forged V8 summary plus process.exit(0) cannot pass the trusted reporter', 
   }
 });
 
+test('candidate cannot rewrite direct lifecycle events or reset a failing exit', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-lifecycle-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/lifecycle-stream-forgery.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/lifecycle-stream-forgery.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
 test('non-isolated runner accepts direct lifecycle evidence on the green path', () => {
   const sandbox = mkdtempSync(join(tmpdir(), 'trusted-green-manifest-'));
   const manifestPath = join(sandbox, 'manifest.txt');

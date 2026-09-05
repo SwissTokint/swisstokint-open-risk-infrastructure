@@ -54,6 +54,15 @@ aggregate and rejects any failing lifecycle event, process-level file summary,
 duplicate summary, skipped test or todo. The regression corpus includes the
 literal V8-framed-summary plus `process.exit(0)` attack so attacker-supplied
 stdout cannot enter the evidence stream or hide the subsequent real failure.
+Before candidate evaluation starts, the one-shot reporter also makes the
+`Readable.push` and `EventEmitter.emit` methods used by the direct lifecycle
+channel non-replaceable. It installs a fail-closed exit guard, seals that exact
+`exit` listener against later registration, replacement or removal, and only
+arms success after the authenticated stream has ended. A regression replaces
+`Readable.push`, rewrites failures and the aggregate, then tries to reset
+`process.exitCode` from a later exit listener; the trusted runner must remain
+red. These controls keep lifecycle evidence and terminal process state outside
+candidate-controlled mutation surfaces while the test modules share a process.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from

@@ -1,15 +1,84 @@
+import { EventEmitter } from 'node:events';
 import { lstatSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
 const SafeArray = Array;
 const SafeArrayIsArray = Array.isArray;
 const SafeError = Error;
 const SafeNumberIsSafeInteger = Number.isSafeInteger;
+const SafeObjectDefineProperty = Object.defineProperty;
+const SafeObjectFreeze = Object.freeze;
+const SafeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const SafeReflectApply = Reflect.apply;
 const SafeRegExpTest = RegExp.prototype.test;
 const SafeResolve = resolve;
+const SafeEventEmitterOn = EventEmitter.prototype.on;
+const protectedLifecycleMethods = [
+  [Readable.prototype, 'push', SafeObjectGetOwnPropertyDescriptor(Readable.prototype, 'push')],
+  [EventEmitter.prototype, 'emit', SafeObjectGetOwnPropertyDescriptor(EventEmitter.prototype, 'emit')],
+];
 const trustedPathPattern = /^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u;
+
+function lockLifecycleMethod(target, property, descriptor) {
+  if (
+    descriptor === undefined
+    || typeof descriptor.value !== 'function'
+    || descriptor.get !== undefined
+    || descriptor.set !== undefined
+  ) {
+    throw new SafeError(`trusted lifecycle method is unavailable: ${property}`);
+  }
+  SafeObjectDefineProperty(target, property, {
+    value: descriptor.value,
+    writable: false,
+    enumerable: descriptor.enumerable,
+    configurable: false,
+  });
+}
+
+function lockLifecycleEvidenceSurfaces() {
+  for (let index = 0; index < protectedLifecycleMethods.length; index += 1) {
+    const [target, property, descriptor] = protectedLifecycleMethods[index];
+    lockLifecycleMethod(target, property, descriptor);
+  }
+}
+
+function installFailClosedExitGuard(isTrustedPass) {
+  const eventTable = process._events;
+  if (eventTable === null || typeof eventTable !== 'object') {
+    throw new SafeError('trusted process event table is unavailable');
+  }
+
+  const failClosedExit = () => {
+    if (!isTrustedPass()) process.exitCode = 1;
+  };
+  SafeReflectApply(SafeEventEmitterOn, process, ['exit', failClosedExit]);
+
+  const exitDescriptor = SafeObjectGetOwnPropertyDescriptor(eventTable, 'exit');
+  if (exitDescriptor === undefined) {
+    throw new SafeError('trusted exit guard was not installed');
+  }
+  if (SafeArrayIsArray(exitDescriptor.value)) SafeObjectFreeze(exitDescriptor.value);
+  SafeObjectDefineProperty(eventTable, 'exit', {
+    value: exitDescriptor.value,
+    writable: false,
+    enumerable: exitDescriptor.enumerable,
+    configurable: false,
+  });
+
+  const eventTableDescriptor = SafeObjectGetOwnPropertyDescriptor(process, '_events');
+  if (eventTableDescriptor === undefined || eventTableDescriptor.value !== eventTable) {
+    throw new SafeError('trusted process event table identity changed');
+  }
+  SafeObjectDefineProperty(process, '_events', {
+    value: eventTable,
+    writable: false,
+    enumerable: eventTableDescriptor.enumerable,
+    configurable: false,
+  });
+}
 
 function readTrustedManifest() {
   const configuredPath = process.env.TRUSTED_TEST_MANIFEST;
@@ -129,4 +198,18 @@ export function createTrustedTestReporter(expectedTestPaths) {
   };
 }
 
-export default createTrustedTestReporter(readTrustedManifest());
+const reportTrustedManifest = createTrustedTestReporter(readTrustedManifest());
+let defaultReporterClaimed = false;
+let defaultReporterPassed = false;
+
+export default async function* trustedManifestReporter(source) {
+  if (defaultReporterClaimed) {
+    throw new SafeError('trusted manifest reporter can only be claimed by the test runner once');
+  }
+  defaultReporterClaimed = true;
+  lockLifecycleEvidenceSurfaces();
+  installFailClosedExitGuard(() => defaultReporterPassed);
+
+  for await (const output of reportTrustedManifest(source)) yield output;
+  defaultReporterPassed = true;
+}
