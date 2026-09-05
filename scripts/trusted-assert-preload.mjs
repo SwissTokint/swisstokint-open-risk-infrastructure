@@ -141,6 +141,7 @@ const clearedChildEnvironmentNames = [
 const protectedChildEnvironmentNames = [
   ...clearedChildEnvironmentNames,
   'PATH',
+  'TRUSTED_MINIMAL_NODE_CONTAINER',
 ];
 const originalEnvironment = process.env;
 const trustedExecutablePath = originalEnvironment.PATH;

@@ -22,6 +22,7 @@ const protectedLifecycleMethods = [
 ];
 const trustedPathPattern = /^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u;
 const reviewedPlatformSkips = Object.freeze([
+  Object.freeze(['linux', 'tests/pom-rx-v01-compat-fixtures.node.test.mjs', 2]),
   Object.freeze(['linux', 'tests/pom-rx-v01-strict-activation.node.test.mjs', 1]),
 ]);
 

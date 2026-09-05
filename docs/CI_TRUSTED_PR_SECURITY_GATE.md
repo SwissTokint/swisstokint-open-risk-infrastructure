@@ -24,7 +24,9 @@ new result to be overwritten with `pending` and the job to fail.
 
 Every push to `main` changes the trust base. The base-owned workflow therefore
 lists all open PRs targeting `main` and replaces each prior
-exact-head result with `pending`. A PR must then be updated, reopened, marked
+exact-head result with `pending`. Each head is attempted independently with
+bounded retries, and the job reports an aggregate failure only after it has
+attempted every listed head. A PR must then be updated, reopened, marked
 ready, or have its base edited so the trusted evaluation runs again against the
 new base. An already-running evaluation whose base has become stale fails the
 publisher's current-base check instead of producing fresh success evidence.
@@ -36,7 +38,10 @@ retargeted away from `main`; retargeting it back cannot expose the old success
 while the new evaluation is starting. That invalidator always checks out the
 controller from `refs/heads/main`, never from the PR's new destination branch.
 Only superseded exact-head evaluation jobs share a cancelling concurrency
-group; departure invalidators are not cancelled by a rapid retarget or push.
+group. A closed or retargeted-away PR also schedules a token-free job in that
+same group, cancelling an evaluation even though no replacement evaluation is
+eligible to start. Departure invalidators remain outside the group and are not
+cancelled by a rapid retarget or push.
 
 Before any candidate-controlled dependency or test module is evaluated, the
 controller byte-compares its workflow, both trusted manifests, every manifest
@@ -69,10 +74,13 @@ checkpoint as the first executable statement of every manifest test; because
 static dependencies evaluate first, candidate initialization that replaces a
 global binding or intrinsic descriptor is detected before any test body can use
 the poisoned observation. The loader also binds test-side reads to captured
-primordial facades. Deliberate mutation tests still forward writes to the real
-runtime seen by candidate code, while their assertions read the pre-candidate
-intrinsic identities. This prevents poisoning performed later inside a candidate
-call from falsifying the observed assertion values. Process-level test isolation
+primordial facades. The authoritative runner starts Node with
+`--frozen-intrinsics`, so candidate code cannot install a one-shot forged
+instance method, use it to falsify an assertion, and restore the original
+descriptor before the post-test checkpoint. A literal self-restoring poison
+regression must remain non-zero without a trusted pass marker. Tests whose
+purpose is to mutate JavaScript intrinsics remain in canonical CI instead of
+the frozen trusted manifest. Process-level test isolation
 is deliberately disabled. An `afterEach` checkpoint therefore re-verifies the
 captured globals, prototypes and built-in exports after candidate execution, so
 persistent instance-method poisoning is rejected before the next test:
@@ -110,13 +118,17 @@ and fail-closed alongside `process.exit` and `process.reallyExit`. A literal
 process-replacement regression must remain non-zero without a trusted pass
 marker.
 
-The reporter accepts only the single reviewed Linux-only skip in the strict
-activation suite. Every other skip or any additional skip remains a failure.
-Host-tool integration suites that require `git` or `python3` stay in canonical
-required CI rather than the minimal pinned Node container; the trusted
-control-plane verifier prevents a candidate from weakening that CI workflow or
-its package commands and byte-authenticates those two host-tool test files
-against `main` before candidate evaluation.
+The reporter accepts only the reviewed Linux-only skip in the strict activation
+suite and the two reviewed compatibility skips: the Windows-only metadata case
+and the source-binding case that requires host `git`. Every other skip or any
+additional skip remains a failure. The remaining host-independent compatibility
+corpus runs in the authenticated, frozen trusted runner; candidate imports
+cannot terminate it successfully before direct lifecycle evidence is complete.
+Host-tool scenarios that require `git` or `python3` stay in canonical required
+CI rather than the minimal pinned Node container. The trusted control-plane
+verifier prevents a candidate from weakening that CI workflow or its package
+commands and byte-authenticates the reviewed host-tool test files against
+`main` before candidate evaluation.
 
 The intentionally vulnerable v0.1 integrity baseline uses a separate immutable
 one-file manifest and a direct lifecycle reporter. Success requires exactly the

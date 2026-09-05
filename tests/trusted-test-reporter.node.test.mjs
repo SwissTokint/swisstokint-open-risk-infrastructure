@@ -114,4 +114,25 @@ test('reporter accepts only the exact reviewed Linux platform skip count', async
     ]),
     /reviewed pass and platform-skip counts/u,
   );
+
+  const compatibilityPath = 'tests/pom-rx-v01-compat-fixtures.node.test.mjs';
+  const compatibilitySummary = {
+    type: 'test:summary',
+    data: {
+      success: true,
+      counts: { tests: 3, passed: 1, failed: 0, cancelled: 0, skipped: 2, todo: 0 },
+    },
+  };
+  assert.deepEqual(
+    await collect(createTrustedTestReporter([compatibilityPath], { platform: 'linux' }), [
+      passEvent({ file: resolve(compatibilityPath), name: 'reviewed compatibility assertion' }),
+      passEvent({ file: resolve(compatibilityPath), name: 'reviewed Windows-only metadata skip' }),
+      passEvent({ file: resolve(compatibilityPath), name: 'reviewed host-git skip' }),
+      compatibilitySummary,
+    ]),
+    [
+      `trusted-test-file-pass ${compatibilityPath} tests=3\n`,
+      'trusted-test-suite-pass files=1\n',
+    ],
+  );
 });

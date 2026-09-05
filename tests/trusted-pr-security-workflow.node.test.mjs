@@ -145,6 +145,9 @@ test('a main advance invalidates every open PR exact-head status', () => {
   assert.doesNotMatch(trustedWorkflow, /\$\{#open_heads\[@\]\}.*-le/u);
   assert.match(trustedWorkflow, /declare -A seen=\(\)/u);
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA="\$head_sha"/u);
+  assert.match(trustedWorkflow, /for attempt in 1 2 3; do/u);
+  assert.match(trustedWorkflow, /failure_count=\$\(\(failure_count \+ 1\)\)/u);
+  assert.match(trustedWorkflow, /Failed to invalidate \$failure_count open PR head\(s\)\./u);
 });
 
 test('departing and closed PR heads cannot replay historical success', () => {
@@ -165,6 +168,15 @@ test('departing and closed PR heads cannot replay historical success', () => {
     group: 'trusted-exact-head-${{ github.event.pull_request.number }}',
     'cancel-in-progress': true,
   });
+  const cancellationJob = trustedWorkflowData.jobs['cancel-departed-exact-head-evaluation'];
+  assert.deepEqual(cancellationJob.concurrency, trustedExactHeadJob.concurrency);
+  assert.match(
+    cancellationJob.if,
+    /github\.event\.action == 'closed'.*github\.event\.action == 'edited'/su,
+  );
+  assert.doesNotMatch(cancellationJob.if, /synchronize/u);
+  assert.equal(cancellationJob.steps[0].name, 'Supersede departed exact-head evaluation');
+  assert.equal(cancellationJob.steps[0].run, 'true');
   assert.equal(job.concurrency, undefined, 'departing-head invalidation must never be cancelled');
   assert.equal(job.steps[0].with.repository, '${{ github.repository }}');
   assert.equal(job.steps[0].with.ref, 'refs/heads/main');
@@ -277,10 +289,16 @@ test('candidate tests run without network, write access or ambient privilege', (
     trustedWorkflow,
     /--experimental-test-isolation=none/u,
   );
+  assert.equal(
+    [...trustedWorkflow.matchAll(/--frozen-intrinsics/gu)].length,
+    2,
+    'both authoritative candidate-evaluation lanes must freeze JavaScript intrinsics',
+  );
   assert.match(
     trustedWorkflow,
     /--env TRUSTED_TEST_MANIFEST=\/workspace\/scripts\/trusted-security-tests\.txt/u,
   );
+  assert.match(trustedWorkflow, /--env TRUSTED_MINIMAL_NODE_CONTAINER=1/u);
   assert.match(trustedWorkflow, /while IFS= read -r trusted_test; do/u);
   assert.match(trustedWorkflow, /--env TRUSTED_TEST_PATH="\$trusted_test"/u);
   assert.match(trustedWorkflow, /done < trusted-base\/\.github\/trusted-security-tests\.txt/u);
@@ -307,4 +325,8 @@ test('trusted regression manifest is bounded, unique and present', () => {
     const contents = read(`../${testPath}`);
     assert.ok(contents.length > 0, `trusted test is missing or empty: ${testPath}`);
   }
+  assert.ok(
+    trustedTests.includes('tests/pom-rx-v01-compat-fixtures.node.test.mjs'),
+    'host-independent compatibility coverage must execute in the authenticated runner',
+  );
 });

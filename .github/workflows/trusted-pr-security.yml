@@ -295,12 +295,14 @@ jobs:
               --env HOME=/tmp \
               --env TMPDIR=/tmp \
               --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              --env TRUSTED_MINIMAL_NODE_CONTAINER=1 \
               --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-security-tests.txt \
               --env TRUSTED_TEST_PATH="$trusted_test" \
               --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
               --workdir /workspace \
               "$NODE_IMAGE" \
               node \
+                --frozen-intrinsics \
                 --permission \
                 --allow-fs-read=/workspace \
                 --allow-fs-read=/tmp \
@@ -339,6 +341,7 @@ jobs:
             --workdir /workspace \
             "$NODE_IMAGE" \
             node \
+              --frozen-intrinsics \
               --permission \
               --allow-fs-read=/workspace \
               --allow-fs-read=/tmp \
@@ -357,6 +360,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           STATUS_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+  cancel-departed-exact-head-evaluation:
+    if: >-
+      ${{ github.event_name == 'pull_request_target' &&
+          (github.event.action == 'closed' ||
+           (github.event.action == 'edited' && github.event.changes.base.ref.from == 'main')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    concurrency:
+      group: trusted-exact-head-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Supersede departed exact-head evaluation
+        run: 'true'
 
   invalidate-departing-exact-head:
     if: >-
@@ -431,13 +448,38 @@ jobs:
           mapfile -t open_heads <<< "$open_heads_output"
 
           declare -A seen=()
+          failure_count=0
           for head_sha in "${open_heads[@]}"; do
             test -z "$head_sha" && continue
-            [[ "$head_sha" =~ $sha_pattern ]]
+            if [[ ! "$head_sha" =~ $sha_pattern ]]; then
+              echo "Refusing malformed open PR head SHA: $head_sha" >&2
+              failure_count=$((failure_count + 1))
+              continue
+            fi
             if [[ -n "${seen[$head_sha]:-}" ]]; then
               continue
             fi
             seen["$head_sha"]=1
-            EXPECTED_HEAD_SHA="$head_sha" \
-              node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+            invalidated=false
+            for attempt in 1 2 3; do
+              if EXPECTED_HEAD_SHA="$head_sha" \
+                node trusted-base/scripts/publish-trusted-pr-status.mjs; then
+                invalidated=true
+                break
+              fi
+              echo "Invalidation attempt $attempt failed for $head_sha" >&2
+              if [[ "$attempt" -lt 3 ]]; then
+                sleep "$attempt" || true
+              fi
+            done
+            if [[ "$invalidated" != true ]]; then
+              echo "Unable to invalidate open PR head after three attempts: $head_sha" >&2
+              failure_count=$((failure_count + 1))
+            fi
           done
+
+          if [[ "$failure_count" -ne 0 ]]; then
+            echo "Failed to invalidate $failure_count open PR head(s)." >&2
+            exit 1
+          fi

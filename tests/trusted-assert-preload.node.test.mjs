@@ -337,6 +337,44 @@ test('post-test checkpoint rejects poisoned instance method dispatch', () => {
   }
 });
 
+test('frozen intrinsics reject a poison that restores itself before the checkpoint', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-self-restoring-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/self-restoring-instance-poison.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--frozen-intrinsics',
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/self-restoring-instance-poison.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
 test('forged V8 summary plus process.exit(0) cannot pass the trusted reporter', () => {
   const sandbox = mkdtempSync(join(tmpdir(), 'trusted-reporter-manifest-'));
   const manifestPath = join(sandbox, 'manifest.txt');

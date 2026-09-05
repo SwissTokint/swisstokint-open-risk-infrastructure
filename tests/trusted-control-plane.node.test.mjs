@@ -31,6 +31,9 @@ assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
 assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
   'tests/pom-rx-v01-compat-fixtures.node.test.mjs',
 ));
+assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
+  'tests/fixtures/trusted-runner/self-restoring-instance-poison.test.mjs',
+));
 
 function copyControlTree(targetRoot) {
   const paths = new Set([
