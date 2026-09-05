@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const workflow = readFileSync(
-  new URL('../.github/workflows/ci.yml', import.meta.url),
-  'utf8',
-);
+const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
+const workflows = readdirSync(workflowDirectory)
+  .filter((name) => name.endsWith('.yml'))
+  .map((name) => readFileSync(new URL(name, workflowDirectory), 'utf8'))
+  .join('\n');
 
-const actionRefs = [...workflow.matchAll(
+const actionRefs = [...workflows.matchAll(
   /^\s*(?:-\s*)?uses:\s*([^\s#]+)(?:\s+#\s*(.+))?$/gmu,
 )].map(([, reference, annotation]) => ({ reference, annotation }));
 
@@ -17,7 +18,7 @@ const requiredPins = new Map([
   ['actions/setup-python', '5fda3b95a4ea91299a34e894583c3862153e4b97'],
 ]);
 
-test('CI references every external action by a full immutable commit SHA', () => {
+test('CI workflows reference every external action by a full immutable commit SHA', () => {
   assert.ok(actionRefs.length > 0, 'expected at least one external action');
 
   for (const { reference } of actionRefs) {
