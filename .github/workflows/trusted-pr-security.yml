@@ -223,6 +223,12 @@ jobs:
             trusted-base/scripts/trusted-test-reporter.mjs \
             "$evaluation_root/scripts/trusted-test-reporter.mjs"
           install -m 0444 \
+            trusted-base/scripts/trusted-test-loader.mjs \
+            "$evaluation_root/scripts/trusted-test-loader.mjs"
+          install -m 0444 \
+            trusted-base/scripts/trusted-test-loader-register.mjs \
+            "$evaluation_root/scripts/trusted-test-loader-register.mjs"
+          install -m 0444 \
             trusted-base/scripts/trusted-assert-preload.mjs \
             "$evaluation_root/scripts/trusted-assert-preload.mjs"
           install -m 0444 \
@@ -281,8 +287,17 @@ jobs:
             --workdir /workspace \
             "$NODE_IMAGE" \
             node \
+              --permission \
+              --allow-fs-read=/workspace \
+              --allow-fs-read=/tmp \
+              --allow-fs-write=/tmp \
+              --allow-child-process \
+              --allow-worker \
+              --no-addons \
+              --import=./scripts/trusted-test-loader-register.mjs \
               --import=./scripts/trusted-assert-preload.mjs \
               --test \
+              --experimental-test-isolation=none \
               --test-reporter=./scripts/trusted-test-reporter.mjs \
               "${trusted_tests[@]}"
 

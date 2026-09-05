@@ -33,11 +33,27 @@ file list after Git proves that no tracked byte drifted,
 the target branch's security tests are overlaid, and the resulting tree is
 mounted read-only into a non-root container with no network, no Linux
 capabilities and `no-new-privileges`. A mandatory write probe proves the mount
-is non-writable before the security tests run. A base-owned preload freezes the
-shared strict-assert identity before any candidate module initializes. A
-base-owned custom reporter requires one successful per-file summary for every
-manifest entry, so assertion replacement, skipped tests or a candidate-triggered
-early `process.exit(0)` cannot turn missing assertions into a successful gate.
+is non-writable before the security tests run. The Node permission model denies
+WASI and native addons, while the explicit CLI flags also disable addon loading.
+A base-owned preload freezes the shared strict-assert identity and the two
+successful early-exit paths (`process.exit` and `process.reallyExit`) before any
+candidate module initializes. A base-owned loader injects a primordial-integrity
+checkpoint as the first executable statement of every manifest test; because
+static dependencies evaluate first, candidate initialization that replaces a
+global binding or intrinsic descriptor is detected before any test body can use
+the poisoned observation. The loader also binds test-side reads to captured
+primordial facades. Deliberate mutation tests still forward writes to the real
+runtime seen by candidate code, while their assertions read the pre-candidate
+intrinsic identities. This prevents poisoning performed later inside a candidate
+call from falsifying the observed assertion values. Process-level test isolation
+is deliberately disabled:
+the base-owned reporter therefore consumes Node's direct in-process lifecycle
+stream rather than deserializing candidate-controlled worker stdout. It requires
+at least one direct pass event from every manifest file, validates the sole final
+aggregate and rejects any failing lifecycle event, process-level file summary,
+duplicate summary, skipped test or todo. The regression corpus includes the
+literal V8-framed-summary plus `process.exit(0)` attack so attacker-supplied
+stdout cannot enter the evidence stream or hide the subsequent real failure.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from
