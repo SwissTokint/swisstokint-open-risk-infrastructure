@@ -190,6 +190,9 @@ jobs:
             trusted-base/scripts/trusted-test-reporter.mjs \
             "$evaluation_root/scripts/trusted-test-reporter.mjs"
           install -m 0444 \
+            trusted-base/scripts/trusted-assert-preload.mjs \
+            "$evaluation_root/scripts/trusted-assert-preload.mjs"
+          install -m 0444 \
             trusted-base/.github/trusted-security-tests.txt \
             "$evaluation_root/scripts/trusted-security-tests.txt"
 
@@ -244,7 +247,11 @@ jobs:
             --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
             --workdir /workspace \
             "$NODE_IMAGE" \
-            node --test --test-reporter=./scripts/trusted-test-reporter.mjs "${trusted_tests[@]}"
+            node \
+              --import=./scripts/trusted-assert-preload.mjs \
+              --test \
+              --test-reporter=./scripts/trusted-test-reporter.mjs \
+              "${trusted_tests[@]}"
 
       - name: Preserve strict legacy expected-red evidence
         shell: bash

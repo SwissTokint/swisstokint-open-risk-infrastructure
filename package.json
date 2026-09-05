@@ -38,7 +38,7 @@
     "test:pom-rx:wallet-guard-controlled-host": "node --test tests/wallet-guard/controlled-host-v2.node.test.mjs tests/wallet-guard/controlled-host-intrinsic-regressions.node.test.mjs",
     "test:pom-rx:repository-layout": "node --test tests/pom-rx-repository-layout.node.test.mjs",
     "test:pom-rx:capability-map": "node --test tests/pom-rx-capability-map.node.test.mjs",
-    "test:ci-security": "node --test tests/ci-action-pinning.node.test.mjs tests/trusted-pr-security-workflow.node.test.mjs tests/trusted-pr-status-publisher.node.test.mjs tests/trusted-test-reporter.node.test.mjs",
+    "test:ci-security": "node --test tests/ci-action-pinning.node.test.mjs tests/trusted-assert-preload.node.test.mjs tests/trusted-pr-security-workflow.node.test.mjs tests/trusted-pr-status-publisher.node.test.mjs tests/trusted-test-reporter.node.test.mjs",
     "test:pom-rx:post-merge-assurance": "node --test tests/pom-rx-post-merge-assurance-policy.node.test.mjs",
     "test:pom-rx:integrity-baseline": "node --test tests/pom-rx-integrity-baseline.node.test.mjs",
     "test:pom-rx:integrity-baseline:expected-red": "node scripts/assert-pom-rx-integrity-baseline-red.mjs",

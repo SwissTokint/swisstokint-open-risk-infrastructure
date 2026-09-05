@@ -33,10 +33,11 @@ file list after Git proves that no tracked byte drifted,
 the target branch's security tests are overlaid, and the resulting tree is
 mounted read-only into a non-root container with no network, no Linux
 capabilities and `no-new-privileges`. A mandatory write probe proves the mount
-is non-writable before the security tests run. A base-owned custom reporter
-requires one successful per-file summary for every manifest entry, so a
-candidate-triggered early `process.exit(0)` cannot turn missing assertions into
-a successful gate.
+is non-writable before the security tests run. A base-owned preload freezes the
+shared strict-assert identity before any candidate module initializes. A
+base-owned custom reporter requires one successful per-file summary for every
+manifest entry, so assertion replacement, skipped tests or a candidate-triggered
+early `process.exit(0)` cannot turn missing assertions into a successful gate.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from
@@ -66,6 +67,15 @@ therefore remains zero until a genuinely distinct maintainer is added. This is
 a recorded residual governance risk: owner review and automated review must not
 be described as independent approval. Raise the threshold to one as soon as a
 distinct maintainer can provide the approval required above.
+
+The built-in `GITHUB_TOKEN` still identifies every workflow as GitHub Actions.
+The trusted manifest rejects any additional workflow that requests
+`statuses: write`, while separate base-owned regressions constrain the two
+intentional status publishers. Before granting any second account permission to
+push same-repository branches, provision a dedicated GitHub App identity behind
+a protected environment and bind the required trusted check to that app. Do not
+treat the shared GitHub Actions identity as safe against a future collaborator
+who can author workflows.
 
 If a real independent security team is created, make the trusted workflow,
 test manifest and security tests CODEOWNERS-protected and require that team's

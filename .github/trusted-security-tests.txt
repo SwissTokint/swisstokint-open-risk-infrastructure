@@ -1,4 +1,5 @@
 tests/ci-action-pinning.node.test.mjs
+tests/trusted-assert-preload.node.test.mjs
 tests/trusted-pr-security-workflow.node.test.mjs
 tests/trusted-pr-status-publisher.node.test.mjs
 tests/trusted-test-reporter.node.test.mjs

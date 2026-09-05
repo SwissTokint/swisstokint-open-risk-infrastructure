@@ -98,6 +98,7 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
   );
   assert.match(trustedWorkflow, /cp -a trusted-base\/tests\/\. "\$evaluation_root\/tests\/"/u);
   assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-test-reporter\.mjs/u);
+  assert.match(trustedWorkflow, /trusted-base\/scripts\/trusted-assert-preload\.mjs/u);
   assert.match(trustedWorkflow, /trusted-base\/\.github\/trusted-security-tests\.txt/u);
   assert.match(trustedWorkflow, /type=bind,src=\$GITHUB_WORKSPACE\/evaluation,dst=\/workspace,readonly/u);
   assert.match(trustedWorkflow, /Candidate sandbox unexpectedly allowed source mutation\./u);
@@ -116,7 +117,11 @@ test('candidate tests run without network, write access or ambient privilege', (
   assert.ok([...trustedWorkflow.matchAll(/^\s+--user 65532:65532 \\$/gmu)].length >= 3);
   assert.match(
     trustedWorkflow,
-    /--test-reporter=\.\/scripts\/trusted-test-reporter\.mjs "\$\{trusted_tests\[@\]\}"/u,
+    /--import=\.\/scripts\/trusted-assert-preload\.mjs/u,
+  );
+  assert.match(
+    trustedWorkflow,
+    /--test-reporter=\.\/scripts\/trusted-test-reporter\.mjs/u,
   );
   assert.match(
     trustedWorkflow,
