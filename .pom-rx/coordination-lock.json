@@ -1,18 +1,13 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol",
-    "acquired_at": "2026-08-26T15:11:17Z",
-    "expires_at": "2026-08-26T15:56:17Z",
-    "base_main": "65973789ac71b88270f118f2ff4104b4cb1c3930",
-    "purpose": "Continue website PR #197 from live head f93fba3f37f894beed1d8cbffe9a49a38838a9fb with a bounded fail-closed diagnostic for the Strict runner rejection, then re-run exact-head deployment and council gates without enabling authorization or external execution."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-08-26T15:11:17Z",
-    "actor": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol",
-    "reason": "Live coordination state is FREE; acquire the single writer to localize the exact-head Strict runtime rejection on PR #197 before any further activation claim."
+    "type": "RECOVER",
+    "at": "2026-09-05T12:07:37.494Z",
+    "actor": "pom-rx-pr138-restack-20260905T1208Z",
+    "reason": "Explicit user authorization on 2026-09-05 to recover the expired 2026-08-26 holder and continue PR #138. Lock history unchanged since acquisition; no in-progress repository Actions runs found. No live evidence of the old writer; external process visibility is limited.",
+    "previous_holder": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol"
   }
 }
