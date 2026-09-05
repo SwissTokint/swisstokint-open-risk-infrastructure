@@ -69,11 +69,17 @@ export function createTrustedTestReporter(expectedTestPaths) {
         || !counts
         || typeof counts !== 'object'
         || !validCount(counts.tests)
+        || !validCount(counts.passed)
         || !validCount(counts.failed)
         || !validCount(counts.cancelled)
+        || !validCount(counts.skipped)
+        || !validCount(counts.todo)
         || counts.tests < 1
+        || counts.passed !== counts.tests
         || counts.failed !== 0
         || counts.cancelled !== 0
+        || counts.skipped !== 0
+        || counts.todo !== 0
       ) {
         throw new Error(`trusted test file did not complete successfully: ${trustedPath}`);
       }

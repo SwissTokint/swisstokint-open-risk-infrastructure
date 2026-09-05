@@ -59,6 +59,8 @@ test('reporter rejects incomplete, duplicate and unexpected file summaries', asy
   for (const events of [
     [fileSummary({ success: false }), finalSummary],
     [fileSummary({ counts: { tests: 0, failed: 0, cancelled: 0 } }), finalSummary],
+    [fileSummary({ counts: { tests: 3, passed: 2, failed: 0, cancelled: 0, skipped: 1, todo: 0 } }), finalSummary],
+    [fileSummary({ counts: { tests: 3, passed: 2, failed: 0, cancelled: 0, skipped: 0, todo: 1 } }), finalSummary],
     [fileSummary(), fileSummary(), finalSummary],
     [fileSummary({ file: resolve('tests/other.test.mjs') }), finalSummary],
     [fileSummary()],

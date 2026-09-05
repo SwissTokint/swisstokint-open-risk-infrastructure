@@ -20,6 +20,7 @@ function requiredString(environment, name) {
 
 export function buildTrustedPrStatusRequest(environment) {
   const repository = requiredString(environment, 'GITHUB_REPOSITORY');
+  const baseSha = requiredString(environment, 'EXPECTED_BASE_SHA');
   const headSha = requiredString(environment, 'EXPECTED_HEAD_SHA');
   const runId = requiredString(environment, 'GITHUB_RUN_ID');
   const serverUrl = requiredString(environment, 'GITHUB_SERVER_URL');
@@ -29,6 +30,9 @@ export function buildTrustedPrStatusRequest(environment) {
 
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repository)) {
     throw new Error('invalid GITHUB_REPOSITORY');
+  }
+  if (!/^[0-9a-f]{40}$/u.test(baseSha)) {
+    throw new Error('invalid EXPECTED_BASE_SHA');
   }
   if (!/^[0-9a-f]{40}$/u.test(headSha)) {
     throw new Error('invalid EXPECTED_HEAD_SHA');
@@ -46,6 +50,8 @@ export function buildTrustedPrStatusRequest(environment) {
   const targetUrl = `${serverUrl}/${repository}/actions/runs/${runId}`;
   return Object.freeze({
     apiPath: `repos/${repository}/statuses/${headSha}`,
+    baseRefPath: `repos/${repository}/git/ref/heads/main`,
+    expectedBaseSha: baseSha,
     expectedStatusUrlPrefix: `${apiUrl}/repos/${repository}/statuses/`,
     payload: Object.freeze({
       state,
@@ -54,6 +60,24 @@ export function buildTrustedPrStatusRequest(environment) {
       context: TRUSTED_PR_STATUS_CONTEXT,
     }),
   });
+}
+
+export function validateTrustedBaseRefResponse(responseText, request) {
+  const body = JSON.parse(responseText);
+  if (
+    typeof body !== 'object'
+    || body === null
+    || Array.isArray(body)
+    || body.ref !== 'refs/heads/main'
+    || typeof body.object !== 'object'
+    || body.object === null
+    || Array.isArray(body.object)
+    || body.object.type !== 'commit'
+    || body.object.sha !== request.expectedBaseSha
+  ) {
+    throw new Error('trusted PR base is no longer the current main commit');
+  }
+  return Object.freeze({ sha: body.object.sha });
 }
 
 export function validateTrustedPrStatusResponse(responseText, request) {
@@ -79,14 +103,29 @@ export function validateTrustedPrStatusResponse(responseText, request) {
 
 export function publishTrustedPrStatus(environment = process.env, spawn = spawnSync) {
   const request = buildTrustedPrStatusRequest(environment);
+  const commonOptions = Object.freeze({
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 20_000,
+  });
+  const baseResult = spawn(
+    '/usr/bin/gh',
+    ['api', '--method', 'GET', request.baseRefPath],
+    commonOptions,
+  );
+
+  if (baseResult.error) throw baseResult.error;
+  if (baseResult.signal !== null || baseResult.status !== 0) {
+    throw new Error('trusted main-ref freshness lookup failed');
+  }
+  validateTrustedBaseRefResponse(baseResult.stdout, request);
+
   const result = spawn(
     '/usr/bin/gh',
     ['api', '--method', 'POST', request.apiPath, '--input', '-'],
     {
       input: JSON.stringify(request.payload),
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 20_000,
+      ...commonOptions,
     },
   );
 

@@ -4,13 +4,21 @@ import test from 'node:test';
 
 const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
 const workflows = readdirSync(workflowDirectory)
-  .filter((name) => name.endsWith('.yml'))
+  .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
+  .sort()
   .map((name) => readFileSync(new URL(name, workflowDirectory), 'utf8'))
   .join('\n');
 
-const actionRefs = [...workflows.matchAll(
-  /^\s*(?:-\s*)?uses:\s*([^\s#]+)(?:\s+#\s*(.+))?$/gmu,
-)].map(([, reference, annotation]) => ({ reference, annotation }));
+function extractActionRefs(contents) {
+  return [...contents.matchAll(
+    /^\s*(?:-\s*)?uses:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))(?:\s+#\s*(.+))?\s*$/gmu,
+  )].map(([, doubleQuoted, singleQuoted, bare, annotation]) => ({
+    reference: doubleQuoted ?? singleQuoted ?? bare,
+    annotation,
+  }));
+}
+
+const actionRefs = extractActionRefs(workflows);
 
 const requiredPins = new Map([
   ['actions/checkout', '3d3c42e5aac5ba805825da76410c181273ba90b1'],
@@ -32,7 +40,10 @@ test('CI workflows reference every external action by a full immutable commit SH
 
 test('CI pins the reviewed v7 action revisions and preserves release annotations', () => {
   for (const [action, expectedSha] of requiredPins) {
-    const occurrences = actionRefs.filter(({ reference }) => reference.startsWith(`${action}@`));
+    const occurrences = actionRefs.filter(({ reference }) => {
+      const [referencedAction] = reference.split('@');
+      return referencedAction.toLowerCase() === action;
+    });
     assert.ok(occurrences.length > 0, `${action} must occur in a CI workflow`);
     for (const { reference, annotation } of occurrences) {
       const [, sha] = reference.split('@');
@@ -43,4 +54,13 @@ test('CI pins the reviewed v7 action revisions and preserves release annotations
       );
     }
   }
+});
+
+test('action extraction covers YAML quoting and case-insensitive GitHub identities', () => {
+  const sha = '0'.repeat(40);
+  assert.deepEqual(extractActionRefs(`steps:\n  - uses: "Actions/Checkout@${sha}" # v7\n`), [{
+    reference: `Actions/Checkout@${sha}`,
+    annotation: 'v7',
+  }]);
+  assert.equal('Actions/Checkout'.toLowerCase(), 'actions/checkout');
 });

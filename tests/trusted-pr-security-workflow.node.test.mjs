@@ -14,14 +14,23 @@ const trustedTests = read('../.github/trusted-security-tests.txt')
 
 test('trusted PR gate is base-owned, narrowly writable and exact-head bound', () => {
   assert.match(trustedWorkflow, /^on:\n  pull_request_target:\n/mu);
+  assert.match(trustedWorkflow, /^    types: \[opened, synchronize, reopened, ready_for_review, edited\]$/mu);
+  assert.match(trustedWorkflow, /^  push:\n    branches: \[main\]$/mu);
   assert.doesNotMatch(trustedWorkflow, /^  pull_request:\s*$/mu);
-  assert.match(trustedWorkflow, /^permissions:\n  contents: read\n  statuses: write$/mu);
+  assert.match(
+    trustedWorkflow,
+    /^permissions:\n  contents: read\n  pull-requests: read\n  statuses: write$/mu,
+  );
   assert.equal([...trustedWorkflow.matchAll(/^permissions:$/gmu)].length, 1);
   assert.equal([...trustedWorkflow.matchAll(/^\s*permissions:/gmu)].length, 1);
   assert.doesNotMatch(trustedWorkflow, /permissions:\s*write-all/u);
   assert.doesNotMatch(trustedWorkflow, /\b(?:contents|actions|checks|pull-requests): write\b/u);
   assert.doesNotMatch(trustedWorkflow, /\$\{\{\s*secrets\./u);
   assert.match(trustedWorkflow, /^  trusted-exact-head:$/mu);
+  assert.match(
+    trustedWorkflow,
+    /^    if: github\.event_name == 'pull_request_target' && github\.event\.pull_request\.base\.ref == 'main'$/mu,
+  );
   assert.match(trustedWorkflow, /EXPECTED_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
   assert.match(trustedWorkflow, /repository: \$\{\{ github\.event\.pull_request\.head\.repo\.full_name \}\}/u);
@@ -33,8 +42,8 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   assert.match(trustedWorkflow, /test "\$\(git -C candidate rev-parse HEAD\)" = "\$EXPECTED_HEAD_SHA"/u);
   assert.equal(
     [...trustedWorkflow.matchAll(/^\s+GH_TOKEN: \$\{\{ github\.token \}\}$/gmu)].length,
-    2,
-    'the token must exist only in the pending and terminal status publisher steps',
+    3,
+    'the token must exist only in the pending, terminal and invalidation publisher steps',
   );
   assert.doesNotMatch(trustedWorkflow, /--env (?:GH_TOKEN|GITHUB_TOKEN)/u);
   assert.match(trustedWorkflow, /^\s+STATUS_STATE: pending$/mu);
@@ -44,8 +53,24 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   );
   assert.equal(
     [...trustedWorkflow.matchAll(/node trusted-base\/scripts\/publish-trusted-pr-status\.mjs/gu)].length,
-    2,
+    3,
   );
+});
+
+test('a main advance invalidates every bounded open PR exact-head status', () => {
+  assert.match(trustedWorkflow, /^  invalidate-stale-exact-head:$/mu);
+  assert.match(
+    trustedWorkflow,
+    /^    if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'$/mu,
+  );
+  assert.match(trustedWorkflow, /^      EXPECTED_BASE_SHA: \$\{\{ github\.sha \}\}$/mu);
+  assert.match(trustedWorkflow, /gh api --method GET "repos\/\$GITHUB_REPOSITORY\/pulls"/u);
+  assert.match(trustedWorkflow, /-f state=open/u);
+  assert.match(trustedWorkflow, /-f base=main/u);
+  assert.match(trustedWorkflow, /--paginate/u);
+  assert.match(trustedWorkflow, /test "\$\{#open_heads\[@\]\}" -le 256/u);
+  assert.match(trustedWorkflow, /declare -A seen=\(\)/u);
+  assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA="\$head_sha"/u);
 });
 
 test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => {
@@ -54,6 +79,8 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
     /npm ci --ignore-scripts --no-audit --no-fund --registry=https:\/\/registry\.npmjs\.org\//u,
   );
   assert.match(trustedWorkflow, /test ! -e candidate\/\.npmrc/u);
+  assert.match(trustedWorkflow, /test ! -L candidate\/\.npmrc/u);
+  assert.match(trustedWorkflow, /test ! -L candidate\/npm-shrinkwrap\.json/u);
   assert.match(trustedWorkflow, /linked or unresolved dependency is forbidden/u);
   assert.match(trustedWorkflow, /resolved\.origin !== 'https:\/\/registry\.npmjs\.org'/u);
   assert.match(trustedWorkflow, /\^sha512-\[A-Za-z0-9\+\/\]\{86\}==\$/u);

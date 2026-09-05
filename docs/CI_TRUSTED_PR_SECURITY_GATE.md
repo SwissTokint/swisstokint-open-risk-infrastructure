@@ -17,6 +17,15 @@ It has read-only repository access plus the narrow `statuses: write` permission,
 persists no checkout credential and does not pass a GitHub token or secret to
 candidate code. Two trusted host-side steps publish pending and terminal states
 directly on the exact head under the fixed `pom-rx/trusted-exact-head` context.
+The publisher also verifies that the PR base SHA is still the current `main`
+commit immediately before it writes that status.
+
+Every push to `main` changes the trust base. The base-owned workflow therefore
+lists the bounded set of open PRs targeting `main` and replaces each prior
+exact-head result with `pending`. A PR must then be updated, reopened, marked
+ready, or have its base edited so the trusted evaluation runs again against the
+new base. An already-running evaluation whose base has become stale fails the
+publisher's current-base check instead of producing fresh success evidence.
 
 Candidate dependencies are installed with lifecycle scripts disabled. The
 evaluated source is then reconstructed only from the exact checkout's tracked
@@ -50,6 +59,13 @@ ruleset in one administrative operation:
 - require at least one approving review from someone other than the author;
 - require all review conversations to be resolved;
 - retain deletion and non-fast-forward protection.
+
+The repository currently has only the `SwissTokint` maintainer account. Under
+the owner's explicit one-account bootstrap exception, the approval threshold
+therefore remains zero until a genuinely distinct maintainer is added. This is
+a recorded residual governance risk: owner review and automated review must not
+be described as independent approval. Raise the threshold to one as soon as a
+distinct maintainer can provide the approval required above.
 
 If a real independent security team is created, make the trusted workflow,
 test manifest and security tests CODEOWNERS-protected and require that team's

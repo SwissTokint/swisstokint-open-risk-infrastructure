@@ -2,22 +2,25 @@ name: Trusted PR security
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches: [main]
 
 # This workflow is loaded from the target branch. Its only write permission is
 # the exact-head commit status published by trusted host-side steps. The token
 # must never be exposed to candidate-controlled code.
 permissions:
   contents: read
+  pull-requests: read
   statuses: write
 
 concurrency:
-  group: trusted-pr-security-${{ github.event.pull_request.number }}
+  group: trusted-pr-security-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   trusted-exact-head:
-    if: github.event.pull_request.base.ref == 'main'
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -129,7 +132,9 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e candidate/.npmrc
+          test ! -L candidate/.npmrc
           test ! -e candidate/npm-shrinkwrap.json
+          test ! -L candidate/npm-shrinkwrap.json
           docker run --rm \
             --platform linux/amd64 \
             --network bridge \
@@ -269,3 +274,58 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           STATUS_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+  invalidate-stale-exact-head:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_BASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Check out exact trusted main controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install exact trusted Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.2
+
+      - name: Invalidate open PR evidence from the previous main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: pending
+        run: |
+          set -euo pipefail
+          sha_pattern='^[0-9a-f]{40}$'
+          [[ "$EXPECTED_BASE_SHA" =~ $sha_pattern ]]
+          test "$(git -C trusted-base rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          test -z "$(git -C trusted-base status --porcelain --untracked-files=no)"
+
+          open_heads_output="$(
+            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base=main \
+              -f per_page=100 \
+              --paginate \
+              --jq '.[].head.sha'
+          )"
+          mapfile -t open_heads <<< "$open_heads_output"
+          test "${#open_heads[@]}" -le 256
+
+          declare -A seen=()
+          for head_sha in "${open_heads[@]}"; do
+            test -z "$head_sha" && continue
+            [[ "$head_sha" =~ $sha_pattern ]]
+            if [[ -n "${seen[$head_sha]:-}" ]]; then
+              continue
+            fi
+            seen["$head_sha"]=1
+            EXPECTED_HEAD_SHA="$head_sha" \
+              node trusted-base/scripts/publish-trusted-pr-status.mjs
+          done
