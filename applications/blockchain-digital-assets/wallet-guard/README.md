@@ -139,7 +139,11 @@ dispatched, Node stores a block/nonce observation baseline. Immediately before
 the only sensitive EIP-1193 send, the browser samples chain, account, genesis
 and latest block twice, submits the bound view to `/bridge/view`, and waits for
 Node to recapture and exactly match the same view. Drift fails closed before
-the send. Account/chain are sampled again after the wallet prompt. A hash
+the send. The final arm acknowledgement must arrive within 250 ms, measured
+with a monotonic clock, before the server's minimum 1,000 ms armed watchdog.
+A late acknowledgement closes the browser session without a sensitive call.
+Server transitions recheck their session and phase after asynchronous reads.
+Account/chain are sampled again after the wallet prompt. A hash
 returned with late context drift is retained as ambiguous evidence and sent to
 the observer instead of being discarded.
 

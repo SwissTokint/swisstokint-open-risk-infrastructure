@@ -814,6 +814,109 @@ test('handshake rejects a MetaMask chain view that differs from the Node RPC vie
   assert.equal(status.sensitive_call_count, 0);
 });
 
+test('handshake completion respects intervening connection and closure', async (t) => {
+  for (const transition of ['connected', 'closed']) {
+    await t.test(transition, async (t) => {
+      const entered = Promise.withResolvers();
+      const resume = Promise.withResolvers();
+      let captures = 0;
+      let transports = 0;
+      const prototype = createWalletGuardPrototypeServer({
+        createControlledCallbackTransport(options) {
+          transports += 1;
+          return createWalletGuardControlledCallbackProviderTransport(options);
+        },
+        createTrustedGateway: createWalletGuardTrustedProviderGateway,
+        captureNodeChainView: async () => {
+          captures += 1;
+          if (captures === 1) {
+            entered.resolve();
+            await resume.promise;
+          }
+          return nodeChainView();
+        },
+        observeTransaction: async () => assert.fail('no observation during handshake'),
+      });
+      const info = await prototype.listen();
+      t.after(async () => {
+        resume.resolve();
+        await prototype.close();
+      });
+      const { cookie } = await authenticate(info);
+      const pending = http(info.origin, '/api/handshake', {
+        method: 'POST', cookie, requestOrigin: info.origin,
+        body: JSON.stringify({
+          chain_id: '0x7a69', account: ACCOUNT,
+          genesis_hash: GENESIS_HASH,
+          latest_block_number: LATEST_BLOCK_NUMBER,
+          latest_block_hash: LATEST_BLOCK_HASH,
+        }),
+      });
+      await entered.promise;
+      if (transition === 'connected') {
+        await handshake(info, cookie);
+      } else {
+        assert.equal((await http(info.origin, '/bridge/close', {
+          method: 'POST', cookie, requestOrigin: info.origin,
+          body: JSON.stringify({ code: 'BRIDGE_CLOSED' }),
+        })).status, 204);
+      }
+      resume.resolve();
+      assert.equal((await pending).status, 409);
+      const status = parseJson(await http(info.origin, '/api/status', { cookie }));
+      assert.equal(status.connected, transition === 'connected');
+      assert.equal(status.closed, transition === 'closed');
+      assert.equal(transports, transition === 'connected' ? 1 : 0);
+      assert.equal(status.sensitive_call_count, 0);
+      assert.equal(status.command_pending, false);
+    });
+  }
+});
+
+test('closure during baseline capture stops before gateway authorization', async (t) => {
+  const entered = Promise.withResolvers();
+  const resume = Promise.withResolvers();
+  let gatewayCalls = 0;
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: () => ({
+      request() {
+        gatewayCalls += 1;
+        assert.fail('closed session must stop before gateway authorization');
+      },
+    }),
+    captureNodeChainView: async () => nodeChainView(),
+    captureObservationBaseline: async () => {
+      entered.resolve();
+      await resume.promise;
+      return null;
+    },
+    observeTransaction: async () => assert.fail('no observation for a closed session'),
+  });
+  const info = await prototype.listen();
+  t.after(async () => {
+    resume.resolve();
+    await prototype.close();
+  });
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+  const pending = http(info.origin, '/api/allow', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+  });
+  await entered.promise;
+  assert.equal((await http(info.origin, '/bridge/close', {
+    method: 'POST', cookie, requestOrigin: info.origin,
+    body: JSON.stringify({ code: 'BRIDGE_CLOSED' }),
+  })).status, 204);
+  resume.resolve();
+  assert.equal((await pending).status, 409);
+  assert.equal(gatewayCalls, 0);
+  const status = parseJson(await http(info.origin, '/api/status', { cookie }));
+  assert.equal(status.closed, true);
+  assert.equal(status.command_pending, false);
+  assert.equal(status.sensitive_call_count, 0);
+});
+
 test('pre-send view mismatch rejects before a wallet result and closes the session', async (t) => {
   let captureCount = 0;
   const prototype = createWalletGuardPrototypeServer({

@@ -205,6 +205,7 @@ function rpcCall(rpcUrl, id, method, params) {
     }, (response) => {
       const chunks = [];
       let length = 0;
+      response.on('error', reject);
       response.on('data', (chunk) => {
         length += chunk.length;
         if (length > MAX_BODY_BYTES) response.destroy(new Error('RPC response too large'));
@@ -213,7 +214,9 @@ function rpcCall(rpcUrl, id, method, params) {
       response.on('end', () => {
         try {
           if (response.statusCode !== 200) throw new Error('RPC status is not 200');
-          const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          const parsed = parseWalletGuardBoundedJsonData(
+            new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)),
+          );
           if (!parsed || parsed.jsonrpc !== '2.0' || parsed.id !== id
               || Object.hasOwn(parsed, 'error') || !Object.hasOwn(parsed, 'result')) {
             throw new Error('RPC response is invalid');
@@ -734,6 +737,12 @@ export function createWalletGuardPrototypeServer({
           latest_block_hash: input.latest_block_hash,
         }, 'wallet handshake chain view');
         const nodeChainView = await captureValidatedNodeChainView(input.account);
+        // Another handshake or a close may have completed during RPC capture.
+        // Commit a connection only while this session is still uninitialized.
+        if (state.connected || state.closed) {
+          send(res, 409, 'handshake is no longer admissible');
+          return;
+        }
         if (!sameChainView(walletChainView, nodeChainView)) {
           throw new TypeError('MetaMask and Node chain views do not match');
         }
@@ -774,7 +783,7 @@ export function createWalletGuardPrototypeServer({
         const pending = state.pending;
         const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
         const nodeView = await captureValidatedNodeChainView(state.account);
-        if (state.pending !== pending || state.closed) {
+        if (state.pending !== pending || state.closed || pending.viewBound) {
           send(res, 409, 'pending command expired during chain-view validation');
           return;
         }
@@ -808,7 +817,7 @@ export function createWalletGuardPrototypeServer({
         }
         const pending = state.pending;
         const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
-        if (state.pending !== pending || state.closed) {
+        if (state.pending !== pending || state.closed || pending.armed) {
           send(res, 409, 'pending command expired before arm');
           return;
         }
@@ -995,6 +1004,10 @@ export function createWalletGuardPrototypeServer({
               account: state.account,
             });
             const nodeBeforeDispatch = await captureValidatedNodeChainView(state.account);
+            if (state.closed) {
+              send(res, 409, 'prototype session closed during baseline capture');
+              return;
+            }
             if (state.connectionChainViewBaseline === null
                 || nodeBeforeDispatch.genesis_hash
                   !== state.connectionChainViewBaseline.node.genesis_hash) {

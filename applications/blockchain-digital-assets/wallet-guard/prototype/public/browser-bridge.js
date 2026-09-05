@@ -1,6 +1,8 @@
 const ANVIL_CHAIN_ID = '0x7a69';
 const POLL_MS = 250;
 const EIP6963_ANNOUNCE_WAIT_MS = 250;
+const ARM_ACK_TIMEOUT_MS = 250;
+const monotonicNow = performance.now.bind(performance);
 const POST_SEND_CONTEXT_TIMEOUT_MS = 250;
 const DISPATCH_ACK_TIMEOUT_MS = 250;
 const RESULT_DELIVERY_TIMEOUT_MS = 1_000;
@@ -338,8 +340,18 @@ async function processCommand(command) {
     return;
   }
 
+  const armStartedAt = monotonicNow();
   try {
-    await armWalletDispatch(command, beforeSend);
+    await settleWithin(
+      armWalletDispatch(command, beforeSend),
+      ARM_ACK_TIMEOUT_MS,
+      'Accusé d’armement',
+    );
+    // A suspended tab can resume after both the response and timeout are ready.
+    // Check elapsed time too, before the server's minimum 1,000 ms watchdog.
+    if (monotonicNow() - armStartedAt >= ARM_ACK_TIMEOUT_MS) {
+      throw new Error('Accusé d’armement trop ancien');
+    }
   } catch (error) {
     resultView.textContent = `Armement expiré avant envoi: ${error.message}`;
     sessionClosed = true;

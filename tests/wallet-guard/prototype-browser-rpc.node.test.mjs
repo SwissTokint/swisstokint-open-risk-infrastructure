@@ -216,6 +216,7 @@ function browserHarness({
   armResponse = null,
   dispatchedResponse = null,
   resultResponse = null,
+  monotonicTime = () => performance.now(),
 } = {}) {
   const elements = new Map([
     ['#connect', new FakeElement()],
@@ -291,6 +292,7 @@ function browserHarness({
     fetch,
     setTimeout: fastSetTimeout,
     clearTimeout,
+    performance: { now: monotonicTime },
     Event: FakeEvent,
     navigator,
     URL,
@@ -408,6 +410,31 @@ test('an expired arm after a stalled final resample performs zero sensitive send
   assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
   assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/dispatched'), false);
   assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/result'), false);
+});
+
+test('browser requires a timely successful arm acknowledgement', async () => {
+  const arm = Promise.withResolvers();
+  let elapsed = 0;
+  const provider = new DeterministicEip1193Provider();
+  const harness = browserHarness({
+    provider,
+    nextResponses: [response(200, command())],
+    armResponse: arm.promise,
+    monotonicTime: () => elapsed,
+  });
+  await harness.elements.get('#connect').click();
+  await waitFor(
+    () => harness.fetchCalls.some(({ path }) => path === '/bridge/arm'),
+    'arm awaiting acknowledgement',
+  );
+  elapsed = 1_001;
+  arm.resolve(response(204));
+  await waitFor(
+    () => /Armement expiré avant envoi/u.test(harness.elements.get('#result').textContent),
+    'stale arm acknowledgement rejected',
+  );
+  assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/dispatched'), false);
 });
 
 test('browser context events close the loopback bridge without another provider request', async () => {
