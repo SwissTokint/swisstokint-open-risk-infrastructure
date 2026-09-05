@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { parseDocument } from 'yaml';
 
 function read(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), 'utf8').replace(/\r\n/gu, '\n');
@@ -8,9 +9,39 @@ function read(relativePath) {
 
 const trustedWorkflow = read('../.github/workflows/trusted-pr-security.yml');
 const mergeCandidateWorkflow = read('../.github/workflows/ci.yml');
+const trustedWorkflowDocument = parseDocument(trustedWorkflow, {
+  prettyErrors: false,
+  schema: 'core',
+  strict: true,
+  uniqueKeys: true,
+});
+assert.equal(trustedWorkflowDocument.errors.length, 0);
+assert.equal(trustedWorkflowDocument.warnings.length, 0);
+const trustedWorkflowData = trustedWorkflowDocument.toJS({ maxAliasCount: 0 });
 const trustedTests = read('../.github/trusted-security-tests.txt')
   .trim()
   .split('\n');
+
+const tokenExposurePattern = /(?:github\s*(?:\.\s*token|\[\s*["']token["']\s*\])|tojson\s*\(\s*github\s*\))/iu;
+
+function collectTokenExposures(value, path = [], exposures = []) {
+  if (typeof value === 'string') {
+    if (tokenExposurePattern.test(value)) exposures.push(path.join('.'));
+    return exposures;
+  }
+  if (Array.isArray(value)) {
+    for (const [index, entry] of value.entries()) {
+      collectTokenExposures(entry, [...path, String(index)], exposures);
+    }
+    return exposures;
+  }
+  if (typeof value === 'object' && value !== null) {
+    for (const [key, entry] of Object.entries(value)) {
+      collectTokenExposures(entry, [...path, key], exposures);
+    }
+  }
+  return exposures;
+}
 
 test('trusted PR gate is base-owned, narrowly writable and exact-head bound', () => {
   assert.match(trustedWorkflow, /^on:\n  pull_request_target:\n/mu);
@@ -45,6 +76,30 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
     3,
     'the token must exist only in the pending, terminal and invalidation publisher steps',
   );
+  const approvedTokenSteps = new Set([
+    'Publish exact-head pending status',
+    'Publish exact-head terminal status',
+    'Invalidate open PR evidence from the previous main commit',
+  ]);
+  const approvedTokenStepCounts = new Map();
+  const allTokenExposures = collectTokenExposures(trustedWorkflowData);
+  assert.equal(allTokenExposures.length, 3, 'every GitHub token exposure must be allowlisted');
+  for (const [jobName, job] of Object.entries(trustedWorkflowData.jobs)) {
+    for (const step of job.steps) {
+      const exposures = collectTokenExposures(step);
+      if (approvedTokenSteps.has(step.name)) {
+        approvedTokenStepCounts.set(step.name, (approvedTokenStepCounts.get(step.name) ?? 0) + 1);
+        assert.equal(step.env?.GH_TOKEN, '${{ github.token }}');
+        assert.deepEqual(exposures, ['env.GH_TOKEN']);
+      } else {
+        assert.deepEqual(exposures, [], `${jobName}/${step.name} must not receive the token`);
+      }
+    }
+  }
+  assert.deepEqual(
+    Object.fromEntries(approvedTokenStepCounts),
+    Object.fromEntries([...approvedTokenSteps].map((name) => [name, 1])),
+  );
   assert.doesNotMatch(trustedWorkflow, /--env (?:GH_TOKEN|GITHUB_TOKEN)/u);
   assert.match(trustedWorkflow, /^\s+STATUS_STATE: pending$/mu);
   assert.match(
@@ -57,7 +112,7 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   );
 });
 
-test('a main advance invalidates every bounded open PR exact-head status', () => {
+test('a main advance invalidates every open PR exact-head status', () => {
   assert.match(trustedWorkflow, /^  invalidate-stale-exact-head:$/mu);
   assert.match(
     trustedWorkflow,
@@ -68,9 +123,23 @@ test('a main advance invalidates every bounded open PR exact-head status', () =>
   assert.match(trustedWorkflow, /-f state=open/u);
   assert.match(trustedWorkflow, /-f base=main/u);
   assert.match(trustedWorkflow, /--paginate/u);
-  assert.match(trustedWorkflow, /test "\$\{#open_heads\[@\]\}" -le 256/u);
+  assert.doesNotMatch(trustedWorkflow, /\$\{#open_heads\[@\]\}.*-le/u);
   assert.match(trustedWorkflow, /declare -A seen=\(\)/u);
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA="\$head_sha"/u);
+});
+
+test('token exposure detection is independent of the environment variable spelling', () => {
+  assert.deepEqual(collectTokenExposures({
+    env: {
+      ATTACKER_TOKEN: '${{ github.token }}',
+      BRACKET_TOKEN: "${{ github['token'] }}",
+      WHOLE_CONTEXT: '${{ toJSON(github) }}',
+    },
+  }), [
+    'env.ATTACKER_TOKEN',
+    'env.BRACKET_TOKEN',
+    'env.WHOLE_CONTEXT',
+  ]);
 });
 
 test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => {
@@ -81,6 +150,8 @@ test('candidate lifecycle hooks cannot mutate the evaluated source tree', () => 
   assert.match(trustedWorkflow, /test ! -e candidate\/\.npmrc/u);
   assert.match(trustedWorkflow, /test ! -L candidate\/\.npmrc/u);
   assert.match(trustedWorkflow, /test ! -L candidate\/npm-shrinkwrap\.json/u);
+  assert.match(trustedWorkflow, /test ! -L trusted-base\/npm-shrinkwrap\.json/u);
+  assert.match(trustedWorkflow, /cp -a trusted-base\/node_modules\/yaml/u);
   assert.match(trustedWorkflow, /linked or unresolved dependency is forbidden/u);
   assert.match(trustedWorkflow, /resolved\.origin !== 'https:\/\/registry\.npmjs\.org'/u);
   assert.match(trustedWorkflow, /\^sha512-\[A-Za-z0-9\+\/\]\{86\}==\$/u);

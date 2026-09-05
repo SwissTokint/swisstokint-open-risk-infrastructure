@@ -79,6 +79,37 @@ jobs:
           STATUS_STATE: pending
         run: node trusted-base/scripts/publish-trusted-pr-status.mjs
 
+      - name: Install base-owned workflow parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e trusted-base/.npmrc
+          test ! -L trusted-base/.npmrc
+          test ! -e trusted-base/npm-shrinkwrap.json
+          test ! -L trusted-base/npm-shrinkwrap.json
+          docker run --rm \
+            --platform linux/amd64 \
+            --network bridge \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 256 \
+            --memory 1g \
+            --cpus 2 \
+            --user "$(id -u):$(id -g)" \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777 \
+            --env HOME=/tmp \
+            --env npm_config_globalconfig=/dev/null \
+            --env npm_config_ignore_scripts=true \
+            --env npm_config_registry=https://registry.npmjs.org/ \
+            --env npm_config_userconfig=/dev/null \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/trusted-base,dst=/workspace" \
+            --workdir /workspace \
+            "$NODE_IMAGE" \
+            npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          test -d trusted-base/node_modules/yaml
+          test ! -L trusted-base/node_modules/yaml
+
       - name: Validate candidate dependency provenance
         shell: bash
         run: |
@@ -178,6 +209,8 @@ jobs:
 
           rm -rf "$evaluation_root/node_modules" "$evaluation_root/scripts" "$evaluation_root/tests"
           cp -a candidate/node_modules "$evaluation_root/node_modules"
+          rm -rf "$evaluation_root/node_modules/yaml"
+          cp -a trusted-base/node_modules/yaml "$evaluation_root/node_modules/yaml"
           mkdir "$evaluation_root/scripts" "$evaluation_root/tests"
           cp -a trusted-base/tests/. "$evaluation_root/tests/"
           install -m 0555 \
@@ -323,7 +356,6 @@ jobs:
               --jq '.[].head.sha'
           )"
           mapfile -t open_heads <<< "$open_heads_output"
-          test "${#open_heads[@]}" -le 256
 
           declare -A seen=()
           for head_sha in "${open_heads[@]}"; do

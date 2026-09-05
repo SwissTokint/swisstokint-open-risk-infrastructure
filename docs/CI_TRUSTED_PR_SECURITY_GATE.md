@@ -21,7 +21,7 @@ The publisher also verifies that the PR base SHA is still the current `main`
 commit immediately before it writes that status.
 
 Every push to `main` changes the trust base. The base-owned workflow therefore
-lists the bounded set of open PRs targeting `main` and replaces each prior
+lists all open PRs targeting `main` and replaces each prior
 exact-head result with `pending`. A PR must then be updated, reopened, marked
 ready, or have its base edited so the trusted evaluation runs again against the
 new base. An already-running evaluation whose base has become stale fails the
@@ -41,7 +41,10 @@ early `process.exit(0)` cannot turn missing assertions into a successful gate.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from
-the public npm registry before installation.
+the public npm registry before installation. Workflow files are parsed as YAML,
+not approximated with line matching; the parser is exact-versioned in the
+trusted base lockfile, installed separately, and overlaid onto the evaluation
+tree so a candidate cannot substitute its implementation.
 
 ## Bootstrap and ruleset activation
 

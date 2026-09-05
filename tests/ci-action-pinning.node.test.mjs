@@ -1,39 +1,99 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { isMap, isScalar, isSeq, parseDocument } from 'yaml';
 
 const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
-const workflowSources = readdirSync(workflowDirectory)
-  .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
-  .sort()
-  .map((name) => ({
-    name,
-    contents: readFileSync(new URL(name, workflowDirectory), 'utf8').replace(/\r\n/gu, '\n'),
-  }));
-const workflows = workflowSources
-  .map(({ contents }) => contents)
-  .join('\n');
+const yamlPackage = JSON.parse(
+  readFileSync(new URL('../node_modules/yaml/package.json', import.meta.url), 'utf8'),
+);
 
-function extractActionRefs(contents) {
-  return [...contents.matchAll(
-    /^\s*(?:-\s*)?uses:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))(?:\s+#\s*(.+))?\s*$/gmu,
-  )].map(([, doubleQuoted, singleQuoted, bare, annotation]) => ({
-    reference: doubleQuoted ?? singleQuoted ?? bare,
-    annotation,
-  }));
+function annotationAt(contents, offset) {
+  const lineStart = contents.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
+  const nextNewline = contents.indexOf('\n', offset);
+  const lineEnd = nextNewline === -1 ? contents.length : nextNewline;
+  return contents.slice(lineStart, lineEnd).match(/#\s*(.*?)\s*$/u)?.[1];
 }
 
-const actionRefs = extractActionRefs(workflows);
+function collectActionRefs(node, contents, sourceName, refs) {
+  if (isSeq(node)) {
+    for (const item of node.items) collectActionRefs(item, contents, sourceName, refs);
+    return;
+  }
+  if (!isMap(node)) return;
+
+  for (const pair of node.items) {
+    if (isScalar(pair.key) && pair.key.value === 'uses') {
+      if (!isScalar(pair.value) || typeof pair.value.value !== 'string') {
+        throw new Error('workflow uses values must be literal strings');
+      }
+      const namePair = node.items.find(
+        (item) => isScalar(item.key) && item.key.value === 'name',
+      );
+      refs.push({
+        sourceName,
+        stepName: isScalar(namePair?.value) ? namePair.value.value : undefined,
+        reference: pair.value.value,
+        annotation: annotationAt(contents, pair.value.range[0]),
+      });
+    }
+    collectActionRefs(pair.value, contents, sourceName, refs);
+  }
+}
+
+function parseWorkflowSource(name, rawContents) {
+  const contents = rawContents.replace(/\r\n/gu, '\n');
+  if (Buffer.byteLength(contents, 'utf8') > 256 * 1024) {
+    throw new Error(`workflow is too large to inspect safely: ${name}`);
+  }
+
+  const document = parseDocument(contents, {
+    prettyErrors: false,
+    schema: 'core',
+    strict: true,
+    uniqueKeys: true,
+  });
+  if (document.errors.length !== 0 || document.warnings.length !== 0) {
+    throw new Error(`workflow YAML is not canonical: ${name}`);
+  }
+
+  const data = document.toJS({ maxAliasCount: 0 });
+  if (
+    typeof data !== 'object'
+    || data === null
+    || Array.isArray(data)
+    || Object.getPrototypeOf(data) !== Object.prototype
+  ) {
+    throw new Error(`workflow must be a plain YAML mapping: ${name}`);
+  }
+
+  const actionRefs = [];
+  collectActionRefs(document.contents, contents, name, actionRefs);
+  return Object.freeze({ name, contents, data, actionRefs: Object.freeze(actionRefs) });
+}
+
+const workflowNames = readdirSync(workflowDirectory)
+  .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
+  .sort();
+assert.ok(workflowNames.length > 0 && workflowNames.length <= 64);
+
+const workflowSources = workflowNames.map((name) => {
+  const workflowUrl = new URL(name, workflowDirectory);
+  const stats = lstatSync(workflowUrl);
+  assert.equal(stats.isSymbolicLink(), false, `${name} must not be a symbolic link`);
+  assert.equal(stats.isFile(), true, `${name} must be a regular file`);
+  return parseWorkflowSource(name, readFileSync(workflowUrl, 'utf8'));
+});
+const actionRefs = workflowSources.flatMap(({ actionRefs: refs }) => refs);
 
 const requiredPins = new Map([
   ['actions/checkout', '3d3c42e5aac5ba805825da76410c181273ba90b1'],
   ['actions/setup-node', '820762786026740c76f36085b0efc47a31fe5020'],
   ['actions/setup-python', '5fda3b95a4ea91299a34e894583c3862153e4b97'],
 ]);
-const statusWritePermission = /(?:^|[\s,{])["']?statuses["']?\s*:\s*["']?write["']?(?=\s*(?:$|[,}#]))/imu;
-const writeAllPermission = /(?:^|[\s,{])["']?permissions["']?\s*:\s*["']?write-all["']?(?=\s*(?:$|[,}#]))/imu;
 
-test('CI workflows reference every external action by a full immutable commit SHA', () => {
+test('CI workflows parse as YAML and pin every action occurrence to a full SHA', () => {
+  assert.equal(yamlPackage.version, '2.9.0', 'trusted YAML parser version drifted');
   assert.ok(actionRefs.length > 0, 'expected at least one external action');
 
   for (const { reference } of actionRefs) {
@@ -45,7 +105,7 @@ test('CI workflows reference every external action by a full immutable commit SH
   }
 });
 
-test('CI pins the reviewed v7 action revisions and preserves release annotations', () => {
+test('CI pins every reviewed v7 action occurrence and preserves its annotation', () => {
   for (const [action, expectedSha] of requiredPins) {
     const occurrences = actionRefs.filter(({ reference }) => {
       const [referencedAction] = reference.split('@');
@@ -63,81 +123,91 @@ test('CI pins the reviewed v7 action revisions and preserves release annotations
   }
 });
 
-test('action extraction covers YAML quoting and case-insensitive GitHub identities', () => {
+test('YAML parsing covers whitespace-before-colon and quoted action syntax', () => {
   const sha = '0'.repeat(40);
-  assert.deepEqual(extractActionRefs(`steps:\n  - uses: "Actions/Checkout@${sha}" # v7\n`), [{
+  const parsed = parseWorkflowSource('synthetic.yml', `
+permissions:
+  contents: read
+jobs:
+  test:
+    steps:
+      - uses : "Actions/Checkout@${sha}" # v7
+`);
+  assert.deepEqual(parsed.actionRefs, [{
+    sourceName: 'synthetic.yml',
+    stepName: undefined,
     reference: `Actions/Checkout@${sha}`,
     annotation: 'v7',
   }]);
-  assert.equal('Actions/Checkout'.toLowerCase(), 'actions/checkout');
 });
 
-test('only base-owned controller workflows may request commit-status writes', () => {
-  const allowedStatusWriters = new Set([
-    'exact-main-ci-status.yml',
-    'trusted-pr-security.yml',
+test('the privileged trusted controller uses only its reviewed action steps', () => {
+  const trustedActions = actionRefs
+    .filter(({ sourceName }) => sourceName === 'trusted-pr-security.yml')
+    .map(({ stepName, reference }) => ({ stepName, reference }))
+    .sort((left, right) => left.stepName.localeCompare(right.stepName));
+  assert.deepEqual(trustedActions, [
+    {
+      stepName: 'Check out exact candidate head',
+      reference: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+    },
+    {
+      stepName: 'Check out exact trusted main controller',
+      reference: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+    },
+    {
+      stepName: 'Check out trusted base controller',
+      reference: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+    },
+    {
+      stepName: 'Install exact trusted Node runtime',
+      reference: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+    },
+    {
+      stepName: 'Install exact trusted Node runtime',
+      reference: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+    },
   ]);
+});
+
+test('every workflow permission mapping matches the reviewed semantic allowlist', () => {
   const expectedPermissions = new Map([
-    ['exact-main-ci-status.yml', 'permissions:\n  actions: read\n  statuses: write'],
+    ['exact-main-ci-status.yml', { actions: 'read', statuses: 'write' }],
     [
       'trusted-pr-security.yml',
-      'permissions:\n  contents: read\n  pull-requests: read\n  statuses: write',
+      { contents: 'read', 'pull-requests': 'read', statuses: 'write' },
     ],
   ]);
 
-  for (const { name, contents } of workflowSources) {
-    assert.doesNotMatch(contents, writeAllPermission, `${name} must not request write-all`);
-    assert.doesNotMatch(contents, /^[ \t]+["']permissions["'][ \t]*:/mu);
-    assert.equal(
-      [...contents.matchAll(/^permissions:$/gmu)].length,
-      1,
-      `${name} must contain one explicit top-level permissions block`,
-    );
-    assert.equal(
-      [...contents.matchAll(/^[ \t]+permissions:$/gmu)].length,
-      0,
-      `${name} must not override permissions at job scope`,
-    );
-    const permissionBlock = contents.match(
-      /^permissions:\n((?:  [a-z-]+: (?:read|write|none)\n?)+)/mu,
-    );
-    assert.ok(permissionBlock, `${name} permissions must use the bounded block form`);
-    assert.equal(
-      `permissions:\n${permissionBlock[1]}`.trimEnd(),
-      expectedPermissions.get(name) ?? 'permissions:\n  contents: read',
+  for (const { name, data } of workflowSources) {
+    assert.deepEqual(
+      data.permissions,
+      expectedPermissions.get(name) ?? { contents: 'read' },
       `${name} permissions escaped the reviewed allowlist`,
     );
-    if (statusWritePermission.test(contents)) {
+    assert.equal(typeof data.jobs, 'object', `${name} must define jobs`);
+    for (const [jobName, job] of Object.entries(data.jobs)) {
       assert.equal(
-        allowedStatusWriters.has(name),
-        true,
-        `${name} must not share the trusted commit-status identity`,
+        Object.hasOwn(job, 'permissions'),
+        false,
+        `${name} job ${jobName} must not override permissions`,
       );
     }
   }
 
   const exactMain = workflowSources.find(({ name }) => name === 'exact-main-ci-status.yml');
   assert.ok(exactMain, 'exact-main status controller must exist');
-  assert.match(exactMain.contents, /^  workflow_run:$/mu);
-  assert.match(exactMain.contents, /workflows: \["CI"\]/u);
+  assert.deepEqual(exactMain.data.on, {
+    workflow_run: {
+      workflows: ['CI'],
+      types: ['in_progress', 'completed'],
+    },
+  });
   assert.match(exactMain.contents, /github\.event\.workflow_run\.event == 'push'/u);
   assert.match(exactMain.contents, /github\.event\.workflow_run\.head_branch == 'main'/u);
   assert.match(
     exactMain.contents,
     /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/u,
   );
-  assert.doesNotMatch(exactMain.contents, /^  pull_request(?:_target)?:/mu);
   assert.doesNotMatch(exactMain.contents, /pom-rx\/trusted-exact-head/u);
-});
-
-test('status-write permission detection covers block, quoted and flow YAML forms', () => {
-  for (const contents of [
-    'permissions:\n  statuses: write\n',
-    "permissions:\n  'statuses': 'write'\n",
-    'permissions: { contents: read, "statuses": "write" }\n',
-  ]) {
-    assert.match(contents, statusWritePermission);
-  }
-  assert.match('permissions: "write-all"\n', writeAllPermission);
-  assert.doesNotMatch('permissions:\n  statuses: read\n', statusWritePermission);
 });
