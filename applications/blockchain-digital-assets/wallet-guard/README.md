@@ -110,14 +110,138 @@ closed. Any ambiguous terminal failure destroys the session, so callers must
 explicitly create a new transport rather than retry within a possibly live
 wallet prompt.
 
-This callback foundation does not yet authenticate an HTTP Host, browser
+By itself, this callback foundation does not authenticate an HTTP Host, browser
 origin, page/extension, IPC peer or byte-frame boundary. It does not own a
-timeout or cancellation mechanism, cannot prove that a displayed wallet prompt
-was cancelled, and does not expose an EIP-1193 provider outside controlled
-tests. The future host must bind its loopback listener and page origin, perform
-fresh wallet chain/account sampling before the only `window.ethereum.request`
-call, close the session on wallet context events, and treat a timeout or crash
-after dispatch as an ambiguous incident rather than retrying.
+timeout or cancellation mechanism and cannot prove that a displayed wallet
+prompt was cancelled. The loopback prototype below supplies one narrow host
+composition around that contract; those host controls do not become guarantees
+of the callback foundation or arbitrary browser integrations.
+
+## Local MetaMask + Anvil reference prototype
+
+The stacked `prototype/` lot supplies that loopback host for a local burner
+exercise. It binds only `127.0.0.1`, validates the exact Host and POST Origin,
+uses a one-time 256-bit bootstrap URL to establish an HttpOnly SameSite cookie,
+uses a fresh ephemeral HTTP port by default, clears prior origin cache/storage,
+serves a CSP-constrained page with isolation/referrer headers, and accepts one
+exact-content-type bounded Content-Length JSON body per POST. The browser
+refuses a service worker, application cache/storage or opener. The browser
+adapter never reads `window.ethereum`. It requests EIP-6963 announcements,
+selects exactly one provider whose `rdns` is `io.metamask`, and rejects a
+missing, malformed, duplicate or ambiguous MetaMask announcement. The selected
+provider remains browser-only; Node receives bounded JSON observations, never
+the provider object, a provider Promise or a wallet key.
+
+The initial handshake binds the selected account and chain id together with
+the MetaMask-visible genesis hash and latest block number/hash to the same view
+captured through the Node RPC observer. Before an allowed command is
+dispatched, Node stores a block/nonce observation baseline. Immediately before
+the only sensitive EIP-1193 send, the browser samples chain, account, genesis
+and latest block twice, submits the bound view to `/bridge/view`, and waits for
+Node to recapture and exactly match the same view. Drift fails closed before
+the send. The final arm acknowledgement must arrive within 250 ms, measured
+with a monotonic clock, before the server's minimum 1,000 ms armed watchdog.
+A late acknowledgement closes the browser session without a sensitive call.
+Server transitions recheck their session and phase after asynchronous reads.
+Account/chain are sampled again after the wallet prompt. A hash
+returned with late context drift is retained as ambiguous evidence and sent to
+the observer instead of being discarded.
+
+Prerequisites: Node.js 24, MetaMask with EIP-6963 support, and Foundry's `anvil`
+plus `cast` on PATH. Use a newly created MetaMask burner account in a dedicated
+clean browser profile with no other wallet extension, service worker or prior
+storage for the prototype origin. Never enter a seed phrase into this project,
+never import an Anvil development key, and never use mainnet or meaningful
+funds. POM-RX Core does not receive or custody the burner key.
+
+1. Run the complete automated prototype suites:
+
+   ```sh
+   npm run test:pom-rx:wallet-guard-prototype
+   ```
+
+   This runs the HTTP/session/ambiguity suite and the executable browser
+   EIP-1193 plus fake-JSON-RPC observer suite.
+
+2. Start a fresh disposable chain and verify its chain id:
+
+   ```sh
+   anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent
+   ```
+
+   Leave that foreground process running. In another terminal:
+
+   ```sh
+   cast chain-id --rpc-url http://127.0.0.1:8545
+   ```
+
+   The expected output is `31337`. Do not reuse this Anvil process for another
+   prototype session.
+
+3. Copy only the public address of the dedicated MetaMask burner. Fund that
+   public address with a small, valueless Anvil balance and verify it:
+
+   ```sh
+   POMRX_BURNER=0xPUBLIC_BURNER_ADDRESS
+   cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance "$POMRX_BURNER" 0x2386f26fc10000
+   cast balance --rpc-url http://127.0.0.1:8545 "$POMRX_BURNER"
+   ```
+
+   `0x2386f26fc10000` is `0.01` Anvil ETH and is used only for local gas. No
+   private key or seed is supplied to `cast`, Node or this repository.
+
+4. In a separate terminal, start the clean-process Wallet Guard host:
+
+   ```sh
+   npm run prototype:wallet-guard:anvil
+   ```
+
+   Use the default RPC unless the full browser and observer configuration is
+   intentionally reviewed together. The host binds to a fresh ephemeral port
+   and prints a bootstrap URL containing a one-time secret.
+
+5. In the dedicated profile, open the printed URL exactly once and click
+   **Connecter MetaMask à Anvil**. The page requests one unambiguous MetaMask
+   provider through EIP-6963, then explicitly adds/switches to chain `0x7a69`
+   (31337) at `http://127.0.0.1:8545/`. Expected status includes
+   `chain_view_bound=true`, the burner address and the selected provider
+   metadata. A stale network entry pointing at another RPC is rejected when
+   the MetaMask and Node chain views do not match.
+6. Run **DENY approval illimité** first. Expected: `decision=DENY`,
+   `forwarded=false`, sensitive-call count zero, and no MetaMask transaction
+   confirmation.
+7. Run **self-transfer 0 ETH** once. In MetaMask, confirm only an exact
+   burner-to-itself transaction with value zero and empty data. Expected:
+   `decision=ALLOW`, `forwarded=true`, one lowercase transaction hash and
+   `observation.status=MATCH_REFERENCE`. The Node observer verifies chain,
+   receipt success, transaction hash, from/to, zero value, empty input,
+   block linkage and the expected pre-dispatch nonce.
+8. Record the displayed result for review, stop the Node host, stop the
+   disposable Anvil process, and discard the dedicated burner profile/wallet.
+   The one-sensitive-call capacity is exhausted; starting a new host is a new
+   session, never authority to retry an earlier or still-visible prompt.
+
+A timeout, browser context event, malformed response, RPC observer failure or
+process shutdown after delivery to MetaMask closes the session as
+`AMBIGUOUS`; retry remains forbidden. A transaction hash returned later is
+retained and reconciled against the same pre-dispatch Anvil block/nonce
+baseline, but does not turn the operation into a normal success. Do not approve
+a prompt after the page reports closure. Stop Anvil and discard the burner
+after reconciliation. Restarting the Node host creates a new session, but it is
+not a retry authorization for an earlier prompt.
+
+This prototype still uses the provider's synthetic reference authorization
+supplier and a direct Anvil transaction/receipt check. The EIP-6963 `rdns`
+value is provider-supplied metadata, not cryptographic authentication of the
+extension; the dedicated clean profile remains part of the operational trust
+boundary. Matching sampled chain views detects endpoint/state divergence but
+does not prove browser or extension integrity. The Node observer uses the same
+configured loopback RPC and is not an independent observer. The prototype does
+not yet emit the private Gate authorization binding, Core execution evidence,
+production finality evidence or independent reconciliation.
+`MATCH_REFERENCE` is therefore an operational local observation, not a
+production or cryptographic authorization claim. Sepolia remains a separate
+human-gated lot after this exact Anvil flow and its review evidence pass.
 
 This is **not** yet the complete Wallet Guard security claim. In particular:
 
