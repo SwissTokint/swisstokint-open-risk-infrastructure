@@ -1,0 +1,539 @@
+name: Trusted PR security
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited, closed]
+  push:
+    branches: [main]
+
+# This workflow is loaded from the target branch. Its only write permission is
+# the exact-head commit status published by trusted host-side steps. The token
+# must never be exposed to candidate-controlled code.
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  trusted-exact-head:
+    if: github.event_name == 'pull_request_target' && github.event.action != 'closed' && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: trusted-exact-head-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      EXPECTED_BASE_REPOSITORY: ${{ github.repository }}
+      EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      EXPECTED_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      NODE_IMAGE: node:22.23.2-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+      npm_config_globalconfig: /dev/null
+      npm_config_ignore_scripts: "true"
+      npm_config_registry: https://registry.npmjs.org/
+      npm_config_userconfig: /dev/null
+    steps:
+      - name: Check out trusted base controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trusted-base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check out exact candidate head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install exact trusted Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.2
+
+      - name: Prove base and candidate identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository_pattern='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+          sha_pattern='^[0-9a-f]{40}$'
+
+          [[ "$EXPECTED_BASE_REPOSITORY" =~ $repository_pattern ]]
+          [[ "$EXPECTED_HEAD_REPOSITORY" =~ $repository_pattern ]]
+          [[ "$EXPECTED_BASE_SHA" =~ $sha_pattern ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ $sha_pattern ]]
+          test "$(git -C trusted-base rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git -C trusted-base status --porcelain --untracked-files=no)"
+          test -z "$(git -C candidate status --porcelain --untracked-files=no)"
+
+      - name: Reject in-band trusted control-plane changes
+        env:
+          TRUSTED_BASE_ROOT: ${{ github.workspace }}/trusted-base
+          CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+        run: node trusted-base/scripts/verify-trusted-control-plane.mjs
+
+      - name: Publish exact-head pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: pending
+        run: node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+      - name: Install base-owned workflow parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e trusted-base/.npmrc
+          test ! -L trusted-base/.npmrc
+          test ! -e trusted-base/npm-shrinkwrap.json
+          test ! -L trusted-base/npm-shrinkwrap.json
+          docker run --rm \
+            --platform linux/amd64 \
+            --network bridge \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 256 \
+            --memory 1g \
+            --cpus 2 \
+            --user "$(id -u):$(id -g)" \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777 \
+            --env HOME=/tmp \
+            --env npm_config_globalconfig=/dev/null \
+            --env npm_config_ignore_scripts=true \
+            --env npm_config_registry=https://registry.npmjs.org/ \
+            --env npm_config_userconfig=/dev/null \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/trusted-base,dst=/workspace" \
+            --workdir /workspace \
+            "$NODE_IMAGE" \
+            npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          test -d trusted-base/node_modules/yaml
+          test ! -L trusted-base/node_modules/yaml
+
+      - name: Validate candidate dependency provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { lstatSync, readFileSync } from 'node:fs';
+
+          const packagePath = 'candidate/package.json';
+          const lockPath = 'candidate/package-lock.json';
+          const packageStats = lstatSync(packagePath);
+          const stats = lstatSync(lockPath);
+          if (!packageStats.isFile() || packageStats.isSymbolicLink() || packageStats.size > 128 * 1024) {
+            throw new Error('candidate package.json must be a bounded regular file');
+          }
+          if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 1024 * 1024) {
+            throw new Error('candidate package-lock.json must be a bounded regular file');
+          }
+
+          const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+          if (lock.lockfileVersion !== 3 || !lock.packages || typeof lock.packages !== 'object') {
+            throw new Error('candidate package-lock.json must use lockfileVersion 3');
+          }
+
+          for (const [packagePath, descriptor] of Object.entries(lock.packages)) {
+            if (!descriptor || typeof descriptor !== 'object' || Array.isArray(descriptor)) {
+              throw new Error(`invalid lockfile package descriptor: ${packagePath}`);
+            }
+            if (packagePath === '') continue;
+            if (descriptor.link === true || descriptor.resolved === undefined) {
+              throw new Error(`linked or unresolved dependency is forbidden: ${packagePath}`);
+            }
+            if (typeof descriptor.resolved !== 'string') {
+              throw new Error(`invalid resolved URL: ${packagePath}`);
+            }
+            const resolved = new URL(descriptor.resolved);
+            if (
+              resolved.origin !== 'https://registry.npmjs.org'
+              || resolved.username !== ''
+              || resolved.password !== ''
+            ) {
+              throw new Error(`untrusted dependency origin: ${packagePath}`);
+            }
+            if (typeof descriptor.integrity !== 'string' || !/^sha512-[A-Za-z0-9+/]{86}==$/u.test(descriptor.integrity)) {
+              throw new Error(`missing sha512 integrity: ${packagePath}`);
+            }
+          }
+          NODE
+
+      - name: Install candidate dependencies in a credential-free sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e candidate/.npmrc
+          test ! -L candidate/.npmrc
+          test ! -e candidate/npm-shrinkwrap.json
+          test ! -L candidate/npm-shrinkwrap.json
+          docker run --rm \
+            --platform linux/amd64 \
+            --network bridge \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 256 \
+            --memory 1g \
+            --cpus 2 \
+            --user "$(id -u):$(id -g)" \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m,mode=1777 \
+            --env HOME=/tmp \
+            --env npm_config_globalconfig=/dev/null \
+            --env npm_config_ignore_scripts=true \
+            --env npm_config_registry=https://registry.npmjs.org/ \
+            --env npm_config_userconfig=/dev/null \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/candidate,dst=/workspace" \
+            --workdir /workspace \
+            "$NODE_IMAGE" \
+            npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          test -d candidate/node_modules
+          test ! -L candidate/node_modules
+
+      - name: Reject install-time tracked-tree drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C candidate diff --exit-code -- .
+          git -C candidate diff --cached --exit-code -- .
+          test -z "$(git -C candidate status --porcelain --untracked-files=no)"
+
+      - name: Assemble exact immutable evaluation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          evaluation_root="$GITHUB_WORKSPACE/evaluation"
+          mkdir "$evaluation_root"
+          git -C candidate ls-files -z | \
+            tar --directory=candidate --null --no-recursion --files-from=- --create --file=- | \
+            tar --extract --file=- --directory="$evaluation_root"
+
+          rm -rf "$evaluation_root/node_modules" "$evaluation_root/tests"
+          cp -a candidate/node_modules "$evaluation_root/node_modules"
+          rm -rf "$evaluation_root/node_modules/yaml"
+          cp -a trusted-base/node_modules/yaml "$evaluation_root/node_modules/yaml"
+          test -d "$evaluation_root/scripts"
+          test ! -L "$evaluation_root/scripts"
+          mkdir "$evaluation_root/tests"
+          cp -a trusted-base/tests/. "$evaluation_root/tests/"
+          install -m 0555 \
+            trusted-base/scripts/assert-pom-rx-integrity-baseline-red.mjs \
+            "$evaluation_root/scripts/assert-pom-rx-integrity-baseline-red.mjs"
+          install -m 0555 \
+            trusted-base/scripts/publish-trusted-pr-status.mjs \
+            "$evaluation_root/scripts/publish-trusted-pr-status.mjs"
+          install -m 0555 \
+            trusted-base/scripts/trusted-test-reporter.mjs \
+            "$evaluation_root/scripts/trusted-test-reporter.mjs"
+          install -m 0555 \
+            trusted-base/scripts/trusted-expected-red-reporter.mjs \
+            "$evaluation_root/scripts/trusted-expected-red-reporter.mjs"
+          install -m 0444 \
+            trusted-base/scripts/trusted-test-loader.mjs \
+            "$evaluation_root/scripts/trusted-test-loader.mjs"
+          install -m 0444 \
+            trusted-base/scripts/trusted-test-loader-register.mjs \
+            "$evaluation_root/scripts/trusted-test-loader-register.mjs"
+          install -m 0444 \
+            trusted-base/scripts/trusted-assert-preload.mjs \
+            "$evaluation_root/scripts/trusted-assert-preload.mjs"
+          install -m 0444 \
+            trusted-base/.github/trusted-security-tests.txt \
+            "$evaluation_root/scripts/trusted-security-tests.txt"
+          install -m 0444 \
+            trusted-base/.github/trusted-mutation-security-tests.txt \
+            "$evaluation_root/scripts/trusted-mutation-security-tests.txt"
+          install -m 0444 \
+            trusted-base/.github/trusted-child-tests.txt \
+            "$evaluation_root/scripts/trusted-child-tests.txt"
+          install -m 0444 \
+            trusted-base/.github/trusted-expected-red-test.txt \
+            "$evaluation_root/scripts/trusted-expected-red-test.txt"
+
+          for manifest_path in \
+            trusted-base/.github/trusted-security-tests.txt \
+            trusted-base/.github/trusted-mutation-security-tests.txt \
+            trusted-base/.github/trusted-child-tests.txt \
+            trusted-base/.github/trusted-expected-red-test.txt; do
+            while IFS= read -r test_path; do
+              test -n "$test_path"
+              [[ "$test_path" =~ ^tests/[A-Za-z0-9._/-]+\.test\.mjs$ ]]
+              test -f "trusted-base/$test_path"
+              test ! -L "trusted-base/$test_path"
+              test -f "$evaluation_root/$test_path"
+            done < "$manifest_path"
+          done
+
+      - name: Prove candidate sandbox is read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker run --rm \
+            --platform linux/amd64 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --user 65532:65532 \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m,mode=1777 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+            --workdir /workspace \
+            "$NODE_IMAGE" \
+            node -e "require('node:fs').writeFileSync('/workspace/.candidate-write-probe', 'unsafe')"; then
+            echo "Candidate sandbox unexpectedly allowed source mutation." >&2
+            exit 1
+          fi
+          test ! -e "$GITHUB_WORKSPACE/evaluation/.candidate-write-probe"
+
+      - name: Run base-owned security regressions on exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r trusted_test; do
+            test -n "$trusted_test"
+            docker run --rm \
+              --platform linux/amd64 \
+              --network none \
+              --read-only \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --pids-limit 256 \
+              --memory 1g \
+              --cpus 2 \
+              --user 65532:65532 \
+              --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
+              --env HOME=/tmp \
+              --env TMPDIR=/tmp \
+              --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              --env TRUSTED_MINIMAL_NODE_CONTAINER=1 \
+              --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-security-tests.txt \
+              --env TRUSTED_TEST_PATH="$trusted_test" \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+              --workdir /workspace \
+              "$NODE_IMAGE" \
+              node \
+                --frozen-intrinsics \
+                --permission \
+                --allow-fs-read=/workspace \
+                --allow-fs-read=/tmp \
+                --allow-fs-write=/tmp \
+                --allow-child-process \
+                --no-addons \
+                --import=./scripts/trusted-test-loader-register.mjs \
+                --import=./scripts/trusted-assert-preload.mjs \
+                --test \
+                --experimental-test-isolation=none \
+                --test-reporter=./scripts/trusted-test-reporter.mjs \
+                "$trusted_test"
+          done < trusted-base/.github/trusted-security-tests.txt
+
+      - name: Run authenticated intrinsic-mutation regressions on exact candidate head
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r trusted_test; do
+            test -n "$trusted_test"
+            docker run --rm \
+              --platform linux/amd64 \
+              --network none \
+              --read-only \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --pids-limit 256 \
+              --memory 1g \
+              --cpus 2 \
+              --user 65532:65532 \
+              --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
+              --env HOME=/tmp \
+              --env TMPDIR=/tmp \
+              --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-mutation-security-tests.txt \
+              --env TRUSTED_TEST_PATH="$trusted_test" \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+              --workdir /workspace \
+              "$NODE_IMAGE" \
+              node \
+                --permission \
+                --allow-fs-read=/workspace \
+                --allow-fs-read=/tmp \
+                --allow-fs-write=/tmp \
+                --allow-child-process \
+                --no-addons \
+                --import=./scripts/trusted-test-loader-register.mjs \
+                --import=./scripts/trusted-assert-preload.mjs \
+                --test \
+                --experimental-test-isolation=none \
+                --test-reporter=./scripts/trusted-test-reporter.mjs \
+                "$trusted_test"
+          done < trusted-base/.github/trusted-mutation-security-tests.txt
+
+      - name: Preserve strict legacy expected-red evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --platform linux/amd64 \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 64 \
+            --memory 512m \
+            --cpus 1 \
+            --user 65532:65532 \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777 \
+            --env HOME=/tmp \
+            --env TMPDIR=/tmp \
+            --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-expected-red-test.txt \
+            --env TRUSTED_TEST_PATH=tests/pom-rx-integrity-baseline.node.test.mjs \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+            --workdir /workspace \
+            "$NODE_IMAGE" \
+            node \
+              --frozen-intrinsics \
+              --permission \
+              --allow-fs-read=/workspace \
+              --allow-fs-read=/tmp \
+              --allow-fs-write=/tmp \
+              --no-addons \
+              --import=./scripts/trusted-test-loader-register.mjs \
+              --import=./scripts/trusted-assert-preload.mjs \
+              --test \
+              --experimental-test-isolation=none \
+              --test-reporter=./scripts/trusted-expected-red-reporter.mjs \
+              tests/pom-rx-integrity-baseline.node.test.mjs
+
+      - name: Publish exact-head terminal status
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: node trusted-base/scripts/publish-trusted-pr-status.mjs
+
+  cancel-departed-exact-head-evaluation:
+    if: >-
+      ${{ github.event_name == 'pull_request_target' &&
+          (github.event.action == 'closed' ||
+           (github.event.action == 'edited' && github.event.changes.base.ref.from == 'main')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    concurrency:
+      group: trusted-exact-head-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Supersede departed exact-head evaluation
+        run: 'true'
+
+  invalidate-departing-exact-head:
+    if: >-
+      ${{ github.event_name == 'pull_request_target' &&
+          (github.event.action == 'synchronize' ||
+           github.event.action == 'closed' ||
+           (github.event.action == 'edited' && github.event.changes.base.ref.from == 'main')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      INVALIDATED_HEAD_SHA: ${{ github.event.action == 'synchronize' && github.event.before || github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out trusted departing-head invalidator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ github.repository }}
+          ref: refs/heads/main
+          path: trusted-base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install exact trusted Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.2
+
+      - name: Invalidate departing exact-head evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node trusted-base/scripts/invalidate-trusted-pr-head-status.mjs
+
+  invalidate-stale-exact-head:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_BASE_SHA: ${{ github.sha }}
+    steps:
+      - name: Check out exact trusted main controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install exact trusted Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 22.23.2
+
+      - name: Invalidate open PR evidence from the previous main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_STATE: pending
+        run: |
+          set -euo pipefail
+          sha_pattern='^[0-9a-f]{40}$'
+          [[ "$EXPECTED_BASE_SHA" =~ $sha_pattern ]]
+          test "$(git -C trusted-base rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          test -z "$(git -C trusted-base status --porcelain --untracked-files=no)"
+
+          open_heads_output="$(
+            gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open \
+              -f base=main \
+              -f per_page=100 \
+              --paginate \
+              --jq '.[].head.sha'
+          )"
+          mapfile -t open_heads <<< "$open_heads_output"
+
+          declare -A seen=()
+          failure_count=0
+          for head_sha in "${open_heads[@]}"; do
+            test -z "$head_sha" && continue
+            if [[ ! "$head_sha" =~ $sha_pattern ]]; then
+              echo "Refusing malformed open PR head SHA: $head_sha" >&2
+              failure_count=$((failure_count + 1))
+              continue
+            fi
+            if [[ -n "${seen[$head_sha]:-}" ]]; then
+              continue
+            fi
+            seen["$head_sha"]=1
+
+            invalidated=false
+            for attempt in 1 2 3; do
+              if EXPECTED_HEAD_SHA="$head_sha" \
+                node trusted-base/scripts/publish-trusted-pr-status.mjs; then
+                invalidated=true
+                break
+              fi
+              echo "Invalidation attempt $attempt failed for $head_sha" >&2
+              if [[ "$attempt" -lt 3 ]]; then
+                sleep "$attempt" || true
+              fi
+            done
+            if [[ "$invalidated" != true ]]; then
+              echo "Unable to invalidate open PR head after three attempts: $head_sha" >&2
+              failure_count=$((failure_count + 1))
+            fi
+          done
+
+          if [[ "$failure_count" -ne 0 ]]; then
+            echo "Failed to invalidate $failure_count open PR head(s)." >&2
+            exit 1
+          fi

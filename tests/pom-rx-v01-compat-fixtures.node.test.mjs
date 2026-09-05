@@ -438,7 +438,11 @@ test('runtime and punctuation canary failures are ordered and diagnostic-exact',
   expectCode('CANARY_ORDER_MISMATCH', () => verifierInternals.verifyCanary(input, wrongOrder, sha256Bytes(wrongOrder)));
 });
 
-test('frozen source binding rejects blob, raw-byte, import-URL and four-file drift', () => {
+test('frozen source binding rejects blob, raw-byte, import-URL and four-file drift', {
+  skip: process.env.TRUSTED_MINIMAL_NODE_CONTAINER === '1'
+    ? 'host git integration remains in canonical CI'
+    : false,
+}, () => {
   const baseline = '743b8082bfc925d1681af7a239856a0b4f7e8464';
   const sourcePaths = [
     'sdk/typescript/pom-rx.mjs',

@@ -20,6 +20,19 @@ jobs:
           # POM-RX fixture conformance binds immutable artifacts to historical
           # Git blob identities; a shallow clone must fail that proof closed.
           fetch-depth: 0
+          persist-credentials: false
+      - name: Assert canonical push or merge-candidate checkout
+        shell: bash
+        env:
+          EXPECTED_CHECKOUT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_CHECKOUT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GitHub supplied an invalid checkout SHA." >&2
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_CHECKOUT_SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
