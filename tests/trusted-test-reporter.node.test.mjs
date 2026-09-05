@@ -83,3 +83,35 @@ test('reporter rejects process-isolated, duplicate, incomplete and unexpected ev
     await assert.rejects(collect(createTrustedTestReporter([expectedPath]), events), Error);
   }
 });
+
+test('reporter accepts only the exact reviewed Linux platform skip count', async () => {
+  const reviewedPath = 'tests/pom-rx-v01-strict-activation.node.test.mjs';
+  const reviewedSummary = {
+    type: 'test:summary',
+    data: {
+      success: true,
+      counts: { tests: 2, passed: 1, failed: 0, cancelled: 0, skipped: 1, todo: 0 },
+    },
+  };
+  assert.deepEqual(await collect(createTrustedTestReporter([reviewedPath], { platform: 'linux' }), [
+    passEvent({ file: resolve(reviewedPath), name: 'reviewed green test' }),
+    passEvent({ file: resolve(reviewedPath), name: 'reviewed platform skip' }),
+    reviewedSummary,
+  ]), [
+    `trusted-test-file-pass ${reviewedPath} tests=2\n`,
+    'trusted-test-suite-pass files=1\n',
+  ]);
+  await assert.rejects(
+    collect(createTrustedTestReporter([reviewedPath], { platform: 'linux' }), [
+      passEvent({ file: resolve(reviewedPath) }),
+      {
+        type: 'test:summary',
+        data: {
+          success: true,
+          counts: { tests: 2, passed: 0, failed: 0, cancelled: 0, skipped: 2, todo: 0 },
+        },
+      },
+    ]),
+    /reviewed pass and platform-skip counts/u,
+  );
+});

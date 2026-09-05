@@ -31,6 +31,9 @@ publisher's current-base check instead of producing fresh success evidence.
 When a PR is synchronized or closed, a separate base-owned job also replaces
 the departing head's prior result with `pending`, so a historical successful
 head cannot be replayed after it stops being the current PR head.
+The same invalidation runs when an `edited` event shows that a PR has been
+retargeted away from `main`; retargeting it back cannot expose the old success
+while the new evaluation is starting.
 
 Before any candidate-controlled dependency or test module is evaluated, the
 controller byte-compares its workflow, both trusted manifests, every manifest
@@ -55,6 +58,9 @@ candidate module initializes. It also blocks process replacement through
 non-configurable properties, removes inherited child preload variables, and
 prevents their later mutation. CommonJS and ESM export tables for the built-ins
 used by the trusted tests are included in the integrity snapshot. A base-owned
+preload also locks the container's explicit executable search path and both
+working-directory APIs; candidate code cannot redirect a trusted child command
+or relative fixture read into writable `/tmp` content. A base-owned
 loader injects a primordial-integrity
 checkpoint as the first executable statement of every manifest test; because
 static dependencies evaluate first, candidate initialization that replaces a
@@ -100,6 +106,13 @@ base-owned regressions, so the preload makes `process.execve` non-replaceable
 and fail-closed alongside `process.exit` and `process.reallyExit`. A literal
 process-replacement regression must remain non-zero without a trusted pass
 marker.
+
+The reporter accepts only the single reviewed Linux-only skip in the strict
+activation suite. Every other skip or any additional skip remains a failure.
+Host-tool integration suites that require `git` or `python3` stay in canonical
+required CI rather than the minimal pinned Node container; the trusted
+control-plane verifier prevents a candidate from weakening that CI workflow or
+its package commands.
 
 The intentionally vulnerable v0.1 integrity baseline uses a separate immutable
 one-file manifest and a direct lifecycle reporter. Success requires exactly the

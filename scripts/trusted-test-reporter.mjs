@@ -15,11 +15,23 @@ const SafeReflectApply = Reflect.apply;
 const SafeRegExpTest = RegExp.prototype.test;
 const SafeResolve = resolve;
 const SafeEventEmitterOn = EventEmitter.prototype.on;
+const trustedPlatform = process.platform;
 const protectedLifecycleMethods = [
   [Readable.prototype, 'push', SafeObjectGetOwnPropertyDescriptor(Readable.prototype, 'push')],
   [EventEmitter.prototype, 'emit', SafeObjectGetOwnPropertyDescriptor(EventEmitter.prototype, 'emit')],
 ];
 const trustedPathPattern = /^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u;
+const reviewedPlatformSkips = Object.freeze([
+  Object.freeze(['linux', 'tests/pom-rx-v01-strict-activation.node.test.mjs', 1]),
+]);
+
+function reviewedSkipCount(testPath, platform) {
+  for (let index = 0; index < reviewedPlatformSkips.length; index += 1) {
+    const [reviewedPlatform, reviewedPath, count] = reviewedPlatformSkips[index];
+    if (reviewedPlatform === platform && reviewedPath === testPath) return count;
+  }
+  return 0;
+}
 
 function lockLifecycleMethod(target, property, descriptor) {
   if (
@@ -107,7 +119,7 @@ function readTrustedManifest() {
   throw new Error(`selected trusted test is not in the manifest: ${selectedTestPath}`);
 }
 
-function validateExpectedPaths(testPaths) {
+function validateExpectedPaths(testPaths, platform) {
   if (!SafeArrayIsArray(testPaths) || testPaths.length === 0 || testPaths.length > 128) {
     throw new SafeError('trusted test manifest has invalid cardinality');
   }
@@ -126,7 +138,11 @@ function validateExpectedPaths(testPaths) {
         throw new SafeError(`duplicate trusted test path: ${testPath}`);
       }
     }
-    expectedRecords.push({ absolutePath, testPath });
+    expectedRecords.push({
+      absolutePath,
+      expectedSkips: reviewedSkipCount(testPath, platform),
+      testPath,
+    });
   }
   return expectedRecords;
 }
@@ -135,8 +151,12 @@ function validCount(value) {
   return SafeNumberIsSafeInteger(value) && value >= 0;
 }
 
-export function createTrustedTestReporter(expectedTestPaths) {
-  const expectedRecords = validateExpectedPaths(expectedTestPaths);
+export function createTrustedTestReporter(expectedTestPaths, { platform = trustedPlatform } = {}) {
+  const expectedRecords = validateExpectedPaths(expectedTestPaths, platform);
+  let expectedSkippedTests = 0;
+  for (let index = 0; index < expectedRecords.length; index += 1) {
+    expectedSkippedTests += expectedRecords[index].expectedSkips;
+  }
   return async function* trustedTestReporter(source) {
     const passCounts = new SafeArray(expectedRecords.length);
     for (let index = 0; index < passCounts.length; index += 1) passCounts[index] = 0;
@@ -191,13 +211,13 @@ export function createTrustedTestReporter(expectedTestPaths) {
       || !validCount(finalCounts.failed)
       || !validCount(finalCounts.cancelled)
       || finalCounts.tests < expectedRecords.length
-      || finalCounts.passed !== finalCounts.tests
+      || finalCounts.passed + expectedSkippedTests !== finalCounts.tests
       || finalCounts.failed !== 0
       || finalCounts.cancelled !== 0
-      || (finalCounts.skipped !== undefined && finalCounts.skipped !== 0)
+      || (finalCounts.skipped ?? 0) !== expectedSkippedTests
       || (finalCounts.todo !== undefined && finalCounts.todo !== 0)
     ) {
-      throw new SafeError('test runner final summary is not an all-pass result');
+      throw new SafeError('test runner final summary does not match reviewed pass and platform-skip counts');
     }
     let missingPaths = '';
     for (let index = 0; index < expectedRecords.length; index += 1) {

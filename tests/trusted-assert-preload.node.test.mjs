@@ -141,7 +141,7 @@ test('candidate cannot replace the trusted runner process', () => {
 });
 
 test('candidate cannot inject inherited child preloads', () => {
-  for (const property of ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD']) {
+  for (const property of ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'PATH']) {
     const result = spawnSync(
       process.execPath,
       [
@@ -158,6 +158,30 @@ test('candidate cannot inject inherited child preloads', () => {
     assert.notEqual(result.status, 0, `${property} mutation was accepted`);
     assert.match(result.stderr, /child environment mutation is forbidden/u);
   }
+});
+
+test('candidate cannot redirect the trusted working directory', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      preloadUrl,
+      '--input-type=module',
+      '--eval',
+      `
+        import { chdir, cwd } from 'node:process';
+        const expected = process.cwd();
+        try { process.chdir(${JSON.stringify(tmpdir())}); } catch {}
+        try { chdir(${JSON.stringify(tmpdir())}); } catch {}
+        if (process.cwd() !== expected) throw new Error('candidate changed cwd');
+        if (cwd() !== expected) throw new Error('candidate changed cwd through node:process');
+      `,
+    ],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true },
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
 test('loader rejects primordial poisoning performed by a static candidate import', () => {

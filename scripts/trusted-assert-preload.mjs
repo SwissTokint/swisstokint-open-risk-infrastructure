@@ -19,6 +19,8 @@ const SafeReflectOwnKeys = Reflect.ownKeys;
 const SafeReflectSet = Reflect.set;
 const SafeString = String;
 const SafeStringToUpperCase = String.prototype.toUpperCase;
+const SafeProcessCwd = process.cwd;
+const trustedWorkingDirectory = SafeReflectApply(SafeProcessCwd, process, []);
 
 const requiredAssert = createRequire(import.meta.url)('node:assert/strict');
 const requiredModule = createRequire(import.meta.url)('node:module');
@@ -86,6 +88,23 @@ for (const property of ['exit', 'reallyExit', 'execve']) {
   });
 }
 
+function forbiddenWorkingDirectoryChange(directory) {
+  throw new SafeError(`candidate working-directory change is forbidden: ${SafeString(directory)}`);
+}
+
+SafeObjectDefineProperty(process, 'chdir', {
+  value: forbiddenWorkingDirectoryChange,
+  writable: false,
+  enumerable: true,
+  configurable: false,
+});
+SafeObjectDefineProperty(process, 'cwd', {
+  value: SafeProcessCwd,
+  writable: false,
+  enumerable: true,
+  configurable: false,
+});
+
 for (const [target, property] of [
   [Readable.prototype, 'push'],
   [EventEmitter.prototype, 'emit'],
@@ -109,7 +128,7 @@ SafeObjectDefineProperty(process, 'emit', {
   configurable: false,
 });
 
-const dangerousChildEnvironmentNames = [
+const clearedChildEnvironmentNames = [
   'BASH_ENV',
   'ENV',
   'LD_PRELOAD',
@@ -119,33 +138,38 @@ const dangerousChildEnvironmentNames = [
   'PYTHONPATH',
   'RUBYOPT',
 ];
+const protectedChildEnvironmentNames = [
+  ...clearedChildEnvironmentNames,
+  'PATH',
+];
 const originalEnvironment = process.env;
+const trustedExecutablePath = originalEnvironment.PATH;
 
-function isDangerousChildEnvironmentName(property) {
+function isProtectedChildEnvironmentName(property) {
   if (typeof property !== 'string') return false;
   const normalized = SafeReflectApply(SafeStringToUpperCase, property, []);
-  for (let index = 0; index < dangerousChildEnvironmentNames.length; index += 1) {
-    if (normalized === dangerousChildEnvironmentNames[index]) return true;
+  for (let index = 0; index < protectedChildEnvironmentNames.length; index += 1) {
+    if (normalized === protectedChildEnvironmentNames[index]) return true;
   }
   return false;
 }
 
-for (const name of dangerousChildEnvironmentNames) delete originalEnvironment[name];
+for (const name of clearedChildEnvironmentNames) delete originalEnvironment[name];
 const protectedEnvironment = new SafeProxy(originalEnvironment, {
   set(target, property, value, receiver) {
-    if (isDangerousChildEnvironmentName(property)) {
+    if (isProtectedChildEnvironmentName(property)) {
       throw new SafeError(`candidate child environment mutation is forbidden: ${SafeString(property)}`);
     }
     return SafeReflectSet(target, property, value, receiver);
   },
   defineProperty(target, property, descriptor) {
-    if (isDangerousChildEnvironmentName(property)) {
+    if (isProtectedChildEnvironmentName(property)) {
       throw new SafeError(`candidate child environment mutation is forbidden: ${SafeString(property)}`);
     }
     return SafeReflectDefineProperty(target, property, descriptor);
   },
   deleteProperty(target, property) {
-    if (isDangerousChildEnvironmentName(property)) return false;
+    if (isProtectedChildEnvironmentName(property)) return false;
     return delete target[property];
   },
 });
@@ -156,6 +180,7 @@ SafeObjectDefineProperty(process, 'env', {
   enumerable: environmentDescriptor?.enumerable ?? true,
   configurable: false,
 });
+syncBuiltinESMExports();
 
 const globalBindingNames = [
   'AggregateError',
@@ -291,6 +316,12 @@ for (const [name, commonJsExports, esmNamespace] of trustedBuiltinEntries) {
 }
 
 export function verifyTrustedPrimordials() {
+  if (SafeReflectApply(SafeProcessCwd, process, []) !== trustedWorkingDirectory) {
+    throw new SafeError('candidate changed the trusted working directory');
+  }
+  if (originalEnvironment.PATH !== trustedExecutablePath) {
+    throw new SafeError('candidate changed the trusted executable search path');
+  }
   for (let bindingIndex = 0; bindingIndex < globalBindings.length; bindingIndex += 1) {
     const [name, expected] = globalBindings[bindingIndex];
     const actual = captureDescriptor(globalThis, name);

@@ -151,7 +151,11 @@ test('departing and closed PR heads cannot replay historical success', () => {
   assert.match(trustedWorkflow, /^  invalidate-departing-exact-head:$/mu);
   assert.match(
     trustedWorkflow,
-    /github\.event\.action == 'synchronize' \|\| github\.event\.action == 'closed'/u,
+    /github\.event\.action == 'synchronize' \|\|\s+github\.event\.action == 'closed'/u,
+  );
+  assert.match(
+    trustedWorkflow,
+    /github\.event\.action == 'edited' && github\.event\.changes\.base\.ref\.from == 'main'/u,
   );
   assert.match(trustedWorkflow, /github\.event\.before/u);
   assert.match(trustedWorkflow, /github\.event\.pull_request\.head\.sha/u);
@@ -272,6 +276,11 @@ test('candidate tests run without network, write access or ambient privilege', (
   assert.match(trustedWorkflow, /while IFS= read -r trusted_test; do/u);
   assert.match(trustedWorkflow, /--env TRUSTED_TEST_PATH="\$trusted_test"/u);
   assert.match(trustedWorkflow, /done < trusted-base\/\.github\/trusted-security-tests\.txt/u);
+  assert.equal(
+    [...trustedWorkflow.matchAll(/--env PATH=\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/gu)].length,
+    2,
+    'both candidate-evaluation lanes must use the fixed image executable path',
+  );
 });
 
 test('ordinary CI remains a distinct canonical push or merge-candidate lane', () => {
