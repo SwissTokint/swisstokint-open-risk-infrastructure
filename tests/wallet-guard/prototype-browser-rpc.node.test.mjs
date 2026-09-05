@@ -430,11 +430,35 @@ test('browser requires a timely successful arm acknowledgement', async () => {
   elapsed = 1_001;
   arm.resolve(response(204));
   await waitFor(
-    () => /Armement expiré avant envoi/u.test(harness.elements.get('#result').textContent),
+    () => /Accusé d’armement trop ancien/u.test(harness.elements.get('#result').textContent),
     'stale arm acknowledgement rejected',
   );
   assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
   assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/dispatched'), false);
+});
+
+test('pre-bind context drift closes the command without an unarmed result', async () => {
+  const provider = new DeterministicEip1193Provider();
+  const request = provider.request.bind(provider);
+  let chainSamples = 0;
+  provider.request = async (input) => {
+    if (input.method === 'eth_chainId') {
+      chainSamples += 1;
+      if (chainSamples >= 3) provider.chainId = MAINNET_CHAIN_ID;
+    }
+    return request(input);
+  };
+  const harness = browserHarness({ provider, nextResponses: [response(200, command())] });
+  await harness.elements.get('#connect').click();
+  await waitFor(
+    () => harness.fetchCalls.some(({ path }) => path === '/bridge/close'),
+    'pre-bind context closure',
+  );
+  const close = harness.fetchCalls.find(({ path }) => path === '/bridge/close');
+  assert.equal(close.body.code, 'CONTEXT_CHANGED');
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/result'), false);
+  assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/arm'), false);
+  assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
 });
 
 test('browser context events close the loopback bridge without another provider request', async () => {

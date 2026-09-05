@@ -308,16 +308,15 @@ async function processCommand(command) {
   const second = await sampleWalletChainView();
   if (!contextMatches(command, first) || !contextMatches(command, second)
       || !sameWalletChainView(first, second)) {
-    await deliver(command, { errorCode: 'CONTEXT_CHANGED' }, second);
-    sessionClosed = true;
+    await closeForContextChange();
     return;
   }
 
   try {
     await bindWalletView(command, second);
   } catch (error) {
+    await closeForContextChange();
     resultView.textContent = `Vue MetaMask/Node refusée avant envoi: ${error.message}`;
-    sessionClosed = true;
     return;
   }
 
@@ -353,8 +352,8 @@ async function processCommand(command) {
       throw new Error('Accusé d’armement trop ancien');
     }
   } catch (error) {
+    await closeForContextChange();
     resultView.textContent = `Armement expiré avant envoi: ${error.message}`;
-    sessionClosed = true;
     return;
   }
   if (sessionClosed) return;
@@ -432,8 +431,8 @@ async function bridgeLoop() {
       else if (response.status === 410) sessionClosed = true;
       else if (response.status !== 204) throw new Error(`bridge HTTP ${response.status}`);
     } catch (error) {
+      await closeForContextChange();
       resultView.textContent = `Bridge fermé: ${error.message}`;
-      sessionClosed = true;
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
@@ -444,7 +443,11 @@ async function bridgeLoop() {
 async function closeForContextChange() {
   if (sessionClosed) return;
   sessionClosed = true;
-  await postJson('/bridge/close', { code: 'CONTEXT_CHANGED' }).catch(() => {});
+  await settleWithin(
+    postJson('/bridge/close', { code: 'CONTEXT_CHANGED' }),
+    RESULT_DELIVERY_TIMEOUT_MS,
+    'Fermeture du bridge',
+  ).catch(() => {});
   walletStatus.textContent = 'Session fermée après changement de contexte';
 }
 
