@@ -33,7 +33,10 @@ the departing head's prior result with `pending`, so a historical successful
 head cannot be replayed after it stops being the current PR head.
 The same invalidation runs when an `edited` event shows that a PR has been
 retargeted away from `main`; retargeting it back cannot expose the old success
-while the new evaluation is starting.
+while the new evaluation is starting. That invalidator always checks out the
+controller from `refs/heads/main`, never from the PR's new destination branch.
+Only superseded exact-head evaluation jobs share a cancelling concurrency
+group; departure invalidators are not cancelled by a rapid retarget or push.
 
 Before any candidate-controlled dependency or test module is evaluated, the
 controller byte-compares its workflow, both trusted manifests, every manifest
@@ -112,7 +115,8 @@ activation suite. Every other skip or any additional skip remains a failure.
 Host-tool integration suites that require `git` or `python3` stay in canonical
 required CI rather than the minimal pinned Node container; the trusted
 control-plane verifier prevents a candidate from weakening that CI workflow or
-its package commands.
+its package commands and byte-authenticates those two host-tool test files
+against `main` before candidate evaluation.
 
 The intentionally vulnerable v0.1 integrity baseline uses a separate immutable
 one-file manifest and a direct lifecycle reporter. Success requires exactly the

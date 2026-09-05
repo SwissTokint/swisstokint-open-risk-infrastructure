@@ -160,6 +160,14 @@ test('departing and closed PR heads cannot replay historical success', () => {
   assert.match(trustedWorkflow, /github\.event\.before/u);
   assert.match(trustedWorkflow, /github\.event\.pull_request\.head\.sha/u);
   const job = trustedWorkflowData.jobs['invalidate-departing-exact-head'];
+  assert.equal(trustedWorkflowData.concurrency, undefined);
+  assert.deepEqual(trustedExactHeadJob.concurrency, {
+    group: 'trusted-exact-head-${{ github.event.pull_request.number }}',
+    'cancel-in-progress': true,
+  });
+  assert.equal(job.concurrency, undefined, 'departing-head invalidation must never be cancelled');
+  assert.equal(job.steps[0].with.repository, '${{ github.repository }}');
+  assert.equal(job.steps[0].with.ref, 'refs/heads/main');
   const step = job.steps.find((entry) => entry.name === 'Invalidate departing exact-head evidence');
   assert.equal(step.env.GH_TOKEN, '${{ github.token }}');
   assert.equal(step.run, 'node trusted-base/scripts/invalidate-trusted-pr-head-status.mjs');

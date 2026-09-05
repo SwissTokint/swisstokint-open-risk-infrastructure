@@ -44,6 +44,8 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'tests/fixtures/trusted-runner/runtime-instance-poison.test.mjs',
   'tests/fixtures/trusted-runner/runtime-primordial-poison-candidate.mjs',
   'tests/fixtures/trusted-runner/runtime-primordial-poison.test.mjs',
+  'tests/pom-rx-post-merge-assurance-policy.node.test.mjs',
+  'tests/pom-rx-v01-compat-fixtures.node.test.mjs',
   'tests/trusted-assert-preload.node.test.mjs',
   'tests/trusted-control-plane.node.test.mjs',
   'tests/trusted-pr-security-workflow.node.test.mjs',

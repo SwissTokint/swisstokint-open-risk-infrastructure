@@ -14,15 +14,14 @@ permissions:
   pull-requests: read
   statuses: write
 
-concurrency:
-  group: trusted-pr-security-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
   trusted-exact-head:
     if: github.event_name == 'pull_request_target' && github.event.action != 'closed' && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: trusted-exact-head-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     env:
       EXPECTED_BASE_REPOSITORY: ${{ github.repository }}
       EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -374,7 +373,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ github.repository }}
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: refs/heads/main
           path: trusted-base
           fetch-depth: 1
           persist-credentials: false

@@ -25,6 +25,13 @@ const manifestPaths = readFileSync(
   'utf8',
 ).replace(/\r\n/gu, '\n').trim().split('\n');
 
+assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
+  'tests/pom-rx-post-merge-assurance-policy.node.test.mjs',
+));
+assert.ok(IMMUTABLE_CONTROL_PATHS.includes(
+  'tests/pom-rx-v01-compat-fixtures.node.test.mjs',
+));
+
 function copyControlTree(targetRoot) {
   const paths = new Set([
     ...IMMUTABLE_CONTROL_PATHS,
