@@ -1,13 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-pr138-restack-20260905T1208Z",
+    "acquired_at": "2026-09-05T12:07:59.278Z",
+    "expires_at": "2026-09-05T12:52:59.278Z",
+    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
+    "purpose": "Restack PR #138 Anvil/MetaMask prototype onto assured main, repair bounded integration defects, retain historical regressions, and publish exact-head review evidence; synthetic/local tests only."
+  },
   "last_transition": {
-    "type": "RECOVER",
-    "at": "2026-09-05T12:07:37.494Z",
+    "type": "ACQUIRE",
+    "at": "2026-09-05T12:07:59.278Z",
     "actor": "pom-rx-pr138-restack-20260905T1208Z",
-    "reason": "Explicit user authorization on 2026-09-05 to recover the expired 2026-08-26 holder and continue PR #138. Lock history unchanged since acquisition; no in-progress repository Actions runs found. No live evidence of the old writer; external process visibility is limited.",
-    "previous_holder": "pom-rx-m5-runner-diagnostic-20260826T151117Z-gpt56sol"
+    "reason": "Acquire FREE canonical guard after human-authorized stale recovery for PR #138."
   }
 }
