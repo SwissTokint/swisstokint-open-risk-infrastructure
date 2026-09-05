@@ -20,6 +20,7 @@ import {
 // out of contract and requires a separately reviewed process/worker/RPC
 // isolation boundary. Covered pre-import poisoning remains limited to the
 // ECMAScript globals explicitly validated below.
+const TRUSTED_RANDOM_BYTES = randomBytes;
 
 const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
@@ -27,6 +28,8 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const getOwnPropertyNames = Object.getOwnPropertyNames;
   const getOwnPropertySymbols = Object.getOwnPropertySymbols;
   const getPrototypeOf = Object.getPrototypeOf;
+  const typedArrayPrototype = getPrototypeOf(Uint8Array.prototype);
+  const typedArrayLengthGetter = getOwnPropertyDescriptor(typedArrayPrototype, 'length')?.get;
   const objectFreeze = Object.freeze;
   const objectCreate = Object.create;
   const objectHasOwn = Object.hasOwn;
@@ -35,6 +38,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
   const arrayPush = Array.prototype.push;
   const numberIsSafeInteger = Number.isSafeInteger;
   const functionToString = Function.prototype.toString;
+  const stringConstructor = String;
   const stringSlice = String.prototype.slice;
   const stringPadStart = String.prototype.padStart;
   const regexpExec = RegExp.prototype.exec;
@@ -51,6 +55,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     getOwnPropertyNames,
     getOwnPropertySymbols,
     getPrototypeOf,
+    typedArrayLengthGetter,
     objectFreeze,
     objectCreate,
     objectHasOwn,
@@ -59,6 +64,7 @@ const PRISTINE_RUNTIME = runInNewContext(`(() => {
     arrayPush,
     numberIsSafeInteger,
     functionToString,
+    stringConstructor,
     stringSlice,
     stringPadStart,
     regexpExec,
@@ -90,6 +96,7 @@ const TRUSTED_GET_OWN_PROPERTY_DESCRIPTORS = PRISTINE_RUNTIME.getOwnPropertyDesc
 const TRUSTED_GET_OWN_PROPERTY_NAMES = PRISTINE_RUNTIME.getOwnPropertyNames;
 const TRUSTED_GET_OWN_PROPERTY_SYMBOLS = PRISTINE_RUNTIME.getOwnPropertySymbols;
 const TRUSTED_GET_PROTOTYPE_OF = PRISTINE_RUNTIME.getPrototypeOf;
+const TRUSTED_TYPED_ARRAY_LENGTH_GETTER = PRISTINE_RUNTIME.typedArrayLengthGetter;
 const TRUSTED_OBJECT_FREEZE = PRISTINE_RUNTIME.objectFreeze;
 const TRUSTED_OBJECT_CREATE = PRISTINE_RUNTIME.objectCreate;
 const TRUSTED_OBJECT_HAS_OWN = PRISTINE_RUNTIME.objectHasOwn;
@@ -98,6 +105,7 @@ const TRUSTED_ARRAY_IS_ARRAY = PRISTINE_RUNTIME.arrayIsArray;
 const TRUSTED_ARRAY_PUSH = PRISTINE_RUNTIME.arrayPush;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = PRISTINE_RUNTIME.numberIsSafeInteger;
 const TRUSTED_FUNCTION_TO_STRING = PRISTINE_RUNTIME.functionToString;
+const TRUSTED_STRING_CONSTRUCTOR = PRISTINE_RUNTIME.stringConstructor;
 const TRUSTED_REGEXP_EXEC = PRISTINE_RUNTIME.regexpExec;
 const TRUSTED_PROMISE_RESOLVE = PRISTINE_RUNTIME.promiseResolve;
 const TRUSTED_PROMISE_REJECT = PRISTINE_RUNTIME.promiseReject;
@@ -108,9 +116,18 @@ const TRUSTED_WEAK_SET_HAS = PRISTINE_RUNTIME.weakSetHas;
 export class WalletGuardTrustedProviderTransportError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardTrustedProviderTransportError';
-    this.code = code;
+    defineTransportErrorField(this, 'name', 'WalletGuardTrustedProviderTransportError');
+    defineTransportErrorField(this, 'code', code);
   }
+}
+
+function defineTransportErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  trustedApply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [error, key, descriptor]);
 }
 
 function fail(code, message) {
@@ -134,6 +151,21 @@ const WEAK_SET = new TRUSTED_WEAK_SET_CONSTRUCTOR();
 
 function trustedApply(fn, receiver, args) {
   return TRUSTED_REFLECT_APPLY(fn, receiver, args);
+}
+
+function trustedString(value) {
+  return trustedApply(TRUSTED_STRING_CONSTRUCTOR, undefined, [value]);
+}
+
+function trustedTypedArrayLength(value) {
+  try {
+    return trustedApply(TRUSTED_TYPED_ARRAY_LENGTH_GETTER, value, []);
+  } catch {
+    fail(
+      'POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY',
+      'Node CSPRNG returned a non-typed-array session buffer',
+    );
+  }
 }
 
 function trustedOwnDescriptor(value, key) {
@@ -168,8 +200,8 @@ function trustedPrototypeOf(value) {
 
 function trustedIsProxy(value) {
   assertNodeUtilDetectorRuntime();
-  return Boolean(value)
-    && (typeof value === 'object' || typeof value === 'function')
+  return ((typeof value === 'object' && value !== null)
+      || typeof value === 'function')
     && trustedApply(UTIL_TYPES_IS_PROXY, utilTypes, [value]);
 }
 
@@ -265,21 +297,33 @@ const BRIDGE_FAILURE_CODES = freeze([
 
 function sameDescriptor(current, baseline) {
   if (!current || !baseline) return false;
-  return current.value === baseline.value
-    && current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && current.get === baseline.get
-    && current.set === baseline.set;
+  return sameOwnDescriptorField(current, baseline, 'value')
+    && sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorField(current, baseline, 'get')
+    && sameOwnDescriptorField(current, baseline, 'set');
+}
+
+function sameOwnDescriptorField(current, baseline, key) {
+  const currentHas = TRUSTED_OBJECT_HAS_OWN(current, key);
+  const baselineHas = TRUSTED_OBJECT_HAS_OWN(baseline, key);
+  return currentHas === baselineHas
+    && (!currentHas || current[key] === baseline[key]);
+}
+
+function sameOwnDescriptorFieldPresence(current, baseline, key) {
+  return TRUSTED_OBJECT_HAS_OWN(current, key)
+    === TRUSTED_OBJECT_HAS_OWN(baseline, key);
 }
 
 function sameDescriptorShape(current, baseline) {
   if (!current || !baseline) return false;
-  return current.writable === baseline.writable
-    && current.enumerable === baseline.enumerable
-    && current.configurable === baseline.configurable
-    && Boolean(current.get) === Boolean(baseline.get)
-    && Boolean(current.set) === Boolean(baseline.set);
+  return sameOwnDescriptorField(current, baseline, 'writable')
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'get')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'set');
 }
 
 function promiseRuntimeMatchesTrustedPrimordial() {
@@ -317,7 +361,9 @@ function promiseRuntimeMatchesTrustedPrimordial() {
 }
 
 function runtimeBaselineWasSupported() {
-  return nodeUtilDetectorRuntimeMatchesBootstrap()
+  return typeof TRUSTED_STRING_CONSTRUCTOR === 'function'
+    && typeof TRUSTED_TYPED_ARRAY_LENGTH_GETTER === 'function'
+    && nodeUtilDetectorRuntimeMatchesBootstrap()
     && promiseRuntimeMatchesTrustedPrimordial()
     && sameDescriptor(
       PROMISE_PROTOTYPE_DESCRIPTOR,
@@ -408,7 +454,7 @@ function defineArrayElement(output, index, value) {
   descriptor.enumerable = true;
   descriptor.writable = false;
   descriptor.configurable = false;
-  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, String(index), descriptor]);
+  apply(TRUSTED_OBJECT_DEFINE_PROPERTY, null, [output, trustedString(index), descriptor]);
 }
 
 function snapshotTransportValue(value, label, depth = 0) {
@@ -445,7 +491,8 @@ function snapshotTransportValue(value, label, depth = 0) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'array literal prototype drifted');
   }
   for (let index = 0; index < length; index += 1) {
-    const descriptor = descriptors[String(index)];
+    const indexKey = trustedString(index);
+    const descriptor = descriptors[indexKey];
     if (!descriptor
         || !TRUSTED_OBJECT_HAS_OWN(descriptor, 'value')
         || descriptor.enumerable !== true
@@ -456,7 +503,7 @@ function snapshotTransportValue(value, label, depth = 0) {
     defineArrayElement(
       output,
       index,
-      snapshotTransportValue(descriptor.value, `${label}[${String(index)}]`, depth + 1),
+      snapshotTransportValue(descriptor.value, `${label}[${indexKey}]`, depth + 1),
     );
   }
   return freeze(output);
@@ -597,13 +644,14 @@ function localBridgeFailure(code) {
 }
 
 function createSessionId() {
-  const bytes = randomBytes(32);
-  if (!bytes || bytes.length !== 32) {
+  const bytes = trustedApply(TRUSTED_RANDOM_BYTES, undefined, [32]);
+  const length = trustedTypedArrayLength(bytes);
+  if (length !== 32) {
     fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned an invalid session id');
   }
   const alphabet = '0123456789abcdef';
   let output = '';
-  for (let index = 0; index < bytes.length; index += 1) {
+  for (let index = 0; index < length; index += 1) {
     const value = bytes[index];
     if (!apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [value]) || value < 0 || value > 255) {
       fail('POMRX_WG_TRANSPORT_E_RUNTIME_INTEGRITY', 'Node CSPRNG returned invalid bytes');
@@ -650,6 +698,25 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
   };
 
   const provider = freeze({
+    captureContext(deliverContext, reportFailure) {
+      if (typeof deliverContext !== 'function' || typeof reportFailure !== 'function') {
+        fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
+      }
+      // One scalar capture replaces the former pair of eth_chainId/eth_accounts
+      // Promise reads. Count two logical context reads to preserve diagnostics.
+      state.contextReads += 2;
+      if (state.rejectNextContextMethod !== null) {
+        state.rejectNextContextMethod = null;
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      if (state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(state.chainId, state.accounts[0]);
+      return undefined;
+    },
     request(request) {
       // This check occurs before the controlled provider can originate any
       // transport. No caller-supplied provider request function exists on this
@@ -730,21 +797,30 @@ export function createWalletGuardControlledProviderTransport(rawOptions) {
 }
 
 export function createWalletGuardControlledCallbackProviderTransport(rawOptions) {
-  exactKeys(rawOptions, CALLBACK_OPTIONS_KEYS, 'trusted callback provider transport options');
+  const optionDescriptors = exactKeys(
+    rawOptions,
+    CALLBACK_OPTIONS_KEYS,
+    'trusted callback provider transport options',
+  );
+  const chainId = optionDescriptors.chainId.value;
+  const accountsInput = optionDescriptors.accounts.value;
+  const maxSensitiveCalls = optionDescriptors.maxSensitiveCalls.value;
+  const dispatchSensitive = optionDescriptors.dispatchSensitive.value;
   assertPromiseTransportRuntime();
 
-  if (typeof rawOptions.chainId !== 'string'
-      || !trustedPatternTest(CHAIN_ID_PATTERN, rawOptions.chainId)
-      || typeof rawOptions.dispatchSensitive !== 'function'
-      || isProxy(rawOptions.dispatchSensitive)
-      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [rawOptions.maxSensitiveCalls])
-      || rawOptions.maxSensitiveCalls < 1
-      || rawOptions.maxSensitiveCalls > 1_000) {
+  if (typeof chainId !== 'string'
+      || chainId.length > 66
+      || !trustedPatternTest(CHAIN_ID_PATTERN, chainId)
+      || typeof dispatchSensitive !== 'function'
+      || isProxy(dispatchSensitive)
+      || !apply(TRUSTED_NUMBER_IS_SAFE_INTEGER, null, [maxSensitiveCalls])
+      || maxSensitiveCalls < 1
+      || maxSensitiveCalls > 1_000) {
     fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted callback provider transport options are invalid');
   }
 
   const accounts = snapshotTransportValue(
-    rawOptions.accounts,
+    accountsInput,
     'trusted callback provider accounts',
   );
   if (accounts.length !== 1
@@ -756,12 +832,13 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
     );
   }
 
+  const sessionId = createSessionId();
   const state = {
-    chainId: rawOptions.chainId,
+    chainId,
     accounts,
-    sessionId: createSessionId(),
-    maxSensitiveCalls: rawOptions.maxSensitiveCalls,
-    dispatchSensitive: rawOptions.dispatchSensitive,
+    sessionId,
+    maxSensitiveCalls,
+    dispatchSensitive,
     contextReads: 0,
     sensitiveCalls: [],
     inFlight: false,
@@ -770,6 +847,18 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
   };
 
   const provider = freeze({
+    captureContext(deliverContext, reportFailure) {
+      if (typeof deliverContext !== 'function' || typeof reportFailure !== 'function') {
+        fail('POMRX_WG_TRANSPORT_E_INVALID', 'trusted context callbacks must be callable');
+      }
+      state.contextReads += 2;
+      if (state.destroyed || state.accounts.length < 1) {
+        reportFailure('CONTEXT_UNAVAILABLE');
+        return undefined;
+      }
+      deliverContext(state.chainId, state.accounts[0]);
+      return undefined;
+    },
     request(request) {
       assertPromiseTransportRuntime();
 
@@ -819,9 +908,9 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
           request,
         );
         const pending = constructPendingTransport();
+        defineArrayElement(state.sensitiveCalls, state.sensitiveCalls.length, command);
         state.nextSequence += 1;
         state.inFlight = true;
-        apply(TRUSTED_ARRAY_PUSH, state.sensitiveCalls, [command]);
 
         const resolve = pending.resolve;
         const reject = pending.reject;
@@ -832,8 +921,16 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
 
           const finish = (outcome) => {
             if (settled) return undefined;
+            try {
+              assertPromiseTransportRuntime();
+            } catch (error) {
+              settled = true;
+              state.destroyed = true;
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
+              return undefined;
+            }
             settled = true;
-            state.inFlight = false;
             try {
               if (outcome.kind === 'raw') {
                 const parsed = parseWalletGuardBridgeResponse(outcome.raw, {
@@ -846,18 +943,25 @@ export function createWalletGuardControlledCallbackProviderTransport(rawOptions)
                 if (parsed.outcome === 'result'
                     && typeof parsed.result === 'string'
                     && trustedPatternTest(TX_HASH_PATTERN, parsed.result)) {
+                  state.inFlight = false;
                   trustedApply(resolve, undefined, [parsed.result]);
                   return undefined;
                 }
                 state.destroyed = true;
-                trustedApply(reject, undefined, [localBridgeFailure(parsed.error_code)]);
+                const error = localBridgeFailure(parsed.error_code);
+                state.inFlight = false;
+                trustedApply(reject, undefined, [error]);
                 return undefined;
               }
               state.destroyed = true;
-              trustedApply(reject, undefined, [localBridgeFailure(outcome.code)]);
+              const error = localBridgeFailure(outcome.code);
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
             } catch {
               state.destroyed = true;
-              trustedApply(reject, undefined, [localBridgeFailure('INTERNAL_ERROR')]);
+              const error = localBridgeFailure('INTERNAL_ERROR');
+              state.inFlight = false;
+              trustedApply(reject, undefined, [error]);
             }
             return undefined;
           };

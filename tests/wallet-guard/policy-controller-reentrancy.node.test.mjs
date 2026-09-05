@@ -133,12 +133,12 @@ test('reentrant idempotent kill cannot report success inside an in-progress re-e
 test('reentrant kill-switch mutation cannot turn a state-stable evaluation into stale ALLOW', { concurrency: false }, () => {
   const controller = createWalletGuardReferencePolicyController({ policy: policy() });
   const intent = nativeIntent();
-  const originalNormalize = String.prototype.normalize;
+  const originalTest = RegExp.prototype.test;
   let nestedError = null;
   let attempted = false;
 
-  String.prototype.normalize = function normalize(form) {
-    if (!attempted && String(this) === 'wallet-guard-reference-policy/0.1' && form === 'NFC') {
+  RegExp.prototype.test = function test(value) {
+    if (!attempted && value === 'wallet-guard-reference-policy/0.1') {
       attempted = true;
       try {
         controller.engageKillSwitch({ expected_revision: 0 });
@@ -146,16 +146,17 @@ test('reentrant kill-switch mutation cannot turn a state-stable evaluation into 
         nestedError = error;
       }
     }
-    return originalNormalize.call(this, form);
+    return Reflect.apply(originalTest, this, [value]);
   };
 
   let result;
   try {
     result = controller.evaluate(intent);
   } finally {
-    String.prototype.normalize = originalNormalize;
+    RegExp.prototype.test = originalTest;
   }
 
+  assert.equal(attempted, true);
   assert.ok(nestedError instanceof WalletGuardPolicyStateError);
   assert.equal(nestedError.code, 'POMRX_WG_POLICY_STATE_E_REENTRANT');
   assert.equal(result.decision, 'ALLOW');

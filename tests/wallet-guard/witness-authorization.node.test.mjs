@@ -162,6 +162,10 @@ function sendTransaction(value = '0x1') {
 function createFakeProvider() {
   const sensitiveCalls = [];
   const provider = Object.freeze({
+    captureContext(deliverContext) {
+      deliverContext(CHAIN_ID, ACCOUNT);
+      return undefined;
+    },
     async request(request) {
       if (request.method === 'eth_chainId') return CHAIN_ID;
       if (request.method === 'eth_accounts') return [ACCOUNT];

@@ -13,6 +13,7 @@ const TRUSTED_BUFFER_BYTE_LENGTH = Buffer.byteLength;
 const TRUSTED_JSON_PARSE = JSON.parse;
 const TRUSTED_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const TRUSTED_OBJECT_CREATE = Object.create;
+const TRUSTED_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TRUSTED_OBJECT_ENTRIES = Object.entries;
 const TRUSTED_OBJECT_FREEZE = Object.freeze;
 const TRUSTED_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
@@ -25,6 +26,7 @@ const TRUSTED_REGEXP_TEST = RegExp.prototype.test;
 const TRUSTED_SET = Set;
 const TRUSTED_SET_ADD = Set.prototype.add;
 const TRUSTED_SET_HAS = Set.prototype.has;
+const TRUSTED_STRING = String;
 const TRUSTED_STRING_CHAR_CODE_AT = String.prototype.charCodeAt;
 const TRUSTED_STRING_INCLUDES = String.prototype.includes;
 const TRUSTED_STRING_SLICE = String.prototype.slice;
@@ -42,9 +44,18 @@ const JSONRPC_KEYS = TRUSTED_OBJECT_FREEZE(['jsonrpc', 'id', 'method', 'params']
 export class WalletGuardJsonIngressError extends Error {
   constructor(code, message) {
     super(message);
-    this.name = 'WalletGuardJsonIngressError';
-    this.code = code;
+    defineJsonIngressErrorField(this, 'name', 'WalletGuardJsonIngressError');
+    defineJsonIngressErrorField(this, 'code', code);
   }
+}
+
+function defineJsonIngressErrorField(error, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_OBJECT_DEFINE_PROPERTY(error, key, descriptor);
 }
 
 export function parseWalletGuardBoundedJsonData(raw) {
@@ -98,6 +109,10 @@ function trustedSetHas(set, value) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_SET_HAS, set, [value]);
 }
 
+function trustedString(value) {
+  return TRUSTED_REFLECT_APPLY(TRUSTED_STRING, undefined, [value]);
+}
+
 function trustedStringCharCodeAt(value, index) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_CHAR_CODE_AT, value, [index]);
 }
@@ -108,6 +123,19 @@ function trustedStringIncludes(value, entry) {
 
 function trustedStringSlice(value, start, end) {
   return TRUSTED_REFLECT_APPLY(TRUSTED_STRING_SLICE, value, [start, end]);
+}
+
+function defineOwnData(target, key, value) {
+  const descriptor = TRUSTED_OBJECT_CREATE(null);
+  descriptor.value = value;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.configurable = true;
+  TRUSTED_REFLECT_APPLY(
+    TRUSTED_OBJECT_DEFINE_PROPERTY,
+    null,
+    [target, key, descriptor],
+  );
 }
 
 function isWhitespace(character) {
@@ -137,9 +165,9 @@ function assertUnicodeScalarString(value, label) {
 
 class StrictJsonScanner {
   constructor(raw) {
-    this.raw = raw;
-    this.index = 0;
-    this.nodes = 0;
+    defineOwnData(this, 'raw', raw);
+    defineOwnData(this, 'index', 0);
+    defineOwnData(this, 'nodes', 0);
   }
 
   skipWhitespace() {
@@ -373,7 +401,7 @@ function cloneParsed(value, depth = 0, budget = { remaining: MAX_NODES }) {
   if (TRUSTED_ARRAY_IS_ARRAY(value)) {
     const output = [];
     for (let index = 0; index < value.length; index += 1) {
-      output[index] = cloneParsed(value[index], depth + 1, budget);
+      defineOwnData(output, trustedString(index), cloneParsed(value[index], depth + 1, budget));
     }
     return TRUSTED_OBJECT_FREEZE(output);
   }

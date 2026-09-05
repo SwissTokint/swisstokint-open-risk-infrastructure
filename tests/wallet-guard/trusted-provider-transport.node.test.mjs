@@ -362,7 +362,7 @@ test('strict in-contract rejected context transport survives cleanly with zero a
     const state = transport.control.inspect();
     if (authorizationCalls !== 0) throw new Error('reference authorization was reached');
     if (state.sensitive_call_count !== 0) throw new Error('sensitive provider forwarding occurred');
-    if (state.context_reads !== 1) throw new Error('unexpected context-read cardinality');
+    if (state.context_reads !== 2) throw new Error('unexpected context-read cardinality');
   `;
 
   const child = spawnSync(

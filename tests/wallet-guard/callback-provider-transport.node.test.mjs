@@ -756,7 +756,9 @@ test('trusted gateway ALLOW binds context and forwards exactly one callback comm
   assert.equal(result.forwarded, true);
   assert.equal(result.provider_result, TX_HASH);
   assert.equal(dispatchCalls, 1);
-  assert.equal(transport.control.inspect().context_reads, 12);
+  // Four stable context samples are required: initial, Gate observation,
+  // pre-forward, and the final immediate resample. Each sample records 4 reads.
+  assert.equal(transport.control.inspect().context_reads, 16);
   assert.equal(transport.control.sensitiveCallCount(), 1);
 });
 

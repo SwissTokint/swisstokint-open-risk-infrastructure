@@ -198,12 +198,16 @@ test('foreign runtime TypeError from policy evaluation is not collapsed into pol
   const evidenceBuilder = createWalletGuardPreflightEvidenceBuilder({
     trustedClock: () => FIXED_TIME,
   });
-  const originalNormalize = String.prototype.normalize;
-  const sentinel = new TypeError('foreign policy canonicalizer failure');
+  const originalTest = RegExp.prototype.test;
+  const sentinel = new TypeError('foreign policy validation failure');
+  let injected = false;
 
-  String.prototype.normalize = function normalize(form) {
-    if (String(this) === 'allowed_origins' && form === 'NFKC') throw sentinel;
-    return originalNormalize.call(this, form);
+  RegExp.prototype.test = function test(value) {
+    if (!injected && value === 'wallet-guard-preflight-hardening/0.1') {
+      injected = true;
+      throw sentinel;
+    }
+    return Reflect.apply(originalTest, this, [value]);
   };
   try {
     assert.throws(
@@ -214,8 +218,9 @@ test('foreign runtime TypeError from policy evaluation is not collapsed into pol
         return true;
       },
     );
+    assert.equal(injected, true);
   } finally {
-    String.prototype.normalize = originalNormalize;
+    RegExp.prototype.test = originalTest;
   }
 });
 
