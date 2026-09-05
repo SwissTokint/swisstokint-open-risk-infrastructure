@@ -28,6 +28,15 @@ for (const testPath of trustedTestPaths) {
   }
   trustedTestUrls.add(testUrl);
 }
+const selectedTestPath = process.env.TRUSTED_TEST_PATH;
+if (selectedTestPath !== undefined) {
+  const selectedTestUrl = pathToFileURL(resolve(selectedTestPath)).href;
+  if (!trustedTestPaths.includes(selectedTestPath) || !trustedTestUrls.has(selectedTestUrl)) {
+    throw new Error(`selected trusted test is not in the manifest: ${selectedTestPath}`);
+  }
+  trustedTestUrls.clear();
+  trustedTestUrls.add(selectedTestUrl);
+}
 const verificationModuleUrl = new URL('./trusted-assert-preload.mjs', import.meta.url).href;
 const reservedIdentifier = '__pomRxVerifyTrustedPrimordials';
 const reservedNamespace = '__pomRxTrustedTestPrimordials';

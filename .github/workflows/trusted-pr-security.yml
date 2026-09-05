@@ -268,37 +268,40 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t trusted_tests < trusted-base/.github/trusted-security-tests.txt
-          docker run --rm \
-            --platform linux/amd64 \
-            --network none \
-            --read-only \
-            --cap-drop ALL \
-            --security-opt no-new-privileges \
-            --pids-limit 256 \
-            --memory 1g \
-            --cpus 2 \
-            --user 65532:65532 \
-            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
-            --env HOME=/tmp \
-            --env TMPDIR=/tmp \
-            --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-security-tests.txt \
-            --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
-            --workdir /workspace \
-            "$NODE_IMAGE" \
-            node \
-              --permission \
-              --allow-fs-read=/workspace \
-              --allow-fs-read=/tmp \
-              --allow-fs-write=/tmp \
-              --allow-child-process \
-              --no-addons \
-              --import=./scripts/trusted-test-loader-register.mjs \
-              --import=./scripts/trusted-assert-preload.mjs \
-              --test \
-              --experimental-test-isolation=none \
-              --test-reporter=./scripts/trusted-test-reporter.mjs \
-              "${trusted_tests[@]}"
+          while IFS= read -r trusted_test; do
+            test -n "$trusted_test"
+            docker run --rm \
+              --platform linux/amd64 \
+              --network none \
+              --read-only \
+              --cap-drop ALL \
+              --security-opt no-new-privileges \
+              --pids-limit 256 \
+              --memory 1g \
+              --cpus 2 \
+              --user 65532:65532 \
+              --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m,mode=1777 \
+              --env HOME=/tmp \
+              --env TMPDIR=/tmp \
+              --env TRUSTED_TEST_MANIFEST=/workspace/scripts/trusted-security-tests.txt \
+              --env TRUSTED_TEST_PATH="$trusted_test" \
+              --mount "type=bind,src=$GITHUB_WORKSPACE/evaluation,dst=/workspace,readonly" \
+              --workdir /workspace \
+              "$NODE_IMAGE" \
+              node \
+                --permission \
+                --allow-fs-read=/workspace \
+                --allow-fs-read=/tmp \
+                --allow-fs-write=/tmp \
+                --allow-child-process \
+                --no-addons \
+                --import=./scripts/trusted-test-loader-register.mjs \
+                --import=./scripts/trusted-assert-preload.mjs \
+                --test \
+                --experimental-test-isolation=none \
+                --test-reporter=./scripts/trusted-test-reporter.mjs \
+                "$trusted_test"
+          done < trusted-base/.github/trusted-security-tests.txt
 
       - name: Preserve strict legacy expected-red evidence
         shell: bash

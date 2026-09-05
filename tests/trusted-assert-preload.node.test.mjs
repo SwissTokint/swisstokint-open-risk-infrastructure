@@ -92,12 +92,50 @@ test('candidate cannot terminate successfully before a failing assertion', () =>
   for (const mutation of [
     'process.exit(0);',
     'process.reallyExit(0);',
+    "process.execve(process.execPath, [process.execPath, '-e', ''], {});",
   ]) {
     const result = runAttempt(mutation);
     assert.equal(result.error, undefined);
     assert.equal(result.signal, null);
     assert.notEqual(result.status, 0, `early exit suppressed a wrong assertion: ${mutation}`);
     assert.match(result.stderr, /AssertionError/u);
+  }
+});
+
+test('candidate cannot replace the trusted runner process', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-execve-manifest-'));
+  const manifestPath = join(sandbox, 'manifest.txt');
+  writeFileSync(
+    manifestPath,
+    'tests/fixtures/trusted-runner/process-execve-replacement.test.mjs\n',
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        loaderRegisterUrl,
+        '--import',
+        preloadUrl,
+        '--test',
+        '--experimental-test-isolation=none',
+        `--test-reporter=${reporterUrl}`,
+        'tests/fixtures/trusted-runner/process-execve-replacement.test.mjs',
+      ],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        windowsHide: true,
+        env: standaloneTestEnv({ TRUSTED_TEST_MANIFEST: manifestPath }),
+      },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.signal, null);
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /trusted-test-suite-pass/u);
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
   }
 });
 

@@ -70,6 +70,14 @@ permission is then unnecessary and withheld. Candidate code therefore cannot
 register a later hook that substitutes genuine source for the remaining
 base-owned manifest files; a three-file regression proves two unconditional
 later failures cannot be rewritten into genuine-looking passes.
+Each manifest file also runs in a fresh container, selected from the immutable
+base manifest by the trusted host loop. Cross-file module caches, background
+children and mutated process state therefore do not survive into the next
+security test file. Child-process permission remains necessary for specific
+base-owned regressions, so the preload makes `process.execve` non-replaceable
+and fail-closed alongside `process.exit` and `process.reallyExit`. A literal
+process-replacement regression must remain non-zero without a trusted pass
+marker.
 
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from

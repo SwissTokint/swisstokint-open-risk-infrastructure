@@ -89,7 +89,16 @@ function readTrustedManifest() {
   if (!stats.isFile() || stats.isSymbolicLink() || stats.size > 128 * 1024) {
     throw new Error('trusted test manifest must be a bounded regular file');
   }
-  return readFileSync(manifestPath, 'utf8').replace(/\r\n/gu, '\n').trim().split('\n');
+  const testPaths = readFileSync(manifestPath, 'utf8')
+    .replace(/\r\n/gu, '\n')
+    .trim()
+    .split('\n');
+  const selectedTestPath = process.env.TRUSTED_TEST_PATH;
+  if (selectedTestPath === undefined) return testPaths;
+  for (let index = 0; index < testPaths.length; index += 1) {
+    if (testPaths[index] === selectedTestPath) return [selectedTestPath];
+  }
+  throw new Error(`selected trusted test is not in the manifest: ${selectedTestPath}`);
 }
 
 function validateExpectedPaths(testPaths) {

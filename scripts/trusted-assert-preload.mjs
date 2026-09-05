@@ -53,7 +53,7 @@ function forbiddenEarlyExit(code) {
   throw new SafeError(`candidate-controlled early process exit is forbidden: ${SafeString(code)}`);
 }
 
-for (const property of ['exit', 'reallyExit']) {
+for (const property of ['exit', 'reallyExit', 'execve']) {
   SafeObjectDefineProperty(process, property, {
     value: forbiddenEarlyExit,
     writable: false,

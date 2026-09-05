@@ -229,6 +229,9 @@ test('candidate tests run without network, write access or ambient privilege', (
     trustedWorkflow,
     /--env TRUSTED_TEST_MANIFEST=\/workspace\/scripts\/trusted-security-tests\.txt/u,
   );
+  assert.match(trustedWorkflow, /while IFS= read -r trusted_test; do/u);
+  assert.match(trustedWorkflow, /--env TRUSTED_TEST_PATH="\$trusted_test"/u);
+  assert.match(trustedWorkflow, /done < trusted-base\/\.github\/trusted-security-tests\.txt/u);
 });
 
 test('ordinary CI remains a distinct canonical push or merge-candidate lane', () => {
