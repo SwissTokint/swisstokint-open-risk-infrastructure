@@ -21,6 +21,7 @@ let activeProvider = null;
 let activeProviderInfo = null;
 let bridgeRunning = false;
 let sessionClosed = false;
+let contextClosure = null;
 
 function lowerAccount(value) {
   return typeof value === 'string' ? value.toLowerCase() : null;
@@ -123,7 +124,7 @@ function validateConfig(input) {
   }
   const rpc = new URL(input.rpc_url);
   if (rpc.protocol !== 'http:' || rpc.hostname !== '127.0.0.1'
-      || rpc.port === '' || rpc.pathname !== '/' || rpc.search !== '' || rpc.hash !== ''
+      || rpc.pathname !== '/' || rpc.search !== '' || rpc.hash !== ''
       || rpc.username !== '' || rpc.password !== '') {
     throw new Error('RPC Anvil loopback invalide');
   }
@@ -382,7 +383,11 @@ async function processCommand(command) {
   }
   const outcome = await walletOutcome;
   if (Object.hasOwn(outcome, 'error')) {
-    const after = await sampleWalletContextBounded().catch(() => second);
+    let after = await sampleWalletContextBounded().catch(() => second);
+    if (sessionClosed) {
+      await closeForContextChange();
+      after = { chainId: 'unavailable', account: 'unavailable' };
+    }
     try {
       await settleWithin(
         deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after),
@@ -397,10 +402,16 @@ async function processCommand(command) {
   }
   const result = outcome.result;
 
-  const after = await sampleWalletContextBounded().catch(() => ({
+  let after = await sampleWalletContextBounded().catch(() => ({
     chainId: 'unavailable',
     account: 'unavailable',
   }));
+  if (sessionClosed) {
+    await closeForContextChange();
+    // Even a missing close acknowledgement must not admit stale pre-event
+    // context as normal success. Retain the hash for ambiguous reconciliation.
+    after = { chainId: 'unavailable', account: 'unavailable' };
+  }
   try {
     // Preserve the transaction hash even when the post-prompt context changed.
     // The server will reject it as a normal success, mark the operation
@@ -440,15 +451,18 @@ async function bridgeLoop() {
   allowButton.disabled = true;
 }
 
-async function closeForContextChange() {
-  if (sessionClosed) return;
+function closeForContextChange() {
   sessionClosed = true;
-  await settleWithin(
-    postJson('/bridge/close', { code: 'CONTEXT_CHANGED' }),
-    RESULT_DELIVERY_TIMEOUT_MS,
-    'Fermeture du bridge',
-  ).catch(() => {});
-  walletStatus.textContent = 'Session fermée après changement de contexte';
+  if (contextClosure === null) {
+    contextClosure = settleWithin(
+      postJson('/bridge/close', { code: 'CONTEXT_CHANGED' }),
+      RESULT_DELIVERY_TIMEOUT_MS,
+      'Fermeture du bridge',
+    ).catch(() => {}).then(() => {
+      walletStatus.textContent = 'Session fermée après changement de contexte';
+    });
+  }
+  return contextClosure;
 }
 
 connectButton.addEventListener('click', async () => {

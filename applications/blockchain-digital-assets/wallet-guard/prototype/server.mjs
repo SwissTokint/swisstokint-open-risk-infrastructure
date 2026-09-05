@@ -227,6 +227,11 @@ function rpcCall(rpcUrl, id, method, params) {
         }
       });
     });
+    const totalDeadline = setTimeout(
+      () => request.destroy(new Error('RPC total deadline exceeded')),
+      2_000,
+    );
+    request.once('close', () => clearTimeout(totalDeadline));
     request.on('timeout', () => request.destroy(new Error('RPC timeout')));
     request.on('error', reject);
     request.end(payload);

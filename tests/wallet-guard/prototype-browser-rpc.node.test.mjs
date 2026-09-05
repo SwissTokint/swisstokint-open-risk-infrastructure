@@ -216,6 +216,9 @@ function browserHarness({
   armResponse = null,
   dispatchedResponse = null,
   resultResponse = null,
+  closeResponse = null,
+  rpcUrl = 'http://127.0.0.1:8545/',
+  timerDelay = (delay) => Math.min(delay, 2),
   monotonicTime = () => performance.now(),
 } = {}) {
   const elements = new Map([
@@ -239,7 +242,7 @@ function browserHarness({
     if (path === '/api/config') {
       return response(200, {
         chain_id: ANVIL_CHAIN_ID,
-        rpc_url: 'http://127.0.0.1:8545/',
+        rpc_url: rpcUrl,
         host_origin: 'http://127.0.0.1:8787',
       });
     }
@@ -260,6 +263,7 @@ function browserHarness({
         : dispatchedResponse;
     }
     if (path === '/bridge/result' && resultResponse !== null) return resultResponse;
+    if (path === '/bridge/close' && closeResponse !== null) return closeResponse;
     if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view'
         || path === '/bridge/arm' || path === '/bridge/dispatched') {
       return response(204);
@@ -267,7 +271,7 @@ function browserHarness({
     throw new Error(`unexpected browser fetch ${path}`);
   };
 
-  const fastSetTimeout = (listener, delay) => setTimeout(listener, Math.min(delay, 2));
+  const fastSetTimeout = (listener, delay) => setTimeout(listener, timerDelay(delay));
   const providerAnnouncements = announcements ?? [{ info: METAMASK_INFO, provider }];
   const window = new FakeWindow(providerAnnouncements, boundary);
   const navigator = Object.freeze({
@@ -537,6 +541,58 @@ test('browser explicitly switches after wallet_addEthereumChain before handshake
     harness.fetchCalls.some(({ path }) => path === '/api/handshake'),
     true,
   );
+});
+
+test('browser accepts normalized default HTTP ports for loopback RPC', async (t) => {
+  for (const rpcUrl of ['http://127.0.0.1/', 'http://127.0.0.1:80/']) {
+    await t.test(rpcUrl, async () => {
+      const provider = new DeterministicEip1193Provider();
+      const harness = browserHarness({ provider, rpcUrl, nextResponses: [response(410)] });
+      await harness.elements.get('#connect').click();
+      assert.equal(harness.fetchCalls.some(({ path }) => path === '/api/handshake'), true);
+      assert.equal(provider.calls.some(({ method }) => method === 'eth_sendTransaction'), false);
+    });
+  }
+});
+
+test('post-send context closure settles before ambiguous hash delivery', async (t) => {
+  for (const acknowledged of [true, false]) {
+    await t.test(acknowledged ? 'acknowledged' : 'unavailable', async () => {
+      const closure = Promise.withResolvers();
+      const provider = new DeterministicEip1193Provider();
+      const request = provider.request.bind(provider);
+      provider.request = async (input) => {
+        if (provider.sendCompleted && input.method === 'eth_accounts') {
+          void provider.emit('accountsChanged', [OTHER_ACCOUNT]);
+        }
+        return request(input);
+      };
+      const harness = browserHarness({
+        provider,
+        nextResponses: [response(200, command())],
+        closeResponse: closure.promise,
+        timerDelay: (delay) => delay === 1_000 ? 200 : Math.min(delay, 2),
+      });
+      await harness.elements.get('#connect').click();
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/close'),
+        'context closure started',
+      );
+      assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/result'), false);
+      if (acknowledged) closure.resolve(response(204));
+      else closure.reject(new Error('close acknowledgement unavailable'));
+      await waitFor(
+        () => harness.fetchCalls.some(({ path }) => path === '/bridge/result'),
+        'late hash delivery',
+      );
+      const delivery = harness.fetchCalls.find(({ path }) => path === '/bridge/result').body;
+      assert.equal(delivery.result, TX_HASH);
+      assert.equal(delivery.observed_chain_id, 'unavailable');
+      assert.equal(delivery.observed_account, 'unavailable');
+      assert.equal(harness.fetchCalls.filter(({ path }) => path === '/bridge/close').length, 1);
+      assert.equal(provider.calls.filter(({ method }) => method === 'eth_sendTransaction').length, 1);
+    });
+  }
 });
 
 test('a transaction hash returned during a late context change remains observable', async () => {
@@ -998,6 +1054,33 @@ test('default RPC observer fails ambiguous when its loopback endpoint is unavail
   assert.equal(body.observation.external_world_proved, false);
   const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
   assert.equal(status.closed, true);
+});
+
+test('RPC observation has a total deadline even while response data arrives', async (t) => {
+  const rpc = createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.write(' ');
+    const progress = setInterval(() => res.write(' '), 100);
+    res.once('close', () => clearInterval(progress));
+  });
+  const port = await listen(rpc);
+  t.after(() => close(rpc));
+  const prototype = prototypeFor(`http://127.0.0.1:${port}/`, {
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+  });
+  t.after(() => prototype.close());
+  const started = performance.now();
+  const { allowed, info, cookie } = await executeAllowedTransaction(prototype);
+  assert.ok(performance.now() - started < 4_000, 'RPC observation must terminate promptly');
+  assert.equal(allowed.status, 202);
+  const result = JSON.parse(allowed.body);
+  assert.equal(result.observation.status, 'AMBIGUOUS');
+  assert.match(result.observation.detail, /RPC total deadline exceeded/u);
+  const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+  assert.equal(status.closed, true);
+  assert.equal(status.ambiguous.retry_allowed, false);
 });
 
 test('default RPC observer rejects a semantically different transaction behind a valid receipt', async () => {
