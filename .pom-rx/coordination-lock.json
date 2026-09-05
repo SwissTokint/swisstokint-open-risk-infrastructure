@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-pr138-restack-20260905T1208Z",
-    "acquired_at": "2026-09-05T12:07:59.278Z",
-    "expires_at": "2026-09-05T12:52:59.278Z",
-    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
-    "purpose": "Restack PR #138 Anvil/MetaMask prototype onto assured main, repair bounded integration defects, retain historical regressions, and publish exact-head review evidence; synthetic/local tests only."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-05T12:07:59.278Z",
+    "type": "RELEASE",
+    "at": "2026-09-05T12:53:24.348Z",
     "actor": "pom-rx-pr138-restack-20260905T1208Z",
-    "reason": "Acquire FREE canonical guard after human-authorized stale recovery for PR #138."
+    "reason": "Same-holder release after writer expiry; no project mutation in flight. PR #138 head e653c97 has green CI #1275 but newly completed independent SKEPTIC_BLOCK with two P1 and one P2. No merge. PR checkpoint predates these review findings; repair and fresh exact-head validation required next invocation."
   }
 }
