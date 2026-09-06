@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-pr138-skeptic-merge-20260906T193828891Z",
+    "acquired_at": "2026-09-06T19:38:28.891Z",
+    "expires_at": "2026-09-06T20:23:28.891Z",
+    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
+    "purpose": "Record user-authorized independent skeptical verdict on PR138, apply exact-head merge gate and merge if PASS, then exact-main post-merge assurance; no real wallet exercise."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-06T11:19:09.874Z",
-    "actor": "pom-rx-pr138-settlement-20260906T105236217Z",
-    "reason": "PR138 head 5474f76: full tests/64 prototype cases/CI1289/Code/Security complete. Five P2 threads resolved; two P1 discussions await explicit independent skeptical report. No merge, no project mutation in flight."
+    "type": "ACQUIRE",
+    "at": "2026-09-06T19:38:28.891Z",
+    "actor": "pom-rx-pr138-skeptic-merge-20260906T193828891Z",
+    "reason": "User explicitly approved independent skeptic and continuation of authorized merge progression; canonical lock verified FREE."
   }
 }
