@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-pr138-skeptic-merge-20260906T193828891Z",
-    "acquired_at": "2026-09-06T19:38:28.891Z",
-    "expires_at": "2026-09-06T20:23:28.891Z",
-    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
-    "purpose": "Record user-authorized independent skeptical verdict on PR138, apply exact-head merge gate and merge if PASS, then exact-main post-merge assurance; no real wallet exercise."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-06T19:38:28.891Z",
+    "type": "RELEASE",
+    "at": "2026-09-06T19:55:40.817Z",
     "actor": "pom-rx-pr138-skeptic-merge-20260906T193828891Z",
-    "reason": "User explicitly approved independent skeptic and continuation of authorized merge progression; canonical lock verified FREE."
+    "reason": "PR138 merged with expected head; actual merge tree/parents verified; exact-main CI1290 and independent six-part post-merge assurance PASS published and verified. All project writes terminal; no mutation in flight."
   }
 }
