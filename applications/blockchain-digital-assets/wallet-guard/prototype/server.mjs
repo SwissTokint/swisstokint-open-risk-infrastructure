@@ -1119,6 +1119,7 @@ export function createWalletGuardPrototypeServer({
               const ambiguous = markAmbiguous(
                 state.lastSensitivePending,
                 'OBSERVATION_FAILED',
+                null, // This observation already failed; do not start it again.
               );
               ambiguous.transaction_hash = result.provider_result;
               ambiguous.observed_chain_id = ANVIL_CHAIN_ID;

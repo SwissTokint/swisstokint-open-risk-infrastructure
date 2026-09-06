@@ -1172,6 +1172,26 @@ test('default RPC observer marks a receipt mismatch ambiguous and closes the ses
   assert.equal(status.closed, true);
 });
 
+test('a failed final observation is recorded once without a second observer call', async (t) => {
+  let observations = 0;
+  const prototype = prototypeFor('http://127.0.0.1:8545/', {
+    captureNodeChainView: async () => chainView(),
+    captureObservationBaseline: async () => baseline(),
+    observeTransaction: async () => {
+      observations += 1;
+      throw new Error('local observation unavailable');
+    },
+  });
+  t.after(() => prototype.close());
+  const { allowed } = await executeAllowedTransaction(prototype);
+  assert.equal(allowed.status, 202);
+  const operation = JSON.parse(allowed.body).operation;
+  assert.equal(operation.cause_code, 'OBSERVATION_FAILED');
+  assert.equal(operation.transaction_hash, TX_HASH);
+  assert.equal(operation.retry_allowed, false);
+  assert.equal(observations, 1);
+});
+
 test('default RPC observer fails ambiguous when its loopback endpoint is unavailable', async (t) => {
   const reservation = createServer();
   const unavailablePort = await listen(reservation);
