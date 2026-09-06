@@ -147,6 +147,23 @@ Account/chain are sampled again after the wallet prompt. A hash
 returned with late context drift is retained as ambiguous evidence and sent to
 the observer instead of being discarded.
 
+Result delivery is provisional: `/bridge/result` retains the exact response
+and returns an unpredictable one-use receipt without completing `/api/allow`.
+After receiving that acknowledgement the browser samples context once more.
+An event during result delivery, an unavailable dispatch acknowledgement, or
+a failed final context check closes the session and retains any known hash as
+ambiguous. Only then may the browser synchronously submit `/bridge/settle`
+with the receipt. Node consumes it only while the same pending command is live;
+duplicate results, wrong receipts and replayed settlements are rejected. A
+missing settlement expires within five seconds (or the shorter command limit).
+
+The browser's synchronous settlement submission is the explicit observation
+cut-off: it attests context and acknowledgement receipt up to that instant.
+It cannot attest later wallet events or atomically observe Node's acceptance.
+Loss of the final settlement response leaves the browser uncertain even if
+Node accepted it; preserve the displayed hash and reconcile manually, never
+retry. A historical Node reference match is not a continuing context guarantee.
+
 Prerequisites: Node.js 24, MetaMask with EIP-6963 support, and Foundry's `anvil`
 plus `cast` on PATH. Use a newly created MetaMask burner account in a dedicated
 clean browser profile with no other wallet extension, service worker or prior
@@ -221,14 +238,21 @@ funds. POM-RX Core does not receive or custody the burner key.
    The one-sensitive-call capacity is exhausted; starting a new host is a new
    session, never authority to retry an earlier or still-visible prompt.
 
-A timeout, browser context event, malformed response, RPC observer failure or
-process shutdown after delivery to MetaMask closes the session as
+A timeout, browser context event before settlement submission, malformed response,
+or RPC observer failure after delivery to MetaMask closes the live session as
 `AMBIGUOUS`; retry remains forbidden. A transaction hash returned later is
 retained and reconciled against the same pre-dispatch Anvil block/nonce
 baseline, but does not turn the operation into a normal success. Do not approve
 a prompt after the page reports closure. Stop Anvil and discard the burner
 after reconciliation. Restarting the Node host creates a new session, but it is
 not a retry authorization for an earlier prompt.
+
+Process shutdown is a separate unresolved boundary. Operation, replay, baseline,
+hash and ambiguity state exist only in memory and are lost when Node exits.
+Shutdown cannot guarantee durable `AMBIGUOUS` settlement or retain a future
+wallet result; a new host cannot identify the old prompt or enforce its retry
+prohibition. Preserve available evidence manually, do not approve or retry an
+old prompt, and discard the disposable chain and burner after reconciliation.
 
 This prototype still uses the provider's synthetic reference authorization
 supplier and a direct Anvil transaction/receipt check. The EIP-6963 `rdns`

@@ -22,6 +22,8 @@ let activeProviderInfo = null;
 let bridgeRunning = false;
 let sessionClosed = false;
 let contextClosure = null;
+let bridgeCompletion = Promise.resolve();
+let settlementConfirmed = false;
 
 function lowerAccount(value) {
   return typeof value === 'string' ? value.toLowerCase() : null;
@@ -291,7 +293,7 @@ async function signalWalletDispatched(command) {
 }
 
 async function deliver(command, outcome, observed) {
-  await postJson('/bridge/result', {
+  return postJson('/bridge/result', {
     schema_version: command.schema_version,
     session_id: command.session_id,
     sequence: command.sequence,
@@ -304,7 +306,45 @@ async function deliver(command, outcome, observed) {
   });
 }
 
+async function settleRetainedResult(command, receipt) {
+  if (receipt?.operation?.status === 'AMBIGUOUS') {
+    sessionClosed = true;
+    return;
+  }
+  if (Object.keys(receipt ?? {}).sort().join(',') !== 'receipt,schema_version'
+      || receipt.schema_version !== 'wallet_guard_settlement/0.1'
+      || typeof receipt.receipt !== 'string' || !/^[0-9a-f]{64}$/u.test(receipt.receipt)) {
+    throw new Error('Accusé de conservation du résultat invalide');
+  }
+  const finalContext = await sampleWalletContextBounded().catch(() => null);
+  if (sessionClosed || finalContext === null || !contextMatches(command, finalContext)) {
+    await closeForContextChange();
+    return;
+  }
+  // This synchronous submission is the browser's settlement cut-off. It
+  // attests receipt of the result acknowledgement and context observed up to
+  // here, not future wallet events or receipt of this final HTTP response.
+  await settleWithin(postJson('/bridge/settle', {
+    schema_version: command.schema_version,
+    session_id: command.session_id,
+    sequence: command.sequence,
+    request_id: command.request_id,
+    receipt: receipt.receipt,
+  }), RESULT_DELIVERY_TIMEOUT_MS, 'Finalisation du résultat wallet');
+  settlementConfirmed = true;
+}
+
 async function processCommand(command) {
+  let completed;
+  bridgeCompletion = new Promise((resolve) => { completed = resolve; });
+  try {
+    await processBoundCommand(command);
+  } finally {
+    completed();
+  }
+}
+
+async function processBoundCommand(command) {
   const first = await sampleWalletChainView();
   const second = await sampleWalletChainView();
   if (!contextMatches(command, first) || !contextMatches(command, second)
@@ -380,6 +420,10 @@ async function processCommand(command) {
     await settleWithin(dispatchSignal, DISPATCH_ACK_TIMEOUT_MS, 'Accusé de dispatch');
   } catch {
     dispatchAcknowledged = false;
+    // The server may have received the dispatch while its acknowledgement
+    // was lost. Close before outcome delivery and force unavailable context
+    // below even if the close acknowledgement itself is unavailable.
+    await closeBridge('BRIDGE_CLOSED');
   }
   const outcome = await walletOutcome;
   if (Object.hasOwn(outcome, 'error')) {
@@ -389,12 +433,14 @@ async function processCommand(command) {
       after = { chainId: 'unavailable', account: 'unavailable' };
     }
     try {
-      await settleWithin(
+      const receipt = await settleWithin(
         deliver(command, { errorCode: boundedErrorCode(outcome.error) }, after),
         RESULT_DELIVERY_TIMEOUT_MS,
         'Livraison du résultat wallet',
       );
+      await settleRetainedResult(command, receipt);
     } catch (error) {
+      await closeBridge('BRIDGE_CLOSED');
       resultView.textContent = `Résultat wallet à réconcilier manuellement (${error.message})`;
     }
     sessionClosed = true;
@@ -416,12 +462,14 @@ async function processCommand(command) {
     // Preserve the transaction hash even when the post-prompt context changed.
     // The server will reject it as a normal success, mark the operation
     // ambiguous, and reconcile the bound hash against its configured Anvil.
-    await settleWithin(
+    const receipt = await settleWithin(
       deliver(command, { result }, after),
       RESULT_DELIVERY_TIMEOUT_MS,
       'Livraison du hash wallet',
     );
+    await settleRetainedResult(command, receipt);
   } catch (error) {
+    await closeBridge('BRIDGE_CLOSED');
     resultView.textContent = `Hash MetaMask à réconcilier manuellement: ${String(result)} (${error.message})`;
     sessionClosed = true;
     return;
@@ -451,18 +499,22 @@ async function bridgeLoop() {
   allowButton.disabled = true;
 }
 
-function closeForContextChange() {
+function closeBridge(code) {
   sessionClosed = true;
   if (contextClosure === null) {
     contextClosure = settleWithin(
-      postJson('/bridge/close', { code: 'CONTEXT_CHANGED' }),
+      postJson('/bridge/close', { code }),
       RESULT_DELIVERY_TIMEOUT_MS,
       'Fermeture du bridge',
     ).catch(() => {}).then(() => {
-      walletStatus.textContent = 'Session fermée après changement de contexte';
+      walletStatus.textContent = 'Session fermée; ne pas réessayer la transaction';
     });
   }
   return contextClosure;
+}
+
+function closeForContextChange() {
+  return closeBridge('CONTEXT_CHANGED');
 }
 
 connectButton.addEventListener('click', async () => {
@@ -517,7 +569,19 @@ allowButton.addEventListener('click', async () => {
   allowButton.disabled = true;
   resultView.textContent = 'En attente de confirmation MetaMask…';
   try {
-    resultView.textContent = JSON.stringify(await postJson('/api/allow', {}), null, 2);
+    const result = await postJson('/api/allow', {});
+    await bridgeCompletion;
+    if (result.result?.forwarded && !settlementConfirmed) {
+      resultView.textContent = JSON.stringify({
+        status: 'AMBIGUOUS',
+        cause: 'FINAL_SETTLEMENT_ACK_UNAVAILABLE',
+        transaction_hash: result.result.provider_result,
+        retry_allowed: false,
+        node_reference_observation: result.observation,
+      }, null, 2);
+    } else {
+      resultView.textContent = JSON.stringify(result, null, 2);
+    }
   } catch (error) {
     resultView.textContent = error.message;
   }

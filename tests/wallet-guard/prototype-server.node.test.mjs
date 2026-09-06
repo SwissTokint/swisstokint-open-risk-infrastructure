@@ -156,6 +156,19 @@ async function signalDispatched(info, cookie, command) {
   });
 }
 
+async function settleResult(info, cookie, command, receipt) {
+  return http(info.origin, '/bridge/settle', {
+    method: 'POST', cookie, requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: command.schema_version,
+      session_id: command.session_id,
+      sequence: command.sequence,
+      request_id: command.request_id,
+      receipt,
+    }),
+  });
+}
+
 async function nextCommand(info, cookie) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const response = await http(info.origin, '/bridge/next', { cookie });
@@ -348,7 +361,15 @@ test('loopback prototype authenticates one page and executes DENY then one bound
     requestOrigin: info.origin,
     body: resultEnvelope,
   });
-  assert.equal(delivered.status, 204);
+  assert.equal(delivered.status, 200);
+  const receipt = parseJson(delivered).receipt;
+  assert.match(receipt, /^[0-9a-f]{64}$/u);
+  assert.equal((await http(info.origin, '/bridge/result', {
+    method: 'POST', cookie, requestOrigin: info.origin, body: resultEnvelope,
+  })).status, 409);
+  assert.equal((await settleResult(info, cookie, command, '0'.repeat(64))).status, 400);
+  assert.equal((await settleResult(info, cookie, command, receipt)).status, 204);
+  assert.equal((await settleResult(info, cookie, command, receipt)).status, 409);
 
   const allowed = await allowPromise;
   assert.equal(allowed.status, 200);
@@ -369,6 +390,57 @@ test('loopback prototype authenticates one page and executes DENY then one bound
   const status = parseJson(await http(info.origin, '/api/status', { cookie }));
   assert.equal(status.sensitive_call_count, 1);
   assert.equal(status.command_pending, false);
+});
+
+test('unconfirmed retained results close or expire with their hash and no retry', async (t) => {
+  for (const terminal of ['close', 'timeout']) {
+    await t.test(terminal, async () => {
+      let observations = 0;
+      const prototype = createWalletGuardPrototypeServer({
+        createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+        createTrustedGateway: createWalletGuardTrustedProviderGateway,
+        commandTimeoutMs: 1_000,
+        captureNodeChainView: async () => nodeChainView(),
+        captureObservationBaseline: async () => ({
+          chain_id: '0x7a69', block_number: '0x5', account_nonce: '0x0',
+        }),
+        observeTransaction: async () => {
+          observations += 1;
+          return { status: 'MATCH_REFERENCE', reference_only: true };
+        },
+      });
+      t.after(() => prototype.close());
+      const info = await prototype.listen();
+      const { cookie } = await authenticate(info);
+      await handshake(info, cookie);
+      const allowedPromise = http(info.origin, '/api/allow', {
+        method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+      });
+      const command = await nextCommand(info, cookie);
+      await bindView(info, cookie, command);
+      await armView(info, cookie, command);
+      await signalDispatched(info, cookie, command);
+      const retained = await http(info.origin, '/bridge/result', {
+        method: 'POST', cookie, requestOrigin: info.origin, body: resultEnvelope(command),
+      });
+      assert.equal(retained.status, 200);
+      assert.equal(observations, 0);
+      if (terminal === 'close') {
+        await http(info.origin, '/bridge/close', {
+          method: 'POST', cookie, requestOrigin: info.origin,
+          body: JSON.stringify({ code: 'CONTEXT_CHANGED' }),
+        });
+      }
+      const allowed = await allowedPromise;
+      assert.equal(allowed.status, 202);
+      const operation = parseJson(allowed).operation;
+      assert.equal(operation.status, 'AMBIGUOUS');
+      assert.equal(operation.transaction_hash, TX_HASH);
+      assert.equal(operation.retry_allowed, false);
+      assert.equal(observations, 1);
+      assert.equal((await settleResult(info, cookie, command, parseJson(retained).receipt)).status, 409);
+    });
+  }
 });
 
 test('delivered MetaMask timeout stays AMBIGUOUS, retains a late hash, and forbids retry', async (t) => {

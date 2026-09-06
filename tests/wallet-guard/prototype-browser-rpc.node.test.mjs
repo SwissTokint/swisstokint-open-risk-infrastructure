@@ -28,6 +28,9 @@ const GENESIS_HASH = `0x${'d'.repeat(64)}`;
 const LATEST_BLOCK_HASH = `0x${'e'.repeat(64)}`;
 const LATEST_BLOCK_NUMBER = '0x5';
 const SESSION_ID = 'c'.repeat(64);
+const RESULT_RECEIPT = Object.freeze({
+  schema_version: 'wallet_guard_settlement/0.1', receipt: 'f'.repeat(64),
+});
 const METAMASK_INFO = Object.freeze({
   uuid: '350670db-19fa-4704-a166-e52e178b59d2',
   name: 'MetaMask',
@@ -169,7 +172,9 @@ class DeterministicEip1193Provider {
 }
 
 class FakeWindow {
-  constructor(providerAnnouncements, { secureContext = true, storageLength = 0 } = {}) {
+  constructor(providerAnnouncements, {
+    secureContext = true, storageLength = 0, origin = 'http://127.0.0.1:8787',
+  } = {}) {
     this.providerAnnouncements = providerAnnouncements;
     this.listeners = new Map();
     this.isSecureContext = secureContext;
@@ -177,7 +182,7 @@ class FakeWindow {
     this.location = Object.freeze({
       protocol: 'http:',
       hostname: '127.0.0.1',
-      origin: 'http://127.0.0.1:8787',
+      origin,
     });
     this.caches = Object.freeze({ async keys() { return []; } });
     this.localStorage = Object.freeze({ length: storageLength });
@@ -216,10 +221,13 @@ function browserHarness({
   armResponse = null,
   dispatchedResponse = null,
   resultResponse = null,
+  settleResponse = null,
+  allowResponse = null,
   closeResponse = null,
   rpcUrl = 'http://127.0.0.1:8545/',
   timerDelay = (delay) => Math.min(delay, 2),
   monotonicTime = () => performance.now(),
+  transport = null,
 } = {}) {
   const elements = new Map([
     ['#connect', new FakeElement()],
@@ -239,6 +247,7 @@ function browserHarness({
     const body = options.body === undefined ? null : JSON.parse(options.body);
     fetchCalls.push({ path, options, body });
     trace.push(`fetch:${path}`);
+    if (transport !== null) return transport(path, options);
     if (path === '/api/config') {
       return response(200, {
         chain_id: ANVIL_CHAIN_ID,
@@ -263,9 +272,12 @@ function browserHarness({
         : dispatchedResponse;
     }
     if (path === '/bridge/result' && resultResponse !== null) return resultResponse;
+    if (path === '/bridge/settle' && settleResponse !== null) return settleResponse;
+    if (path === '/api/allow' && allowResponse !== null) return allowResponse;
     if (path === '/bridge/close' && closeResponse !== null) return closeResponse;
-    if (path === '/bridge/result' || path === '/bridge/close' || path === '/bridge/view'
-        || path === '/bridge/arm' || path === '/bridge/dispatched') {
+    if (path === '/bridge/result') return response(200, RESULT_RECEIPT);
+    if (path === '/bridge/close' || path === '/bridge/view'
+        || path === '/bridge/arm' || path === '/bridge/dispatched' || path === '/bridge/settle') {
       return response(204);
     }
     throw new Error(`unexpected browser fetch ${path}`);
@@ -673,6 +685,28 @@ test('a missing dispatch acknowledgement cannot strand a wallet hash', async (t)
   }
 });
 
+test('an unavailable final acknowledgement cannot display normal completion', async () => {
+  const harness = browserHarness({
+    provider: new DeterministicEip1193Provider(),
+    nextResponses: [response(200, command())],
+    settleResponse: new Promise(() => {}),
+    allowResponse: response(200, {
+      result: { forwarded: true, provider_result: TX_HASH },
+      observation: { status: 'MATCH_REFERENCE' },
+    }),
+    timerDelay: (delay) => delay === 1_000 ? 100 : 2,
+  });
+  await harness.elements.get('#connect').click();
+  await waitFor(() => harness.fetchCalls.some(({ path }) => path === '/bridge/settle'),
+    'settlement submission');
+  await harness.elements.get('#allow').click();
+  const displayed = JSON.parse(harness.elements.get('#result').textContent);
+  assert.equal(displayed.status, 'AMBIGUOUS');
+  assert.equal(displayed.transaction_hash, TX_HASH);
+  assert.equal(displayed.retry_allowed, false);
+  assert.equal(displayed.cause, 'FINAL_SETTLEMENT_ACK_UNAVAILABLE');
+});
+
 test('a stalled result acknowledgement retains the hash for manual reconciliation', async () => {
   const harness = browserHarness({
     provider: new DeterministicEip1193Provider(),
@@ -920,7 +954,18 @@ async function executeAllowedTransaction(prototype) {
       error: null,
     }),
   });
-  assert.equal(delivered.status, 204);
+  assert.equal(delivered.status, 200);
+  const settled = await http(info.origin, '/bridge/settle', {
+    method: 'POST', cookie, requestOrigin: info.origin,
+    body: JSON.stringify({
+      schema_version: bridgeCommand.schema_version,
+      session_id: bridgeCommand.session_id,
+      sequence: bridgeCommand.sequence,
+      request_id: bridgeCommand.request_id,
+      receipt: JSON.parse(delivered.body).receipt,
+    }),
+  });
+  assert.equal(settled.status, 204);
   return { allowed: await allowedPromise, info, cookie };
 }
 
@@ -943,6 +988,96 @@ function chainView() {
     latest_block_hash: LATEST_BLOCK_HASH,
   };
 }
+
+test('integrated settlement requires received acknowledgements and live context', async (t) => {
+  for (const scenario of ['normal', 'accountsChanged', 'chainChanged', 'disconnect',
+    'dispatch acknowledgement unavailable', 'dispatch and close acknowledgements unavailable',
+    'result acknowledgement unavailable']) {
+    await t.test(scenario, async () => {
+      const prototype = prototypeFor('http://127.0.0.1:8545/', {
+        captureNodeChainView: async () => chainView(),
+        captureObservationBaseline: async () => baseline(),
+        observeTransaction: async () => ({ status: 'MATCH_REFERENCE', reference_only: true }),
+      });
+      t.after(() => prototype.close());
+      const info = await prototype.listen();
+      const launch = new URL(info.launch_url);
+      const boot = await http(info.origin, `${launch.pathname}${launch.search}`);
+      const cookie = boot.headers['set-cookie'][0].split(';')[0];
+      const provider = new DeterministicEip1193Provider();
+      let allowCompleted = false;
+      let staged = false;
+      let actualDispatchAcknowledged = false;
+      const harness = browserHarness({
+        provider, nextResponses: [], boundary: { origin: info.origin },
+        timerDelay: (delay) => delay === 250 ? 50 : 200,
+        transport: async (path, options) => {
+          if (path === '/bridge/close'
+              && scenario === 'dispatch and close acknowledgements unavailable') {
+            throw new Error('close unavailable');
+          }
+          const actual = await http(info.origin, path, {
+            method: options.method ?? 'GET', cookie,
+            requestOrigin: options.method === 'POST' ? info.origin : null,
+            body: options.body ?? null,
+          });
+          if (path === '/bridge/dispatched') {
+            assert.equal(actual.status, 204);
+            actualDispatchAcknowledged = true;
+            if (scenario.startsWith('dispatch')) return new Promise(() => {});
+          }
+          if (path === '/bridge/result' && actual.status === 200) {
+            staged = true;
+            const status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+            assert.equal(status.command_pending, true);
+            assert.equal(status.observation, null);
+            assert.equal(allowCompleted, false, 'retention must not finalize /api/allow');
+            if (scenario === 'result acknowledgement unavailable') return new Promise(() => {});
+            if (['accountsChanged', 'chainChanged', 'disconnect'].includes(scenario)) {
+              await provider.emit(scenario, [OTHER_ACCOUNT]);
+            }
+          }
+          return response(actual.status, actual.body === '' ? null : JSON.parse(actual.body));
+        },
+      });
+      await harness.elements.get('#connect').click();
+      assert.equal(harness.fetchCalls.some(({ path }) => path === '/api/handshake'), true);
+      const allowed = await http(info.origin, '/api/allow', {
+        method: 'POST', cookie, requestOrigin: info.origin, body: '{}',
+      }).then((value) => { allowCompleted = true; return value; });
+      assert.equal(actualDispatchAcknowledged, true);
+      assert.equal(provider.calls.filter(({ method }) => method === 'eth_sendTransaction').length, 1);
+      if (scenario === 'normal') {
+        assert.equal(allowed.status, 200);
+        assert.equal(JSON.parse(allowed.body).result.provider_result, TX_HASH);
+        assert.equal(harness.fetchCalls.filter(({ path }) => path === '/bridge/settle').length, 1);
+      } else {
+        assert.equal(allowed.status, 202);
+        const operation = JSON.parse(allowed.body).operation;
+        assert.equal(operation.status, 'AMBIGUOUS');
+        assert.equal(operation.retry_allowed, false);
+        // A pre-result close can respond before the browser sends its late
+        // hash; wait for that one reconciliation delivery to become visible.
+        await waitFor(() => harness.fetchCalls.some(({ path }) => path === '/bridge/result'),
+          'retained hash delivery');
+        let status;
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          status = JSON.parse((await http(info.origin, '/api/status', { cookie })).body);
+          if (status.ambiguous?.transaction_hash === TX_HASH) break;
+          await new Promise((resolve) => setTimeout(resolve, 2));
+        }
+        assert.equal(status.ambiguous.transaction_hash, TX_HASH);
+        assert.equal(status.ambiguous.retry_allowed, false);
+        assert.equal(status.closed, true);
+        assert.equal(harness.fetchCalls.some(({ path }) => path === '/bridge/settle'), false);
+      }
+      assert.equal(staged, !scenario.startsWith('dispatch'));
+      if (scenario !== 'dispatch and close acknowledgements unavailable') {
+        await provider.emit('disconnect');
+      }
+    });
+  }
+});
 
 function baseline() {
   return {

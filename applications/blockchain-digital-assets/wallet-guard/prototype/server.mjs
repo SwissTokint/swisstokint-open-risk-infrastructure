@@ -555,7 +555,7 @@ export function createWalletGuardPrototypeServer({
     return ambiguous.reconciliationPromise;
   }
 
-  function markAmbiguous(pending, causeCode, candidate = null) {
+  function markAmbiguous(pending, causeCode, candidate = pending.resultCandidate ?? null) {
     if (state.ambiguous === null) {
       state.ambiguous = {
         status: 'AMBIGUOUS',
@@ -602,6 +602,9 @@ export function createWalletGuardPrototypeServer({
       viewBound: false,
       armed: false,
       dispatched: false,
+      resultReceipt: null,
+      rawResult: null,
+      resultCandidate: null,
       observationBaseline: state.activeObservationBaseline,
       timer: null,
     };
@@ -893,6 +896,10 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         const pending = state.pending;
+        if (pending.resultReceipt !== null) {
+          send(res, 409, 'result already retained; settlement required');
+          return;
+        }
         if (!pending.dispatched) {
           if (!pending.armed) {
             send(res, 409, 'wallet result requires an armed command');
@@ -925,8 +932,6 @@ export function createWalletGuardPrototypeServer({
           sendJson(res, 202, { operation: ambiguousView() });
           return;
         }
-        state.pending = null;
-        clearTimeout(pending.timer);
         let parsed = null;
         let candidate = null;
         try {
@@ -940,6 +945,31 @@ export function createWalletGuardPrototypeServer({
           }
           markAmbiguous(pending, 'UNTRUSTED_LATE_CONTEXT', candidate);
         }
+        // Receiving a matching result is not completion: the browser must
+        // receive this unpredictable receipt, then confirm its context before
+        // submitting settlement. Keep the command and hash until that point.
+        if (parsed !== null && pending.viewBound && !state.closed
+            && (parsed.outcome === 'result' || parsed.error_code === 'USER_REJECTED')) {
+          pending.rawResult = raw;
+          pending.resultCandidate = parsed.outcome === 'result'
+            ? extractBoundTransactionCandidate(raw, pending.command)
+            : null;
+          pending.resultReceipt = randomHex32();
+          clearTimeout(pending.timer);
+          pending.timer = setTimeout(() => {
+            if (state.pending !== pending) return;
+            state.pending = null;
+            markAmbiguous(pending, 'SETTLEMENT_TIMEOUT');
+            pending.reportFailure('TIMEOUT');
+          }, Math.min(commandTimeoutMs, 5_000));
+          sendJson(res, 200, {
+            schema_version: 'wallet_guard_settlement/0.1',
+            receipt: pending.resultReceipt,
+          });
+          return;
+        }
+        state.pending = null;
+        clearTimeout(pending.timer);
         if (!pending.viewBound) {
           if (candidate === null) {
             try {
@@ -971,6 +1001,33 @@ export function createWalletGuardPrototypeServer({
         } else {
           send(res, 204);
         }
+        return;
+      }
+
+      if (url.pathname === '/bridge/settle') {
+        const input = parseWalletGuardBoundedJsonData(await readStrictBody(req));
+        exactKeys(input, ['schema_version', 'session_id', 'sequence', 'request_id', 'receipt'],
+          'wallet settlement');
+        const pending = state.pending;
+        if (state.closed || pending === null || pending.resultReceipt === null) {
+          send(res, 409, 'no retained result awaiting settlement');
+          return;
+        }
+        const command = pending.command;
+        if (input.schema_version !== command.schema_version
+            || input.session_id !== command.session_id
+            || input.sequence !== command.sequence
+            || input.request_id !== command.request_id
+            || input.receipt !== pending.resultReceipt) {
+          throw new TypeError('wallet settlement does not match retained result');
+        }
+        // No await between checking this live one-use receipt and consuming it.
+        state.pending = null;
+        clearTimeout(pending.timer);
+        pending.resultReceipt = null;
+        pending.deliverRawJson(pending.rawResult);
+        if (state.transport.control.inspect().destroyed) state.closed = true;
+        send(res, 204);
         return;
       }
 
