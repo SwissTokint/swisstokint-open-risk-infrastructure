@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-pr138-settlement-20260906T105236217Z",
+    "acquired_at": "2026-09-06T10:52:36.217Z",
+    "expires_at": "2026-09-06T11:37:36.217Z",
+    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
+    "purpose": "Repair PR #138 reviewed settlement lifecycle and shutdown wording; preserve all Core/callback P1 regressions, validate exact-head CI and independent gates before authorized merge."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-05T12:53:24.348Z",
-    "actor": "pom-rx-pr138-restack-20260905T1208Z",
-    "reason": "Same-holder release after writer expiry; no project mutation in flight. PR #138 head e653c97 has green CI #1275 but newly completed independent SKEPTIC_BLOCK with two P1 and one P2. No merge. PR checkpoint predates these review findings; repair and fresh exact-head validation required next invocation."
+    "type": "ACQUIRE",
+    "at": "2026-09-06T10:52:36.217Z",
+    "actor": "pom-rx-pr138-settlement-20260906T105236217Z",
+    "reason": "User requested continued PR138 repair and merge progression; canonical lock verified FREE."
   }
 }
