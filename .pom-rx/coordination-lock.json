@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-pr138-settlement-20260906T105236217Z",
-    "acquired_at": "2026-09-06T10:52:36.217Z",
-    "expires_at": "2026-09-06T11:37:36.217Z",
-    "base_main": "9f6d5dab1ff186a87616128e71d29f69605968f2",
-    "purpose": "Repair PR #138 reviewed settlement lifecycle and shutdown wording; preserve all Core/callback P1 regressions, validate exact-head CI and independent gates before authorized merge."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-06T10:52:36.217Z",
+    "type": "RELEASE",
+    "at": "2026-09-06T11:19:09.874Z",
     "actor": "pom-rx-pr138-settlement-20260906T105236217Z",
-    "reason": "User requested continued PR138 repair and merge progression; canonical lock verified FREE."
+    "reason": "PR138 head 5474f76: full tests/64 prototype cases/CI1289/Code/Security complete. Five P2 threads resolved; two P1 discussions await explicit independent skeptical report. No merge, no project mutation in flight."
   }
 }
