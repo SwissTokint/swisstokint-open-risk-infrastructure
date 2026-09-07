@@ -117,6 +117,58 @@ prompt was cancelled. The loopback prototype below supplies one narrow host
 composition around that contract; those host controls do not become guarantees
 of the callback foundation or arbitrary browser integrations.
 
+## Standalone durable operation journal foundation
+
+`prototype/durable-operation-journal.mjs` provides a separately tested local
+storage component reconstructed from the journal work in historical PR #139.
+It is not connected to `server.mjs` or the bootstrap scripts. The running Anvil
+prototype below still has in-memory operation state and its documented shutdown
+limitation. No new wallet or remote-network execution path is enabled by this
+component.
+
+The primitive accepts one trusted plain command for an exact zero-value,
+empty-data self-transfer on the configured Anvil or Sepolia chain. These network
+names are record metadata; the module makes no RPC calls. It records
+`READY -> ARMED -> DISPATCHED -> HASH_OBSERVED -> TERMINAL`; an armed operation
+can retain a hash even if dispatch acknowledgement was unavailable. A reported
+`MATCH_REFERENCE` requires a retained hash. The journal does not establish that
+the command was authorized, sent, independently observed, or reconciled.
+
+Use a fresh absolute normalized path in a private, owned, symlink-free directory
+on a trusted local POSIX filesystem with file and directory fsync support.
+Records and the exclusive per-path ownership marker are created with mode 0600.
+Existing journals of every state, malformed records, oversized records, links,
+or an existing ownership marker block initialization for manual reconciliation.
+There is no automatic stale-lock takeover, recovery, deletion, retry, or reuse.
+This application operation marker is unrelated to repository automation's
+canonical coordination guard.
+
+Initialization and writes reserve one operation at a time. A record is published
+in memory only after validating its exact serialized representation with the
+same bounded parser as the reader, writing a temporary file, syncing it, atomically replacing
+the record and syncing its directory. `close()` immediately refuses new work and
+waits for the current operation before releasing ownership. Closing permanently
+disables that instance. Any initialization or storage-transition failure puts
+the instance in `FAULTED`; restoring storage does not permit another transition.
+After a failed write, `inspect()` is only the last confirmed snapshot and can
+differ from the disk, so callers must retain the failure and consult `status()`.
+
+The SHA-256 field detects ordinary record corruption. It is not a signature,
+rollback prevention, an independently anchored history, or protection against a
+local attacker. Runtime dependencies, plain input objects, clock and filesystem
+namespace are trusted. Network filesystems, hostile same-UID namespace mutation,
+OS/storage durability failures and Windows are outside this component's scope.
+If storage never settles, close waits and retains ownership; it does not claim
+bounded shutdown or permission to release an unresolved writer.
+
+Server integration remains a separate reviewed lot: preserve the existing
+receipt/context settlement boundary, persist arm/dispatch/hash facts before
+their acknowledgements, keep ambiguous late hashes, and ensure storage failure
+cannot become normal completion or trigger reconciliation from an unretained
+hash. A terminal record is immutable; callers must not terminalize an operation
+while further late-hash retention is required. The automated journal tests are
+included in the existing prototype command and full `npm test` pipeline.
+
 ## Local MetaMask + Anvil reference prototype
 
 The stacked `prototype/` lot supplies that loopback host for a local burner
