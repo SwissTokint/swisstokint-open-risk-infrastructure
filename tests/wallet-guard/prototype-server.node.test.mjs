@@ -34,9 +34,11 @@ function http(origin, path, {
   host = null,
   contentType = 'application/json',
   fetchMetadata = true,
+  connectionClose = false,
 } = {}) {
   const url = new URL(path, origin);
   const headers = {};
+  if (connectionClose) headers.connection = 'close';
   if (cookie !== null) headers.cookie = cookie;
   if (requestOrigin !== null) headers.origin = requestOrigin;
   if (host !== null) headers.host = host;
@@ -75,9 +77,9 @@ function parseJson(response) {
   return JSON.parse(response.body);
 }
 
-async function authenticate(info) {
+async function authenticate(info, connectionClose = false) {
   const launch = new URL(info.launch_url);
-  const bootstrap = await http(info.origin, `${launch.pathname}${launch.search}`);
+  const bootstrap = await http(info.origin, `${launch.pathname}${launch.search}`, { connectionClose });
   assert.equal(bootstrap.status, 303);
   assert.equal(bootstrap.headers['clear-site-data'], '"cache", "storage"');
   assert.equal(bootstrap.headers['referrer-policy'], 'no-referrer');
@@ -1027,4 +1029,470 @@ test('pre-send view mismatch rejects before a wallet result and closes the sessi
   assert.equal(status.closed, true);
   assert.equal(status.command_pending, false);
   assert.equal(status.observation, null);
+});
+
+// Durable composition uses a real private local journal. Hooks only control
+// trusted storage completion timing; no wallet or RPC is contacted.
+const fs = await import('node:fs/promises');
+const { tmpdir } = await import('node:os');
+const { join } = await import('node:path');
+const { createWalletGuardDurableOperationJournal } = await import(
+  '../../applications/blockchain-digital-assets/wallet-guard/prototype/durable-operation-journal.mjs'
+);
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function storageLatch() {
+  const entered = deferred();
+  const released = deferred();
+  const hold = async () => { entered.resolve(); await released.promise; };
+  hold.release = released.resolve;
+  return { entered: entered.promise, release: released.resolve, hold };
+}
+
+async function within(promise, ms = 2_500, label = 'bounded server outcome') {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} did not settle`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function durableHarness(t, { hooks = {}, commandTimeoutMs = 1_000 } = {}) {
+  const directory = await fs.mkdtemp(join(tmpdir(), 'wg-server-journal-'));
+  const journalPath = join(directory, 'operation.json');
+  const journal = createWalletGuardDurableOperationJournal({
+    journalPath, network: 'anvil', chainId: '0x7a69',
+  });
+  await journal.initialize();
+  const calls = { arm: 0, markDispatched: 0, retainHash: 0, observations: 0 };
+  const wrapped = { ...journal };
+  for (const method of ['arm', 'markDispatched', 'retainHash']) {
+    wrapped[method] = async (...args) => {
+      calls[method] += 1;
+      if (hooks[method]) await hooks[method]({ journalPath });
+      return journal[method](...args);
+    };
+  }
+  const disk = async () => JSON.parse(await fs.readFile(journalPath, 'utf8'));
+  const prototype = createWalletGuardPrototypeServer({
+    createControlledCallbackTransport: createWalletGuardControlledCallbackProviderTransport,
+    createTrustedGateway: createWalletGuardTrustedProviderGateway,
+    operationJournal: wrapped,
+    commandTimeoutMs,
+    captureNodeChainView: async () => nodeChainView(),
+    captureObservationBaseline: async () => ({
+      chain_id: '0x7a69', block_number: '0x5', account_nonce: '0x0',
+    }),
+    observeTransaction: async ({ txHash }) => {
+      calls.observations += 1;
+      const record = await disk();
+      assert.equal(record.state, 'HASH_OBSERVED');
+      assert.equal(record.operation.transaction_hash, txHash);
+      return { status: 'MATCH_REFERENCE', transaction_hash: txHash, reference_only: true };
+    },
+  });
+  t.after(async () => {
+    for (const hook of Object.values(hooks)) hook.release?.();
+    await prototype.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  });
+  const info = await prototype.listen();
+  const { cookie } = await authenticate(info);
+  await handshake(info, cookie);
+  const post = (path, body = '{}') => http(info.origin, path, {
+    method: 'POST', cookie, requestOrigin: info.origin, body,
+  });
+  const allowed = post('/api/allow');
+  const command = await nextCommand(info, cookie);
+  assert.equal((await bindView(info, cookie, command)).status, 204);
+  return {
+    info, cookie, command, allowed, journal, journalPath, prototype, calls, disk, post,
+    status: async () => parseJson(await http(info.origin, '/api/status', { cookie })),
+    arm: () => armView(info, cookie, command),
+    dispatch: () => signalDispatched(info, cookie, command),
+    result: (options) => post('/bridge/result', resultEnvelope(command, options)),
+    settle: (receipt) => settleResult(info, cookie, command, receipt),
+    closeBridge: () => post('/bridge/close', JSON.stringify({ code: 'CONTEXT_CHANGED' })),
+  };
+}
+
+test('durable server acknowledgements and observer follow disk facts and one-use settlement', async (t) => {
+  const arm = storageLatch();
+  const dispatch = storageLatch();
+  const hash = storageLatch();
+  const h = await durableHarness(t, {
+    commandTimeoutMs: 5_000,
+    hooks: { arm: arm.hold, markDispatched: dispatch.hold, retainHash: hash.hold },
+  });
+  t.after(() => { arm.release(); dispatch.release(); hash.release(); });
+  let acked = false;
+  const arming = h.arm().then((r) => { acked = true; return r; });
+  await arm.entered;
+  assert.equal(acked, false);
+  assert.equal((await h.disk()).state, 'READY');
+  assert.equal((await h.arm()).status, 409);
+  assert.equal((await h.dispatch()).status, 409);
+  arm.release();
+  assert.equal((await arming).status, 204);
+  assert.equal((await h.disk()).state, 'ARMED');
+  const dispatching = h.dispatch();
+  await dispatch.entered;
+  assert.equal((await h.disk()).state, 'ARMED');
+  assert.equal((await h.dispatch()).status, 409);
+  dispatch.release();
+  assert.equal((await dispatching).status, 204);
+  assert.equal((await h.disk()).state, 'DISPATCHED');
+  let received = false;
+  const retaining = h.result().then((r) => { received = true; return r; });
+  await hash.entered;
+  assert.equal(received, false);
+  assert.equal((await h.disk()).operation.transaction_hash, null);
+  assert.equal((await h.result({ txHash: `0x${'b'.repeat(64)}` })).status, 409);
+  assert.equal(h.calls.observations, 0);
+  hash.release();
+  const retained = await retaining;
+  assert.equal(retained.status, 200);
+  const record = await h.disk();
+  assert.equal(record.state, 'HASH_OBSERVED');
+  assert.equal(record.operation.request_id, h.command.request_id);
+  assert.equal(record.operation.transaction_hash, TX_HASH);
+  assert.equal(record.operation.baseline_account_nonce, '0x0');
+  assert.equal(h.calls.observations, 0);
+  assert.equal((await h.settle('0'.repeat(64))).status, 400);
+  const receipt = parseJson(retained).receipt;
+  assert.equal((await h.settle(receipt)).status, 204);
+  assert.equal((await h.settle(receipt)).status, 409);
+  const completed = await h.allowed;
+  assert.equal(completed.status, 200);
+  assert.equal(parseJson(completed).observation.status, 'MATCH_REFERENCE');
+  assert.deepEqual(h.calls, { arm: 1, markDispatched: 1, retainHash: 1, observations: 1 });
+  assert.equal((await h.disk()).state, 'HASH_OBSERVED');
+  assert.equal((await h.disk()).terminal, null);
+});
+
+test('closure and timeout during each durable write never acknowledge a stale phase', async (t) => {
+  for (const method of ['arm', 'markDispatched', 'retainHash']) {
+    for (const ending of ['close', 'timeout']) {
+      await t.test(`${method} / ${ending}`, async (t) => {
+        const latch = storageLatch();
+        const h = await durableHarness(t, { hooks: { [method]: latch.hold } });
+        t.after(latch.release);
+        if (method !== 'arm') assert.equal((await h.arm()).status, 204);
+        if (method === 'retainHash') assert.equal((await h.dispatch()).status, 204);
+        const writing = method === 'arm' ? h.arm()
+          : method === 'markDispatched' ? h.dispatch() : h.result();
+        await latch.entered;
+        if (ending === 'close') assert.equal((await h.closeBridge()).status, 204);
+        const allowed = await within(h.allowed);
+        assert.equal(allowed.status, 202);
+        assert.equal(parseJson(allowed).operation.status, 'AMBIGUOUS');
+        assert.equal(h.calls.observations, 0);
+        assert.equal((await h.post('/api/allow')).status, 409);
+        // Hash retention after closure is queued behind arm/dispatch. A second
+        // result cannot replace it while the storage operation remains pending.
+        const late = method === 'retainHash' ? null : h.result();
+        if (late !== null) {
+          for (let n = 0; n < 100; n += 1) {
+            if ((await h.status()).ambiguous.transaction_hash !== null) break;
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+          assert.equal((await h.status()).ambiguous.transaction_hash, TX_HASH);
+          assert.equal((await h.result()).status, 409);
+        }
+        latch.release();
+        const completed = await writing;
+        assert.equal(completed.status, method === 'retainHash' ? 202 : 409);
+        if (late !== null) assert.equal((await late).status, 202);
+        assert.equal((await h.disk()).state, 'HASH_OBSERVED');
+        assert.equal((await h.disk()).operation.transaction_hash, TX_HASH);
+        assert.equal(h.calls.retainHash, 1);
+        assert.equal(h.calls.observations, 1);
+        assert.equal((await h.status()).ambiguous.status, 'AMBIGUOUS');
+        assert.equal((await h.status()).ambiguous.observation.status, 'MATCH_REFERENCE');
+      });
+    }
+  }
+});
+
+test('storage failure in any fact closes and settles without observation or retry', async (t) => {
+  for (const method of ['arm', 'markDispatched', 'retainHash']) {
+    await t.test(method, async (t) => {
+      const h = await durableHarness(t, {
+        hooks: { [method]: ({ journalPath }) => fs.chmod(journalPath, 0o644) },
+      });
+      if (method !== 'arm') await h.arm();
+      if (method === 'retainHash') await h.dispatch();
+      const failed = method === 'arm' ? await h.arm()
+        : method === 'markDispatched' ? await h.dispatch() : await h.result();
+      assert.equal(failed.status, 400);
+      assert.equal((await within(h.allowed)).status, 202);
+      assert.equal(h.journal.status().lifecycle, 'FAULTED');
+      assert.equal(h.calls.observations, 0);
+      const status = await h.status();
+      assert.equal(status.closed, true);
+      assert.equal(status.command_pending, false);
+      assert.equal(status.journal_failed, true);
+      assert.equal(status.ambiguous.reconciliation_status, 'JOURNAL_WRITE_FAILED');
+      if (method === 'retainHash') {
+        assert.equal(status.ambiguous.transaction_hash, TX_HASH);
+        assert.equal((await h.disk()).state, 'DISPATCHED');
+        assert.equal((await h.disk()).operation.transaction_hash, null);
+      }
+      await fs.chmod(h.journalPath, 0o600);
+      assert.equal((await h.post('/api/allow')).status, 409);
+      assert.equal((await h.result()).status, 409);
+      assert.equal(h.calls.observations, 0);
+    });
+  }
+});
+
+test('result during durable dispatch waits behind it and remains ambiguous', async (t) => {
+  const latch = storageLatch();
+  const h = await durableHarness(t, { hooks: { markDispatched: latch.hold } });
+  t.after(latch.release);
+  await h.arm();
+  const dispatching = h.dispatch();
+  await latch.entered;
+  const result = h.result();
+  assert.equal((await within(h.allowed)).status, 202);
+  assert.equal(h.calls.retainHash, 0);
+  assert.equal(h.calls.observations, 0);
+  latch.release();
+  assert.equal((await dispatching).status, 409);
+  assert.equal((await result).status, 202);
+  assert.equal((await h.status()).ambiguous.cause_code, 'DISPATCH_ACK_UNAVAILABLE');
+  assert.equal((await h.disk()).state, 'HASH_OBSERVED');
+  assert.equal(h.calls.retainHash, 1);
+  assert.equal(h.calls.observations, 1);
+});
+
+test('durable changed-context and missing-ack hashes are retained before ambiguous observation', async (t) => {
+  for (const kind of ['context', 'missing_ack']) {
+    await t.test(kind, async (t) => {
+      const h = await durableHarness(t);
+      await h.arm();
+      if (kind === 'context') await h.dispatch();
+      const result = await h.result(kind === 'context' ? { chainId: '0x1' } : undefined);
+      assert.equal(result.status, 202);
+      assert.equal((await h.allowed).status, 202);
+      assert.equal((await h.disk()).operation.transaction_hash, TX_HASH);
+      assert.equal(h.calls.observations, 1);
+      assert.equal((await h.status()).ambiguous.status, 'AMBIGUOUS');
+    });
+  }
+});
+
+test('server close drains retained-hash write before journal ownership release', async (t) => {
+  const latch = storageLatch();
+  const h = await durableHarness(t, { hooks: { retainHash: latch.hold } });
+  t.after(latch.release);
+  await h.arm();
+  await h.dispatch();
+  const result = h.result();
+  await latch.entered;
+  let closed = false;
+  const closing = h.prototype.close().then(() => { closed = true; });
+  assert.equal((await within(h.allowed)).status, 202);
+  assert.equal(closed, false);
+  await fs.stat(h.journalPath + '.lock');
+  latch.release();
+  assert.equal((await result).status, 202);
+  await closing;
+  assert.equal(h.journal.status().lifecycle, 'CLOSED');
+  await assert.rejects(fs.stat(h.journalPath + '.lock'), { code: 'ENOENT' });
+  assert.equal((await h.disk()).operation.transaction_hash, TX_HASH);
+});
+
+test('failed queued arm prevents late-hash observation even after callback timeout', async (t) => {
+  const latch = storageLatch();
+  const armHook = async ({ journalPath }) => {
+    await latch.hold();
+    await fs.chmod(journalPath, 0o644);
+  };
+  armHook.release = latch.release;
+  const h = await durableHarness(t, { hooks: { arm: armHook } });
+  const arming = h.arm();
+  await latch.entered;
+  assert.equal((await within(h.allowed)).status, 202);
+  const late = h.result();
+  for (let n = 0; n < 100; n += 1) {
+    if ((await h.status()).ambiguous.transaction_hash !== null) break;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal((await h.status()).ambiguous.transaction_hash, TX_HASH);
+  latch.release();
+  assert.equal((await arming).status, 400);
+  assert.equal((await late).status, 202);
+  assert.equal(h.calls.retainHash, 0);
+  assert.equal(h.calls.observations, 0);
+  assert.equal((await h.disk()).state, 'READY');
+  assert.equal((await h.status()).ambiguous.reconciliation_status, 'JOURNAL_WRITE_FAILED');
+});
+
+test('durable user rejection requires settlement and records no false hash or terminal success', async (t) => {
+  const h = await durableHarness(t);
+  await h.arm();
+  await h.dispatch();
+  const envelope = JSON.parse(resultEnvelope(h.command));
+  Object.assign(envelope, { outcome: 'error', result: null, error: { code: 'USER_REJECTED' } });
+  const retained = await h.post('/bridge/result', JSON.stringify(envelope));
+  assert.equal(retained.status, 200);
+  assert.equal((await h.settle(parseJson(retained).receipt)).status, 204);
+  assert.equal((await within(h.allowed)).status, 400);
+  assert.equal((await h.disk()).state, 'DISPATCHED');
+  assert.equal((await h.disk()).operation.transaction_hash, null);
+  assert.equal((await h.disk()).terminal, null);
+  assert.equal(h.calls.retainHash, 0);
+  assert.equal(h.calls.observations, 0);
+});
+
+const { spawn } = await import('node:child_process');
+const BOOTSTRAP = new URL(
+  '../../applications/blockchain-digital-assets/wallet-guard/prototype/bootstrap.mjs',
+  import.meta.url,
+);
+
+function bootstrapChild(t, env) {
+  const configured = { ...process.env, ...env };
+  for (const [key, value] of Object.entries(configured)) {
+    if (value === undefined) delete configured[key];
+  }
+  const child = spawn(process.execPath, ['--unhandled-rejections=strict', BOOTSTRAP.pathname], {
+    env: configured, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const launched = deferred();
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (data) => {
+    stdout += data;
+    if (stdout.includes('Open exactly once:')) launched.resolve();
+  });
+  child.stderr.on('data', (data) => { stderr += data; });
+  const exit = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    await exit;
+  });
+  return { child, launched: launched.promise, exit, output: () => stdout };
+}
+
+test('bootstrap initializes before launch and refuses missing or previously used journal paths', async (t) => {
+  const directory = await fs.mkdtemp(join(tmpdir(), 'wg-bootstrap-journal-'));
+  const journalPath = join(directory, 'operation.json');
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const missing = bootstrapChild(t, { POMRX_WG_JOURNAL: undefined });
+  const missingExit = await within(missing.exit);
+  assert.notEqual(missingExit.code, 0);
+  assert.equal(missingExit.stdout, '');
+  const first = bootstrapChild(t, { POMRX_WG_JOURNAL: journalPath });
+  await within(first.launched);
+  assert.equal(JSON.parse(await fs.readFile(journalPath, 'utf8')).state, 'READY');
+  await fs.stat(journalPath + '.lock');
+  first.child.kill('SIGTERM');
+  assert.equal((await within(first.exit)).code, 0);
+  await assert.rejects(fs.stat(journalPath + '.lock'), { code: 'ENOENT' });
+  const repeated = bootstrapChild(t, { POMRX_WG_JOURNAL: journalPath });
+  const repeatedExit = await within(repeated.exit);
+  assert.notEqual(repeatedExit.code, 0);
+  assert.equal(repeatedExit.stdout, '');
+  assert.match(repeatedExit.stderr, /POMRX_WG_JOURNAL_RECOVERY_REQUIRED:READY/u);
+});
+
+test('bootstrap releases journal ownership after server configuration failure', async (t) => {
+  const directory = await fs.mkdtemp(join(tmpdir(), 'wg-bootstrap-failed-'));
+  const journalPath = join(directory, 'operation.json');
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const failed = bootstrapChild(t, {
+    POMRX_WG_JOURNAL: journalPath,
+    POMRX_WG_ANVIL_RPC: 'https://127.0.0.1:8545/',
+  });
+  const result = await within(failed.exit);
+  assert.notEqual(result.code, 0);
+  assert.equal(result.stdout, '');
+  assert.equal(JSON.parse(await fs.readFile(journalPath, 'utf8')).state, 'READY');
+  await assert.rejects(fs.stat(journalPath + '.lock'), { code: 'ENOENT' });
+});
+
+
+test('both shutdown signals share pending drain and its eventual success or failure', async (t) => {
+  for (const signals of [['SIGINT', 'SIGTERM'], ['SIGTERM', 'SIGINT']]) {
+    for (const failClose of [false, true]) {
+      await t.test(`${signals.join(' then ')} / ${failClose ? 'failure' : 'success'}`, async (t) => {
+        const directory = await fs.mkdtemp(join(tmpdir(), 'wg-shared-shutdown-'));
+        const journalPath = join(directory, 'operation.json');
+        const running = bootstrapChild(t, { POMRX_WG_JOURNAL: journalPath });
+        t.after(() => fs.rm(directory, { recursive: true, force: true }));
+        await within(running.launched);
+        const launchUrl = running.output().match(/Open exactly once: (http:\/\/[^\s]+)/u)[1];
+        const info = { launch_url: launchUrl, origin: new URL(launchUrl).origin };
+        const { cookie } = await authenticate(info, true);
+        const body = JSON.stringify({ code: 'BRIDGE_CLOSED' });
+        const held = requestHttp(new URL('/bridge/close', info.origin), {
+          method: 'POST',
+          headers: {
+            cookie, origin: info.origin, 'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json', 'content-length': Buffer.byteLength(body),
+            expect: '100-continue', connection: 'close',
+          },
+        });
+        t.after(() => held.destroy());
+        const admitted = new Promise((resolve, reject) => {
+          held.once('continue', resolve);
+          held.once('error', reject);
+        });
+        const response = new Promise((resolve, reject) => {
+          held.once('response', (res) => { res.resume(); res.once('end', resolve); });
+          held.once('error', reject);
+        });
+        // Attach a rejection observer even if an earlier assertion aborts.
+        response.catch(() => {});
+        held.flushHeaders();
+        await within(admitted, 2_500, 'admitted');
+        running.child.kill(signals[0]);
+        // The first handler must have started shutdown, while the admitted body
+        // keeps server.close pending. No wallet handshake or RPC is involved.
+        await within((async () => {
+          for (;;) {
+            try {
+              const status = await http(info.origin, '/api/status', { cookie, connectionClose: true });
+              if (status.status === 410) return;
+            } catch (error) {
+              if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') return;
+              throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+        })());
+        if (failClose) await fs.chmod(journalPath + '.lock', 0o644);
+        running.child.kill(signals[1]);
+        const premature = await Promise.race([
+          running.exit.then(() => true),
+          new Promise((resolve) => setTimeout(() => resolve(false), 100)),
+        ]);
+        assert.equal(premature, false, 'second signal exited before pending close settled');
+        held.end(body);
+        await within(response, 2_500, 'HTTP response');
+        const result = await within(running.exit, 2_500, 'child exit');
+        assert.equal(result.signal, null);
+        assert.equal(result.code, failClose ? 1 : 0);
+        if (!failClose) {
+          await assert.rejects(fs.stat(journalPath + '.lock'), { code: 'ENOENT' });
+        }
+      });
+    }
+  }
 });

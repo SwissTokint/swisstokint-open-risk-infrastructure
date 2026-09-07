@@ -117,14 +117,17 @@ prompt was cancelled. The loopback prototype below supplies one narrow host
 composition around that contract; those host controls do not become guarantees
 of the callback foundation or arbitrary browser integrations.
 
-## Standalone durable operation journal foundation
+## Durable operation journal and server composition
 
 `prototype/durable-operation-journal.mjs` provides a separately tested local
 storage component reconstructed from the journal work in historical PR #139.
-It is not connected to `server.mjs` or the bootstrap scripts. The running Anvil
-prototype below still has in-memory operation state and its documented shutdown
-limitation. No new wallet or remote-network execution path is enabled by this
-component.
+The clean-process Anvil bootstrap initializes it before publishing a launch URL
+and installs it in `server.mjs`. `POMRX_WG_JOURNAL` must name an explicit fresh
+absolute normalized path; a missing path or initialization failure prevents
+startup. The server API also retains its explicit in-memory reference mode when
+`operationJournal` is omitted. That mode has no durability claim. An injected
+journal must be exclusively owned by that server, initialized, idle, `OPEN`,
+`READY`, and configured for Anvil. Runtime dependencies remain trusted.
 
 The primitive accepts one trusted plain command for an exact zero-value,
 empty-data self-transfer on the configured Anvil or Sepolia chain. These network
@@ -161,13 +164,33 @@ OS/storage durability failures and Windows are outside this component's scope.
 If storage never settles, close waits and retains ownership; it does not claim
 bounded shutdown or permission to release an unresolved writer.
 
-Server integration remains a separate reviewed lot: preserve the existing
-receipt/context settlement boundary, persist arm/dispatch/hash facts before
-their acknowledgements, keep ambiguous late hashes, and ensure storage failure
-cannot become normal completion or trigger reconciliation from an unretained
-hash. A terminal record is immutable; callers must not terminalize an operation
-while further late-hash retention is required. The automated journal tests are
-included in the existing prototype command and full `npm test` pipeline.
+The composed server persists `ARMED` before acknowledging arm and `DISPATCHED`
+before acknowledging dispatch. It retains the exact bound hash before returning
+a settlement receipt or starting observation, including ambiguous late results.
+Writes are serialized and each ingress is reserved once. Existing deadlines keep
+running during storage work; a completed write cannot revive a closed or expired
+command. The one-use receipt is still checked and consumed synchronously, with
+no filesystem await at the settlement cut-off.
+
+A storage failure closes the session, settles the pending callback, forbids
+retry and prevents observation from an unretained hash. `/api/status` exposes
+`journal_enabled`, `journal_failed`, and the last confirmed `journal_state`.
+An ambiguous `transaction_hash` may be a reported candidate: when
+`reconciliation_status=JOURNAL_WRITE_FAILED`, it is not confirmed durable and no
+observation was started. During retention it reports `RETAINING_HASH`. The
+failed operation response need not wait for storage or observation to finish;
+status can subsequently expose completed ambiguous observation.
+
+This server deliberately leaves disk records nonterminal (`ARMED`, `DISPATCHED`
+or `HASH_OBSERVED`), even after a normal in-memory completion. They preserve
+operation facts for manual reconciliation, not durable completion or restart
+eligibility. A terminal record is immutable; the standalone primitive must not
+be terminalized while further late-hash retention is required. Server shutdown
+closes ingress, settles the pending callback and drains started storage work
+before releasing journal ownership. It cannot preserve a hash first returned
+after shutdown, and an indefinitely stalled filesystem can prevent shutdown.
+The automated journal and server composition tests are included in the existing
+prototype command and full `npm test` pipeline.
 
 ## Local MetaMask + Anvil reference prototype
 
@@ -262,12 +285,18 @@ funds. POM-RX Core does not receive or custody the burner key.
 4. In a separate terminal, start the clean-process Wallet Guard host:
 
    ```sh
-   npm run prototype:wallet-guard:anvil
+   # Create this private directory once; retain its contents for reconciliation.
+   mkdir -m 700 /absolute/private/wallet-guard-run
+   POMRX_WG_JOURNAL=/absolute/private/wallet-guard-run/operation.json \
+     npm run prototype:wallet-guard:anvil
    ```
 
    Use the default RPC unless the full browser and observer configuration is
    intentionally reviewed together. The host binds to a fresh ephemeral port
-   and prints a bootstrap URL containing a one-time secret.
+   and prints a bootstrap URL containing a one-time secret only after durable
+   initialization. Use an actual owned absolute directory. Existing records
+   block startup, including `READY`; never delete or switch paths to retry an
+   unresolved operation.
 
 5. In the dedicated profile, open the printed URL exactly once and click
    **Connecter MetaMask à Anvil**. The page requests one unambiguous MetaMask
@@ -299,11 +328,13 @@ a prompt after the page reports closure. Stop Anvil and discard the burner
 after reconciliation. Restarting the Node host creates a new session, but it is
 not a retry authorization for an earlier prompt.
 
-Process shutdown is a separate unresolved boundary. Operation, replay, baseline,
-hash and ambiguity state exist only in memory and are lost when Node exits.
-Shutdown cannot guarantee durable `AMBIGUOUS` settlement or retain a future
-wallet result; a new host cannot identify the old prompt or enforce its retry
-prohibition. Preserve available evidence manually, do not approve or retry an
+Process shutdown remains a separate incomplete boundary. With the composed
+bootstrap, the journal preserves the confirmed operation identity, self-transfer,
+block/nonce baseline and any confirmed hash. Settlement receipts, context views,
+observation and final ambiguity/completion status remain in memory. Reopening the
+same path refuses startup for manual reconciliation; there is no automatic
+recovery, cross-path replay prevention or retention of a future wallet result.
+Preserve the journal and other available evidence, do not approve or retry an
 old prompt, and discard the disposable chain and burner after reconciliation.
 
 This prototype still uses the provider's synthetic reference authorization
