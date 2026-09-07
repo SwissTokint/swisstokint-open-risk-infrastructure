@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-journal-foundation-20260907T025737574Z",
+    "acquired_at": "2026-09-07T02:57:37.574Z",
+    "expires_at": "2026-09-07T03:42:37.574Z",
+    "base_main": "6d40ffcbc04eb42cbc66422cb7c13c728a90c2f7",
+    "purpose": "Reconstruct standalone Wallet Guard durable operation journal foundation from PR139 on assured main; local filesystem tests and independent exact-head review only."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-06T19:55:40.817Z",
-    "actor": "pom-rx-pr138-skeptic-merge-20260906T193828891Z",
-    "reason": "PR138 merged with expected head; actual merge tree/parents verified; exact-main CI1290 and independent six-part post-merge assurance PASS published and verified. All project writes terminal; no mutation in flight."
+    "type": "ACQUIRE",
+    "at": "2026-09-07T02:57:37.574Z",
+    "actor": "pom-rx-journal-foundation-20260907T025737574Z",
+    "reason": "User authorized continuing development; one writer for journal module, journal tests, Wallet Guard README and package script."
   }
 }
