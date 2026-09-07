@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-175-integrate-foundations-20260907T191431595Z",
-    "acquired_at": "2026-09-07T19:14:31.595Z",
-    "expires_at": "2026-09-07T19:59:31.595Z",
-    "base_main": "52a3d7e972113df3c2b2c28a31afdf2642a10825",
-    "purpose": "Integrate assured PR180/181 status-recovery and coverage controls into PR175's existing review branch; preserve P1 controls and REWORK gate; no main merge."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-07T19:14:31.595Z",
+    "type": "RELEASE",
+    "at": "2026-09-07T19:40:47.340Z",
     "actor": "pom-rx-175-integrate-foundations-20260907T191431595Z",
-    "reason": "One bounded PR175 integration lot"
+    "reason": "PR175 e7ec4ec integrated and CI1307 verified; no main merge; REWORK/independent review pending checkpoint175comment5574981740 and checkpoint143comment5574990823 recorded. All project writes complete."
   }
 }
