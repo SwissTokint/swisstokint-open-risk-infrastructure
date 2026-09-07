@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-integrate-triage-20260907T103037159Z",
-    "acquired_at": "2026-09-07T10:30:37.159Z",
-    "expires_at": "2026-09-07T11:15:37.159Z",
-    "base_main": "f64a9b951bd989fe6e8501f041449932fa970b26",
-    "purpose": "Integrate shutdown repair178 with exact gates and post-merge assurance; inspect and advance important unmerged PRs per explicit user instruction."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-07T10:30:37.159Z",
+    "type": "RELEASE",
+    "at": "2026-09-07T11:16:46.659Z",
     "actor": "pom-rx-integrate-triage-20260907T103037159Z",
-    "reason": "User explicitly requests integrate fix and advance important open PRs"
+    "reason": "Writer active window expired; all project mutation calls are terminal. Same-holder coordination-only release."
   }
 }
