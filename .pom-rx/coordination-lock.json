@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-journal-server-20260907T064953122Z",
+    "acquired_at": "2026-09-07T06:49:53.122Z",
+    "expires_at": "2026-09-07T07:34:53.122Z",
+    "base_main": "b69312857bad049adfb890938abc0a88072b21aa",
+    "purpose": "Bounded Wallet Guard server durable arm/dispatch/hash composition, preserve receipt/context settlement and P1 controls; local synthetic tests, exact review/CI gate."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-07T03:31:37.578Z",
-    "actor": "pom-rx-journal-foundation-20260907T025737574Z",
-    "reason": "PR176 standalone journal merged; exact merge tree/parents and CI1293 verified; independent six-part post-merge PASS and continuity checkpoint published and verified. All project writes terminal; none in flight."
+    "type": "ACQUIRE",
+    "at": "2026-09-07T06:49:53.122Z",
+    "actor": "pom-rx-journal-server-20260907T064953122Z",
+    "reason": "User continue le dev; successor to assured PR176"
   }
 }
