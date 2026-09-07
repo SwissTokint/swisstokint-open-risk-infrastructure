@@ -1,18 +1,20 @@
 {
   "schema_version": "pom-rx-tasks/3-canonical-coordination-guard",
-  "updated_at": "2026-08-24T09:55:00+02:00",
+  "updated_at": "2026-09-07T10:59:00Z",
   "continuity_model": {
     "mode": "GITHUB_LIVE_PLUS_VERSIONED_SNAPSHOT",
     "live_state_authority": "GitHub main/PR/CI/review/thread metadata",
     "versioned_checkpoint": "docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md",
-    "snapshot_base_main": "8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970",
-    "snapshot_base_main_state": "PR135 exact merge; exact-main CI859 success; POST_MERGE_ASSURANCE_PASS comment 5387715186",
-    "rule": "Embedded SHAs are authoring-time anchors. Exact live state is re-read every run and terminal state is persisted in the active/merged PR. Do not create docs-only loops solely to chase a control-plane merge SHA."
+    "snapshot_base_main": "25895be9364903b21704cff223faec92f10354f1",
+    "snapshot_base_main_state": "PR163 exact merge; CI1300/run34113836199 SUCCESS; POST_MERGE_ASSURANCE_PASS5569622009",
+    "rule": "Embedded SHAs are authoring-time anchors. Exact live state is re-read every run and terminal state is persisted in the active/merged PR. Do not create docs-only loops solely to chase a control-plane merge SHA.",
+    "last_assured_main_before_snapshot": "25895be9364903b21704cff223faec92f10354f1",
+    "reviewed_queue": "https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/issues/143#issuecomment-5569521081"
   },
   "coordination_guard": {
     "id": "POM-RX-CANONICAL-SINGLE-FLIGHT-GUARD",
     "class": "NON_TIER_B_CONTROL_PLANE_OPERATIONAL_REPAIR",
-    "status": "PR136_OPEN_BLOCKED_UNTIL_FRESH_EXACT_HEAD_GATES",
+    "status": "OPERATIONAL_REVALIDATE_EVERY_MUTATION",
     "canonical_branch": "automation/pom-rx-coordination",
     "canonical_path": ".pom-rx/coordination-lock.json",
     "schema": "pom-rx-coordination-lock/1",
@@ -39,13 +41,13 @@
       {
         "thread": "PRRT_kwDOTiNyWc6bnBYA",
         "severity": "P1",
-        "state": "UNRESOLVED_OUTDATED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "state": "HISTORICAL_PR136_FINDING_SEE_MERGED_PR_EVIDENCE",
         "finding": "old writer could continue after automatic lease reclamation"
       },
       {
         "thread": "PRRT_kwDOTiNyWc6bnBYE",
         "severity": "P2",
-        "state": "UNRESOLVED_REPAIRED_AWAITING_FRESH_EXACT_HEAD_REVIEW",
+        "state": "HISTORICAL_PR136_FINDING_SEE_MERGED_PR_EVIDENCE",
         "finding": "capability map still routed PR131 through completed PR135 rather than new guard prerequisite"
       }
     ],
@@ -62,55 +64,29 @@
       "an abandoned expired HELD lock requires explicit human recovery; automation never overwrites another holder",
       "normal lock writes never move main or a feature/control-plane PR head",
       "no competing issue/label/comment/local/chat/workflow/alternate-branch lock",
-      "capability map routes PR131 only after PR136 exact-merge PASS and verified FREE canonical lock",
-      "existing scheduled task remains disabled until repair merge and POST_MERGE_ASSURANCE_PASS",
-      "after PASS, restore canonical lock to verified FREE before re-enabling the existing task"
+      "read current merged/open PR evidence rather than route to historical PR136/PR131 repair states"
     ],
     "security_rationale": "Automatic expiry reclamation is forbidden because the lock state and separate GitHub project mutations cannot be fenced atomically; a project API call started before expiry could otherwise complete after another run took over.",
-    "release_gate": "fresh exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + POST_MERGE_ASSURANCE_PASS"
+    "release_gate": "fresh exact-head CI + five-stage owner gate + genuinely distinct exact-head review + zero P0/P1/P2 + merge + exact-main CI/status + POST_MERGE_ASSURANCE_PASS",
+    "repair_merge": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e",
+    "scheduled_task_state": "NOT_REINSPECTED_IN_THIS_SNAPSHOT_VERIFY_EXISTING_AUTOMATION_LIVE"
   },
   "next_dependency_closing_workstream": {
-    "id": "WALLET-GUARD-TRUSTED-PROVIDER-TRANSPORT-FRESH-REPAIR",
-    "pr": 131,
-    "class": "TIER_B_APPLICATION_SECURITY",
-    "transition_rule": "READY_TO_RECONCILE only after PR136 has POST_MERGE_ASSURANCE_PASS and canonical coordination state is verified FREE",
-    "snapshot_head": "3a75418ef13e7364b70e60a17e5514f1b1a8bfc2",
-    "historical_exact_head_ci": "32645853067 / CI846 = success but stale for release",
-    "release_state": "BLOCKED_UNTIL_GUARD_REPAIR_TRUSTED_THEN_RECONCILED_AND_FRESHLY_GATED",
-    "review_threads": [
-      {"id": "PRRT_kwDOTiNyWc6bfPvI", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfPvO", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfPvR", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfWeN", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfel5", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfel6", "severity": "P1", "state": "UNRESOLVED_OUTDATED"},
-      {"id": "PRRT_kwDOTiNyWc6bfel7", "severity": "P1", "state": "UNRESOLVED_OUTDATED"}
+    "id": "TRUSTED-PR-SECURITY-GATE-REPAIR",
+    "pr": 175,
+    "class": "TIER_B_CI_ASSURANCE",
+    "snapshot_head": "43d7d5bd8bb833334c556bd51415e64aecc80383",
+    "release_state": "REWORK_NO_MERGE",
+    "snapshot_ci": "CI1287/run33991103417 SUCCESS; not sufficient while findings remain",
+    "unresolved_discussions": 42,
+    "latest_p1_families": [
+      "trusted assertion isolation",
+      "authenticated security child completion",
+      "isolated-runner trusted coverage",
+      "uncertain terminal status publication",
+      "departing-head invalidation retry"
     ],
-    "accepted_boundary": {
-      "name": "EXPLICIT_NARROW_TRUSTED_PROVIDER_TRANSPORT_CONTRACT",
-      "requirements": [
-        "fail closed before unowned provider transport origin",
-        "zero reference authorization on rejected/invalid context transport",
-        "zero sensitive forwarding on rejected/invalid context transport",
-        "clean process survival under --unhandled-rejections=strict for in-contract rejected transport",
-        "no orphaned provider-rejection termination for in-contract transport"
-      ],
-      "out_of_contract": "Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise transports from arbitrary providers remain unsupported without separately reviewed process/worker/RPC isolation."
-    },
-    "resume_procedure": [
-      "acquire and verify the canonical single-flight guard only from FREE",
-      "read then-live main and PR131 metadata",
-      "reconcile PR131 with exactly one writer and preserve canonical control-plane semantics",
-      "before every subsequent project mutation revalidate same-holder and unexpired active window",
-      "freeze new exact head",
-      "run canonical exact-head CI",
-      "run full five-stage owner gate with concrete provenance/Promise/reflection/species/accessor/Proxy/prototype/thenable/strict-unhandled/Array-poisoning hypotheses",
-      "obtain genuinely distinct exact-head review",
-      "resolve seven P1 threads only on same-head evidence and zero new P0/P1/P2",
-      "merge only after all gates pass and the canonical active window is still live for the same run",
-      "run exact-merge assurance immediately",
-      "persist terminal checkpoint then release/verify canonical lock; same-holder release is allowed after active-window expiry, but no project write is"
-    ]
+    "transition_rule": "One bounded source repair on assured main; preserve existing controls and canonical merge-candidate lane; independent bootstrap proof, historical finding adjudication and fresh complete exact-head gates required. PR167 is an alternative predecessor, not an additive merge dependency."
   },
   "historical_streams": {
     "pr120": {
@@ -119,37 +95,22 @@
       "rule": "Do not reopen, rebase, revive or wholesale-merge."
     },
     "pr97": {
-      "status": "OPEN_STALE_MUST_NOT_MERGE",
+      "status": "HISTORICAL_SOURCE_NOT_ACTIVE_QUEUE_VERIFY_LIVE_STATE",
       "rule": "Reconstruct useful durable Gate composition later from then-current trusted main after the provider prerequisite is trusted."
     },
     "pr93": {
-      "status": "OPEN_STALE_UNTRUSTED_LATER",
+      "status": "HISTORICAL_SOURCE_NOT_ACTIVE_QUEUE_VERIFY_LIVE_STATE",
       "rule": "Reconstruct useful simulation work later from then-current trusted main; never wholesale-merge stale history."
+    },
+    "pr136": {
+      "status": "MERGED_HISTORICAL_PREREQUISITE",
+      "merge": "1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e"
+    },
+    "pr131": {
+      "status": "MERGED_HISTORICAL_PREREQUISITE",
+      "merge": "5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5"
     }
   },
-  "queue_after_pr131_trusted": [
-    {
-      "id": "CORE-DURABLE-GATE-COMPOSITION-RECONSTRUCTION",
-      "class": "TIER_B_SHARED_SECURITY_SEMANTICS",
-      "historical_source_pr": 97,
-      "status_rule": "blocked until fresh provider transport exact-merge assurance PASS"
-    },
-    {
-      "id": "WALLET-GUARD-SIMULATION-RECONSTRUCTION",
-      "historical_pr": 93,
-      "class": "TIER_B_APPLICATION_SECURITY",
-      "status_rule": "later after dependency closure and fresh reconstruction"
-    },
-    {
-      "id": "DAGR-SOURCE-GATE",
-      "status": "BLOCKED",
-      "blocker": "DAGR_SOURCE_DOCUMENT_MISSING"
-    },
-    {
-      "id": "PRODUCTION-TRUST-AND-REAL-WALLET",
-      "status": "BLOCKED"
-    }
-  ],
   "merge_rules": {
     "five_stage_gate": "review_pass_1 -> control_pass_1 -> skeptical_challenge -> exact_head_review_pass_2 -> exact_head_control_pass_2_release_gate",
     "standing_authorization": "Only after mandatory gates, exact-head CI, required distinct exact-head independent review and zero unresolved P0/P1/P2.",
@@ -165,5 +126,57 @@
     "burner_local_testnet": "SEPARATE_EXPLICIT_HUMAN_GATE_REQUIRED",
     "public_site_vercel_funding_directory": "OUT_OF_SCOPE"
   },
-  "maximum_claim": "POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY"
+  "maximum_claim": "POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY",
+  "queued_workstreams": [
+    {
+      "pr": 150,
+      "owner": "CORE",
+      "state": "REWORK_CI1191_FAILURE_CONFLICTED",
+      "next": "Node22 lifecycle, trusted environment/executable, reserved+active handles; all historical fd/replay/crash findings remain gates"
+    },
+    {
+      "issue": 157,
+      "owner": "CORE",
+      "after": 150,
+      "state": "OPEN_SHARED_EXACT_VALUE_PRIMITIVE_SPECIFICATION"
+    },
+    {
+      "pr": 156,
+      "owner": "INTEGRATION",
+      "after_issue": 157,
+      "state": "DRAFT_BLOCKED_ARCHITECTURAL_P2"
+    },
+    {
+      "pr": 139,
+      "owner": "WALLET_GUARD",
+      "state": "DRAFT_RETAIN_RECONSTRUCT_REMAINING_SEPOLIA_SCOPE",
+      "rule": "137/138/176/177/178 merged; preserve current receipt/context/journal/shutdown, applicable historical tests and separate human wallet gate"
+    },
+    {
+      "pr": 160,
+      "owner": "TOKEN_ECONOMICS",
+      "state": "REWORK_CI1070_CANCELLED",
+      "rule": "three P1 arithmetic/accounting families plus depletion-reporting P2; preserve conservation, all3600 cases and365/1825-day horizons"
+    },
+    {
+      "pr": 162,
+      "owner": "CONSOLIDATION",
+      "state": "REFRESH_AND_REVIEW_ACTION_ONLY_UPDATE",
+      "rule": "explicit installed CLI version remains27.0.0; no CLI28 runtime claim"
+    }
+  ],
+  "recent_assured_transitions": [
+    {
+      "pr": 178,
+      "merge": "2bb90192fc191642501400cd3d1ccd27bcaeb858",
+      "assurance_comment": 5569395678,
+      "rule": "resolves177 shutdownP2 prospectively; originalBLOCK remains history"
+    },
+    {
+      "pr": 163,
+      "merge": "25895be9364903b21704cff223faec92f10354f1",
+      "assurance_comment": 5569622009,
+      "rule": "dev declarations only; no Node runtime upgrade"
+    }
+  ]
 }
