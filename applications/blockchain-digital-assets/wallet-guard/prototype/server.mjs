@@ -461,6 +461,7 @@ export function createWalletGuardPrototypeServer({
   observeTransaction = defaultObserveTransaction,
   captureObservationBaseline = null,
   captureNodeChainView = defaultCaptureNodeChainView,
+  operationJournal = null,
 } = {}) {
   if (typeof createControlledCallbackTransport !== 'function'
       || typeof createTrustedGateway !== 'function'
@@ -471,6 +472,22 @@ export function createWalletGuardPrototypeServer({
       || (captureObservationBaseline !== null && typeof captureObservationBaseline !== 'function')
       || typeof captureNodeChainView !== 'function') {
     throw new TypeError('prototype server bootstrap is invalid');
+  }
+  // An injected journal is a trusted, exclusively owned bootstrap dependency.
+  // Omitting it preserves the explicit in-memory reference API, not durability.
+  if (operationJournal !== null) {
+    for (const method of ['arm', 'markDispatched', 'retainHash', 'inspect', 'status', 'close']) {
+      if (typeof operationJournal[method] !== 'function') {
+        throw new TypeError('prototype operation journal is invalid');
+      }
+    }
+    const status = operationJournal.status();
+    const record = operationJournal.inspect();
+    if (status.lifecycle !== 'OPEN' || status.closing || status.transition_in_flight
+        || record?.state !== 'READY' || record.network !== 'anvil'
+        || record.chain_id !== ANVIL_CHAIN_ID) {
+      throw new TypeError('prototype requires a fresh initialized Anvil journal');
+    }
   }
   const canonicalRpcUrl = canonicalLoopbackRpcUrl(rpcUrl);
   const captureBaseline = captureObservationBaseline
@@ -498,7 +515,46 @@ export function createWalletGuardPrototypeServer({
     activeObservationBaseline: null,
     connectionChainViewBaseline: null,
     lastObservation: null,
+    journalFailed: false,
+    stopping: false,
   };
+  let journalTail = Promise.resolve();
+  let closePromise = null;
+
+  function persistFact(pending, method, ...args) {
+    const work = journalTail.then(() => {
+      if (state.journalFailed) throw new Error('operation journal is faulted');
+      return operationJournal[method](...args);
+    }).catch((error) => {
+      state.journalFailed = true;
+      state.closed = true;
+      if (state.pending === pending) state.pending = null;
+      clearTimeout(pending.timer);
+      const ambiguous = markAmbiguous(pending, 'JOURNAL_WRITE_FAILED', null);
+      ambiguous.reconciliation_status = 'JOURNAL_WRITE_FAILED';
+      if (pending.resultCandidate !== null) {
+        Object.assign(ambiguous, pending.resultCandidate);
+      }
+      // Settle the transport before any reconciliation or shutdown work.
+      pending.reportFailure('INTERNAL_ERROR');
+      throw error;
+    });
+    // One bounded arm, dispatch and hash write; callers reserve each ingress.
+    journalTail = work.catch(() => {});
+    return work;
+  }
+
+  function retainCandidate(pending, candidate) {
+    if (pending.hashPromise !== null) {
+      if (pending.resultCandidate.transaction_hash !== candidate.transaction_hash) {
+        throw new TypeError('operation already has a different hash candidate');
+      }
+      return pending.hashPromise;
+    }
+    pending.resultCandidate = candidate;
+    pending.hashPromise = persistFact(pending, 'retainHash', candidate.transaction_hash);
+    return pending.hashPromise;
+  }
 
   function ambiguousView() {
     if (state.ambiguous === null) return null;
@@ -527,8 +583,17 @@ export function createWalletGuardPrototypeServer({
     ambiguous.observed_chain_id = candidate.observed_chain_id;
     ambiguous.observed_account = candidate.observed_account;
     ambiguous.context_matches = candidate.context_matches;
-    ambiguous.reconciliation_status = 'OBSERVING';
+    ambiguous.reconciliation_status = operationJournal === null ? 'OBSERVING' : 'RETAINING_HASH';
     ambiguous.reconciliationPromise = (async () => {
+      if (operationJournal !== null) {
+        try {
+          await retainCandidate(ambiguous.pending, candidate);
+        } catch {
+          ambiguous.reconciliation_status = 'JOURNAL_WRITE_FAILED';
+          return;
+        }
+      }
+      ambiguous.reconciliation_status = 'OBSERVING';
       try {
         const observation = await observeTransaction({
           rpcUrl: canonicalRpcUrl,
@@ -573,10 +638,12 @@ export function createWalletGuardPrototypeServer({
         command: pending.command,
         baseline: pending.observationBaseline,
         reconciliationPromise: null,
+        pending,
       };
     }
     state.closed = true;
-    if (candidate !== null) reconcileAmbiguousCandidate(candidate);
+    if (candidate !== null && state.ambiguous.transaction_hash === null
+        && !state.journalFailed) reconcileAmbiguousCandidate(candidate);
     return state.ambiguous;
   }
 
@@ -601,7 +668,11 @@ export function createWalletGuardPrototypeServer({
       delivered: false,
       viewBound: false,
       armed: false,
+      arming: false,
       dispatched: false,
+      dispatching: false,
+      resultProcessing: false,
+      hashPromise: null,
       resultReceipt: null,
       rawResult: null,
       resultCandidate: null,
@@ -622,6 +693,10 @@ export function createWalletGuardPrototypeServer({
 
   const server = createServer(async (req, res) => {
     try {
+      if (state.stopping) {
+        send(res, 410, 'prototype is stopping');
+        return;
+      }
       if (req.socket.remoteAddress !== LOOPBACK_HOST || state.origin === null) {
         if (state.origin !== null || req.socket.remoteAddress !== LOOPBACK_HOST) {
           send(res, 403, 'loopback only');
@@ -685,6 +760,9 @@ export function createWalletGuardPrototypeServer({
           chain_id: state.connected ? ANVIL_CHAIN_ID : null,
           chain_view_bound: state.connectionChainViewBaseline !== null,
           command_pending: state.pending !== null,
+          journal_enabled: operationJournal !== null,
+          journal_failed: state.journalFailed,
+          journal_state: operationJournal?.inspect()?.state ?? null,
           sensitive_call_count: state.transport?.control.sensitiveCallCount() ?? 0,
           observation: state.lastObservation,
           operation_status: state.ambiguous === null ? null : 'AMBIGUOUS',
@@ -819,13 +897,13 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/arm') {
         if (state.pending === null || !state.pending.delivered
-            || !state.pending.viewBound || state.pending.armed) {
+            || !state.pending.viewBound || state.pending.armed || state.pending.arming) {
           send(res, 409, 'no live view-bound command to arm');
           return;
         }
         const pending = state.pending;
         const walletView = parseBoundWalletView(await readStrictBody(req), pending.command);
-        if (state.pending !== pending || state.closed || pending.armed) {
+        if (state.pending !== pending || state.closed || pending.armed || pending.arming) {
           send(res, 409, 'pending command expired before arm');
           return;
         }
@@ -839,6 +917,14 @@ export function createWalletGuardPrototypeServer({
           pending.reportFailure('CONTEXT_CHANGED');
           send(res, 409, 'armed wallet view differs from the bound view');
           return;
+        }
+        pending.arming = true;
+        if (operationJournal !== null) {
+          await persistFact(pending, 'arm', pending.command, pending.observationBaseline);
+          if (state.pending !== pending || state.closed || pending.armed) {
+            send(res, 409, 'pending command expired during durable arm');
+            return;
+          }
         }
         clearTimeout(pending.timer);
         pending.armed = true;
@@ -855,7 +941,7 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/dispatched') {
         if (state.pending === null || !state.pending.armed
-            || state.pending.dispatched || state.closed) {
+            || state.pending.dispatched || state.pending.dispatching || state.closed) {
           send(res, 409, 'no armed command awaiting dispatch');
           return;
         }
@@ -865,9 +951,17 @@ export function createWalletGuardPrototypeServer({
           pending.command,
           'wallet dispatch signal',
         );
-        if (state.pending !== pending || state.closed || pending.dispatched) {
+        if (state.pending !== pending || state.closed || pending.dispatched || pending.dispatching) {
           send(res, 409, 'armed command is no longer dispatchable');
           return;
+        }
+        pending.dispatching = true;
+        if (operationJournal !== null) {
+          await persistFact(pending, 'markDispatched');
+          if (state.pending !== pending || state.closed || pending.dispatched) {
+            send(res, 409, 'armed command expired during durable dispatch');
+            return;
+          }
         }
         clearTimeout(pending.timer);
         pending.dispatched = true;
@@ -884,6 +978,10 @@ export function createWalletGuardPrototypeServer({
 
       if (url.pathname === '/bridge/result') {
         const raw = await readStrictBody(req);
+        if (state.stopping) {
+          send(res, 410, 'prototype is stopping');
+          return;
+        }
         if (state.pending === null || !state.pending.delivered) {
           if (state.ambiguous === null
               || state.ambiguous.reconciliation_status !== 'AWAITING_LATE_RESULT') {
@@ -896,15 +994,16 @@ export function createWalletGuardPrototypeServer({
           return;
         }
         const pending = state.pending;
-        if (pending.resultReceipt !== null) {
+        if (pending.resultReceipt !== null || pending.resultProcessing) {
           send(res, 409, 'result already retained; settlement required');
           return;
         }
+        if (!pending.armed) {
+          send(res, 409, 'wallet result requires an armed command');
+          return;
+        }
+        pending.resultProcessing = true;
         if (!pending.dispatched) {
-          if (!pending.armed) {
-            send(res, 409, 'wallet result requires an armed command');
-            return;
-          }
           state.pending = null;
           clearTimeout(pending.timer);
           let candidate = null;
@@ -931,6 +1030,24 @@ export function createWalletGuardPrototypeServer({
           }
           sendJson(res, 202, { operation: ambiguousView() });
           return;
+        }
+        // Reserve the exact candidate before the first storage await. Closure
+        // shares this retention promise; it cannot replace or write it twice.
+        if (operationJournal !== null) {
+          let durableCandidate = null;
+          try {
+            durableCandidate = extractBoundTransactionCandidate(raw, pending.command);
+          } catch {
+            // Non-hash outcomes still follow the existing response parser.
+          }
+          if (durableCandidate !== null) await retainCandidate(pending, durableCandidate);
+          if (state.pending !== pending || state.closed) {
+            const ambiguous = markAmbiguous(pending, 'RESULT_AFTER_CLOSURE');
+            pending.reportFailure('BRIDGE_CLOSED');
+            if (ambiguous.reconciliationPromise !== null) await ambiguous.reconciliationPromise;
+            sendJson(res, 202, { operation: ambiguousView() });
+            return;
+          }
         }
         let parsed = null;
         let candidate = null;
@@ -1089,7 +1206,7 @@ export function createWalletGuardPrototypeServer({
             );
           } catch (error) {
             if (state.ambiguous === null) throw error;
-            if (state.ambiguous.reconciliationPromise !== null) {
+            if (operationJournal === null && state.ambiguous.reconciliationPromise !== null) {
               await state.ambiguous.reconciliationPromise;
             }
             sendJson(res, 202, {
@@ -1168,7 +1285,9 @@ export function createWalletGuardPrototypeServer({
         launch_url: `${origin}/?bootstrap=${state.token}`,
       });
     },
-    async close() {
+    close() {
+      if (closePromise !== null) return closePromise;
+      state.stopping = true;
       state.closed = true;
       if (state.pending !== null) {
         const pending = state.pending;
@@ -1177,7 +1296,17 @@ export function createWalletGuardPrototypeServer({
         if (pending.delivered) markAmbiguous(pending, 'BRIDGE_CLOSED');
         pending.reportFailure('BRIDGE_CLOSED');
       }
-      await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+      closePromise = (async () => {
+        try {
+          await new Promise((resolve, reject) => server.close(
+            (error) => (error ? reject(error) : resolve()),
+          ));
+        } finally {
+          await journalTail;
+          if (operationJournal !== null) await operationJournal.close();
+        }
+      })();
+      return closePromise;
     },
   });
 }
