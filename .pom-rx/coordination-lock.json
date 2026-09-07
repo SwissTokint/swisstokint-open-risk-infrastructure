@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-resume-179-175-20260907T120007222Z",
+    "acquired_at": "2026-09-07T12:00:07.222Z",
+    "expires_at": "2026-09-07T12:45:07.222Z",
+    "base_main": "25895be9364903b21704cff223faec92f10354f1",
+    "purpose": "Continue user-authorized integration: revalidate/merge179 and exact-merge assurance, then advance bounded defensive repair in priority PR175."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-07T11:16:46.659Z",
-    "actor": "pom-rx-integrate-triage-20260907T103037159Z",
-    "reason": "Writer active window expired; all project mutation calls are terminal. Same-holder coordination-only release."
+    "type": "ACQUIRE",
+    "at": "2026-09-07T12:00:07.222Z",
+    "actor": "pom-rx-resume-179-175-20260907T120007222Z",
+    "reason": "Fresh user continuation after previous invocation released FREE"
   }
 }
