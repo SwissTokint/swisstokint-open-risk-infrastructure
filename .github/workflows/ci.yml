@@ -80,6 +80,57 @@ jobs:
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
+      - name: Test tokenomics bounded regressions
+        run: |
+          set -euo pipefail
+          python models/tokenomics/test_exact_ledger_regressions.py
+          python models/tokenomics/test_matrix_execution.py
+
+          # Two legacy regression modules include one published-matrix assertion
+          # each. The mandatory 3,600-case matrix now runs once, sharded, in the
+          # tokenomics-matrix job below. Keep these modules bounded here by
+          # injecting deterministic matrix slices that preserve the exact
+          # exit/slash/horizon assertions without duplicating the full CPU-heavy
+          # matrix inside the already-broad main job.
+          python - <<'PY'
+          import sys
+          import unittest
+          sys.path.insert(0, "models/tokenomics")
+          import run_scenarios
+
+          def bounded_exit_results(*, max_workers=None):
+              cases = run_scenarios.build_matrix_cases()[240:300]
+              workers = run_scenarios.select_matrix_workers() if max_workers is None else max_workers
+              return run_scenarios.run_matrix_cases(cases, max_workers=workers)
+          run_scenarios.build_results = bounded_exit_results
+          import test_review_regressions
+          result = unittest.TextTestRunner(verbosity=2).run(
+              unittest.defaultTestLoader.loadTestsFromModule(test_review_regressions)
+          )
+          if not result.wasSuccessful():
+              raise SystemExit(1)
+          PY
+
+          python - <<'PY'
+          import sys
+          import unittest
+          sys.path.insert(0, "models/tokenomics")
+          import run_scenarios
+
+          def bounded_slash_exit_results(*, max_workers=None):
+              # Covers gradual-slash + validator-exit profiles, both horizons,
+              # all price/usage multipliers, including low-price stake failure.
+              cases = run_scenarios.build_matrix_cases()[180:300]
+              workers = run_scenarios.select_matrix_workers() if max_workers is None else max_workers
+              return run_scenarios.run_matrix_cases(cases, max_workers=workers)
+          run_scenarios.build_results = bounded_slash_exit_results
+          import test_model
+          result = unittest.TextTestRunner(verbosity=2).run(
+              unittest.defaultTestLoader.loadTestsFromModule(test_model)
+          )
+          if not result.wasSuccessful():
+              raise SystemExit(1)
+          PY
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
@@ -96,3 +147,54 @@ jobs:
         run: stellar contract build
       - name: Build hardened proof relay image
         run: docker build -f examples/proof-relay/Dockerfile -t swisstokint-proof-relay:ci .
+
+  tokenomics-matrix:
+    name: tokenomics exact matrix shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Execute mandatory exact-rational stress shard
+        working-directory: models/tokenomics
+        env:
+          POMRX_MATRIX_SHARD: ${{ matrix.shard }}
+        run: |
+          python - <<'PY'
+          import os
+          from run_scenarios import (
+              build_matrix_cases,
+              run_matrix_cases,
+              select_matrix_workers,
+          )
+
+          shard = int(os.environ["POMRX_MATRIX_SHARD"])
+          shard_count = 8
+          cases = build_matrix_cases()
+          if len(cases) != 3_600:
+              raise SystemExit(f"canonical matrix changed unexpectedly: {len(cases)}")
+          start = len(cases) * shard // shard_count
+          end = len(cases) * (shard + 1) // shard_count
+          scoped = cases[start:end]
+          results = run_matrix_cases(
+              scoped,
+              max_workers=select_matrix_workers(),
+          )
+          if len(results) != len(scoped):
+              raise SystemExit("matrix shard did not execute every selected case")
+          if [result["scenario"] for result in results] != [scenario.name for _, scenario in scoped]:
+              raise SystemExit("matrix shard publication order changed")
+          failures = [result["scenario"] for result in results if not result["accounting_valid"]]
+          if failures:
+              raise SystemExit(f"exact accounting failures in shard {shard}: {failures[:5]}")
+          print(
+              f"validated shard {shard}: cases={len(results)} range=[{start},{end}) "
+              f"workers={select_matrix_workers()}"
+          )
+          PY
