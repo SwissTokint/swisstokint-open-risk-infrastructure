@@ -30,11 +30,10 @@ try {
 }
 process.stdout.write(`POM-RX Wallet Guard reference prototype\nOpen exactly once: ${info.launch_url}\n`);
 
-let closing = false;
-async function close() {
-  if (closing) return;
-  closing = true;
-  await prototype.close();
+function close() {
+  // Both handled signals must await the server's same drain promise, including
+  // its rejection. A second signal cannot manufacture an early clean exit.
+  return prototype.close();
 }
 
 process.once('SIGINT', () => {

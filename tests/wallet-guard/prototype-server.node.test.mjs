@@ -34,9 +34,11 @@ function http(origin, path, {
   host = null,
   contentType = 'application/json',
   fetchMetadata = true,
+  connectionClose = false,
 } = {}) {
   const url = new URL(path, origin);
   const headers = {};
+  if (connectionClose) headers.connection = 'close';
   if (cookie !== null) headers.cookie = cookie;
   if (requestOrigin !== null) headers.origin = requestOrigin;
   if (host !== null) headers.host = host;
@@ -75,9 +77,9 @@ function parseJson(response) {
   return JSON.parse(response.body);
 }
 
-async function authenticate(info) {
+async function authenticate(info, connectionClose = false) {
   const launch = new URL(info.launch_url);
-  const bootstrap = await http(info.origin, `${launch.pathname}${launch.search}`);
+  const bootstrap = await http(info.origin, `${launch.pathname}${launch.search}`, { connectionClose });
   assert.equal(bootstrap.status, 303);
   assert.equal(bootstrap.headers['clear-site-data'], '"cache", "storage"');
   assert.equal(bootstrap.headers['referrer-policy'], 'no-referrer');
@@ -1052,13 +1054,13 @@ function storageLatch() {
   return { entered: entered.promise, release: released.resolve, hold };
 }
 
-async function within(promise, ms = 2_500) {
+async function within(promise, ms = 2_500, label = 'bounded server outcome') {
   let timer;
   try {
     return await Promise.race([
       promise,
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error('bounded server outcome did not settle')), ms);
+        timer = setTimeout(() => reject(new Error(`${label} did not settle`)), ms);
       }),
     ]);
   } finally {
@@ -1385,7 +1387,7 @@ function bootstrapChild(t, env) {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
     await exit;
   });
-  return { child, launched: launched.promise, exit };
+  return { child, launched: launched.promise, exit, output: () => stdout };
 }
 
 test('bootstrap initializes before launch and refuses missing or previously used journal paths', async (t) => {
@@ -1423,4 +1425,74 @@ test('bootstrap releases journal ownership after server configuration failure', 
   assert.equal(result.stdout, '');
   assert.equal(JSON.parse(await fs.readFile(journalPath, 'utf8')).state, 'READY');
   await assert.rejects(fs.stat(journalPath + '.lock'), { code: 'ENOENT' });
+});
+
+
+test('both shutdown signals share pending drain and its eventual success or failure', async (t) => {
+  for (const signals of [['SIGINT', 'SIGTERM'], ['SIGTERM', 'SIGINT']]) {
+    for (const failClose of [false, true]) {
+      await t.test(`${signals.join(' then ')} / ${failClose ? 'failure' : 'success'}`, async (t) => {
+        const directory = await fs.mkdtemp(join(tmpdir(), 'wg-shared-shutdown-'));
+        const journalPath = join(directory, 'operation.json');
+        const running = bootstrapChild(t, { POMRX_WG_JOURNAL: journalPath });
+        t.after(() => fs.rm(directory, { recursive: true, force: true }));
+        await within(running.launched);
+        const launchUrl = running.output().match(/Open exactly once: (http:\/\/[^\s]+)/u)[1];
+        const info = { launch_url: launchUrl, origin: new URL(launchUrl).origin };
+        const { cookie } = await authenticate(info, true);
+        const body = JSON.stringify({ code: 'BRIDGE_CLOSED' });
+        const held = requestHttp(new URL('/bridge/close', info.origin), {
+          method: 'POST',
+          headers: {
+            cookie, origin: info.origin, 'sec-fetch-site': 'same-origin',
+            'content-type': 'application/json', 'content-length': Buffer.byteLength(body),
+            expect: '100-continue', connection: 'close',
+          },
+        });
+        t.after(() => held.destroy());
+        const admitted = new Promise((resolve, reject) => {
+          held.once('continue', resolve);
+          held.once('error', reject);
+        });
+        const response = new Promise((resolve, reject) => {
+          held.once('response', (res) => { res.resume(); res.once('end', resolve); });
+          held.once('error', reject);
+        });
+        // Attach a rejection observer even if an earlier assertion aborts.
+        response.catch(() => {});
+        held.flushHeaders();
+        await within(admitted, 2_500, 'admitted');
+        running.child.kill(signals[0]);
+        // The first handler must have started shutdown, while the admitted body
+        // keeps server.close pending. No wallet handshake or RPC is involved.
+        await within((async () => {
+          for (;;) {
+            try {
+              const status = await http(info.origin, '/api/status', { cookie, connectionClose: true });
+              if (status.status === 410) return;
+            } catch (error) {
+              if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') return;
+              throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5));
+          }
+        })());
+        if (failClose) await fs.chmod(journalPath + '.lock', 0o644);
+        running.child.kill(signals[1]);
+        const premature = await Promise.race([
+          running.exit.then(() => true),
+          new Promise((resolve) => setTimeout(() => resolve(false), 100)),
+        ]);
+        assert.equal(premature, false, 'second signal exited before pending close settled');
+        held.end(body);
+        await within(response, 2_500, 'HTTP response');
+        const result = await within(running.exit, 2_500, 'child exit');
+        assert.equal(result.signal, null);
+        assert.equal(result.code, failClose ? 1 : 0);
+        if (!failClose) {
+          await assert.rejects(fs.stat(journalPath + '.lock'), { code: 'ENOENT' });
+        }
+      });
+    }
+  }
 });
