@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-journal-server-20260907T064953122Z",
-    "acquired_at": "2026-09-07T06:49:53.122Z",
-    "expires_at": "2026-09-07T07:34:53.122Z",
-    "base_main": "b69312857bad049adfb890938abc0a88072b21aa",
-    "purpose": "Bounded Wallet Guard server durable arm/dispatch/hash composition, preserve receipt/context settlement and P1 controls; local synthetic tests, exact review/CI gate."
-  },
+  "holder": null,
   "last_transition": {
-    "type": "ACQUIRE",
-    "at": "2026-09-07T06:49:53.122Z",
+    "type": "RELEASE",
+    "at": "2026-09-07T07:35:28.380Z",
     "actor": "pom-rx-journal-server-20260907T064953122Z",
-    "reason": "User continue le dev; successor to assured PR176"
+    "reason": "PR177 merged but post-merge P2 BLOCK recorded; repair178 published,118 prototype/full npm and CI1297 PASS, independent SKEPTIC_PASS. Final manual Code review pending; terminal checkpoint5566933080 verified. All project writes terminal; no mutation in flight. Writer window ends; no renewal or gate waiver."
   }
 }
