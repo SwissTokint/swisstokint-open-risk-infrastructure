@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-175-child-assurance-20260907T124829004Z",
+    "acquired_at": "2026-09-07T12:48:29.004Z",
+    "expires_at": "2026-09-07T13:33:29.004Z",
+    "base_main": "34ae17c5460e4b715762d44d7989ab003c32a702",
+    "purpose": "Continue user-authorized bounded defensive repair of remaining PR175 isolation/child-completion assurance; preserve P1 and expected-red controls."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-07T12:35:53.508Z",
-    "actor": "pom-rx-resume-179-175-20260907T120007222Z",
-    "reason": "All project mutations completed. PR179 and PR180 merged with exact-main assurance; checkpoint143comment5570718695 recorded."
+    "type": "ACQUIRE",
+    "at": "2026-09-07T12:48:29.004Z",
+    "actor": "pom-rx-175-child-assurance-20260907T124829004Z",
+    "reason": "Fresh user continuation; prior invocation release verified FREE."
   }
 }
