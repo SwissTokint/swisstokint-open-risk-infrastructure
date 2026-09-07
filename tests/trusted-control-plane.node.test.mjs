@@ -69,6 +69,9 @@ test('trusted control plane accepts byte-identical reviewed controls', () => {
     copyControlTree(candidateRoot);
     const result = verifyTrustedControlPlane(baseRoot, candidateRoot);
     assert.equal(result.protectedPaths, IMMUTABLE_CONTROL_PATHS.length);
+    assert.equal(result.coverage.executionProved, false);
+    assert.equal(result.coverage.manifestCount, 4);
+    assert.equal(result.coverage.testCount, manifestPaths.length);
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
@@ -133,3 +136,51 @@ test('trusted control plane rejects a protected path redirected through a symlin
     rmSync(sandbox, { recursive: true, force: true });
   }
 });
+
+// Exercise the caller integration with ordinary file edits only. Fixture test
+// bytes are copied for comparison and never imported or executed here.
+test('trusted control plane rejects matching manifests that omit isolated-runner coverage', () => {
+  const sandbox = mkdtempSync(join(tmpdir(), 'trusted-control-plane-coverage-'));
+  const baseRoot = join(sandbox, 'base');
+  const candidateRoot = join(sandbox, 'candidate');
+  try {
+    copyControlTree(baseRoot);
+    copyControlTree(candidateRoot);
+    for (const root of [baseRoot, candidateRoot]) {
+      const manifest = join(root, '.github/trusted-security-tests.txt');
+      writeFileSync(manifest, readFileSync(manifest, 'utf8').replace(
+        'tests/pom-rx-strict-isolated-runner.node.test.mjs\n', '',
+      ));
+    }
+    assert.throws(
+      () => verifyTrustedControlPlane(baseRoot, candidateRoot),
+      /isolated-runner coverage is required in the positive security manifest/u,
+    );
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+for (const relativePath of [
+  'scripts/verify-trusted-test-coverage.mjs',
+  'tests/trusted-test-coverage.node.test.mjs',
+  'tests/pom-rx-strict-isolated-runner.node.test.mjs',
+]) {
+  test(`trusted control plane rejects byte drift in integrated coverage: ${relativePath}`, () => {
+    const sandbox = mkdtempSync(join(tmpdir(), 'trusted-control-plane-coverage-drift-'));
+    const baseRoot = join(sandbox, 'base');
+    const candidateRoot = join(sandbox, 'candidate');
+    try {
+      copyControlTree(baseRoot);
+      copyControlTree(candidateRoot);
+      const filePath = join(candidateRoot, relativePath);
+      writeFileSync(filePath, `${readFileSync(filePath, 'utf8')}\n// fixture byte drift\n`);
+      assert.throws(
+        () => verifyTrustedControlPlane(baseRoot, candidateRoot),
+        /out-of-band bootstrap review|base-owned trusted test changed/u,
+      );
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+}

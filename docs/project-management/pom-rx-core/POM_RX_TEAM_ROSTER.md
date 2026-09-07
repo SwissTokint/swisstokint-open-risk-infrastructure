@@ -1,6 +1,6 @@
 # POM-RX Core — Team Roster and Review Routing
 
-Updated: `2026-08-24T09:56:00+02:00`
+Updated: `2026-09-07T10:59:00Z`
 
 ## Purpose
 
@@ -10,9 +10,12 @@ This is a **versioned snapshot**. Embedded SHAs/branch names are authoring-time 
 
 Snapshot anchors:
 
-- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970`;
-- base state: PR #135 exact merge, exact-main CI 859 success, post-merge assurance `5387715186 = POST_MERGE_ASSURANCE_PASS`;
-- terminal checkpoint: `5387722428`.
+- `snapshot_base_main`: `25895be9364903b21704cff223faec92f10354f1` — PR #163 actual merge;
+- `last_assured_main_before_snapshot`: `25895be9364903b21704cff223faec92f10354f1`;
+- canonical push/main CI #1300 / run `34113836199`, attempt 1: SUCCESS, all 20 steps;
+- latest matching `pom-rx/exact-main-ci`: success `53667615499`, published by `github-actions[bot]`;
+- distinct six-part [POST_MERGE_ASSURANCE_PASS](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/163#issuecomment-5569622009);
+- [reviewed open-PR routing](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/issues/143#issuecomment-5569521081).
 
 ## Invariants
 
@@ -51,53 +54,25 @@ Snapshot anchors:
 
 A fresh `chatgpt-codex-connector` review may satisfy the independent release gate only when it explicitly covers the actual frozen candidate SHA, canonical exact-head CI is green, all findings are resolved/non-blocking, no P0/P1/P2 remains unresolved, and no later commit moved the head. The independent-review waiver remains limited to PR #60.
 
-## Coordination-guard bootstrap repair routing
+## Current role routing
 
-After PR #135 merged and passed post-merge assurance, the next automation invocation correctly stopped because the policy required a single-flight lock but no canonical operational mechanism existed. The existing hourly task was disabled rather than allowing repeated writer attempts without verified mutual exclusion.
+The canonical coordination guard is operational; #136 and #131 are merged historical prerequisites. The acquisition/expiry/release rules and role matrix above are unchanged. This snapshot does not assert whether the existing scheduled task is currently enabled.
 
-Under explicit human direction on 2026-08-24, the one-time canonical coordination branch/file was bootstrapped and a manual repair run acquired it by blob-SHA compare-and-swap. A stale compare-and-swap attempt using the previous FREE blob SHA was rejected by GitHub with HTTP 409.
+| Work | Snapshot state | Next bounded action |
+| --- | --- | --- |
+| #175 trusted security CI | Head `43d7d5bd8bb833334c556bd51415e64aecc80383`; CI1287 green; 42 unresolved discussions, including five latest P1 | Highest assurance priority: assertion isolation, authenticated child completion, isolated-runner coverage, uncertain publication handling and invalidation retry; then historical finding adjudication and independent bootstrap proof. |
+| #167 prior provenance proposal | Draft; three P1 remain despite CI1192 green | Retain as alternative predecessor to #175; do not merge both as additive fixes. |
+| #150 durable Core Gate | Head `8576e43c7585568a630b3c410fb6043930ab88b4`; CI1191 fails npm test; conflicted | Scoped successor on assured main: Node22 channel lifecycle, trusted owner environment/executable capture and pre-await capacity accounting. Existing fd-ownership and all historical unresolved controls remain required. |
+| #157 then #156 | #157 is an OPEN Core specification issue; #156 has one architectural P2 | Under the existing single-Core-writer order, address #157 after #150; accept the shared primitive before migrating MCP from its private commitment implementation. |
+| #139 Sepolia Wallet Guard | Draft, conflicted old stack; useful work retained | Reconstruct remaining profile/observer/browser scope against current receipt/context/journal/shutdown boundaries. The separate human wallet gate remains. |
+| #160 tokenomics research | CI1070 cancelled; three arithmetic/accounting P1 families and later depletion-reporting P2 | Preserve exact conservation, all 3,600 cases and 365/1,825-day horizons; repair the model and reporting, not only sharding or timeout settings. |
+| #162 Stellar action | CI1268 green on old base; action SHA changes but explicit CLI version remains 27.0.0 | Clarify action-only scope, refresh main, verify attested installation/build compatibility and obtain fresh review/CI. |
 
-The dedicated Codex lane and owner skeptical pass exposed two material concurrency/routing issues in earlier #136 heads: stale-writer continuation at expiry and a capability map that could still route #131 through already-completed #135 rather than the new guard prerequisite. The successor candidate repairs both and additionally forbids automatic reclamation of expired HELD locks because the coordination file cannot server-side fence a separate in-flight GitHub mutation.
+These are role assignments, not a claim that agents are already running. Prime chooses one bounded writer lot after fresh live-state verification. The Core writer sequence remains #150 then issue #157; MCP #156 waits for the accepted shared primitive. #175 is the highest assurance repair; #167 is its alternative predecessor. No conflicting old stack is merged wholesale.
 
-The scoped repair branch is `docs/pom-rx-canonical-coordination-lock-20260824` and owns only:
+Actual evidence for the 2026-09-07 integration cycle: root performed integration/coordination as non-independent owner; distinct read-only `/root/integration_skeptic` reviewed #178, #163 and queue facts. Final GitHub Codex reviews and the assurance comments identify their own exact heads. This does not pre-assign future reviewers or invent a continuously running team.
 
-- `docs/project-management/pom-rx-core/POM_RX_COORDINATION_GUARD.md`;
-- `docs/project-management/pom-rx-core/POM_RX_AUTOMATION_POLICY.md`;
-- `docs/project-management/pom-rx-core/POM_RX_RESUME_CHECKPOINT.md`;
-- `docs/project-management/pom-rx-core/POM_RX_TASKS.yaml`;
-- `docs/project-management/pom-rx-core/POM_RX_BLOCKERS.md`;
-- `docs/project-management/pom-rx-core/POM_RX_TEAM_ROSTER.md`;
-- `docs/product/POM_RX_CAPABILITY_MAP.md`.
-
-This lot is documentation/control-plane only. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
-
-P1 `PRRT_kwDOTiNyWc6bnBYA` and P2 `PRRT_kwDOTiNyWc6bnBYE` remain unresolved until a genuinely distinct review validates the final exact head; implementation alone is not closure evidence.
-
-The scheduled task remains disabled until the repair has exact-head CI success, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. The canonical lock must then be restored to verified `FREE` before the **existing** task is re-enabled. Same-holder release may be performed after the active window expires; no project write may.
-
-## Next Tier-B routing — PR #131
-
-Authoring-time snapshot: PR #131 head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`; historical CI 846 is green but stale for release; seven P1 threads remain unresolved/outdated.
-
-When live GitHub shows PR #136 has exact-merge PASS and the guard is verified FREE/acquirable, PR #131 becomes the next dependency-closing workstream. Use exactly one writer to reconcile it onto then-live main; no stale #120/#97/#93 branch is merged wholesale. A moved #131 head restarts exact-head evidence.
-
-Read-only specialist routing after reconciliation:
-
-1. Protocol / Systems Architect — verify Core/application boundary, narrow trusted-provider contract and simpler TCB alternatives;
-2. Security / Adversarial Skeptic — falsify provider provenance TOCTOU, pre/post-import Promise/reflection/provenance poisoning, constructor/species/accessor/Proxy/prototype paths, thenable assimilation, strict-unhandled behavior and claim leakage;
-3. QA / Conformance — verify CI-wired negative tests, clean strict-process survival, zero reference authorization and zero sensitive forwarding.
-
-The release owner then performs the five-stage gate as non-independent evidence; a genuinely distinct exact-head review remains mandatory.
-
-Seven PR #131 P1 threads remain attack inputs until same-head independent validation: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
-
-The supported path must not install process-global rejection swallowing, execute hostile constructor/species accessors or Proxy paths, silently trust attacker-selected species constructors, weaken strict-rejection tests, or claim same-process survival for an already-originated out-of-contract hostile Promise.
-
-## Historical streams
-
-- PR #120: `CLOSED / NOT MERGED / STALE` at `5238b9c289476100c875ed9a88bd7e21a574fa67`; do not reopen or wholesale-copy; six P1/P2 findings remain attack history.
-- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct useful durable Gate composition later from then-current trusted main.
-- PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later from then-current trusted main.
+Preserve original P1/fd/replay/crash, callback, receipt/context and expected-red evidence. Scope review and final independent exact-head release review remain separate from the writer. #120/#97/#93 remain historical sources; current state is read from GitHub rather than copied from August24.
 
 ## Operational prototype claim boundary
 

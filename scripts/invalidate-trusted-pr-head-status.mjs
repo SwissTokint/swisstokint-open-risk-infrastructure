@@ -42,21 +42,31 @@ export function buildInvalidationRequest(environment) {
 
 export function invalidateTrustedPrHead(environment = process.env, spawn = spawnSync) {
   const request = buildInvalidationRequest(environment);
-  const result = spawn(
-    '/usr/bin/gh',
-    ['api', '--method', 'POST', request.apiPath, '--input', '-'],
-    {
-      encoding: 'utf8',
-      input: JSON.stringify(request.payload),
-      timeout: 20_000,
-      windowsHide: true,
-    },
-  );
-  if (result.error) throw result.error;
-  if (result.signal !== null || result.status !== 0) {
-    throw new Error('departing trusted PR head invalidation failed');
+  const options = Object.freeze({
+    encoding: 'utf8',
+    input: JSON.stringify(request.payload),
+    timeout: 20_000,
+    windowsHide: true,
+  });
+  const errors = [];
+  // All attempts use the same captured identity and can only publish pending.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = spawn(
+        '/usr/bin/gh',
+        ['api', '--method', 'POST', request.apiPath, '--input', '-', '--hostname', 'github.com'],
+        options,
+      );
+      if (result.error) throw result.error;
+      if (result.signal !== null || result.status !== 0) {
+        throw new Error('departing trusted PR head invalidation failed');
+      }
+      return validateTrustedPrStatusResponse(result.stdout, request);
+    } catch (error) {
+      errors.push(error);
+    }
   }
-  return validateTrustedPrStatusResponse(result.stdout, request);
+  throw new AggregateError(errors, 'departing trusted PR head invalidation failed after 3 attempts');
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;

@@ -2,6 +2,8 @@ import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { verifyTrustedTestCoverage } from './verify-trusted-test-coverage.mjs';
+
 export const REVIEWED_YAML_ARTIFACT = Object.freeze({
   dependency: '2.9.0',
   integrity: 'sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==',
@@ -26,6 +28,7 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'scripts/trusted-test-loader.mjs',
   'scripts/trusted-test-reporter.mjs',
   'scripts/verify-trusted-control-plane.mjs',
+  'scripts/verify-trusted-test-coverage.mjs',
   'tests/ci-action-pinning.node.test.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison-candidate.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison.test.mjs',
@@ -53,16 +56,10 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'tests/pom-rx-v01-compat-fixtures.node.test.mjs',
   'tests/trusted-assert-preload.node.test.mjs',
   'tests/trusted-control-plane.node.test.mjs',
+  'tests/trusted-test-coverage.node.test.mjs',
   'tests/trusted-pr-security-workflow.node.test.mjs',
   'tests/trusted-pr-status-publisher.node.test.mjs',
   'tests/trusted-test-reporter.node.test.mjs',
-]);
-
-const TRUSTED_TEST_MANIFEST_PATHS = Object.freeze([
-  '.github/trusted-security-tests.txt',
-  '.github/trusted-mutation-security-tests.txt',
-  '.github/trusted-child-tests.txt',
-  '.github/trusted-expected-red-test.txt',
 ]);
 
 function readRegularBytes(root, relativePath) {
@@ -95,34 +92,8 @@ export function verifyTrustedControlPlane(baseRoot, candidateRoot) {
     }
   }
 
-  const reviewedTestPaths = new Set();
-  for (const manifestPath of TRUSTED_TEST_MANIFEST_PATHS) {
-    const manifestText = readRegularBytes(baseRoot, manifestPath)
-      .toString('utf8')
-      .replace(/\r\n/gu, '\n')
-      .trim();
-    const manifestPaths = manifestText.split('\n');
-    if (manifestPaths.length === 0 || manifestPaths.length > 128) {
-      throw new Error(`trusted manifest cardinality is invalid: ${manifestPath}`);
-    }
-    for (const relativePath of manifestPaths) {
-      if (
-        !/^tests\/[A-Za-z0-9._/-]+\.test\.mjs$/u.test(relativePath)
-        || relativePath.split('/').some((segment) => segment === '.' || segment === '..')
-      ) {
-        throw new Error(`trusted manifest path is invalid: ${relativePath}`);
-      }
-      if (reviewedTestPaths.has(relativePath)) {
-        throw new Error(`trusted test path appears in multiple manifests: ${relativePath}`);
-      }
-      reviewedTestPaths.add(relativePath);
-      const baseBytes = readRegularBytes(baseRoot, relativePath);
-      const candidateBytes = readRegularBytes(candidateRoot, relativePath);
-      if (!baseBytes.equals(candidateBytes)) {
-        throw new Error(`base-owned trusted test changed in-band: ${relativePath}`);
-      }
-    }
-  }
+  // Declaration and byte checks are necessary, but do not prove execution.
+  const coverage = verifyTrustedTestCoverage(baseRoot, candidateRoot);
 
   const basePackage = readJson(baseRoot, 'package.json');
   const candidatePackage = readJson(candidateRoot, 'package.json');
@@ -144,7 +115,7 @@ export function verifyTrustedControlPlane(baseRoot, candidateRoot) {
   ) {
     throw new Error('candidate lockfile does not bind the reviewed yaml registry artifact');
   }
-  return Object.freeze({ protectedPaths: IMMUTABLE_CONTROL_PATHS.length });
+  return Object.freeze({ protectedPaths: IMMUTABLE_CONTROL_PATHS.length, coverage });
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;

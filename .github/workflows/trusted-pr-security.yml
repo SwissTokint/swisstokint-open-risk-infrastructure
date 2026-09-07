@@ -78,6 +78,11 @@ jobs:
           CANDIDATE_ROOT: ${{ github.workspace }}/candidate
         run: node trusted-base/scripts/verify-trusted-control-plane.mjs
 
+      # This base-owned suite prepares filesystem fixtures (including symlinks).
+      # Run it before candidate code, without relaxing candidate permissions.
+      - name: Test base-owned coverage validation
+        run: node --test trusted-base/tests/trusted-test-coverage.node.test.mjs
+
       - name: Publish exact-head pending status
         env:
           GH_TOKEN: ${{ github.token }}

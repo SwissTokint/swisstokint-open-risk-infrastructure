@@ -2,14 +2,16 @@
 
 Status: `CURRENT_INFORMATION_ARCHITECTURE / NON_NORMATIVE`
 
-Date: 2026-08-24
+Date: 2026-09-07
 
 This is a **versioned snapshot**, not a self-referential claim about the forever-current GitHub head.
 
-- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge observed as live trusted main at authoring time;
-- base state: PR #135 source `8c35b486fdc73299c86388bec5517db31b6830d2`, exact-head CI 858 success, distinct exact-head review clean, exact-main CI `32657761877` / CI 859 success;
-- PR #135 post-merge assurance: `5387715186 = POST_MERGE_ASSURANCE_PASS`;
-- PR #135 terminal checkpoint: `5387722428`.
+- `snapshot_base_main`: `25895be9364903b21704cff223faec92f10354f1` — PR #163 actual merge;
+- `last_assured_main_before_snapshot`: `25895be9364903b21704cff223faec92f10354f1`;
+- canonical push/main CI #1300 / run `34113836199`, attempt 1: SUCCESS, all 20 steps;
+- latest matching `pom-rx/exact-main-ci`: success `53667615499`, published by `github-actions[bot]`;
+- distinct six-part [POST_MERGE_ASSURANCE_PASS](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/163#issuecomment-5569622009);
+- [reviewed open-PR routing](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/issues/143#issuecomment-5569521081).
 
 Exact live `main`, active PR/head/CI/review/thread state and post-merge verdict are always read from GitHub. After a control-plane merge, the exact resulting main SHA/status/assurance belongs in the merged PR terminal checkpoint; do not create another docs-only reconciliation merely to replace `snapshot_base_main` with that merge SHA.
 
@@ -48,15 +50,13 @@ Strict verification is structurally non-authorizing. A valid receipt, proof, anc
 
 The repository contains the common exact-authorization contract, a process-local single-use Gate and a separate filesystem durable claim-store reference primitive. Reviewed composition of the durable claim primitive with the common Gate is **not** yet a trusted dependency.
 
-Historical PR #97 remains `OPEN / STALE / MUST_NOT_MERGE` at `0efb462f0b4b8cff62d664a51d13ad71306b6bbb`. Durable composition is reconstructed later from then-live trusted main only after the fresh Wallet Guard provider-transport prerequisite becomes trusted.
+Durable composition PR #150 remains REWORK with failing CI and unresolved findings. Reconstruct a bounded successor on assured main; historical #97 has no merge authority.
 
 ### Repository continuity and canonical coordination guard
 
 PR #135 closed the earlier control-plane self-reference/liveness defect and received exact-merge `POST_MERGE_ASSURANCE_PASS`. Its non-self-referential rule remains: live exact state comes from GitHub plus merged-PR terminal checkpoints; versioned files carry historical-at-authoring anchors and durable transition rules. No new docs-only PR is required solely because a control-plane merge creates a new exact `main` SHA.
 
-The next scheduled invocation exposed a different operational prerequisite: the policy required mandatory single-flight coordination but no canonical lock location/acquisition/release mechanism existed. It correctly failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and the existing hourly task was disabled.
-
-Under explicit human instruction, the canonical coordination state was bootstrapped at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`. PR #136 (`docs/pom-rx-canonical-coordination-lock-20260824`) is the bounded control-plane repair that documents and gates this mechanism.
+The canonical guard is operational at branch `automation/pom-rx-coordination`, file `.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`. #136 is merged; it is no longer the next open repair. Scheduled-task enabled state must be checked live.
 
 The accepted guard model is intentionally conservative:
 
@@ -68,27 +68,21 @@ The accepted guard model is intentionally conservative:
 - a crashed holder's stale lock requires explicit human recovery;
 - normal lock writes stay on the coordination branch and never move `main` or a feature/control-plane PR head.
 
-This avoids claiming that a timestamp can atomically fence an in-flight write on another GitHub resource. PR #136 must pass exact-head CI, the five-stage owner gate, a genuinely distinct exact-head review, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`, after which canonical lock state must be verified FREE before the existing scheduled task is re-enabled.
+This avoids claiming that a timestamp can atomically fence an in-flight write on another GitHub resource. The guard protocol and five-stage review policy are unchanged.
 
-### Next application prerequisite — PR #131
+### Current implementation and assurance routing
 
-PR #131 on `automation/wg-trusted-provider-transport-20260823` remains the next dependency-closing Tier-B workstream, but it is **blocked until PR #136 is trusted and the canonical coordination guard is operational/verified FREE**. It is not enough that PR #135 already passed.
+#131/#137/#138 are merged historical Wallet Guard prerequisites. #176/#177/#178 add reviewed journal operation facts, server composition and shared shutdown drain; #178 resolves the original #177 shutdown P2 on its assured successor. These local synthetic scopes do not prove real-wallet safety or accept the remaining Sepolia draft #139.
 
-Authoring-time snapshot:
-
-- head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
-- historical CI `32645853067` / CI 846 = `success`, but not current release evidence;
-- seven P1 threads unresolved/outdated: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
-
-The branch contains attempted repairs/regressions for provider binding, complete Array prototype-chain checks, Node Promise bookkeeping allowances, pre-import Promise/reflection/provenance poisoning and proxied Promise-constructor traps. None becomes trusted until #131 is reconciled onto then-live main after #136 is trusted, freezes a new exact head, reruns canonical CI, passes the full owner gate, receives a fresh genuinely distinct exact-head review, closes all P0/P1/P2 on same-head evidence, merges, and receives exact-merge assurance PASS.
+#175 is the highest assurance repair with unresolved P1 findings. #167 is the alternative predecessor, not an additive merge dependency. Preserve canonical merge-candidate CI while establishing a separately trusted literal-head gate; bootstrap cannot self-attest. #150 is the next Core repair; issue #157 follows under the single-Core-writer order and blocks MCP #156's private commitment migration. Current details are in the versioned checkpoint and live program #143.
 
 #### Accepted provider-transport boundary
 
-The accepted direction is the explicit narrow **trusted-provider transport contract** for the local Node prototype. The controlled provider/adapter must be rejected before origin when provenance or runtime integrity is ambiguous. Inside the supported contract, an in-contract rejected context transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
+The accepted boundary remains the explicit narrow **trusted-provider transport contract** for the local Node prototype. The controlled provider/adapter must be rejected before origin when provenance or runtime integrity is ambiguous. Inside the supported contract, an in-contract rejected context transport must fail closed with zero reference authorization, zero sensitive forwarding, clean child-process survival under `--unhandled-rejections=strict`, and no orphaned provider-rejection termination.
 
 Decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise objects from arbitrary providers remain excluded. An already-originated excluded rejected Promise is an explicit unsupported negative unless separately reviewed process/worker/RPC isolation is introduced. The in-contract survival regression must not be represented as same-process survival proof for that hostile object.
 
-The generic `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded into a hostile-provider-wide Promise-integrity claim. The existing `controlled-host.mjs` path is not rebound by this prerequisite; broader Wallet Guard operational readiness therefore does not advance merely because PR #131 eventually passes.
+The generic `createWalletGuardReferenceProviderGateway()` remains available and is not upgraded into a hostile-provider-wide Promise-integrity claim. The subsequent merged composition is trusted only to its exact reviewed local scope; no arbitrary-provider or burner-readiness claim follows.
 
 The selected direction must not install process-global `unhandledRejection`/`uncaughtException` swallowing, execute hostile constructor/species accessors or Proxy constructor/species paths, silently trust attacker-selected species constructors, weaken strict rejection tests, or convert unknown/failure into authorization/forwarding.
 
@@ -157,9 +151,9 @@ controlled dApp
   -> reconciliation
 ```
 
-The provider-transport prerequisite remains untrusted until the live transition rule above is satisfied. Historical green CI alone does not advance a readiness claim.
+The merged provider/controlled-host and journal composition remains bounded by the reviewed clean-process, receipt/context and shutdown contracts. Historical green CI alone does not accept a new integration or advance a readiness claim.
 
-Historical PR #93 remains `OPEN / STALE / UNTRUSTED / LATER` at `c4e40ceb286f4e59657767661daed15d2b68e9a7`. Reconstruct useful simulation work later from then-current trusted main instead of merging stale history wholesale.
+Historical #93 is source material without current merge authority. Preserve useful tests when reconstructing remaining work on assured main; do not wholesale-merge stale history.
 
 Even after simulation evidence eventually merges, simulation-to-forwarding atomic binding remains a separate reviewed requirement. A simulation result never authorizes forwarding by itself.
 
@@ -204,12 +198,12 @@ compatibility/
 
 | Block | Durable state / transition rule | Missing / blocked |
 | --- | --- | --- |
-| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation; PR #135 continuity model trusted | canonical coordination guard PR #136 must receive exact-merge PASS and restore verified FREE state; PR #131 then reconciles/freshly gates; durable Gate composition later; production trust/time/distributed semantics/external effect truth missing |
-| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | stale PR #97 must not merge; durable composition requires later reconstruction |
+| Shared Core | strict profile, exact authorization, process-local Gate, hostile-object capture, Witness lifecycle, durable local claim primitive, execution evidence, observation/reconciliation; PR #135 continuity model trusted | #175 trusted CI repair and #150 durable Gate remain blocked; production trust/time/distributed semantics/external effect truth missing |
+| Exact authorization / Gate | ratified contract plus process-local Gate and separate durable claim primitive | #150 requires scoped repair and fresh exact-head assurance; historical #97 must not merge wholesale |
 | Witness | source/Witness primitives, process-local trust lifecycle | production KMS/HSM, distributed revocation, trusted time/attestation |
 | Execution evidence | bounded exact-authorization-bound recorder | actual trusted forwarding/effect composition and external effect truth |
 | Observation / reconciliation | bounded reference comparison layer | production observer independence/liveness/finality |
-| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces trusted only to merged scope | #136 coordination prerequisite first; then provider transport PR #131 remains untrusted with seven P1 attack inputs and must be reconciled/freshly gated |
+| Wallet Guard | deterministic intent/policy/preflight/Witness-adapter/provider/controlled-host reference pieces trusted only to merged scope | merged local journal/server/shutdown scope is preserved; #139 remaining Sepolia composition and the separate human wallet gate remain blocked |
 | Governance DAGR | non-normative placeholder/profile position | authoritative source missing |
 | Integrations | Stellar/Filecoin/supporting evidence infrastructure | remain adapters unless a reviewed execution Gate is actually enforced |
 

@@ -110,7 +110,7 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
   });
   const baseResult = spawn(
     '/usr/bin/gh',
-    ['api', '--method', 'GET', request.baseRefPath],
+    ['api', '--method', 'GET', request.baseRefPath, '--hostname', 'github.com'],
     commonOptions,
   );
 
@@ -120,75 +120,70 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
   }
   validateTrustedBaseRefResponse(baseResult.stdout, request);
 
-  const result = spawn(
-    '/usr/bin/gh',
-    ['api', '--method', 'POST', request.apiPath, '--input', '-'],
-    {
-      input: JSON.stringify(request.payload),
-      ...commonOptions,
-    },
-  );
-
-  if (result.error) throw result.error;
-  if (result.signal !== null || result.status !== 0) {
-    throw new Error('trusted commit-status publication failed');
-  }
-  const published = validateTrustedPrStatusResponse(result.stdout, request);
-
   function invalidateUncertainPublication(cause) {
-    const invalidationRequest = buildTrustedPrStatusRequest({
-      ...environment,
-      STATUS_STATE: 'pending',
+    // Recovery must keep the identity captured before the uncertain write.
+    const invalidationRequest = Object.freeze({
+      ...request,
+      payload: Object.freeze({
+        ...request.payload,
+        state: 'pending',
+        description: STATUS_DESCRIPTIONS.pending,
+      }),
     });
-    const invalidationResult = spawn(
-      '/usr/bin/gh',
-      ['api', '--method', 'POST', invalidationRequest.apiPath, '--input', '-'],
-      {
-        input: JSON.stringify(invalidationRequest.payload),
-        ...commonOptions,
-      },
-    );
-    let invalidationError = invalidationResult.error;
-    if (!invalidationError && (invalidationResult.signal !== null || invalidationResult.status !== 0)) {
-      invalidationError = new Error('trusted stale-status invalidation failed');
-    }
-    if (!invalidationError) {
-      try {
-        validateTrustedPrStatusResponse(invalidationResult.stdout, invalidationRequest);
-      } catch (error) {
-        invalidationError = error;
+    try {
+      const invalidationResult = spawn(
+        '/usr/bin/gh',
+        ['api', '--method', 'POST', invalidationRequest.apiPath, '--input', '-', '--hostname', 'github.com'],
+        {
+          input: JSON.stringify(invalidationRequest.payload),
+          ...commonOptions,
+        },
+      );
+      if (invalidationResult.error) throw invalidationResult.error;
+      if (invalidationResult.signal !== null || invalidationResult.status !== 0) {
+        throw new Error('trusted stale-status invalidation failed');
       }
-    }
-    if (invalidationError) {
+      validateTrustedPrStatusResponse(invalidationResult.stdout, invalidationRequest);
+    } catch (invalidationError) {
       throw new AggregateError(
         [cause, invalidationError],
-        'stale trusted success could not be invalidated',
+        'uncertain trusted status could not be invalidated',
       );
     }
     throw cause;
   }
 
-  const postPublishBaseResult = spawn(
-    '/usr/bin/gh',
-    ['api', '--method', 'GET', request.baseRefPath],
-    commonOptions,
-  );
-  if (
-    postPublishBaseResult.error
-    || postPublishBaseResult.signal !== null
-    || postPublishBaseResult.status !== 0
-  ) {
-    invalidateUncertainPublication(
-      postPublishBaseResult.error
-        ?? new Error('trusted post-publication freshness lookup failed'),
-    );
-  }
   try {
+    // Once POST is attempted, even a local timeout or unreadable response can
+    // leave a server-side status behind. Every subsequent failure invalidates.
+    const result = spawn(
+      '/usr/bin/gh',
+      ['api', '--method', 'POST', request.apiPath, '--input', '-', '--hostname', 'github.com'],
+      {
+        input: JSON.stringify(request.payload),
+        ...commonOptions,
+      },
+    );
+    if (result.error) throw result.error;
+    if (result.signal !== null || result.status !== 0) {
+      throw new Error('trusted commit-status publication failed');
+    }
+    const published = validateTrustedPrStatusResponse(result.stdout, request);
+
+    const postPublishBaseResult = spawn(
+      '/usr/bin/gh',
+      ['api', '--method', 'GET', request.baseRefPath, '--hostname', 'github.com'],
+      commonOptions,
+    );
+    if (postPublishBaseResult.error) throw postPublishBaseResult.error;
+    if (postPublishBaseResult.signal !== null || postPublishBaseResult.status !== 0) {
+      throw new Error('trusted post-publication freshness lookup failed');
+    }
     validateTrustedBaseRefResponse(postPublishBaseResult.stdout, request);
+    return published;
   } catch (error) {
     invalidateUncertainPublication(error);
   }
-  return published;
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null;

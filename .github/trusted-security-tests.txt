@@ -47,3 +47,4 @@ tests/wallet-guard/preflight-evidence-review-regressions.node.test.mjs
 tests/wallet-guard/provider-gate.node.test.mjs
 tests/wallet-guard/trusted-provider-transport-preimport.node.test.mjs
 tests/wallet-guard/witness-authorization-hardening.node.test.mjs
+tests/pom-rx-strict-isolated-runner.node.test.mjs

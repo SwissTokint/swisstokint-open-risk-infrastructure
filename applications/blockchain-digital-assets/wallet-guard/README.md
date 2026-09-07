@@ -110,14 +110,245 @@ closed. Any ambiguous terminal failure destroys the session, so callers must
 explicitly create a new transport rather than retry within a possibly live
 wallet prompt.
 
-This callback foundation does not yet authenticate an HTTP Host, browser
+By itself, this callback foundation does not authenticate an HTTP Host, browser
 origin, page/extension, IPC peer or byte-frame boundary. It does not own a
-timeout or cancellation mechanism, cannot prove that a displayed wallet prompt
-was cancelled, and does not expose an EIP-1193 provider outside controlled
-tests. The future host must bind its loopback listener and page origin, perform
-fresh wallet chain/account sampling before the only `window.ethereum.request`
-call, close the session on wallet context events, and treat a timeout or crash
-after dispatch as an ambiguous incident rather than retrying.
+timeout or cancellation mechanism and cannot prove that a displayed wallet
+prompt was cancelled. The loopback prototype below supplies one narrow host
+composition around that contract; those host controls do not become guarantees
+of the callback foundation or arbitrary browser integrations.
+
+## Durable operation journal and server composition
+
+`prototype/durable-operation-journal.mjs` provides a separately tested local
+storage component reconstructed from the journal work in historical PR #139.
+The clean-process Anvil bootstrap initializes it before publishing a launch URL
+and installs it in `server.mjs`. `POMRX_WG_JOURNAL` must name an explicit fresh
+absolute normalized path; a missing path or initialization failure prevents
+startup. The server API also retains its explicit in-memory reference mode when
+`operationJournal` is omitted. That mode has no durability claim. An injected
+journal must be exclusively owned by that server, initialized, idle, `OPEN`,
+`READY`, and configured for Anvil. Runtime dependencies remain trusted.
+
+The primitive accepts one trusted plain command for an exact zero-value,
+empty-data self-transfer on the configured Anvil or Sepolia chain. These network
+names are record metadata; the module makes no RPC calls. It records
+`READY -> ARMED -> DISPATCHED -> HASH_OBSERVED -> TERMINAL`; an armed operation
+can retain a hash even if dispatch acknowledgement was unavailable. A reported
+`MATCH_REFERENCE` requires a retained hash. The journal does not establish that
+the command was authorized, sent, independently observed, or reconciled.
+
+Use a fresh absolute normalized path in a private, owned, symlink-free directory
+on a trusted local POSIX filesystem with file and directory fsync support.
+Records and the exclusive per-path ownership marker are created with mode 0600.
+Existing journals of every state, malformed records, oversized records, links,
+or an existing ownership marker block initialization for manual reconciliation.
+There is no automatic stale-lock takeover, recovery, deletion, retry, or reuse.
+This application operation marker is unrelated to repository automation's
+canonical coordination guard.
+
+Initialization and writes reserve one operation at a time. A record is published
+in memory only after validating its exact serialized representation with the
+same bounded parser as the reader, writing a temporary file, syncing it, atomically replacing
+the record and syncing its directory. `close()` immediately refuses new work and
+waits for the current operation before releasing ownership. Closing permanently
+disables that instance. Any initialization or storage-transition failure puts
+the instance in `FAULTED`; restoring storage does not permit another transition.
+After a failed write, `inspect()` is only the last confirmed snapshot and can
+differ from the disk, so callers must retain the failure and consult `status()`.
+
+The SHA-256 field detects ordinary record corruption. It is not a signature,
+rollback prevention, an independently anchored history, or protection against a
+local attacker. Runtime dependencies, plain input objects, clock and filesystem
+namespace are trusted. Network filesystems, hostile same-UID namespace mutation,
+OS/storage durability failures and Windows are outside this component's scope.
+If storage never settles, close waits and retains ownership; it does not claim
+bounded shutdown or permission to release an unresolved writer.
+
+The composed server persists `ARMED` before acknowledging arm and `DISPATCHED`
+before acknowledging dispatch. It retains the exact bound hash before returning
+a settlement receipt or starting observation, including ambiguous late results.
+Writes are serialized and each ingress is reserved once. Existing deadlines keep
+running during storage work; a completed write cannot revive a closed or expired
+command. The one-use receipt is still checked and consumed synchronously, with
+no filesystem await at the settlement cut-off.
+
+A storage failure closes the session, settles the pending callback, forbids
+retry and prevents observation from an unretained hash. `/api/status` exposes
+`journal_enabled`, `journal_failed`, and the last confirmed `journal_state`.
+An ambiguous `transaction_hash` may be a reported candidate: when
+`reconciliation_status=JOURNAL_WRITE_FAILED`, it is not confirmed durable and no
+observation was started. During retention it reports `RETAINING_HASH`. The
+failed operation response need not wait for storage or observation to finish;
+status can subsequently expose completed ambiguous observation.
+
+This server deliberately leaves disk records nonterminal (`ARMED`, `DISPATCHED`
+or `HASH_OBSERVED`), even after a normal in-memory completion. They preserve
+operation facts for manual reconciliation, not durable completion or restart
+eligibility. A terminal record is immutable; the standalone primitive must not
+be terminalized while further late-hash retention is required. Server shutdown
+closes ingress, settles the pending callback and drains started storage work
+before releasing journal ownership. It cannot preserve a hash first returned
+after shutdown, and an indefinitely stalled filesystem can prevent shutdown.
+The automated journal and server composition tests are included in the existing
+prototype command and full `npm test` pipeline.
+
+## Local MetaMask + Anvil reference prototype
+
+The stacked `prototype/` lot supplies that loopback host for a local burner
+exercise. It binds only `127.0.0.1`, validates the exact Host and POST Origin,
+uses a one-time 256-bit bootstrap URL to establish an HttpOnly SameSite cookie,
+uses a fresh ephemeral HTTP port by default, clears prior origin cache/storage,
+serves a CSP-constrained page with isolation/referrer headers, and accepts one
+exact-content-type bounded Content-Length JSON body per POST. The browser
+refuses a service worker, application cache/storage or opener. The browser
+adapter never reads `window.ethereum`. It requests EIP-6963 announcements,
+selects exactly one provider whose `rdns` is `io.metamask`, and rejects a
+missing, malformed, duplicate or ambiguous MetaMask announcement. The selected
+provider remains browser-only; Node receives bounded JSON observations, never
+the provider object, a provider Promise or a wallet key.
+
+The initial handshake binds the selected account and chain id together with
+the MetaMask-visible genesis hash and latest block number/hash to the same view
+captured through the Node RPC observer. Before an allowed command is
+dispatched, Node stores a block/nonce observation baseline. Immediately before
+the only sensitive EIP-1193 send, the browser samples chain, account, genesis
+and latest block twice, submits the bound view to `/bridge/view`, and waits for
+Node to recapture and exactly match the same view. Drift fails closed before
+the send. The final arm acknowledgement must arrive within 250 ms, measured
+with a monotonic clock, before the server's minimum 1,000 ms armed watchdog.
+A late acknowledgement closes the browser session without a sensitive call.
+Server transitions recheck their session and phase after asynchronous reads.
+Account/chain are sampled again after the wallet prompt. A hash
+returned with late context drift is retained as ambiguous evidence and sent to
+the observer instead of being discarded.
+
+Result delivery is provisional: `/bridge/result` retains the exact response
+and returns an unpredictable one-use receipt without completing `/api/allow`.
+After receiving that acknowledgement the browser samples context once more.
+An event during result delivery, an unavailable dispatch acknowledgement, or
+a failed final context check closes the session and retains any known hash as
+ambiguous. Only then may the browser synchronously submit `/bridge/settle`
+with the receipt. Node consumes it only while the same pending command is live;
+duplicate results, wrong receipts and replayed settlements are rejected. A
+missing settlement expires within five seconds (or the shorter command limit).
+
+The browser's synchronous settlement submission is the explicit observation
+cut-off: it attests context and acknowledgement receipt up to that instant.
+It cannot attest later wallet events or atomically observe Node's acceptance.
+Loss of the final settlement response leaves the browser uncertain even if
+Node accepted it; preserve the displayed hash and reconcile manually, never
+retry. A historical Node reference match is not a continuing context guarantee.
+
+Prerequisites: Node.js 24, MetaMask with EIP-6963 support, and Foundry's `anvil`
+plus `cast` on PATH. Use a newly created MetaMask burner account in a dedicated
+clean browser profile with no other wallet extension, service worker or prior
+storage for the prototype origin. Never enter a seed phrase into this project,
+never import an Anvil development key, and never use mainnet or meaningful
+funds. POM-RX Core does not receive or custody the burner key.
+
+1. Run the complete automated prototype suites:
+
+   ```sh
+   npm run test:pom-rx:wallet-guard-prototype
+   ```
+
+   This runs the HTTP/session/ambiguity suite and the executable browser
+   EIP-1193 plus fake-JSON-RPC observer suite.
+
+2. Start a fresh disposable chain and verify its chain id:
+
+   ```sh
+   anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --silent
+   ```
+
+   Leave that foreground process running. In another terminal:
+
+   ```sh
+   cast chain-id --rpc-url http://127.0.0.1:8545
+   ```
+
+   The expected output is `31337`. Do not reuse this Anvil process for another
+   prototype session.
+
+3. Copy only the public address of the dedicated MetaMask burner. Fund that
+   public address with a small, valueless Anvil balance and verify it:
+
+   ```sh
+   POMRX_BURNER=0xPUBLIC_BURNER_ADDRESS
+   cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance "$POMRX_BURNER" 0x2386f26fc10000
+   cast balance --rpc-url http://127.0.0.1:8545 "$POMRX_BURNER"
+   ```
+
+   `0x2386f26fc10000` is `0.01` Anvil ETH and is used only for local gas. No
+   private key or seed is supplied to `cast`, Node or this repository.
+
+4. In a separate terminal, start the clean-process Wallet Guard host:
+
+   ```sh
+   # Create this private directory once; retain its contents for reconciliation.
+   mkdir -m 700 /absolute/private/wallet-guard-run
+   POMRX_WG_JOURNAL=/absolute/private/wallet-guard-run/operation.json \
+     npm run prototype:wallet-guard:anvil
+   ```
+
+   Use the default RPC unless the full browser and observer configuration is
+   intentionally reviewed together. The host binds to a fresh ephemeral port
+   and prints a bootstrap URL containing a one-time secret only after durable
+   initialization. Use an actual owned absolute directory. Existing records
+   block startup, including `READY`; never delete or switch paths to retry an
+   unresolved operation.
+
+5. In the dedicated profile, open the printed URL exactly once and click
+   **Connecter MetaMask à Anvil**. The page requests one unambiguous MetaMask
+   provider through EIP-6963, then explicitly adds/switches to chain `0x7a69`
+   (31337) at `http://127.0.0.1:8545/`. Expected status includes
+   `chain_view_bound=true`, the burner address and the selected provider
+   metadata. A stale network entry pointing at another RPC is rejected when
+   the MetaMask and Node chain views do not match.
+6. Run **DENY approval illimité** first. Expected: `decision=DENY`,
+   `forwarded=false`, sensitive-call count zero, and no MetaMask transaction
+   confirmation.
+7. Run **self-transfer 0 ETH** once. In MetaMask, confirm only an exact
+   burner-to-itself transaction with value zero and empty data. Expected:
+   `decision=ALLOW`, `forwarded=true`, one lowercase transaction hash and
+   `observation.status=MATCH_REFERENCE`. The Node observer verifies chain,
+   receipt success, transaction hash, from/to, zero value, empty input,
+   block linkage and the expected pre-dispatch nonce.
+8. Record the displayed result for review, stop the Node host, stop the
+   disposable Anvil process, and discard the dedicated burner profile/wallet.
+   The one-sensitive-call capacity is exhausted; starting a new host is a new
+   session, never authority to retry an earlier or still-visible prompt.
+
+A timeout, browser context event before settlement submission, malformed response,
+or RPC observer failure after delivery to MetaMask closes the live session as
+`AMBIGUOUS`; retry remains forbidden. A transaction hash returned later is
+retained and reconciled against the same pre-dispatch Anvil block/nonce
+baseline, but does not turn the operation into a normal success. Do not approve
+a prompt after the page reports closure. Stop Anvil and discard the burner
+after reconciliation. Restarting the Node host creates a new session, but it is
+not a retry authorization for an earlier prompt.
+
+Process shutdown remains a separate incomplete boundary. With the composed
+bootstrap, the journal preserves the confirmed operation identity, self-transfer,
+block/nonce baseline and any confirmed hash. Settlement receipts, context views,
+observation and final ambiguity/completion status remain in memory. Reopening the
+same path refuses startup for manual reconciliation; there is no automatic
+recovery, cross-path replay prevention or retention of a future wallet result.
+Preserve the journal and other available evidence, do not approve or retry an
+old prompt, and discard the disposable chain and burner after reconciliation.
+
+This prototype still uses the provider's synthetic reference authorization
+supplier and a direct Anvil transaction/receipt check. The EIP-6963 `rdns`
+value is provider-supplied metadata, not cryptographic authentication of the
+extension; the dedicated clean profile remains part of the operational trust
+boundary. Matching sampled chain views detects endpoint/state divergence but
+does not prove browser or extension integrity. The Node observer uses the same
+configured loopback RPC and is not an independent observer. The prototype does
+not yet emit the private Gate authorization binding, Core execution evidence,
+production finality evidence or independent reconciliation.
+`MATCH_REFERENCE` is therefore an operational local observation, not a
+production or cryptographic authorization claim. Sepolia remains a separate
+human-gated lot after this exact Anvil flow and its review evidence pass.
 
 This is **not** yet the complete Wallet Guard security claim. In particular:
 

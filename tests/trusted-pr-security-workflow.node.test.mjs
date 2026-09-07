@@ -361,3 +361,18 @@ test('trusted regression manifests are bounded, disjoint and present', () => {
     'trusted risk coverage must import tracked candidate source',
   );
 });
+
+
+test('coverage validation tests execute from trusted base before candidate code', () => {
+  const steps = trustedExactHeadJob.steps;
+  const coverageIndex = steps.findIndex((step) => step.name === 'Test base-owned coverage validation');
+  const controlIndex = steps.findIndex((step) => step.name === 'Reject in-band trusted control-plane changes');
+  const installIndex = steps.findIndex((step) => step.name === 'Install candidate dependencies in a credential-free sandbox');
+  assert.ok(controlIndex >= 0 && coverageIndex > controlIndex);
+  assert.ok(installIndex > coverageIndex);
+  assert.equal(steps[coverageIndex].run, 'node --test trusted-base/tests/trusted-test-coverage.node.test.mjs');
+  assert.equal(steps[coverageIndex].if, undefined);
+  assert.equal(steps[coverageIndex]['continue-on-error'], undefined);
+  assert.equal(steps[coverageIndex].env, undefined);
+  assert.ok(trustedTests.includes('tests/pom-rx-strict-isolated-runner.node.test.mjs'));
+});

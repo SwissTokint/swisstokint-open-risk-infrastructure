@@ -1,88 +1,57 @@
 # POM-RX Prime Delivery Checkpoint
 
-Updated: `2026-08-24T09:59:00+02:00`
+Updated: `2026-09-07T10:59:00Z`
 
-Purpose: compact durable cross-chat **versioned snapshot**. Conversation history is not project state. Every run reads live GitHub first. Embedded SHAs are authoring-time anchors, not claims that they remain forever-current after this snapshot's own merge.
+This is a compact **versioned snapshot**. GitHub live main/PR/CI/review/thread metadata and merged-PR terminal checkpoints are authoritative. Embedded SHAs are historical-at-authoring anchors, not forever-current main claims. Reconcile durable workstream/blocker/dependency changes; do not create another docs-only merge merely to chase this snapshot's eventual merge SHA.
 
 ## Snapshot anchors
 
-- `snapshot_base_main`: `8e8de6ae9744348e6c3eb2d1d0cf2ef3281de970` — PR #135 exact merge observed as live trusted main;
-- PR #135 source: `8c35b486fdc73299c86388bec5517db31b6830d2`;
-- exact-head CI 858 = success; owner `5003048413 = PASS_NON_INDEPENDENT / 0-0-0`; distinct Codex `5387687366 = no major issues`;
-- exact-main CI `32657761877` / 859 = success;
-- `5387715186 = POST_MERGE_ASSURANCE_PASS`;
-- terminal checkpoint `5387722428`.
+- `snapshot_base_main`: `25895be9364903b21704cff223faec92f10354f1` — PR #163 actual merge;
+- `last_assured_main_before_snapshot`: `25895be9364903b21704cff223faec92f10354f1`;
+- canonical push/main CI #1300 / run `34113836199`, attempt 1: SUCCESS, all 20 steps;
+- latest matching `pom-rx/exact-main-ci`: success `53667615499`, published by `github-actions[bot]`;
+- distinct six-part [POST_MERGE_ASSURANCE_PASS](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/163#issuecomment-5569622009);
+- [reviewed open-PR routing](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/issues/143#issuecomment-5569521081).
 
-## Canonical coordination-guard repair — PR #136
+## Durable transitions
 
-After PR #135 became trusted, the next scheduled invocation correctly discovered that the policy required mandatory single-flight coordination but no canonical operational lock mechanism existed. It failed closed as `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`, and the existing hourly task was disabled.
+- #136 canonical coordination repair merged as `1cfd3f80638d2fdc67e5088ff1f6ab97f81e300e`; #131 provider prerequisite merged as `5ac3649a4c8fb172bb351c6be3e1541a5dcc1fb5`. They are historical prerequisites, not the next open writer tasks.
+- #137 and #138 merged. Their scoped Wallet Guard work is retained in main.
+- #176 and #177 separately integrated the journal primitive and server operation facts. #177's original merge `f64a9b951bd989fe6e8501f041449932fa970b26` correctly received a shutdown P2 BLOCK.
+- #178 repaired that P2 and passed actual-merge assurance at `2bb90192fc191642501400cd3d1ccd27bcaeb858`, CI1298/run34112025197, [assurance5569395678](https://github.com/SwissTokint/swisstokint-open-risk-infrastructure/pull/178#issuecomment-5569395678). This prospectively resolves the BLOCK; it does not rewrite the earlier verdict.
+- #163 refreshed only development declarations and passed the exact-merge assurance above. No runtime Node upgrade was made.
+- The retained journal contract records nonterminal ARMED/DISPATCHED/HASH_OBSERVED facts. No automatic recovery/reuse, durable completion, future late-hash retention after exit or bounded shutdown under indefinitely stalled storage is proved. Bootstrap remains Anvil; #139's Sepolia composition is not accepted by implication.
 
-Under explicit human instruction on 2026-08-24 to repair and relaunch the automation, a one-time bootstrap created:
+## Reviewed remaining queue
 
-- branch `automation/pom-rx-coordination`;
-- file `.pom-rx/coordination-lock.json`;
-- schema `pom-rx-coordination-lock/1`;
-- active window 45 minutes;
-- bootstrap commit `8a6fa63770b3244c693000979081bdd2d594058b`.
+| Work | Snapshot state | Next bounded action |
+| --- | --- | --- |
+| #175 trusted security CI | Head `43d7d5bd8bb833334c556bd51415e64aecc80383`; CI1287 green; 42 unresolved discussions, including five latest P1 | Highest assurance priority: assertion isolation, authenticated child completion, isolated-runner coverage, uncertain publication handling and invalidation retry; then historical finding adjudication and independent bootstrap proof. |
+| #167 prior provenance proposal | Draft; three P1 remain despite CI1192 green | Retain as alternative predecessor to #175; do not merge both as additive fixes. |
+| #150 durable Core Gate | Head `8576e43c7585568a630b3c410fb6043930ab88b4`; CI1191 fails npm test; conflicted | Scoped successor on assured main: Node22 channel lifecycle, trusted owner environment/executable capture and pre-await capacity accounting. Existing fd-ownership and all historical unresolved controls remain required. |
+| #157 then #156 | #157 is an OPEN Core specification issue; #156 has one architectural P2 | Under the existing single-Core-writer order, address #157 after #150; accept the shared primitive before migrating MCP from its private commitment implementation. |
+| #139 Sepolia Wallet Guard | Draft, conflicted old stack; useful work retained | Reconstruct remaining profile/observer/browser scope against current receipt/context/journal/shutdown boundaries. The separate human wallet gate remains. |
+| #160 tokenomics research | CI1070 cancelled; three arithmetic/accounting P1 families and later depletion-reporting P2 | Preserve exact conservation, all 3,600 cases and 365/1,825-day horizons; repair the model and reporting, not only sharding or timeout settings. |
+| #162 Stellar action | CI1268 green on old base; action SHA changes but explicit CLI version remains 27.0.0 | Clarify action-only scope, refresh main, verify attested installation/build compatibility and obtain fresh review/CI. |
 
-The manual repair run acquired FREE state using the exact file blob SHA, then re-read and verified holder `manual-repair-20260824T0727Z-gpt56sol`; acquisition commit `05ae5e9cda05b7a2bf67e6eb039b78fabbfa002e`. A deliberately stale acquisition using the previous FREE blob SHA was rejected HTTP 409.
+Green historical PR runs are not fresh integration authority. The current canonical PR workflow still uses GitHub's merge candidate: inspect actual checkout logs and commit parents/tree; do not relabel run head metadata as literal-head execution. #175 must preserve that lane while establishing a separate trusted source-head gate; its own bootstrap needs independent proof.
 
-PR #136 on `docs/pom-rx-canonical-coordination-lock-20260824` is bounded to the canonical guard/policy/checkpoint/tasks/blockers/roster plus `docs/product/POM_RX_CAPABILITY_MAP.md`. It changes no runtime, tests, protocol, Gate, Witness, verifier, Wallet Guard/provider, wallet/network, public-site/Vercel or financial-execution semantics.
+## Canonical coordination and review
 
-### Review findings retained until same-head validation
+Use only `automation/pom-rx-coordination:.pom-rx/coordination-lock.json`, schema `pom-rx-coordination-lock/1`, 45-minute window, per `POM_RX_COORDINATION_GUARD.md`. Acquire only FREE by exact-blob CAS and verify own unexpired holder. Revalidate immediately before every project mutation. Expired HELD is blocking and never automatically reclaimed; no same-invocation renewal. The exact holder may release after expiry using fresh CAS, then verify FREE.
 
-Dedicated Codex review on an earlier #136 head found:
+One writer, at most three specialist lanes and two code worktrees. A role name is not evidence that an agent ran. Every applicable five-stage exact-head gate and zero unresolved P0/P1/P2 remain required, followed by exact-merge assurance. The independent-review waiver remains PR #60 only. No policy, guard, regression or expected-red rule changes in this snapshot. Scheduled-task enabled state was not inspected or changed by this update; verify it through the existing automation rather than infer it from old PR bodies.
 
-- P1 `PRRT_kwDOTiNyWc6bnBYA` — automatic expiry/reclamation could let an old writer continue concurrently;
-- P2 `PRRT_kwDOTiNyWc6bnBYE` — unchanged capability-map routing could let #131 advance after already-completed #135 instead of waiting for the new guard prerequisite.
+## Historical sources
 
-The current successor branch repairs both, but the threads remain unresolved until a **fresh genuinely distinct review covers the final exact head**.
-
-### Final guard semantics to validate
-
-- automation acquires **only FREE** using exact-blob-SHA CAS;
-- active unexpired HELD => `SKIPPED_PREVIOUS_RUN_ACTIVE`;
-- expired HELD remains stale/blocking => `SKIPPED_COORDINATION_GUARD_UNAVAILABLE`; no automatic reclamation;
-- before every project mutation, re-read and require valid config, `state=HELD`, exact own `holder.run_id`, and future `expires_at`;
-- after expiry/loss/unverifiability, no further project mutation and no same-run renewal/extension/reacquisition;
-- exact current holder may perform coordination-only same-holder release even after expiry;
-- release uses exact current blob SHA, writes `FREE`/`holder=null` with a unique RELEASE transition, then re-reads verified FREE;
-- a crashed holder's stale HELD lock requires explicit human recovery;
-- normal lock writes remain only on the coordination branch;
-- capability map routes #131 only after #136 exact-merge PASS and verified FREE canonical state.
-
-Automatic stale takeover is deliberately forbidden because the timestamp cannot server-side fence an in-flight mutation on another GitHub resource.
-
-The existing task stays disabled until #136 has final exact-head CI success, full five-stage owner gate, fresh genuinely distinct exact-head review with zero unresolved P0/P1/P2, merge, exact-main CI/status and exact-merge `POST_MERGE_ASSURANCE_PASS`. Canonical state must then be restored to verified FREE before the existing task is re-enabled.
-
-## Next Tier-B workstream — PR #131
-
-PR #131 remains the next dependency-closing Tier-B workstream only after #136 is trusted and the coordination lock is verified FREE.
-
-Authoring-time state:
-
-- head `3a75418ef13e7364b70e60a17e5514f1b1a8bfc2`;
-- historical CI `32645853067` / CI 846 = success but stale for release;
-- seven P1 threads remain unresolved/outdated: `PRRT_kwDOTiNyWc6bfPvI`, `PRRT_kwDOTiNyWc6bfPvO`, `PRRT_kwDOTiNyWc6bfPvR`, `PRRT_kwDOTiNyWc6bfWeN`, `PRRT_kwDOTiNyWc6bfel5`, `PRRT_kwDOTiNyWc6bfel6`, `PRRT_kwDOTiNyWc6bfel7`.
-
-After #136 exact-merge PASS, use exactly one writer to reconcile #131 onto then-live trusted main. Any head move invalidates old exact-head evidence. Require fresh canonical CI, five-stage owner review, genuinely distinct exact-head review, zero unresolved P0/P1/P2, merge and exact-merge assurance.
-
-The accepted #131 claim remains the narrow local trusted-provider transport contract: fail closed before unowned provider transport origin; in-contract rejection must have zero reference authorization, zero sensitive forwarding, clean `--unhandled-rejections=strict` survival and no orphaned rejection termination. Already-originated decorated/rebased/Proxy/accessor/non-configurable-unsafe Promise objects remain outside that contract without separately reviewed process/worker/RPC isolation.
-
-## Historical branches
-
-- PR #120: `CLOSED / NOT MERGED / STALE`; head `5238b9c289476100c875ed9a88bd7e21a574fa67`; six findings remain attack history; never revive wholesale.
-- PR #97: `OPEN / STALE / MUST_NOT_MERGE`; reconstruct durable Gate composition later from then-current trusted main.
-- PR #93: `OPEN / STALE / UNTRUSTED / LATER`; reconstruct useful simulation work later; never merge stale history wholesale.
-
-## Architecture, claim and safety boundary
-
-POM-RX remains the single principal technical product. Wallet Guard remains an application profile. Shared Core owns canonicalization, hashing, verifier, Witness, exact authorization, Gate, execution evidence and observation/reconciliation semantics.
-
-Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic, synthetic and bounded. It is not production readiness, audit, certification, wallet safety, financial safety or deployment authorization.
-
-No private key, seed, secret, funded-wallet credential, real/funded wallet, mainnet transaction or meaningful funds are authorized. Burner local/testnet E2E remains behind a separate explicit human gate. Public website/Vercel/funding-directory writes remain out of scope.
+#120, #97 and #93 remain historical source material, not active merge authority. Read their live state if needed; never wholesale-merge stale history. The superseded August24 routing and finding records remain in Git history and original PR discussions.
 
 ## Next safe action
 
-Freeze the final #136 head, run fresh canonical exact-head CI, perform the full owner five-stage gate, then obtain fresh genuinely distinct exact-head validation of P1/P2. If and only if zero P0/P1/P2 remains, revalidate decision-time main/head/CI/reviews/threads/mergeability, merge #136 and run exact-merge assurance. Persist terminal state, restore the canonical lock to verified FREE via exact same-holder release, re-enable the **existing** hourly task with this guard protocol, and let a later fresh invocation acquire FREE state before touching #131.
+In a fresh invocation, acquire the canonical guard, re-read exact main and the latest terminal checkpoint, then select one bounded open repair. #175 is the highest assurance priority and remains REWORK; #150 owns the next Core repair, followed by #157 before MCP migration. Preserve #139 for scoped reconstruction. A new head restarts exact-head review/CI evidence; uncertainty is not PASS.
+
+## Architecture and claim boundary
+
+POM-RX remains the single principal technical product; Wallet Guard is one application profile. Core owns shared canonicalization, commitment, verifier, Witness, authorization, Gate, execution evidence and observation/reconciliation semantics.
+
+Maximum near-term claim remains `POM_RX_LOCAL_OPERATIONAL_PROTOTYPE_READY`: local, deterministic, synthetic and bounded. No production, audit, certification, deployment, wallet or financial-safety claim follows from these merges. No real/funded wallet, mainnet transaction, secret or meaningful funds are authorized. Burner local/testnet E2E requires a separate explicit human gate. Public-site/Vercel/funding-directory writes remain out of scope.
