@@ -1,12 +1,18 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-integrate-triage-20260907T103037159Z",
+    "acquired_at": "2026-09-07T10:30:37.159Z",
+    "expires_at": "2026-09-07T11:15:37.159Z",
+    "base_main": "f64a9b951bd989fe6e8501f041449932fa970b26",
+    "purpose": "Integrate shutdown repair178 with exact gates and post-merge assurance; inspect and advance important unmerged PRs per explicit user instruction."
+  },
   "last_transition": {
-    "type": "RELEASE",
-    "at": "2026-09-07T07:35:28.380Z",
-    "actor": "pom-rx-journal-server-20260907T064953122Z",
-    "reason": "PR177 merged but post-merge P2 BLOCK recorded; repair178 published,118 prototype/full npm and CI1297 PASS, independent SKEPTIC_PASS. Final manual Code review pending; terminal checkpoint5566933080 verified. All project writes terminal; no mutation in flight. Writer window ends; no renewal or gate waiver."
+    "type": "ACQUIRE",
+    "at": "2026-09-07T10:30:37.159Z",
+    "actor": "pom-rx-integrate-triage-20260907T103037159Z",
+    "reason": "User explicitly requests integrate fix and advance important open PRs"
   }
 }
