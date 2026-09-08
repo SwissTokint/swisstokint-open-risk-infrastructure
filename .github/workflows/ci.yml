@@ -17,9 +17,26 @@ jobs:
       # and its release annotation together after reviewing the upstream diff.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # Prime acceptance binds PR assurance to the immutable source head,
+          # not GitHub's synthetic refs/pull/<n>/merge commit. Push assurance
+          # remains bound to github.sha so post-merge main is proved separately.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           # POM-RX fixture conformance binds immutable artifacts to historical
           # Git blob identities; a shallow clone must fail that proof closed.
           fetch-depth: 0
+      - name: Assert authoritative checkout SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          printf 'Expected authoritative SHA: %s\n' "$EXPECTED_SHA"
+          printf 'Checked out SHA:            %s\n' "$actual_sha"
+          if [ "$actual_sha" != "$EXPECTED_SHA" ]; then
+            echo "Authoritative checkout SHA mismatch." >&2
+            exit 1
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 22
