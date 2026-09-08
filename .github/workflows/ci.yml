@@ -80,6 +80,8 @@ jobs:
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
+      - name: Test MCP exact tool-call normalization
+        run: node --test tests/ai-agents/mcp-tool-call-normalizer.node.test.mjs tests/ai-agents/mcp-tool-call-number-roundtrip.node.test.mjs
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target
