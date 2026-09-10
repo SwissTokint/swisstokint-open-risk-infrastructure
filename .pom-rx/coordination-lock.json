@@ -1,17 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z",
-    "acquired_at": "2026-09-10T08:10:41.182Z",
-    "expires_at": "2026-09-10T08:55:41.182Z",
-    "base_main": "52a3d7e972113df3c2b2c28a31afdf2642a10825",
-    "purpose": "PR175 required positive prototype coverage declaration and immutable byte checks; preserve P1 suite bytes/runtime/expected-red; independent review and exact CI; no full controller merge."
-  },
+  "holder": null,
   "last_transition": {
-    "action": "ACQUIRE",
-    "at": "2026-09-10T08:10:41.182Z",
-    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z"
+    "action": "RELEASE",
+    "at": "2026-09-10T08:34:21.679Z",
+    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z",
+    "reason": "PR175 prototype declaration repair d591630 published; CI1309 and scoped skeptic pass; final review found frozen-Promise runtime P1, independently diagnosed without relaxing controls. Checkpoints5615626124/5615633627 persisted; no project mutation in flight."
   }
 }
