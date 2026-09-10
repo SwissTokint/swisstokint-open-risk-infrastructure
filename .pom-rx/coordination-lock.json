@@ -1,12 +1,17 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z",
+    "acquired_at": "2026-09-10T08:10:41.182Z",
+    "expires_at": "2026-09-10T08:55:41.182Z",
+    "base_main": "52a3d7e972113df3c2b2c28a31afdf2642a10825",
+    "purpose": "PR175 required positive prototype coverage declaration and immutable byte checks; preserve P1 suite bytes/runtime/expected-red; independent review and exact CI; no full controller merge."
+  },
   "last_transition": {
-    "action": "RELEASE",
-    "at": "2026-09-10T07:51:51.465Z",
-    "run_id": "pom-rx-pr175-status-binding-20260910T072933172Z",
-    "reason": "Published PR175 current-PR status binding; independent scoped reviews and CI1308 passed; whole controller remains REWORK_NO_MERGE; terminal checkpoints 5615067680 and 5615077375 persisted; no project mutation in flight."
+    "action": "ACQUIRE",
+    "at": "2026-09-10T08:10:41.182Z",
+    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z"
   }
 }
