@@ -75,6 +75,8 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
     /^    if: github\.event_name == 'pull_request_target' && github\.event\.action != 'closed' && github\.event\.pull_request\.base\.ref == 'main'$/mu,
   );
   assert.match(trustedWorkflow, /EXPECTED_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/u);
+  assert.equal(trustedExactHeadJob.env.EXPECTED_PR_NUMBER, '${{ github.event.pull_request.number }}');
+  assert.equal(trustedExactHeadJob.env.EXPECTED_HEAD_REPOSITORY, '${{ github.event.pull_request.head.repo.full_name }}');
   assert.match(trustedWorkflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
   assert.match(trustedWorkflow, /repository: \$\{\{ github\.event\.pull_request\.head\.repo\.full_name \}\}/u);
   assert.match(trustedWorkflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
@@ -131,6 +133,8 @@ test('trusted PR gate is base-owned, narrowly writable and exact-head bound', ()
   );
   assert.equal(pendingPublisher.run, 'node trusted-base/scripts/publish-trusted-pr-status.mjs');
   assert.equal(terminalPublisher.run, 'node trusted-base/scripts/publish-trusted-pr-status.mjs');
+  assert.equal(terminalPublisher.env.EXPECTED_PR_NUMBER, undefined, 'terminal step must retain the captured PR number');
+  assert.equal(terminalPublisher.env.EXPECTED_HEAD_REPOSITORY, undefined, 'terminal step must retain the captured head repository');
   assert.ok(trustedExactHeadJob.steps.some(
     (step) => step.name === 'Reject in-band trusted control-plane changes'
       && step.run === 'node trusted-base/scripts/verify-trusted-control-plane.mjs',

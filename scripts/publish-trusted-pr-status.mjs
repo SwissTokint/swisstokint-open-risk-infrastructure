@@ -47,11 +47,35 @@ export function buildTrustedPrStatusRequest(environment) {
     throw new Error('invalid STATUS_STATE');
   }
 
+  // Pending only withdraws evidence. Invalidation must remain possible after a
+  // PR closes, changes its base/head, or loses its source repository.
+  let pullRequest = null;
+  if (state !== 'pending') {
+    const numberText = requiredString(environment, 'EXPECTED_PR_NUMBER');
+    const number = Number(numberText);
+    const headRepository = requiredString(environment, 'EXPECTED_HEAD_REPOSITORY');
+    if (!/^[1-9][0-9]*$/u.test(numberText) || !Number.isSafeInteger(number)) {
+      throw new Error('invalid EXPECTED_PR_NUMBER');
+    }
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(headRepository)) {
+      throw new Error('invalid EXPECTED_HEAD_REPOSITORY');
+    }
+    pullRequest = Object.freeze({
+      apiPath: `repos/${repository}/pulls/${numberText}`,
+      url: `${apiUrl}/repos/${repository}/pulls/${numberText}`,
+      number,
+      repository,
+      headRepository,
+      headSha,
+    });
+  }
+
   const targetUrl = `${serverUrl}/${repository}/actions/runs/${runId}`;
   return Object.freeze({
     apiPath: `repos/${repository}/statuses/${headSha}`,
     baseRefPath: `repos/${repository}/git/ref/heads/main`,
     expectedBaseSha: baseSha,
+    pullRequest,
     expectedStatusUrlPrefix: `${apiUrl}/repos/${repository}/statuses/`,
     payload: Object.freeze({
       state,
@@ -78,6 +102,29 @@ export function validateTrustedBaseRefResponse(responseText, request) {
     throw new Error('trusted PR base is no longer the current main commit');
   }
   return Object.freeze({ sha: body.object.sha });
+}
+
+export function validateTrustedPullRequestResponse(responseText, request) {
+  const body = JSON.parse(responseText);
+  const expected = request.pullRequest;
+  if (
+    expected === null
+    || typeof body !== 'object'
+    || body === null
+    || Array.isArray(body)
+    || body.url !== expected.url
+    || body.number !== expected.number
+    || body.state !== 'open'
+    || body.merged !== false
+    || body.merged_at !== null
+    || body.base?.ref !== 'main'
+    || body.base?.sha !== request.expectedBaseSha
+    || body.base?.repo?.full_name !== expected.repository
+    || body.head?.sha !== expected.headSha
+    || body.head?.repo?.full_name !== expected.headRepository
+  ) {
+    throw new Error('trusted PR is no longer open on the expected base and head');
+  }
 }
 
 export function validateTrustedPrStatusResponse(responseText, request) {
@@ -108,6 +155,19 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
     windowsHide: true,
     timeout: 20_000,
   });
+  function checkPullRequest() {
+    if (request.pullRequest === null) return;
+    const result = spawn(
+      '/usr/bin/gh',
+      ['api', '--method', 'GET', request.pullRequest.apiPath, '--hostname', 'github.com'],
+      commonOptions,
+    );
+    if (result.error) throw result.error;
+    if (result.signal !== null || result.status !== 0) {
+      throw new Error('trusted PR lifecycle lookup failed');
+    }
+    validateTrustedPullRequestResponse(result.stdout, request);
+  }
   const baseResult = spawn(
     '/usr/bin/gh',
     ['api', '--method', 'GET', request.baseRefPath, '--hostname', 'github.com'],
@@ -119,6 +179,7 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
     throw new Error('trusted main-ref freshness lookup failed');
   }
   validateTrustedBaseRefResponse(baseResult.stdout, request);
+  checkPullRequest();
 
   function invalidateUncertainPublication(cause) {
     // Recovery must keep the identity captured before the uncertain write.
@@ -180,6 +241,9 @@ export function publishTrustedPrStatus(environment = process.env, spawn = spawnS
       throw new Error('trusted post-publication freshness lookup failed');
     }
     validateTrustedBaseRefResponse(postPublishBaseResult.stdout, request);
+    // Observe departure even when the independent invalidator's pending POST
+    // preceded this terminal POST. Lookups/writes are not an atomic barrier.
+    checkPullRequest();
     return published;
   } catch (error) {
     invalidateUncertainPublication(error);

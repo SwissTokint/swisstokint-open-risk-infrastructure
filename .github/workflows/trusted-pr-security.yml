@@ -23,6 +23,7 @@ jobs:
       group: trusted-exact-head-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     env:
+      EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
       EXPECTED_BASE_REPOSITORY: ${{ github.repository }}
       EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       EXPECTED_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}

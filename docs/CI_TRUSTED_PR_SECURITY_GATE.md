@@ -17,10 +17,21 @@ It has read-only repository access plus the narrow `statuses: write` permission,
 persists no checkout credential and does not pass a GitHub token or secret to
 candidate code. Two trusted host-side steps publish pending and terminal states
 directly on the exact head under the fixed `pom-rx/trusted-exact-head` context.
-The publisher also verifies that the PR base SHA is still the current `main`
-commit immediately before it writes that status. It repeats the lookup after
-publication; a changed base or an uncertain post-publication lookup causes the
-new result to be overwritten with `pending` and the job to fail.
+The publisher verifies that the captured base SHA is still the current `main`
+commit before and after publication. Terminal `success` and `failure` also
+require a live PR lookup on both sides of the POST. The controller supplies
+`EXPECTED_PR_NUMBER` and `EXPECTED_HEAD_REPOSITORY`; the publisher captures
+them with the head/base SHAs and run before making requests. The API response
+must identify that exact open, unmerged PR, targeting `main` in the expected
+repository with the captured base SHA and source repository/head SHA. Missing,
+malformed or changed identity prevents terminal publication.
+
+Any error after a POST attempt, including a changed or unavailable PR, triggers
+an attempt to restore `pending` on the originally captured head and run, then
+fails the job. Recovery failure preserves both errors. Pending is downgrade-only
+and does not require PR metadata, so main-advance invalidation still works after
+closure, retargeting or source-repository deletion. Its existing main-ref checks
+and three-attempt per-head retry budget remain unchanged.
 
 Every push to `main` changes the trust base. The base-owned workflow therefore
 lists all open PRs targeting `main` and replaces each prior
@@ -30,18 +41,25 @@ attempted every listed head. A PR must then be updated, reopened, marked
 ready, or have its base edited so the trusted evaluation runs again against the
 new base. An already-running evaluation whose base has become stale fails the
 publisher's current-base check instead of producing fresh success evidence.
-When a PR is synchronized or closed, a separate base-owned job also replaces
-the departing head's prior result with `pending`, so a historical successful
-head cannot be replayed after it stops being the current PR head.
+When a PR is synchronized or closed, a separate base-owned job also attempts to
+replace the departing head's prior result with `pending`.
 The same invalidation runs when an `edited` event shows that a PR has been
-retargeted away from `main`; retargeting it back cannot expose the old success
-while the new evaluation is starting. That invalidator always checks out the
+retargeted away from `main`. That invalidator always checks out the
 controller from `refs/heads/main`, never from the PR's new destination branch.
 Only superseded exact-head evaluation jobs share a cancelling concurrency
 group. A closed or retargeted-away PR also schedules a token-free job in that
 same group, cancelling an evaluation even though no replacement evaluation is
 eligible to start. Departure invalidators remain outside the group and are not
 cancelled by a rapid retarget or push.
+
+These API operations are not atomic and do not prove permanent revocation.
+The post-publication PR lookup detects an observed departure even if a separate
+invalidation reached GitHub before an acknowledged terminal write. A delayed,
+unconfirmed remote POST can still settle after recovery, and later PR changes
+remain possible after the final lookup. Consumers must revalidate current PR,
+base/head and trusted-run provenance when making their decision. Neither these
+checks nor a successful pending response establishes controller bootstrap or
+authentic test execution; those remain separate release gates.
 
 Before any candidate-controlled dependency or test module is evaluated, the
 controller byte-compares its workflow, all trusted manifests, every manifest
