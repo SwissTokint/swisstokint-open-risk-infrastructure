@@ -165,6 +165,9 @@ for (const relativePath of [
   'scripts/verify-trusted-test-coverage.mjs',
   'tests/trusted-test-coverage.node.test.mjs',
   'tests/pom-rx-strict-isolated-runner.node.test.mjs',
+  'tests/wallet-guard/prototype-server.node.test.mjs',
+  'tests/wallet-guard/prototype-browser-rpc.node.test.mjs',
+  'tests/wallet-guard/prototype-durable-journal.node.test.mjs',
 ]) {
   test(`trusted control plane rejects byte drift in integrated coverage: ${relativePath}`, () => {
     const sandbox = mkdtempSync(join(tmpdir(), 'trusted-control-plane-coverage-drift-'));
@@ -178,6 +181,32 @@ for (const relativePath of [
       assert.throws(
         () => verifyTrustedControlPlane(baseRoot, candidateRoot),
         /out-of-band bootstrap review|base-owned trusted test changed/u,
+      );
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const relativePath of [
+  'tests/wallet-guard/prototype-server.node.test.mjs',
+  'tests/wallet-guard/prototype-browser-rpc.node.test.mjs',
+  'tests/wallet-guard/prototype-durable-journal.node.test.mjs',
+]) {
+  test(`trusted control plane rejects matching manifests that omit prototype coverage: ${relativePath}`, () => {
+    const sandbox = mkdtempSync(join(tmpdir(), 'trusted-prototype-coverage-'));
+    const baseRoot = join(sandbox, 'base');
+    const candidateRoot = join(sandbox, 'candidate');
+    try {
+      copyControlTree(baseRoot);
+      copyControlTree(candidateRoot);
+      for (const root of [baseRoot, candidateRoot]) {
+        const manifest = join(root, '.github/trusted-security-tests.txt');
+        writeFileSync(manifest, readFileSync(manifest, 'utf8').replace(`${relativePath}\n`, ''));
+      }
+      assert.throws(
+        () => verifyTrustedControlPlane(baseRoot, candidateRoot),
+        /prototype coverage is required in the positive security manifest/u,
       );
     } finally {
       rmSync(sandbox, { recursive: true, force: true });

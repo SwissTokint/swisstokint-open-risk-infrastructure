@@ -69,6 +69,25 @@ Any in-band control-plane drift is rejected. This deliberately means that a
 future trusted-control change must use the documented out-of-band bootstrap
 review path; an ordinary PR cannot rewrite its own judge.
 
+The coverage validator requires the isolated-runner suite and all three Wallet
+Guard prototype suites (`prototype-server`, `prototype-browser-rpc` and
+`prototype-durable-journal`) in the positive security manifest. It rejects even
+matching base/candidate manifests that omit a required suite or route it only
+to another lane. Every declared test still receives the same base-byte check;
+the three prototype suites retain their existing assertions and source bytes.
+They are selected by the existing per-file positive runner with its existing
+runtime restrictions, not granted a separate permissive lane.
+
+This requirement establishes mandatory membership and byte identity only;
+the validator continues to return `executionProved: false`. Compatible execution
+under the pinned container, authenticated child completion, and controller
+bootstrap remain separate gates. In particular, the server bootstrap and
+journal process-lifecycle fixtures use child processes, and the browser bridge
+uses a VM context. A manifest entry does not extend the parent reporter's
+authentication to those execution contexts. A failure in those gates must remain
+blocking; this inventory change does not authorize test skips or weaker runtime
+permissions.
+
 Candidate dependencies are installed with lifecycle scripts disabled. The
 evaluated source is then reconstructed only from the exact checkout's tracked
 file list after Git proves that no tracked byte drifted,
