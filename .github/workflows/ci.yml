@@ -35,7 +35,9 @@ jobs:
           test "$actual_sha" = "$EXPECTED_CHECKOUT_SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          # The frozen in-process Promise startup contract is reviewed on this
+          # exact version; keep it aligned with the trusted container image.
+          node-version: 22.23.2
           cache: npm
       - name: Pin maintained npm audit client
         shell: bash

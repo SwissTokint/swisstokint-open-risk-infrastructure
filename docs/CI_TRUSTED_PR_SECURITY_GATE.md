@@ -229,7 +229,8 @@ or first installation of the trusted controller. Those execution and bootstrap
 gates remain separate. All existing P1 fixtures and four manifest files retain
 their bytes and expected outcomes.
 
-Canonical Node 22 CI also executes that single unchanged server integration
+Canonical CI pins Node to 22.23.2, matching the reviewed trusted container
+version, and also executes that single unchanged server integration
 with the positive lane's `isolation=none`, permission flags, loader, assertion
 preload and direct reporter. This required compatibility step records the Node
 version. Its candidate-owned CI execution is a regression check, not proof of

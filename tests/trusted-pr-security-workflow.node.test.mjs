@@ -358,10 +358,14 @@ test('canonical CI checks the prepared frozen server with the actual in-process 
   const document = parseDocument(mergeCandidateWorkflow, { schema: 'core', uniqueKeys: true });
   assert.equal(document.errors.length, 0);
   const steps = document.toJS({ maxAliasCount: 0 }).jobs.test.steps;
+  const nodeSetup = steps.filter((entry) => entry.uses?.startsWith('actions/setup-node@'));
+  assert.equal(nodeSetup.length, 1);
+  assert.equal(nodeSetup[0].with['node-version'], '22.23.2');
   const step = steps.find(
     (entry) => entry.name === 'Check prepared frozen Promise startup in the Node 22 in-process runner',
   );
   assert.equal(step.env.TRUSTED_TEST_PATH, 'tests/wallet-guard/prototype-server.node.test.mjs');
+  assert.ok(steps.indexOf(nodeSetup[0]) < steps.indexOf(step));
   assert.equal(step.env.TRUSTED_TEST_MANIFEST, '.github/trusted-security-tests.txt');
   for (const flag of [
     '--require=./scripts/trusted-promise-data-preload.cjs', '--frozen-intrinsics',
