@@ -1,18 +1,12 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "HELD",
+  "state": "FREE",
   "lease_minutes": 45,
-  "holder": {
-    "run_id": "pom-rx-pr175-callback-child-completion-20260910T112725831Z",
-    "acquired_at": "2026-09-10T11:27:25.831Z",
-    "expires_at": "2026-09-10T12:12:25.831Z",
-    "base_main": "52a3d7e972113df3c2b2c28a31afdf2642a10825",
-    "purpose": "PR 175: protect completion of the two callback transport test children; preserve embedded regression sources and all existing P1 gates."
-  },
+  "holder": null,
   "last_transition": {
-    "action": "ACQUIRE",
-    "at": "2026-09-10T11:27:25.831Z",
+    "action": "RELEASE",
+    "at": "2026-09-10T11:45:03.366Z",
     "run_id": "pom-rx-pr175-callback-child-completion-20260910T112725831Z",
-    "reason": "User continuation; one bounded callback child completion lot with independent review and exact CI."
+    "reason": "Published callback child completion repair e240ce1. Scoped independent skeptic, final review and canonical CI1312 pass; original P1 sources and expected-red outcomes preserved. Full PR175 remains blocked. Checkpoints5618125686 and5618133883 persisted. All project mutations completed; none in flight."
   }
 }
