@@ -1,12 +1,17 @@
 {
   "schema": "pom-rx-coordination-lock/1",
-  "state": "FREE",
+  "state": "HELD",
   "lease_minutes": 45,
-  "holder": null,
+  "holder": {
+    "run_id": "pom-rx-pr175-promise-data-bootstrap-20260910T102731346Z",
+    "acquired_at": "2026-09-10T10:27:31.346Z",
+    "expires_at": "2026-09-10T11:12:31.346Z",
+    "base_main": "52a3d7e972113df3c2b2c28a31afdf2642a10825",
+    "purpose": "Implement and review bounded native Promise data-property preparation for frozen Node without weakening P1 or accepting arbitrary accessors; PR175 remains gated."
+  },
   "last_transition": {
-    "action": "RELEASE",
-    "at": "2026-09-10T08:34:21.679Z",
-    "run_id": "pom-rx-pr175-prototype-coverage-20260910T081041182Z",
-    "reason": "PR175 prototype declaration repair d591630 published; CI1309 and scoped skeptic pass; final review found frozen-Promise runtime P1, independently diagnosed without relaxing controls. Checkpoints5615626124/5615633627 persisted; no project mutation in flight."
+    "action": "ACQUIRE",
+    "at": "2026-09-10T10:27:31.346Z",
+    "run_id": "pom-rx-pr175-promise-data-bootstrap-20260910T102731346Z"
   }
 }
