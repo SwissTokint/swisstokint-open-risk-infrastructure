@@ -322,8 +322,41 @@ function sameDescriptorShape(current, baseline) {
   return sameOwnDescriptorField(current, baseline, 'writable')
     && sameOwnDescriptorField(current, baseline, 'enumerable')
     && sameOwnDescriptorField(current, baseline, 'configurable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'value')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'writable')
     && sameOwnDescriptorFieldPresence(current, baseline, 'get')
     && sameOwnDescriptorFieldPresence(current, baseline, 'set');
+}
+
+function lockedDescriptorShape(current, baseline) {
+  if (!current || !baseline) return false;
+  return current.configurable === false
+    && sameOwnDescriptorField(current, baseline, 'enumerable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'value')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'writable')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'get')
+    && sameOwnDescriptorFieldPresence(current, baseline, 'set')
+    && (!TRUSTED_OBJECT_HAS_OWN(baseline, 'writable') || current.writable === false);
+}
+
+function supportedPromiseDescriptorProfile(resolve, reject, species, constructor, then) {
+  const ordinaryStatics = sameDescriptorShape(resolve, PRISTINE_RUNTIME.resolveDescriptor)
+    && sameDescriptorShape(reject, PRISTINE_RUNTIME.rejectDescriptor)
+    && sameDescriptorShape(species, PRISTINE_RUNTIME.speciesDescriptor);
+  const ordinaryPrototype = sameDescriptorShape(constructor, PRISTINE_RUNTIME.constructorDescriptor)
+    && sameDescriptorShape(then, PRISTINE_RUNTIME.thenDescriptor);
+  const pinnedPrototype = lockedDescriptorShape(constructor, PRISTINE_RUNTIME.constructorDescriptor)
+    && lockedDescriptorShape(then, PRISTINE_RUNTIME.thenDescriptor);
+  const frozenStatics = lockedDescriptorShape(resolve, PRISTINE_RUNTIME.resolveDescriptor)
+    && lockedDescriptorShape(reject, PRISTINE_RUNTIME.rejectDescriptor)
+    && lockedDescriptorShape(species, PRISTINE_RUNTIME.speciesDescriptor);
+
+  // Exactly three profiles: ordinary, the two native prototype data fields
+  // pinned before startup freezing, and that prepared profile after freezing.
+  // Node's unprepared accessor wrappers are intentionally unsupported. These
+  // shapes confer no trust: native values and identities are checked below.
+  return (ordinaryStatics && (ordinaryPrototype || pinnedPrototype))
+    || (frozenStatics && pinnedPrototype);
 }
 
 function promiseRuntimeMatchesTrustedPrimordial() {
@@ -345,18 +378,18 @@ function promiseRuntimeMatchesTrustedPrimordial() {
   const liveThen = trustedOwnDescriptor(PROMISE_PROTOTYPE, 'then');
 
   return sameDescriptorShape(liveGlobalPromise, PRISTINE_RUNTIME.globalPromiseDescriptor)
+    && sameDescriptor(liveGlobalPromise, GLOBAL_PROMISE_DESCRIPTOR)
     && trustedFunctionSource(PROMISE_CONSTRUCTOR) === PRISTINE_RUNTIME.promiseSource
     && sameDescriptorShape(livePrototype, PRISTINE_RUNTIME.prototypeDescriptor)
     && livePrototype.value === PROMISE_PROTOTYPE
-    && sameDescriptorShape(liveResolve, PRISTINE_RUNTIME.resolveDescriptor)
+    && supportedPromiseDescriptorProfile(
+      liveResolve, liveReject, liveSpecies, livePrototypeConstructor, liveThen,
+    )
     && trustedFunctionSource(liveResolve.value) === PRISTINE_RUNTIME.resolveSource
-    && sameDescriptorShape(liveReject, PRISTINE_RUNTIME.rejectDescriptor)
     && trustedFunctionSource(liveReject.value) === PRISTINE_RUNTIME.rejectSource
-    && sameDescriptorShape(liveSpecies, PRISTINE_RUNTIME.speciesDescriptor)
     && trustedFunctionSource(liveSpecies.get) === PRISTINE_RUNTIME.speciesGetSource
-    && sameDescriptorShape(livePrototypeConstructor, PRISTINE_RUNTIME.constructorDescriptor)
+    && sameOwnDescriptorField(liveSpecies, PRISTINE_RUNTIME.speciesDescriptor, 'set')
     && livePrototypeConstructor.value === PROMISE_CONSTRUCTOR
-    && sameDescriptorShape(liveThen, PRISTINE_RUNTIME.thenDescriptor)
     && trustedFunctionSource(liveThen.value) === PRISTINE_RUNTIME.thenSource;
 }
 

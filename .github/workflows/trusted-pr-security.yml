@@ -248,6 +248,9 @@ jobs:
             trusted-base/scripts/trusted-assert-preload.mjs \
             "$evaluation_root/scripts/trusted-assert-preload.mjs"
           install -m 0444 \
+            trusted-base/scripts/trusted-promise-data-preload.cjs \
+            "$evaluation_root/scripts/trusted-promise-data-preload.cjs"
+          install -m 0444 \
             trusted-base/.github/trusted-security-tests.txt \
             "$evaluation_root/scripts/trusted-security-tests.txt"
           install -m 0444 \
@@ -322,6 +325,7 @@ jobs:
               --workdir /workspace \
               "$NODE_IMAGE" \
               node \
+                --require=./scripts/trusted-promise-data-preload.cjs \
                 --frozen-intrinsics \
                 --permission \
                 --allow-fs-read=/workspace \

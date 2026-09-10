@@ -93,6 +93,28 @@ jobs:
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
+      - name: Check prepared frozen Promise startup in the Node 22 in-process runner
+        env:
+          TRUSTED_TEST_MANIFEST: .github/trusted-security-tests.txt
+          TRUSTED_TEST_PATH: tests/wallet-guard/prototype-server.node.test.mjs
+        run: |
+          node --version
+          node \
+            --require=./scripts/trusted-promise-data-preload.cjs \
+            --frozen-intrinsics \
+            --permission \
+            --allow-fs-read="$GITHUB_WORKSPACE" \
+            --allow-fs-read=/tmp \
+            --allow-fs-write=/tmp \
+            --allow-child-process \
+            --no-addons \
+            --import=./scripts/trusted-test-loader-register.mjs \
+            --import=./scripts/trusted-assert-preload.mjs \
+            --test \
+            --experimental-test-isolation=none \
+            --test-reporter=./scripts/trusted-test-reporter.mjs \
+            --test-name-pattern='^loopback prototype authenticates one page and executes DENY then one bound ALLOW$' \
+            tests/wallet-guard/prototype-server.node.test.mjs
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target

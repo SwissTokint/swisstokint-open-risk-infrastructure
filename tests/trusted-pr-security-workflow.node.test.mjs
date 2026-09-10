@@ -336,6 +336,45 @@ test('ordinary CI remains a distinct canonical push or merge-candidate lane', ()
   assert.doesNotMatch(mergeCandidateWorkflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
 });
 
+test('only the frozen positive lane prepares native Promise data properties from the trusted base', () => {
+  const preparation = '--require=./scripts/trusted-promise-data-preload.cjs';
+  const positive = trustedExactHeadJob.steps.find(
+    (step) => step.name === 'Run base-owned security regressions on exact candidate head',
+  );
+  assert.ok(positive.run.includes(preparation));
+  assert.ok(positive.run.indexOf(preparation) < positive.run.indexOf('--frozen-intrinsics'));
+  assert.ok(positive.run.includes('--import=./scripts/trusted-assert-preload.mjs'));
+  for (const step of trustedExactHeadJob.steps) {
+    if (step === positive) continue;
+    assert.equal(step.run?.includes(preparation) ?? false, false, step.name);
+  }
+  const assemble = trustedExactHeadJob.steps.find(
+    (step) => step.name === 'Assemble exact immutable evaluation tree',
+  );
+  assert.match(assemble.run, /install -m 0444 \\\n\s+trusted-base\/scripts\/trusted-promise-data-preload\.cjs \\\n\s+"\$evaluation_root\/scripts\/trusted-promise-data-preload\.cjs"/u);
+});
+
+test('canonical CI checks the prepared frozen server with the actual in-process runner', () => {
+  const document = parseDocument(mergeCandidateWorkflow, { schema: 'core', uniqueKeys: true });
+  assert.equal(document.errors.length, 0);
+  const steps = document.toJS({ maxAliasCount: 0 }).jobs.test.steps;
+  const step = steps.find(
+    (entry) => entry.name === 'Check prepared frozen Promise startup in the Node 22 in-process runner',
+  );
+  assert.equal(step.env.TRUSTED_TEST_PATH, 'tests/wallet-guard/prototype-server.node.test.mjs');
+  assert.equal(step.env.TRUSTED_TEST_MANIFEST, '.github/trusted-security-tests.txt');
+  for (const flag of [
+    '--require=./scripts/trusted-promise-data-preload.cjs', '--frozen-intrinsics',
+    '--permission', '--no-addons', '--experimental-test-isolation=none',
+    '--import=./scripts/trusted-test-loader-register.mjs',
+    '--import=./scripts/trusted-assert-preload.mjs',
+    '--test-reporter=./scripts/trusted-test-reporter.mjs',
+  ]) assert.ok(step.run.includes(flag), flag);
+  assert.equal(step['continue-on-error'], undefined);
+  assert.equal(step.if, undefined);
+  assert.match(step.run, /--test-name-pattern='\^loopback prototype authenticates one page and executes DENY then one bound ALLOW\$'/u);
+});
+
 test('trusted regression manifests are bounded, disjoint and present', () => {
   assert.ok(trustedTests.length >= 40, 'trusted security suite unexpectedly shrank');
   assert.ok(trustedMutationTests.length >= 20, 'trusted mutation suite unexpectedly shrank');

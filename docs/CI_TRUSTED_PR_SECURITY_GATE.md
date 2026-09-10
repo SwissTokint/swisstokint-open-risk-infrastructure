@@ -186,6 +186,55 @@ one-file manifest and a direct lifecycle reporter. Success requires exactly the
 seven reviewed assertion failures plus the one unmodified green control; TAP
 text emitted by candidate code is never parsed as evidence.
 
+### Native Promise data preparation
+
+The positive frozen lane loads the base-owned
+`scripts/trusted-promise-data-preload.cjs` through `--require`, before Node
+freezes intrinsics. It verifies and makes the native
+`Promise.prototype.constructor` and `.then` data properties non-writable and
+non-configurable. Node consequently preserves those data properties instead of
+creating derived-override accessors. An ESM `--import` occurs too late for this
+preparation on the reviewed Node 22 startup path. The preloader is part of the
+immutable control plane and is copied from the trusted base; it is not added to
+the intrinsic-mutation, child-source or expected-red lanes.
+
+This runner ordering is version-specific: Node 22.23.2 preloads before freezing
+with `--test --experimental-test-isolation=none`. Node 24.19.0 defers the
+preload in that mode until after freezing and therefore fails closed with this
+preparation. Ordinary application startup and process-isolated test startup on
+Node 24.19.0 do support preparation. Do not infer in-process runner compatibility
+from those successful modes or change the frozen image version without checking
+the actual startup sequence.
+
+The transport independently checks native function sources, the intrinsic
+same-realm prototype relation, Proxy rejection, the species getter and absent
+setter, and exact captured descriptors on every runtime check. Its supported
+descriptor profiles are ordinary, two-field prepared, and prepared then frozen.
+Global `Promise` and its `.prototype` property retain their original shape.
+Unprepared frozen accessors and mixed profiles fail closed. There is no runtime
+registration token or accessor-source exception. Preparation after transport
+initialization still counts as descriptor drift.
+
+This startup contract requires a clean application-owned process and trusted
+Node built-ins, as the transport already requires. Pinning removes assignment
+overrides of these two inherited properties on derived objects; callers needing
+those overrides are outside this prepared transport profile. Ordinary imports
+do not run the preloader or change global descriptors.
+
+The new compatibility regression in canonical CI checks all three supported
+profiles, unsupported startup ordering, and the unchanged first loopback server
+integration under prepared frozen Node. These benign local checks do not attest
+every prototype test, nested child, browser VM, the container isolation layer,
+or first installation of the trusted controller. Those execution and bootstrap
+gates remain separate. All existing P1 fixtures and four manifest files retain
+their bytes and expected outcomes.
+
+Canonical Node 22 CI also executes that single unchanged server integration
+with the positive lane's `isolation=none`, permission flags, loader, assertion
+preload and direct reporter. This required compatibility step records the Node
+version. Its candidate-owned CI execution is a regression check, not proof of
+base-owned controller authority or complete manifest execution.
+
 The container image is an exact Node version and immutable OCI index digest.
 Dependency lock entries are limited to integrity-pinned HTTPS artifacts from
 the public npm registry before installation. Workflow files are parsed as YAML,
