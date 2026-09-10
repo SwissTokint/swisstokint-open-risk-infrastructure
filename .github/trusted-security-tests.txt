@@ -4,6 +4,7 @@ tests/trusted-control-plane.node.test.mjs
 tests/trusted-pr-security-workflow.node.test.mjs
 tests/trusted-pr-status-publisher.node.test.mjs
 tests/trusted-test-reporter.node.test.mjs
+tests/trusted-test-child.node.test.mjs
 tests/trusted-risk-engine.node.test.mjs
 tests/filecoin-evidence-bundle.node.test.mjs
 tests/pom-rx.node.test.mjs

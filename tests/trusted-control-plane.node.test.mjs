@@ -163,6 +163,8 @@ test('trusted control plane rejects matching manifests that omit isolated-runner
 
 for (const relativePath of [
   'scripts/trusted-promise-data-preload.cjs',
+  'tests/helpers/trusted-test-child.mjs',
+  'tests/trusted-test-child.node.test.mjs',
   'tests/wallet-guard/trusted-provider-frozen-runtime.node.test.mjs',
   'scripts/verify-trusted-test-coverage.mjs',
   'tests/trusted-test-coverage.node.test.mjs',

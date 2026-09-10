@@ -31,6 +31,8 @@ export const IMMUTABLE_CONTROL_PATHS = Object.freeze([
   'scripts/verify-trusted-control-plane.mjs',
   'scripts/verify-trusted-test-coverage.mjs',
   'tests/ci-action-pinning.node.test.mjs',
+  'tests/helpers/trusted-test-child.mjs',
+  'tests/trusted-test-child.node.test.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison-candidate.mjs',
   'tests/fixtures/trusted-runner/builtin-export-poison.test.mjs',
   'tests/fixtures/trusted-runner/authenticated-child-source.test.mjs',

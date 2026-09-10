@@ -379,6 +379,38 @@ test('canonical CI checks the prepared frozen server with the actual in-process 
   assert.match(step.run, /--test-name-pattern='\^loopback prototype authenticates one page and executes DENY then one bound ALLOW\$'/u);
 });
 
+test('canonical CI requires the complete child launcher suite in a pinned frozen parent', () => {
+  const document = parseDocument(mergeCandidateWorkflow, { schema: 'core', uniqueKeys: true });
+  assert.equal(document.errors.length, 0);
+  const steps = document.toJS({ maxAliasCount: 0 }).jobs.test.steps;
+  const nodeSetup = steps.filter((entry) => entry.uses?.startsWith('actions/setup-node@'));
+  assert.equal(nodeSetup.length, 1);
+  assert.equal(nodeSetup[0].with['node-version'], '22.23.2');
+  const matches = steps.filter(
+    (entry) => entry.name === 'Check trusted child launcher in the Node 22 frozen parent',
+  );
+  assert.equal(matches.length, 1);
+  const step = matches[0];
+  assert.ok(steps.indexOf(nodeSetup[0]) < steps.indexOf(step));
+  assert.deepEqual(step.env, {
+    TRUSTED_TEST_MANIFEST: '.github/trusted-security-tests.txt',
+    TRUSTED_TEST_PATH: 'tests/trusted-test-child.node.test.mjs',
+  });
+  assert.equal(step['continue-on-error'], undefined);
+  assert.equal(step.if, undefined);
+  assert.equal(step.run.replace(/\\\n\s*/gu, '').trim(), [
+    'node --version',
+    'node --require=./scripts/trusted-promise-data-preload.cjs --frozen-intrinsics '
+      + '--permission --allow-fs-read="$GITHUB_WORKSPACE" --allow-fs-read=/tmp '
+      + '--allow-fs-write=/tmp --allow-child-process --no-addons '
+      + '--import=./scripts/trusted-test-loader-register.mjs '
+      + '--import=./scripts/trusted-assert-preload.mjs --test '
+      + '--experimental-test-isolation=none --test-reporter=./scripts/trusted-test-reporter.mjs '
+      + 'tests/trusted-test-child.node.test.mjs',
+  ].join('\n'));
+  assert.ok(trustedTests.includes('tests/trusted-test-child.node.test.mjs'));
+});
+
 test('trusted regression manifests are bounded, disjoint and present', () => {
   assert.ok(trustedTests.length >= 40, 'trusted security suite unexpectedly shrank');
   assert.ok(trustedMutationTests.length >= 20, 'trusted mutation suite unexpectedly shrank');

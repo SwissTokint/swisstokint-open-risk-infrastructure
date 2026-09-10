@@ -243,6 +243,35 @@ not approximated with line matching; the parser is exact-versioned in the
 trusted base lockfile, installed separately, and overlaid onto the evaluation
 tree so a candidate cannot substitute its implementation.
 
+### Callback transport test children
+
+The two callback transport regression children use the base-owned
+`tests/helpers/trusted-test-child.mjs` launcher, imported before candidate
+dependencies. It captures the native spawn function, executable and encoding
+and assertion operations at bootstrap. Callers supply only bounded source;
+the loader, assertion preload, reporter, manifest, working directory and
+resource limits are fixed. The child receives an explicit environment without
+inherited startup controls, and the parent environment is never modified.
+
+These children remain non-frozen and use strict unhandled-rejection handling.
+Their original source and final asynchronous turn are unchanged. The launcher
+requires normal exit, no spawn error, and exactly the file and suite completion
+records from the existing one-shot direct reporter. Completion also depends on
+the existing preload and reporter lifecycle guard; matching text alone is not
+authentication or operating-system isolation.
+
+The helper and its benign integration tests are immutable control-plane files.
+One positive manifest entry adds those tests; no existing entry or P1 fixture
+is removed. This change covers the two callback launch sites only. Other child
+processes, the isolated runner's protected-parent-environment test, browser VM
+completion and controller bootstrap still require their separate gates.
+
+Canonical CI also requires this complete benign launcher suite in a prepared
+frozen Node 22.23.2 parent with the positive lane's permission, loader, preload
+and direct reporter settings. Its children still start non-frozen. This checks
+runtime integration, including the protected parent environment, without
+claiming exact-container execution or base-owned controller authority.
+
 ## Bootstrap and ruleset activation
 
 The pull request that first adds this workflow cannot use the new workflow as
