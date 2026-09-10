@@ -15,6 +15,8 @@ import {
 } from '../scripts/publish-trusted-pr-status.mjs';
 
 const baseEnvironment = Object.freeze({
+  EXPECTED_PR_NUMBER: '175',
+  EXPECTED_HEAD_REPOSITORY: 'SwissTokint/swisstokint-open-risk-infrastructure',
   EXPECTED_BASE_SHA: 'b'.repeat(40),
   EXPECTED_HEAD_SHA: 'a'.repeat(40),
   GH_TOKEN: 'test-token-not-forwarded',
@@ -33,6 +35,45 @@ function baseResponse() {
       ref: 'refs/heads/main',
       object: { type: 'commit', sha: baseEnvironment.EXPECTED_BASE_SHA },
     }),
+  };
+}
+
+function pullRequestBody() {
+  return {
+    url: `https://api.github.com/repos/${baseEnvironment.GITHUB_REPOSITORY}/pulls/175`,
+    number: 175,
+    state: 'open',
+    merged: false,
+    merged_at: null,
+    // GitHub may assign a merge candidate before the PR has been merged.
+    merge_commit_sha: 'c'.repeat(40),
+    base: {
+      ref: 'main',
+      sha: baseEnvironment.EXPECTED_BASE_SHA,
+      repo: { full_name: baseEnvironment.GITHUB_REPOSITORY },
+    },
+    head: {
+      sha: baseEnvironment.EXPECTED_HEAD_SHA,
+      repo: { full_name: baseEnvironment.EXPECTED_HEAD_REPOSITORY },
+    },
+  };
+}
+
+function pullRequestResponse(body = pullRequestBody()) {
+  return { signal: null, status: 0, stdout: JSON.stringify(body) };
+}
+
+// Keep the historical main-ref/POST fault injections unchanged. The lifecycle
+// tests below observe the full transport sequence without this adapter.
+function withCurrentPullRequest(spawn) {
+  return (command, args, options) => {
+    if (args[2] === 'GET' && args[3] === `repos/${baseEnvironment.GITHUB_REPOSITORY}/pulls/175`) {
+      assert.equal(command, '/usr/bin/gh');
+      assert.deepEqual(args.slice(4), ['--hostname', 'github.com']);
+      assert.equal(options.timeout, 20_000);
+      return pullRequestResponse();
+    }
+    return spawn(command, args, options);
   };
 }
 
@@ -62,6 +103,218 @@ const unavailableResponses = [
   })],
 ];
 
+test('terminal status publication checks the full PR binding on both sides of POST', async (t) => {
+  for (const state of ['success', 'failure']) {
+    await t.test(state, () => {
+      const environment = { ...baseEnvironment, STATUS_STATE: state };
+      const request = buildTrustedPrStatusRequest(environment);
+      const calls = [];
+      const spawn = (command, args, options) => {
+        calls.push({ command, args, options });
+        if (args[3] === request.baseRefPath) return baseResponse();
+        if (args[3] === request.pullRequest.apiPath) return pullRequestResponse();
+        return statusResponse(request, JSON.parse(options.input));
+      };
+      assert.deepEqual(publishTrustedPrStatus(environment, spawn), { id: 401, state });
+      assert.deepEqual(calls.map(({ args }) => [args[2], args[3]]), [
+        ['GET', request.baseRefPath],
+        ['GET', request.pullRequest.apiPath],
+        ['POST', request.apiPath],
+        ['GET', request.baseRefPath],
+        ['GET', request.pullRequest.apiPath],
+      ]);
+      for (const { command, args, options } of calls) {
+        assert.equal(command, '/usr/bin/gh');
+        assert.deepEqual(args.slice(-2), ['--hostname', 'github.com']);
+        assert.equal(options.timeout, 20_000);
+        assert.equal(JSON.stringify(options).includes(environment.GH_TOKEN), false);
+      }
+      assert.equal(Object.isFrozen(request.pullRequest), true);
+    });
+  }
+});
+
+const changedPullRequests = [
+  ['updated head', (body) => { body.head.sha = 'd'.repeat(40); }],
+  ['closed PR', (body) => { body.state = 'closed'; }],
+  ['merged PR', (body) => { body.merged = true; }],
+  ['merge timestamp', (body) => { body.merged_at = '2026-09-10T07:00:00Z'; }],
+  ['retargeted base', (body) => { body.base.ref = 'release'; }],
+  ['advanced base', (body) => { body.base.sha = 'd'.repeat(40); }],
+  ['different number', (body) => { body.number = 176; }],
+  ['different URL', (body) => { body.url += '/other'; }],
+  ['different base repository', (body) => { body.base.repo.full_name = 'Example/base'; }],
+  ['different head repository', (body) => { body.head.repo.full_name = 'Example/source'; }],
+  ['deleted head repository', (body) => { body.head.repo = null; }],
+  ['missing state', (body) => { delete body.state; }],
+];
+
+test('PR identity changes prevent publication or invalidate an attempted terminal result', async (t) => {
+  for (const [label, change] of changedPullRequests) {
+    for (const phase of ['before', 'after']) {
+      await t.test(`${label} ${phase}`, () => {
+        const request = buildTrustedPrStatusRequest(baseEnvironment);
+        let prReads = 0;
+        const posts = [];
+        const spawn = (_command, args, options) => {
+          if (args[3] === request.baseRefPath) return baseResponse();
+          if (args[3] === request.pullRequest.apiPath) {
+            prReads += 1;
+            const body = pullRequestBody();
+            if (phase === 'before' || prReads === 2) change(body);
+            return pullRequestResponse(body);
+          }
+          const payload = JSON.parse(options.input);
+          posts.push({ path: args[3], payload });
+          return statusResponse(request, payload);
+        };
+        assert.throws(() => publishTrustedPrStatus(baseEnvironment, spawn), /no longer open/u);
+        assert.deepEqual(posts.map(({ payload }) => payload.state), phase === 'before' ? [] : ['success', 'pending']);
+        for (const { path, payload } of posts) {
+          assert.equal(path, request.apiPath);
+          assert.equal(payload.target_url, request.payload.target_url);
+          assert.equal(payload.context, request.payload.context);
+        }
+      });
+    }
+  }
+});
+
+test('unavailable PR observations fail closed before and after a terminal write', async (t) => {
+  for (const [label, unavailable] of unavailableResponses) {
+    for (const phase of ['before', 'after']) {
+      await t.test(`${label} ${phase}`, () => {
+        const request = buildTrustedPrStatusRequest(baseEnvironment);
+        let prReads = 0;
+        const states = [];
+        const spawn = (_command, args, options) => {
+          if (args[3] === request.baseRefPath) return baseResponse();
+          if (args[3] === request.pullRequest.apiPath) {
+            prReads += 1;
+            return phase === 'before' || prReads === 2 ? unavailable() : pullRequestResponse();
+          }
+          const payload = JSON.parse(options.input);
+          states.push(payload.state);
+          return statusResponse(request, payload);
+        };
+        assert.throws(() => publishTrustedPrStatus(baseEnvironment, spawn), Error);
+        assert.deepEqual(states, phase === 'before' ? [] : ['success', 'pending']);
+      });
+    }
+  }
+});
+
+test('post-publication PR check and recovery retain the captured identity', () => {
+  const environment = { ...baseEnvironment };
+  const request = buildTrustedPrStatusRequest(environment);
+  const originalPr = pullRequestBody();
+  const prPaths = [];
+  const posts = [];
+  const spawn = (_command, args, options) => {
+    if (args[3] === request.baseRefPath) return baseResponse();
+    if (args[2] === 'GET') {
+      prPaths.push(args[3]);
+      return pullRequestResponse(prPaths.length === 1 ? originalPr : { ...originalPr, state: 'closed' });
+    }
+    const payload = JSON.parse(options.input);
+    posts.push({ path: args[3], payload });
+    environment.EXPECTED_PR_NUMBER = '176';
+    environment.EXPECTED_HEAD_REPOSITORY = 'Example/changed';
+    environment.EXPECTED_HEAD_SHA = 'e'.repeat(40);
+    environment.GITHUB_RUN_ID = '999';
+    return statusResponse(request, payload);
+  };
+  assert.throws(() => publishTrustedPrStatus(environment, spawn), /no longer open/u);
+  assert.deepEqual(prPaths, [request.pullRequest.apiPath, request.pullRequest.apiPath]);
+  assert.deepEqual(posts.map(({ payload }) => payload.state), ['success', 'pending']);
+  assert.ok(posts.every(({ path, payload }) => path === request.apiPath && payload.target_url === request.payload.target_url));
+});
+
+test('pending invalidation never requires a live PR or available source repository', () => {
+  const environment = { ...baseEnvironment, STATUS_STATE: 'pending' };
+  delete environment.EXPECTED_PR_NUMBER;
+  delete environment.EXPECTED_HEAD_REPOSITORY;
+  const request = buildTrustedPrStatusRequest(environment);
+  const methods = [];
+  const spawn = (_command, args, options) => {
+    assert.notEqual(args[3].includes('/pulls/'), true, 'revocation must not query PR metadata');
+    methods.push(args[2]);
+    if (args[2] === 'GET') return baseResponse();
+    assert.deepEqual(JSON.parse(options.input), request.payload);
+    return statusResponse(request, request.payload);
+  };
+  assert.equal(request.pullRequest, null);
+  assert.deepEqual(publishTrustedPrStatus(environment, spawn), { id: 401, state: 'pending' });
+  assert.deepEqual(methods, ['GET', 'POST', 'GET']);
+  assert.throws(() => buildTrustedPrStatusRequest({ ...environment, STATUS_STATE: 'success' }), /missing EXPECTED_PR_NUMBER/u);
+  assert.throws(() => buildTrustedPrStatusRequest({ ...environment, STATUS_STATE: 'failure' }), /missing EXPECTED_PR_NUMBER/u);
+});
+
+test('terminal PR identity configuration must be canonical and bounded', async (t) => {
+  for (const number of ['', '0', '01', '-1', '1.5', '1e3', '9007199254740992']) {
+    await t.test(`number ${JSON.stringify(number)}`, () => {
+      assert.throws(() => buildTrustedPrStatusRequest({ ...baseEnvironment, EXPECTED_PR_NUMBER: number }), /EXPECTED_PR_NUMBER/u);
+    });
+  }
+  assert.throws(() => buildTrustedPrStatusRequest({ ...baseEnvironment, EXPECTED_HEAD_REPOSITORY: '' }), /EXPECTED_HEAD_REPOSITORY/u);
+  assert.throws(() => buildTrustedPrStatusRequest({ ...baseEnvironment, EXPECTED_HEAD_REPOSITORY: 'https://example.test/source' }), /EXPECTED_HEAD_REPOSITORY/u);
+});
+
+test('a matching fork PR is accepted without assuming the head repository equals the base', () => {
+  const environment = { ...baseEnvironment, EXPECTED_HEAD_REPOSITORY: 'Example/fork' };
+  const request = buildTrustedPrStatusRequest(environment);
+  const body = pullRequestBody();
+  body.head.repo.full_name = environment.EXPECTED_HEAD_REPOSITORY;
+  const spawn = (_command, args, options) => {
+    if (args[3] === request.baseRefPath) return baseResponse();
+    if (args[3] === request.pullRequest.apiPath) return pullRequestResponse(body);
+    return statusResponse(request, JSON.parse(options.input));
+  };
+  assert.deepEqual(publishTrustedPrStatus(environment, spawn), { id: 401, state: 'success' });
+});
+
+test('failure statuses also recover to pending if the PR closes during publication', () => {
+  const environment = { ...baseEnvironment, STATUS_STATE: 'failure' };
+  const request = buildTrustedPrStatusRequest(environment);
+  const states = [];
+  const spawn = (_command, args, options) => {
+    if (args[3] === request.baseRefPath) return baseResponse();
+    if (args[3] === request.pullRequest.apiPath) {
+      const body = pullRequestBody();
+      if (states.length > 0) body.state = 'closed';
+      return pullRequestResponse(body);
+    }
+    const payload = JSON.parse(options.input);
+    states.push(payload.state);
+    return statusResponse(request, payload);
+  };
+  assert.throws(() => publishTrustedPrStatus(environment, spawn), /no longer open/u);
+  assert.deepEqual(states, ['failure', 'pending']);
+});
+
+test('failed recovery after an uncertain PR lookup preserves both errors', () => {
+  const request = buildTrustedPrStatusRequest(baseEnvironment);
+  const lookupError = new Error('PR response unavailable');
+  const recoveryError = new Error('pending response unavailable');
+  let writes = 0;
+  const spawn = (_command, args, options) => {
+    if (args[3] === request.baseRefPath) return baseResponse();
+    if (args[3] === request.pullRequest.apiPath) {
+      if (writes > 0) throw lookupError;
+      return pullRequestResponse();
+    }
+    writes += 1;
+    if (writes === 2) throw recoveryError;
+    return statusResponse(request, JSON.parse(options.input));
+  };
+  assert.throws(() => publishTrustedPrStatus(baseEnvironment, spawn), (error) => {
+    assert.ok(error instanceof AggregateError);
+    assert.deepEqual(error.errors, [lookupError, recoveryError]);
+    return true;
+  });
+  assert.equal(writes, 2);
+});
+
 test('unconfirmed status writes request pending recovery before reporting failure', async (t) => {
   for (const [label, unavailable] of unavailableResponses) {
     await t.test(label, () => {
@@ -74,7 +327,7 @@ test('unconfirmed status writes request pending recovery before reporting failur
         if (payload.state === 'success') return unavailable();
         return statusResponse(request, payload);
       };
-      assert.throws(() => publishTrustedPrStatus(baseEnvironment, fakeSpawn), Error);
+      assert.throws(() => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)), Error);
       assert.equal(calls.length, 3);
       assert.equal(calls[0].args[2], 'GET');
       assert.deepEqual(calls.slice(1).map((call) => call.args), [
@@ -106,7 +359,7 @@ test('pending recovery preserves the original captured head and run', () => {
     return statusResponse(request, payload);
   };
   assert.throws(
-    () => publishTrustedPrStatus(environment, fakeSpawn),
+    () => publishTrustedPrStatus(environment, withCurrentPullRequest(fakeSpawn)),
     /response unavailable after configuration changed/u,
   );
   assert.equal(posts.length, 2);
@@ -127,7 +380,7 @@ test('recovery failures preserve both errors and never report a confirmed status
         if (postCount === 1) throw publicationError;
         return unavailable();
       };
-      assert.throws(() => publishTrustedPrStatus(baseEnvironment, fakeSpawn), (error) => {
+      assert.throws(() => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)), (error) => {
         assert.ok(error instanceof AggregateError);
         assert.equal(error.errors.length, 2);
         assert.equal(error.errors[0], publicationError);
@@ -154,7 +407,7 @@ test('a thrown post-publication lookup still triggers pending recovery', () => {
     states.push(payload.state);
     return statusResponse(request, payload);
   };
-  assert.throws(() => publishTrustedPrStatus(baseEnvironment, fakeSpawn), /freshness response unavailable/u);
+  assert.throws(() => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)), /freshness response unavailable/u);
   assert.deepEqual(states, ['success', 'pending']);
 });
 
@@ -164,7 +417,7 @@ test('failure before any publication performs no status write', () => {
     methods.push(args[2]);
     return { error: new Error('initial freshness unavailable') };
   };
-  assert.throws(() => publishTrustedPrStatus(baseEnvironment, fakeSpawn), /initial freshness unavailable/u);
+  assert.throws(() => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)), /initial freshness unavailable/u);
   assert.deepEqual(methods, ['GET']);
 });
 
@@ -285,7 +538,7 @@ test('publisher sends only the fixed status payload through the trusted gh path'
     return { error: undefined, signal: null, status: 0, stdout: JSON.stringify(response) };
   };
 
-  assert.deepEqual(publishTrustedPrStatus(baseEnvironment, fakeSpawn), { id: 42, state: 'success' });
+  assert.deepEqual(publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)), { id: 42, state: 'success' });
   assert.equal(invocations.length, 3);
   assert.equal(invocations[0].command, '/usr/bin/gh');
   assert.deepEqual(invocations[0].args, ['api', '--method', 'GET', request.baseRefPath, '--hostname', 'github.com']);
@@ -333,7 +586,7 @@ test('publisher overwrites a raced stale success with pending', () => {
   };
 
   assert.throws(
-    () => publishTrustedPrStatus(baseEnvironment, fakeSpawn),
+    () => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)),
     /no longer the current main commit/u,
   );
   assert.equal(invocations.length, 4);
@@ -378,7 +631,7 @@ test('publisher overwrites success when the post-publication freshness lookup is
   };
 
   assert.throws(
-    () => publishTrustedPrStatus(baseEnvironment, fakeSpawn),
+    () => publishTrustedPrStatus(baseEnvironment, withCurrentPullRequest(fakeSpawn)),
     /post-publication freshness lookup failed/u,
   );
   assert.equal(invocations.length, 4);

@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import {
   REQUIRED_ISOLATED_RUNNER_TEST,
+  REQUIRED_POSITIVE_SECURITY_TESTS,
   TRUSTED_TEST_MANIFEST_PATHS,
   verifyTrustedTestCoverage,
 } from '../scripts/verify-trusted-test-coverage.mjs';
@@ -15,8 +16,14 @@ const MUTATION = '.github/trusted-mutation-security-tests.txt';
 const CHILD = '.github/trusted-child-tests.txt';
 const EXPECTED_RED = '.github/trusted-expected-red-test.txt';
 const BASELINE_TEST = 'tests/pom-rx-integrity-baseline.node.test.mjs';
+// Keep the required contract explicit in fixtures, independent of the validator.
+const PROTOTYPE_TESTS = Object.freeze([
+  'tests/wallet-guard/prototype-server.node.test.mjs',
+  'tests/wallet-guard/prototype-browser-rpc.node.test.mjs',
+  'tests/wallet-guard/prototype-durable-journal.node.test.mjs',
+]);
 const fixtureManifests = Object.freeze({
-  [POSITIVE]: [REQUIRED_ISOLATED_RUNNER_TEST, 'tests/ordinary-positive.test.mjs'],
+  [POSITIVE]: [REQUIRED_ISOLATED_RUNNER_TEST, 'tests/ordinary-positive.test.mjs', ...PROTOTYPE_TESTS],
   [MUTATION]: ['tests/ordinary-mutation.test.mjs'],
   [CHILD]: ['tests/ordinary-child.test.mjs'],
   [EXPECTED_RED]: [BASELINE_TEST],
@@ -48,12 +55,47 @@ test('coverage validates identical complete declarations without claiming execut
   const { base, candidate } = withTrees(t);
   const result = verifyTrustedTestCoverage(base, candidate);
   assert.equal(result.manifestCount, 4);
-  assert.equal(result.testCount, 5);
+  assert.equal(result.testCount, 8);
   assert.deepEqual(result.testPaths, Object.values(fixtureManifests).flat());
   assert.equal(result.executionProved, false);
   assert.ok(Object.isFrozen(result));
   assert.ok(Object.isFrozen(result.testPaths));
   assert.ok(Object.isFrozen(TRUSTED_TEST_MANIFEST_PATHS));
+  assert.ok(Object.isFrozen(REQUIRED_POSITIVE_SECURITY_TESTS));
+  assert.deepEqual(REQUIRED_POSITIVE_SECURITY_TESTS, [REQUIRED_ISOLATED_RUNNER_TEST, ...PROTOTYPE_TESTS]);
+});
+
+test('each prototype suite is required even when both trees omit it identically', async (t) => {
+  for (const path of PROTOTYPE_TESTS) {
+    await t.test(path, (t) => {
+      const { base, candidate, roots } = withTrees(t);
+      for (const root of roots) {
+        write(root, POSITIVE, `${fixtureManifests[POSITIVE].filter((entry) => entry !== path).join('\n')}\n`);
+      }
+      assert.throws(() => verifyTrustedTestCoverage(base, candidate), (error) => {
+        assert.match(error.message, /prototype coverage is required in the positive security manifest/u);
+        assert.ok(error.message.includes(path));
+        return true;
+      });
+    });
+  }
+});
+
+test('prototype coverage cannot be moved to mutation, child or expected-red lanes', async (t) => {
+  for (const path of PROTOTYPE_TESTS) {
+    for (const lane of [MUTATION, CHILD, EXPECTED_RED]) {
+      await t.test(`${path} -> ${lane}`, (t) => {
+        const { base, candidate, roots } = withTrees(t);
+        for (const root of roots) {
+          write(root, POSITIVE, `${fixtureManifests[POSITIVE].filter((entry) => entry !== path).join('\n')}\n`);
+          write(root, lane, `${fixtureManifests[lane].join('\n')}\n${path}\n`);
+        }
+        assert.throws(() => verifyTrustedTestCoverage(base, candidate), lane === EXPECTED_RED
+          ? /expected-red manifest must preserve its reviewed singleton/u
+          : /prototype coverage is required in the positive security manifest/u);
+      });
+    }
+  }
 });
 
 test('identical manifests cannot omit required isolated-runner coverage', (t) => {
@@ -141,7 +183,7 @@ test('declarations have a bounded entry count and byte size', async (t) => {
 });
 
 test('missing declarations or tests are errors, not partial coverage', async (t) => {
-  for (const path of [CHILD, REQUIRED_ISOLATED_RUNNER_TEST]) {
+  for (const path of [CHILD, REQUIRED_ISOLATED_RUNNER_TEST, ...PROTOTYPE_TESTS]) {
     await t.test(path, (t) => {
       const { base, candidate } = withTrees(t);
       unlinkSync(join(candidate, path));
@@ -180,7 +222,7 @@ test('matching CRLF declarations are accepted without normalizing compared test 
       write(root, manifest, `${fixtureManifests[manifest].join('\r\n')}\r\n`);
     }
   }
-  assert.equal(verifyTrustedTestCoverage(base, candidate).testCount, 5);
+  assert.equal(verifyTrustedTestCoverage(base, candidate).testCount, 8);
   assert.equal(readFileSync(join(candidate, REQUIRED_ISOLATED_RUNNER_TEST), 'utf8'), 'export const ordinaryFixture = 1;\n');
 });
 

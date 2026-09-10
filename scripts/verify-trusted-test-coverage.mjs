@@ -9,6 +9,12 @@ export const TRUSTED_TEST_MANIFEST_PATHS = Object.freeze([
 ]);
 
 export const REQUIRED_ISOLATED_RUNNER_TEST = 'tests/pom-rx-strict-isolated-runner.node.test.mjs';
+export const REQUIRED_POSITIVE_SECURITY_TESTS = Object.freeze([
+  REQUIRED_ISOLATED_RUNNER_TEST,
+  'tests/wallet-guard/prototype-server.node.test.mjs',
+  'tests/wallet-guard/prototype-browser-rpc.node.test.mjs',
+  'tests/wallet-guard/prototype-durable-journal.node.test.mjs',
+]);
 const EXPECTED_RED_TEST = 'tests/pom-rx-integrity-baseline.node.test.mjs';
 const MAX_MANIFEST_BYTES = 128 * 1024;
 const MAX_TEST_BYTES = 2 * 1024 * 1024;
@@ -69,7 +75,7 @@ export function verifyTrustedTestCoverage(baseRoot, candidateRoot) {
   const base = canonicalRoot(baseRoot);
   const candidate = canonicalRoot(candidateRoot);
   const selectedTests = new Set();
-  let isolatedRunnerInPositiveLane = false;
+  const missingPositiveTests = new Set(REQUIRED_POSITIVE_SECURITY_TESTS);
 
   for (const manifestPath of TRUSTED_TEST_MANIFEST_PATHS) {
     const baseBytes = readRegularBytes(base, manifestPath, MAX_MANIFEST_BYTES);
@@ -79,7 +85,7 @@ export function verifyTrustedTestCoverage(baseRoot, candidateRoot) {
     }
     const paths = manifestPaths(baseBytes, manifestPath);
     if (manifestPath === '.github/trusted-security-tests.txt') {
-      isolatedRunnerInPositiveLane = paths.includes(REQUIRED_ISOLATED_RUNNER_TEST);
+      for (const path of paths) missingPositiveTests.delete(path);
     }
     if (
       manifestPath === '.github/trusted-expected-red-test.txt'
@@ -99,8 +105,11 @@ export function verifyTrustedTestCoverage(baseRoot, candidateRoot) {
       }
     }
   }
-  if (!isolatedRunnerInPositiveLane) {
+  if (missingPositiveTests.has(REQUIRED_ISOLATED_RUNNER_TEST)) {
     throw new Error('isolated-runner coverage is required in the positive security manifest');
+  }
+  if (missingPositiveTests.size > 0) {
+    throw new Error(`prototype coverage is required in the positive security manifest: ${[...missingPositiveTests].join(', ')}`);
   }
   return Object.freeze({
     manifestCount: TRUSTED_TEST_MANIFEST_PATHS.length,

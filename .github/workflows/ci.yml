@@ -20,9 +20,24 @@ jobs:
           # POM-RX fixture conformance binds immutable artifacts to historical
           # Git blob identities; a shallow clone must fail that proof closed.
           fetch-depth: 0
+          persist-credentials: false
+      - name: Assert canonical push or merge-candidate checkout
+        shell: bash
+        env:
+          EXPECTED_CHECKOUT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$EXPECTED_CHECKOUT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GitHub supplied an invalid checkout SHA." >&2
+            exit 1
+          fi
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$EXPECTED_CHECKOUT_SHA"
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          # The frozen in-process Promise startup contract is reviewed on this
+          # exact version; keep it aligned with the trusted container image.
+          node-version: 22.23.2
           cache: npm
       - name: Pin maintained npm audit client
         shell: bash
@@ -80,6 +95,49 @@ jobs:
           cmp --silent "$first_manifest" "$second_manifest"
           cmp --silent "$first_manifest" "$repository_root/core/strict-verification/pom-rx-v01-artifact-manifest.json"
       - run: npm test
+      - name: Check prepared frozen Promise startup in the Node 22 in-process runner
+        env:
+          TRUSTED_TEST_MANIFEST: .github/trusted-security-tests.txt
+          TRUSTED_TEST_PATH: tests/wallet-guard/prototype-server.node.test.mjs
+        run: |
+          node --version
+          node \
+            --require=./scripts/trusted-promise-data-preload.cjs \
+            --frozen-intrinsics \
+            --permission \
+            --allow-fs-read="$GITHUB_WORKSPACE" \
+            --allow-fs-read=/tmp \
+            --allow-fs-write=/tmp \
+            --allow-child-process \
+            --no-addons \
+            --import=./scripts/trusted-test-loader-register.mjs \
+            --import=./scripts/trusted-assert-preload.mjs \
+            --test \
+            --experimental-test-isolation=none \
+            --test-reporter=./scripts/trusted-test-reporter.mjs \
+            --test-name-pattern='^loopback prototype authenticates one page and executes DENY then one bound ALLOW$' \
+            tests/wallet-guard/prototype-server.node.test.mjs
+      - name: Check trusted child launcher in the Node 22 frozen parent
+        env:
+          TRUSTED_TEST_MANIFEST: .github/trusted-security-tests.txt
+          TRUSTED_TEST_PATH: tests/trusted-test-child.node.test.mjs
+        run: |
+          node --version
+          node \
+            --require=./scripts/trusted-promise-data-preload.cjs \
+            --frozen-intrinsics \
+            --permission \
+            --allow-fs-read="$GITHUB_WORKSPACE" \
+            --allow-fs-read=/tmp \
+            --allow-fs-write=/tmp \
+            --allow-child-process \
+            --no-addons \
+            --import=./scripts/trusted-test-loader-register.mjs \
+            --import=./scripts/trusted-assert-preload.mjs \
+            --test \
+            --experimental-test-isolation=none \
+            --test-reporter=./scripts/trusted-test-reporter.mjs \
+            tests/trusted-test-child.node.test.mjs
       - name: Assert tracked POM-RX integrity gaps remain expected-red
         run: npm run test:pom-rx:integrity-baseline:expected-red
       - name: Add Stellar contract build target

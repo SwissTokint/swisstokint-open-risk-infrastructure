@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 const MODULE_URL = new URL(
   '../../applications/blockchain-digital-assets/wallet-guard/trusted-provider-transport.mjs',
@@ -8,12 +9,53 @@ const MODULE_URL = new URL(
 ).href;
 const ACCOUNT = `0x${'1'.repeat(40)}`;
 const TX_RESULT = `0x${'a'.repeat(64)}`;
+const CHILD_TEST_PATH = 'tests/fixtures/trusted-runner/authenticated-child-source.test.mjs';
+const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const CHILD_MANIFEST_PATH = fileURLToPath(
+  new URL('../../.github/trusted-child-tests.txt', import.meta.url),
+);
+const LOADER_REGISTER_URL = new URL(
+  '../../scripts/trusted-test-loader-register.mjs',
+  import.meta.url,
+).href;
+const PRELOAD_URL = new URL('../../scripts/trusted-assert-preload.mjs', import.meta.url).href;
+const REPORTER_URL = new URL('../../scripts/trusted-test-reporter.mjs', import.meta.url).href;
+
+function trustedChildEnvironment(source) {
+  const environment = {
+    ...process.env,
+    TRUSTED_CHILD_SOURCE_BASE64: Buffer.from(source, 'utf8').toString('base64'),
+    TRUSTED_TEST_MANIFEST: CHILD_MANIFEST_PATH,
+    TRUSTED_TEST_PATH: CHILD_TEST_PATH,
+  };
+  delete environment.NODE_TEST_CONTEXT;
+  return environment;
+}
 
 function runStrictChild(source) {
   return spawnSync(
     process.execPath,
-    ['--unhandled-rejections=strict', '--input-type=module', '--eval', source],
-    { encoding: 'utf8' },
+    [
+      '--unhandled-rejections=strict',
+      '--permission',
+      `--allow-fs-read=${REPOSITORY_ROOT}`,
+      '--no-addons',
+      '--import',
+      LOADER_REGISTER_URL,
+      '--import',
+      PRELOAD_URL,
+      '--test',
+      '--experimental-test-isolation=none',
+      `--test-reporter=${REPORTER_URL}`,
+      CHILD_TEST_PATH,
+    ],
+    {
+      cwd: REPOSITORY_ROOT,
+      encoding: 'utf8',
+      env: trustedChildEnvironment(source),
+      timeout: 10_000,
+      windowsHide: true,
+    },
   );
 }
 
@@ -24,7 +66,19 @@ function assertStrictChildPassed(child, label) {
     `${label} child failed\nstdout:\n${child.stdout}\nstderr:\n${child.stderr}`,
   );
   assert.equal(child.signal, null);
+  assert.match(child.stdout, /trusted-test-suite-pass files=1/u);
 }
+
+test('trusted child lifecycle rejects candidate process.exit(0)', () => {
+  const child = runStrictChild(`
+    process.exit(0);
+    throw new Error('trusted child source continued after the forbidden exit');
+  `);
+  assert.equal(child.error, undefined);
+  assert.equal(child.signal, null);
+  assert.notEqual(child.status, 0, `${child.stdout}\n${child.stderr}`);
+  assert.doesNotMatch(child.stdout, /trusted-test-suite-pass/u);
+});
 
 function runPreImportPoisonCase(method) {
   const source = `
@@ -68,6 +122,7 @@ function runPreImportPoisonCase(method) {
     if (poisonCalls !== 0) {
       throw new Error('poisoned Promise.' + method + ' executed ' + String(poisonCalls) + ' time(s)');
     }
+    Object.defineProperty(Promise, method, originalDescriptor);
   `;
 
   return runStrictChild(source);
@@ -86,6 +141,7 @@ test('pre-import Object.getPrototypeOf poisoning cannot hide an inherited Array 
   const source = `
     const originalGetPrototypeOf = Object.getPrototypeOf;
     const originalSetPrototypeOf = Object.setPrototypeOf;
+    const originalArrayPrototypeParent = originalGetPrototypeOf(Array.prototype);
     let thenGetterCalls = 0;
     const intermediate = {};
     Object.defineProperty(intermediate, 'then', {
@@ -121,6 +177,8 @@ test('pre-import Object.getPrototypeOf poisoning cannot hide an inherited Array 
     if (thenGetterCalls !== 0) {
       throw new Error('inherited Array then getter executed ' + String(thenGetterCalls) + ' time(s)');
     }
+    Object.getPrototypeOf = originalGetPrototypeOf;
+    originalSetPrototypeOf(Array.prototype, originalArrayPrototypeParent);
   `;
 
   assertStrictChildPassed(
@@ -131,6 +189,7 @@ test('pre-import Object.getPrototypeOf poisoning cannot hide an inherited Array 
 
 test('pre-import WeakSet poisoning cannot bless an unowned provider', () => {
   const source = `
+    const OriginalWeakSet = globalThis.WeakSet;
     class PoisonedWeakSet {
       add() { return this; }
       has() { return true; }
@@ -166,6 +225,7 @@ test('pre-import WeakSet poisoning cannot bless an unowned provider', () => {
     if (providerCalls !== 0) {
       throw new Error('unowned provider executed ' + String(providerCalls) + ' time(s)');
     }
+    globalThis.WeakSet = OriginalWeakSet;
   `;
 
   assertStrictChildPassed(
@@ -204,6 +264,7 @@ test('pre-import Promise constructor Proxy is rejected without executing descrip
     if (descriptorTrapCalls !== 0) {
       throw new Error('Promise constructor descriptor trap executed ' + String(descriptorTrapCalls) + ' time(s)');
     }
+    globalThis.Promise = OriginalPromise;
   `;
 
   assertStrictChildPassed(

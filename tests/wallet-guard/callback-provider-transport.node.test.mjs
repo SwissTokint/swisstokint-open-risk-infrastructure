@@ -1,5 +1,5 @@
+import { runTrustedTestChild } from '../helpers/trusted-test-child.mjs';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { types as utilTypes } from 'node:util';
 import test from 'node:test';
 
@@ -841,11 +841,7 @@ test('strict child observes no orphaned rejection for an invalid dispatcher retu
     }
     await new Promise((resolve) => setImmediate(resolve));
   `;
-  const child = spawnSync(
-    process.execPath,
-    ['--unhandled-rejections=strict', '--input-type=module', '--eval', source],
-    { encoding: 'utf8' },
-  );
+  const child = runTrustedTestChild(source);
   assert.equal(
     child.status,
     0,
@@ -890,11 +886,7 @@ test('strict child leaves no orphan when dispatcher reports failure then poisons
     }
     await new Promise((resolve) => setImmediate(resolve));
   `;
-  const child = spawnSync(
-    process.execPath,
-    ['--unhandled-rejections=strict', '--input-type=module', '--eval', source],
-    { encoding: 'utf8' },
-  );
+  const child = runTrustedTestChild(source);
   assert.equal(
     child.status,
     0,
